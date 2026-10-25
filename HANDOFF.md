@@ -7896,7 +7896,8 @@ counting — and the precondition is measured on a shadow snapshot that is not t
 reads. Inserting a 600ms sleep in that gap fails it **6 of 6 times**, which is the cause
 established rather than inferred: under load the scheduler supplies the same gap. The fix is the
 test's — stop the session before sampling, or wait on the tally the rule actually reads — and it is
-not applied here, because R1–R3 is what was under review.
+not applied here, because R1–R3 is what was under review. **See §38V: fixing it found that the gap
+was the smaller half of the story.**
 
 Eight mutations killed and a no-op control surviving. Two are worth the record: one was
 **unfalsifiable** on its first attempt (it guessed a route path by hand, the read failed and
@@ -8072,3 +8073,40 @@ See [[ADR-256-recording-a-routine-again]]. All three authorized pieces are in. R
 coordinate mode is the mode STATEMENT only: there is no second mode to choose between and no
 control that offers one, because the other mode is the anchor stack and that is the open question
 `cvOff()` names, which needs an experiment rather than a dropdown.
+
+## 38V — the director flake, and a fixture that named one branch and exercised another
+
+`cmd/director`'s `TestAnUnsettledNameIsNotWrittenDownByWatching` has failed intermittently under
+full-suite load for three sessions. §38R established the gap it fails in: the precondition loop
+broke the instant both words had been SEEN, and the assertion was then made about what the ambient
+sampler decides from a session still running and still counting. That was right as far as it went.
+
+Fixing it found the rest. **The fixture could not produce the tie it was named for.** It said
+`Mouse` and `Trackpad` on alternating frames and called that two words said equally often; the
+tally never tied. Printing the shadow shows why: one screen's sightings split across two screen
+states — `state_1` holding `Mouse:4, Trackpad:1` and `state_2` holding `Trackpad:2`, with the
+eighth sighting dropped as a transition frame — and `settledPlaceName` settles a lead of ONE as
+soon as the leader reaches `StatePromotionCount`, which is two. So the test was green only while
+every count was still below the threshold: **it was passing on the too-thin branch while claiming
+to hold the tie**, and it failed whenever the session had got far enough for a lead to clear it.
+Waiting for a tie instead of for both words — the obvious fix — hangs for the full sixty-second
+deadline and then reports `map[Mouse:4 Trackpad:3]`, which is the finding stated as a failure.
+
+So the fixture says what it means. Each word is said ONCE, with unnamed frames between them and
+either side, and then the names stop: `creditTerms` credits only a name that is there and
+`sameSampler` repeats its last frame for as long as the session runs, so **no name can ever reach
+the promotion threshold in any state, whenever the sample is taken and however the sightings
+land** — losing one leaves the other, still unsettled. There is no gap left to race. The
+precondition QUOTES the rule through `observe.SettledPlaceNameFor` rather than counting sightings
+itself, because a precondition that re-derived the rule would be the test agreeing with itself, and
+it now also requires that a word was read at all — a name not written down is not evidence of
+anything if perception read nothing. The assertion asks the whole store rather than the one subject
+the session happened to establish first, since an unsettled word landing on a second state would be
+written against a second subject the old line could not see.
+
+The tie is held where it can be held exactly: `observe.TestATiedNameIsLeftUnresolved`, over a
+state built by hand, asked forty times so no map order can answer it.
+
+Mutated to confirm it still holds what it is for: `PlaceNamesToRecord` reading the tally instead of
+what settled out of it is **killed** 2 of 2, naming the word and the Place it was written for.
+Four consecutive runs green, about 1.8s each. See [[ADR-113-learning-is-inside-watching]].

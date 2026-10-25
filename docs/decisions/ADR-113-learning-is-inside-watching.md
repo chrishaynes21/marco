@@ -156,7 +156,13 @@ nothing.
   `EnableAmbientLearning`, one supervisor reading, assertion against the reopened file
 - `cmd/director` `TestWatchingAloneNamesNothing`
 - `cmd/director` `TestNamingAPlaceNeedsNoWalkOrEdge` — no edge, no candidate, no second Place
-- `cmd/director` `TestAnUnsettledNameIsNotWrittenDownByWatching`
+- `cmd/director` `TestAnUnsettledNameIsNotWrittenDownByWatching` — the PATH, and nothing more: a
+  word perception really read, nothing settled out of it, and nothing written down for ANY Place.
+  It says each word ONCE, because a word said once cannot settle however the sightings land. It
+  used to say two words equally often and call that the tie — which the fixture could not deliver,
+  since sightings from one screen split across screen states and a session that is still sampling
+  cannot be held at an exact count, so the test was green on the too-thin branch while naming the
+  tie. The tie itself is `observe.TestATiedNameIsLeftUnresolved`, over a state built by hand.
 - `cmd/director` `TestTheFeedSaysAPlaceWasNamedOnceItActuallyWas`
 - `cmd/director` `TestStoppingWatchingStopsLearning`, `TestTurningLearningOffLeavesMarcoWatching`
 - `cmd/director` `TestWhatTheScreenSaysItIsComesFromWatchingNotMemory`,

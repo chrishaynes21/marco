@@ -254,8 +254,26 @@ func TestNamingAPlaceNeedsNoWalkOrEdge(t *testing.T) {
 // make a transition frame carrying the name of the page being LEFT into a durable name for the
 // page being arrived at.
 //
-// The screen says two different things equally often, so nothing has settled — the tie case,
-// which the rule leaves unresolved rather than deciding by map order.
+// The screen says two words and says each of them ONCE, so neither recurs and nothing settles.
+//
+// # What this fixture used to be, and why it was a flake
+//
+// It used to say two words EQUALLY OFTEN and call that the tie case. The tally never tied. The
+// sightings split across two screen states — `state_1` holding four of one word and one of the
+// other, `state_2` holding two, with one sighting dropped as a transition frame — and a session
+// that is still sampling keeps moving them. `settledPlaceName` settles a one-word lead as soon as
+// the leader reaches `StatePromotionCount`, which is two, so this test was green only while every
+// count was still below that: it was passing on the TOO-THIN branch while claiming to hold the
+// tie, and it failed whenever the session had got far enough for a lead to clear the threshold.
+// A fixture that describes one branch and exercises another is worse than no fixture, because it
+// is the branch it names that nobody will check again.
+//
+// So the fixture says what it means. Each word is said once, which cannot settle however the
+// sightings land — the loss of one leaves the other, still unsettled — and the names then STOP:
+// `creditTerms` credits only a name that is there and `sameSampler` repeats its last frame for as
+// long as the session runs, so the tally is final and the assertion has nothing moving under it.
+// The TIE is held where it can be held exactly: `observe.TestATiedNameIsLeftUnresolved`, over a
+// state built by hand, asked repeatedly so no map order can answer it.
 //
 // Deleting the settlement — reading `PlaceNames` instead of `settledPlaceName` — must fail this.
 func TestAnUnsettledNameIsNotWrittenDownByWatching(t *testing.T) {
@@ -269,45 +287,84 @@ func TestAnUnsettledNameIsNotWrittenDownByWatching(t *testing.T) {
 	rt := &Runtime{observations: g}
 	t.Cleanup(func() { rt.DisableAmbient() })
 
-	// TWO NAMES, EQUALLY OFTEN. Nothing has settled, and neither wins.
+	// TWO WORDS, EACH SAID ONCE, AND THEN NOTHING. Neither recurs, so neither settles.
+	//
+	// Said apart, with unnamed frames between and either side: two words on consecutive
+	// frames is the transition this rule exists to refuse, and the point here is the
+	// weaker, commoner case — a word read on one reading of a screen that is otherwise
+	// quiet about what it is called.
+	said := map[int]string{8: "Mouse", 10: "Trackpad"}
 	var script []dryFrame
 	for i := 0; i < 128; i++ {
-		called := "Mouse"
-		if i%2 == 1 {
-			called = "Trackpad"
-		}
-		script = append(script, dryFrame{screen: "a", appearsCalled: called})
+		script = append(script, dryFrame{screen: "a", appearsCalled: said[i]})
 	}
 	subject := watchScript(t, g, store, "testgame", script)
 
-	// AND THE TALLY REALLY HOLDS BOTH WORDS, so the refusal below is settlement holding
-	// rather than perception having read nothing.
-	tallied := map[string]int{}
+	// AND PERCEPTION REALLY READ A WORD, AND THE RULE REALLY REFUSES IT, so what is
+	// asserted below is settlement holding rather than nothing having been read.
+	//
+	// The rule is QUOTED rather than re-derived — `SettledPlaceNameFor` is the window onto
+	// it that exists so a test can hold the threshold and the tie without a second copy of
+	// either. A precondition that counted sightings itself would be a second rule, and the
+	// one thing this test must not do is agree with itself.
+	tallied, settled := map[string]int{}, ""
 	for deadline := time.Now().Add(settleDeadline); time.Now().Before(deadline); {
-		tallied = map[string]int{}
+		tallied, settled = map[string]int{}, ""
 		for _, st := range lastShadow(t, g).States {
 			for name, seen := range st.PlaceNames {
 				tallied[name] += seen
 			}
+			if s := observe.SettledPlaceNameFor(st); s != "" {
+				settled = s
+			}
 		}
-		if tallied["Mouse"] > 0 && tallied["Trackpad"] > 0 {
+		if len(tallied) > 0 {
 			break
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
-	if tallied["Mouse"] == 0 || tallied["Trackpad"] == 0 {
-		t.Fatalf("the fixture tallied %v; both words have to be seen for a tie to be "+
-			"what is refused", tallied)
+	if len(tallied) == 0 {
+		t.Fatal("no screen read a word at all, so a name that is not written down is " +
+			"not evidence of anything")
+	}
+	if settled != "" {
+		t.Fatalf("the fixture tallied %v and %q settled out of it, so this is no longer "+
+			"the unsettled case and the assertion below would hold either way",
+			tallied, settled)
 	}
 
 	rt.EnableAmbientLearning()
 	rt.ambient().sample("testgame")
 
 	if got := semanticOf(t, path, subject); got != "" {
-		t.Fatalf("a screen that said two different things equally often was written down "+
-			"as %q. A tie is Marco not knowing, and deciding it by map order would make "+
-			"a Place's name depend on how a hash table happened to walk.", got)
+		t.Fatalf("a screen that said %v, settling on none of it, was written down as "+
+			"%q — so what watching persists is the tally rather than the name that "+
+			"recurred", tallied, got)
 	}
+	// AND NOT AGAINST ANY OTHER PLACE EITHER.
+	//
+	// Asked of the whole store because the subject above is the place the session happened
+	// to establish FIRST, and an unsettled word landing on a second state would be written
+	// against a second subject — which the line above cannot see. A test that can pass by
+	// asserting about the wrong Place is a test that holds nothing.
+	if s, name := anySemanticIn(t, path); name != "" {
+		t.Fatalf("%q was written down for %s out of a tally nothing settled in", name, s)
+	}
+}
+
+// anySemanticIn is the first subject in the store on disk that carries a semantic name, if any.
+func anySemanticIn(t *testing.T, path string) (string, string) {
+	t.Helper()
+	reopened, why := semanticmemory.Open(path)
+	if why != "" {
+		t.Fatalf("reopening %s: %s", path, why)
+	}
+	for _, s := range reopened.Subjects() {
+		if s.Semantic != "" {
+			return s.ID, s.Semantic
+		}
+	}
+	return "", ""
 }
 
 // watchScript leaves a real session running over an arbitrary script and establishes the place.
