@@ -408,6 +408,11 @@
   <!-- WHILE IT WATCHES. Two buttons and no clock: it ends when you say so. -->
   <div class="card hide" id="capturing">
     <div id="capDoing" style="font-size:15px"></div>
+    <!-- WHICH ROUTINE THIS IS A SECOND RECORDING OF, AND WHAT SAVE WILL DO.
+         Said while the recording is running as well as at review, because the thing
+         it heads off is an expectation: somebody who pressed Record again on a routine
+         may reasonably think Save will replace it. It will not. See again.go. -->
+    <div class="muted hide" style="margin-top:6px" id="capAgain"></div>
     <div class="muted" style="margin-top:6px">Do it now. Come back here and press
       <b>Stop recording</b> when you are done — bringing this window forward and
       pressing the button is not part of what you are teaching.</div>
@@ -439,6 +444,15 @@
          as beside Record, from the recording that actually ran rather than from what
          this window intended. -->
     <div class="muted" style="margin-top:6px" id="capReviewCaptures"></div>
+    <!-- THE SAME SENTENCE AT REVIEW, where Save is the next button. -->
+    <div class="muted hide" style="margin-top:6px" id="capAgainReview"></div>
+    <!-- AND WHEN THE DEMONSTRATION WAS MADE SOMEWHERE ELSE.
+         A warning rather than a note, because this is the case where Save SUCCEEDS and
+         does the wrong thing: which routine a save writes is decided by the application
+         that was observed, so a re-recording made in another application is a different
+         route, with no collision to refuse and a second routine quietly kept beside the
+         one somebody set out to replace. -->
+    <div class="no hide" style="margin-top:6px" id="capAgainElsewhere"></div>
     <ol id="capSteps" class="muted" style="margin-top:10px"></ol>
     <!-- HOW IT WILL BE PERFORMED, when that is not a choice. See pollCapture. -->
     <div class="muted hide" style="margin-top:10px" id="capBrings"></div>
@@ -520,6 +534,20 @@
            be this window telling somebody how their routine was made on the strength of
            a guess. See routines.go. -->
       <div class="muted hide" style="margin-top:6px" id="routineCaptures"></div>
+      <!-- RECORD IT AGAIN, FROM THE ROUTINE.
+           Re-recording is what somebody testing a routine does all afternoon, and it
+           used to mean reading the name off this card and typing it back into the box
+           at the top of the page exactly — get it wrong by a space and you have two
+           routines instead of a new version of one.
+
+           It carries NO authority to replace anything. Save refuses a collision and
+           offers Replace by name, exactly as it does for any other recording; the
+           button only saves somebody retyping a name and remembering an application.
+           See again.go. -->
+      <div class="row" style="margin-top:10px">
+        <button id="routineAgainBtn" onclick="recordRoutineAgain()">Record it again</button>
+        <span class="muted" id="routineAgainNote"></span>
+      </div>
       <div class="banner bad hide" style="margin-top:8px" id="routineWhy"></div>
       <div class="row" style="margin-top:12px">
         <button class="go" id="routinePlayBtn" onclick="playRoutine()">Play — press for
@@ -1371,6 +1399,17 @@
      text($('capReviewCaptures'), r.captures || '')
      showing($('capCaptures'), !!r.captures)
      showing($('capReviewCaptures'), !!r.captures)
+     // WHICH ROUTINE THIS IS A SECOND RECORDING OF, in both cards, on every poll.
+     //
+     // Outside the signature guard below for the same reason the line above is: that
+     // guard exists to stop the step list being rebuilt under somebody's cursor, and
+     // these are single lines of text.
+     text($('capAgain'), r.again_says || '')
+     text($('capAgainReview'), r.again_says || '')
+     showing($('capAgain'), !!r.again_says)
+     showing($('capAgainReview'), !!r.again_says)
+     text($('capAgainElsewhere'), r.again_elsewhere || '')
+     showing($('capAgainElsewhere'), !!r.again_elsewhere)
      if (r.active) {
        text($('capDoing'), 'Recording ' + (r.name ? '“' + r.name + '”' : '') + '…')
        // AND THE OTHER WAY OUT, NAMED. The button is not the only one and somebody
@@ -1433,7 +1472,12 @@
        o.value = v; o.textContent = says
        scope.appendChild(o)
      })
-     scope.value = r.scope || had || 'app'
+     // AND IT OPENS ON THE SCOPE THE ROUTINE ALREADY HAS, when this is a second
+     // recording of one. In this order and not another: a FORCED scope first,
+     // because that is not a choice at all; then the scope of the routine being
+     // re-recorded, so a replacement is not silently rescoped; then whatever was
+     // selected before, then the default.
+     scope.value = r.scope || r.again_scope || had || 'app'
      // AND SAVE IS NOT OFFERED FOR A RECORDING THAT PRESSES NOTHING. There is nothing
      // to keep, and the sentence above says so.
      // AND SAVE IS NOT OFFERED FOR A RECORDING THAT CANNOT BE SAVED, for either
@@ -1636,6 +1680,34 @@
  function paintRoutinePlay(){
    const r = routineWith(chosenRoutine)
    $('routinePlayBtn').disabled = runActive || !r || !r.runnable
+   // AND RECORD IT AGAIN IS OFF WHILE ANYTHING IS IN FLIGHT, but NOT because the
+   // routine is unrunnable — a routine that refuses every press is the one somebody
+   // most needs to record again, and a button greyed out there would be the window
+   // withholding the only way forward.
+   //
+   // The backend refuses both cases anyway. This is so a live button never answers a
+   // press with "something is already being recorded", which is a window telling
+   // somebody off for pressing what it offered them.
+   $('routineAgainBtn').disabled = runActive || captureActive || !r
+ }
+
+ // RECORD THE CHOSEN ROUTINE AGAIN.
+ //
+ // The IDENTITY is handed over, not the name: `settings` can be saved for two applications
+ // under two scopes, and a name would start a recording of whichever one the backend found
+ // first — then offer to replace it. The backend looks the identity up again, now, because a
+ // routine can be deleted between this card being drawn and this button being pressed.
+ function recordRoutineAgain(){
+   const r = routineWith(chosenRoutine)
+   if (!r) { return }
+   text($('routineAgainNote'), '')
+   acts.RecordAgain(r.id).then(why => {
+     text($('routineAgainNote'), why || '')
+     // AND THE VIEW GOES WHERE THE RECORDING IS. The Record card and its two
+     // buttons are under Scenes; a person left looking at a routine's card while
+     // the hooks were watching would have no Stop button in front of them.
+     if (!why) { show('scenes') }
+   })
  }
 
  function playRoutine(){

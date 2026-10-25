@@ -1726,6 +1726,32 @@ What to check, and what each failure would mean:
   `"mode": "unstated"`. Both are readings of the file; neither is read from the environment of the
   `marco.exe` that performed it.
 
+- **Record it again, from the routine.** Choose a saved routine and press **Record it again**. The
+  view moves to Scenes with a recording already running under that routine's own name — you type
+  nothing. While it runs and again at review it must say *This is a second recording of "<name>".
+  Saving it will NOT replace that routine.*
+- **And pressing Save does NOT replace it.** This is the check worth doing carefully, because it is
+  the one that protects something you cannot get back. Do the demonstration, Stop, then press
+  **Save**: it must refuse, name the routine that is there and the day it was kept, and offer *Save
+  as* and *Replace*. Afterwards look in the library: the first routine's `.marco` AND its
+  `.rec.json` are both still there. If Save replaced it, stop and report it — that is the defect
+  §38N exists to prevent arriving through a new door.
+- **Replace still names what it replaces.** Press **Replace**: the button says *Replace "<name>"*,
+  and afterwards the library holds one routine, not two.
+- **Cancel leaves the original alone.** Record it again, Stop, then **Cancel**. The routine you
+  started from is unchanged and still the only one.
+- **The scope opens on the routine's own.** For a routine where the scope is a choice at all, the
+  select must already be on the scope that routine has — not the first option in the list. A
+  re-recording silently rescoped works somewhere else than the one it replaced.
+- **And a re-recording made in the WRONG application warns you.** Press Record it again on a
+  routine saved for your game, then demonstrate in Notepad instead. At review it must say in red
+  that this was recorded in notepad, that the routine is saved for the game, and that saving it
+  would make a SECOND routine rather than a new version of that one. This is the one case where
+  Save succeeds and does the wrong thing: which routine a save writes is decided by the application
+  it was recorded in, so there is no collision to refuse. Cancel it.
+- **An ordinary recording says none of this.** Record something new from the box at the top: no
+  *second recording of* line, no red warning. A notice on every recording is a notice nobody reads.
+
 Then: `studio-console.exe -trial <store>` reads back what this trial recorded about itself,
 including which build, which contract the routine ran under, and the run's own answer. A routine's
 run is filed as `RUN "<name>"` rather than as a performance â if it reads *the run cited no

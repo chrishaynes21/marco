@@ -79,6 +79,14 @@ type capture struct {
 	// recording that is still running and has no draft yet — and "what is being captured"
 	// is the question somebody has while they are demonstrating, not afterwards.
 	mode orchestrator.RecordedAs
+	// again is the saved routine this is a second recording of, or nil.
+	//
+	// It carries NO authority to replace anything. It is what the window has to know to
+	// say which routine somebody set out to re-record — and to notice when the
+	// demonstration they then made was in a different application, which would quietly
+	// make a second routine rather than the new version of the one they chose. See
+	// again.go.
+	again *reRecording
 	// stop is closed by the Stop button, and `ended` makes closing it idempotent — a
 	// second press of a button whose first press is still being served must not panic.
 	stop  chan struct{}
@@ -96,6 +104,35 @@ type capture struct {
 type Recording struct {
 	Name   string `json:"name,omitempty"`
 	Active bool   `json:"active"`
+	// Again is the identity of the saved routine this is a second recording of, and
+	// AgainName what that routine calls itself. Both empty for an ordinary recording.
+	//
+	// The identity rather than the name, because a name is not unique: `settings` can be
+	// saved for two applications under two scopes, and a window that remembered the word
+	// would offer to replace whichever one it found first.
+	Again     string `json:"again,omitempty"`
+	AgainName string `json:"again_name,omitempty"`
+	// AgainScope is where that routine works, so the review opens on its scope rather
+	// than on the first option in a list. A PREFERENCE, not a decision: a scope the new
+	// recording cannot be performed under is still refused by `keep`, and a forced scope
+	// still withdraws the choice entirely. See Recording.Scope.
+	AgainScope string `json:"again_scope,omitempty"`
+	// AgainSays is what a re-recording means for what happens at Save, in a sentence.
+	//
+	// Said during the recording AND at review, because the thing it has to head off is
+	// an expectation: somebody who pressed *Record again* on a routine may reasonably
+	// think Save will replace it. It will not. Save refuses a collision and offers the
+	// choice, exactly as it does for any other recording — see replace.go.
+	AgainSays string `json:"again_says,omitempty"`
+	// AgainElsewhere is set when the demonstration was made in a DIFFERENT application
+	// from the routine being re-recorded.
+	//
+	// Because then an ordinary Save writes a SECOND routine rather than a new version of
+	// the one somebody chose, and nothing refuses it: the identity a save writes is
+	// built from the application that was observed, so a different application is a
+	// different route and there is no collision to refuse. That is safe and it is not
+	// what the person asked for, so it is said.
+	AgainElsewhere string `json:"again_elsewhere,omitempty"`
 	// Mode is what this recording was told to capture, in the word the saved routine
 	// will state, and Captures is that in a sentence.
 	//
@@ -169,6 +206,17 @@ type Recording struct {
 // brought forward and nothing counts down: the person switches to whatever they are
 // demonstrating when they like, and that switch is recorded as the step that performs it.
 func (a *Acts) StartRecording(name string) string {
+	return a.beginRecording(name, nil)
+}
+
+// beginRecording is StartRecording, and `RecordAgain` through the same door.
+//
+// One function because of the five refusals below. A second entrance that repeated them would be
+// five rules in two places, and a second entrance that skipped them would let somebody start a
+// recording while a run was in flight — which is a runner pressing things into a draft as the
+// person's own. `again` is nil for an ordinary recording and is what makes this one a
+// re-recording of something saved; see again.go.
+func (a *Acts) beginRecording(name string, again *reRecording) string {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return "say what to call it first — the name is what you will look for later"
@@ -205,7 +253,8 @@ func (a *Acts) StartRecording(name string) string {
 		return "there is a recording waiting to be saved or cancelled — deal " +
 			"with that one first"
 	}
-	c := &capture{name: name, stop: make(chan struct{}), done: make(chan struct{})}
+	c := &capture{name: name, stop: make(chan struct{}), done: make(chan struct{}),
+		again: again}
 	a.capture = c
 	a.mu.Unlock()
 
@@ -408,6 +457,13 @@ func (a *Acts) Recording() Recording {
 	// promising coordinates. The sentence is the window's; the word is the recording's.
 	out.Mode = string(c.mode)
 	out.Captures = capturesSentence(c.mode)
+	// AND WHICH ROUTINE THIS IS A SECOND RECORDING OF, when it is one.
+	if g := c.again; g != nil {
+		out.Again, out.AgainName, out.AgainScope = g.id, g.name, g.scope
+		out.AgainSays = fmt.Sprintf("This is a second recording of %q. Saving it "+
+			"will NOT replace that routine: Save refuses to write over one, "+
+			"and then offers you Replace by name.", g.name)
+	}
 	select {
 	case <-c.done:
 	default:
@@ -425,6 +481,12 @@ func (a *Acts) Recording() Recording {
 	}
 	out.Review = saved == ""
 	out.Application, out.StoppedBy = dr.App, dr.StoppedBy
+	// AND WHETHER THE DEMONSTRATION WAS MADE WHERE THE ROUTINE LIVES.
+	//
+	// Only knowable once there is a draft, because the application is OBSERVED. See
+	// againElsewhere for why a mismatch is worth a sentence: the save would succeed,
+	// and it would write a second routine rather than the new version somebody meant.
+	out.AgainElsewhere = againElsewhere(c.again, dr.App)
 	out.Pressable = dr.Pressable()
 	out.Steps = inWords(dr.Steps)
 	if out.Pressable == 0 {

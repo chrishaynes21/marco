@@ -390,6 +390,35 @@ nothing there can have tried it. A panel that dropped the caveat on a clean mach
 as a promise at exactly the moment somebody believed one.
 [[ADR-255-readiness-is-what-has-been-checked]]
 
+## A routine offers to be recorded again, and that offer replaces nothing
+
+Re-recording is the ordinary activity of getting a routine right, and it used to mean reading the
+name off the card, typing it back into the box exactly, remembering which application the first one
+was saved for, and picking the same scope. Get the name wrong by a space and you have two routines
+instead of a new version of one.
+
+So the routine offers it. The route's whole **identity** goes to the backend, not its name —
+`settings` can be saved for two applications under two scopes, and a window holding the word would
+start a recording of whichever it found first and then offer to replace *that* — and the backend
+looks the identity up again at the moment the button is pressed, because a card can be on screen
+for a routine somebody has just deleted.
+
+**It carries no authority to replace anything.** There is no new save path: Save goes through the
+same check every other recording does, which asks what is at the target, refuses a collision, and
+offers *Save as* or *Replace that routine by name*. A button that re-recorded and then replaced on
+an ordinary Save would have reintroduced exactly the loss the collision check was built to prevent,
+through a door marked convenience, and the person pressing it would have had more reason than
+anybody to expect it.
+
+What the label does buy is three notices: which routine this is a second recording of, said during
+the recording as well as at review because the expectation forms before Save is in front of
+anybody; the routine's own scope preselected, so a replacement is not silently rescoped; and a
+warning when the demonstration was made in a **different application**. That last one is the single
+case where Save succeeds and does the wrong thing — which routine a save writes is decided by the
+application that was observed, so a re-recording made elsewhere is a different route, with no
+collision to refuse and a second routine quietly kept beside the one somebody set out to replace.
+[[ADR-256-recording-a-routine-again]]
+
 ## Validated by
 
 - `internal/director/demo` unit tests (`demo.go`, `record.go`, `validate.go`)

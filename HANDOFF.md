@@ -8013,3 +8013,50 @@ session must not start a process that performs real input, so the panel names th
 run record names the `marco` that performed it.
 
 See [[ADR-255-readiness-is-what-has-been-checked]].
+
+## 38U — recording a routine again, and the offer that replaces nothing
+
+The third and last of the authorized Studio pieces.
+
+Re-recording is the ordinary activity of getting a routine right, and until now it meant reading
+the name off the card, typing it back into the box at the top of the page exactly, remembering
+which application the first one was saved for, and picking the same scope. Get the name wrong by a
+space and you have two routines instead of a new version of one.
+
+So the routine offers it. `RecordAgain` takes the route's whole IDENTITY and not its name —
+`settings` can be saved for two applications under two scopes, and a window holding the word would
+start a recording of whichever it found first and then offer to replace THAT — and it looks the
+identity up again at the moment the button is pressed, because a card can be on screen for a
+routine somebody has just deleted from a terminal. Both entrances go through one
+`beginRecording`, so the five refusals live in one place: a second door that skipped them would let
+a recording start while a run was in flight, and a runner pressing things while the hooks watch
+records Marco's own presses as the person's.
+
+**`again` is a label and not a licence, and that is the whole design.** There is no new save path.
+Save goes through the same `keep` every recording goes through: it asks what is at the target,
+refuses a collision, and offers *Save as* or *Replace that routine by name*. §38N exists because
+`Registry.Save` is a plain file write, so keeping a recording under a name already in the library
+replaced the source and the `.rec.json` beside it with nothing asked and nothing said — and the
+likeliest casualty was the routine somebody was comparing against. A Record-again button that then
+replaced on an ordinary Save would have reintroduced exactly that, through a door marked
+convenience, and the person pressing it would have had more reason than anybody to expect it.
+
+What the label buys is three notices: which routine this is a second recording of, said during the
+recording as well as at review because the expectation forms before Save is in front of anybody;
+the routine's own scope preselected, so a replacement is not silently rescoped; and a warning when
+the demonstration was made in a DIFFERENT application. That last is the one case where Save
+succeeds and does the wrong thing — the identity a save writes is decided by the application that
+was OBSERVED, so a re-recording made elsewhere is a different route, with no collision to refuse
+and a second routine quietly kept beside the one somebody set out to replace.
+
+Eight mutations, all killed, plus a surviving control. **One changed the tests** — the third time
+in these three commits. Showing the *recorded elsewhere* warning unconditionally SURVIVED, because
+a claim-level assertion cannot tell an empty shown box from an absent one; an empty box is
+invisible today only because `.no` and `.muted` are colour-only classes, which is a property of
+this page's CSS and not of its logic. The rendered tests assert the box's presence as well as its
+text now, with that reason written beside the helper.
+
+See [[ADR-256-recording-a-routine-again]]. All three authorized pieces are in. R4's explicit
+coordinate mode is the mode STATEMENT only: there is no second mode to choose between and no
+control that offers one, because the other mode is the anchor stack and that is the open question
+`cvOff()` names, which needs an experiment rather than a dropdown.
