@@ -63,9 +63,22 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/winctx"
 )
 
+// studioCaptures is what this window records, stated ONCE.
+//
+// Used both to tell the recorder and to tell the person, because two literals would be two
+// statements of one fact — and the day they disagreed, the window would be describing a recording
+// it had not started. See StartRecording for why it is stated at all.
+const studioCaptures = orchestrator.Coordinates
+
 // capture is one recorder-first recording: in flight, or a draft waiting to be looked at.
 type capture struct {
 	name string
+	// mode is what the recorder was told to capture when this one started.
+	//
+	// Kept beside the draft rather than read back off it, because the page asks about a
+	// recording that is still running and has no draft yet — and "what is being captured"
+	// is the question somebody has while they are demonstrating, not afterwards.
+	mode orchestrator.RecordedAs
 	// stop is closed by the Stop button, and `ended` makes closing it idempotent — a
 	// second press of a button whose first press is still being served must not panic.
 	stop  chan struct{}
@@ -83,6 +96,16 @@ type capture struct {
 type Recording struct {
 	Name   string `json:"name,omitempty"`
 	Active bool   `json:"active"`
+	// Mode is what this recording was told to capture, in the word the saved routine
+	// will state, and Captures is that in a sentence.
+	//
+	// Shown BESIDE RECORD and again at review, not only in the saved file. The reason is
+	// the defect it closes: what a recording captured used to depend on an environment
+	// variable the window inherited, so two recordings of the same thing could differ and
+	// the window said nothing either time. A mode nobody can see is a mode nobody can
+	// check. See orchestrator.RecordedAs.
+	Mode     string `json:"mode,omitempty"`
+	Captures string `json:"captures,omitempty"`
 	// Review says a draft is waiting: the capture has ended and nothing is on disk.
 	// This is the state the Stop button exists to reach.
 	Review bool `json:"review,omitempty"`
@@ -198,7 +221,37 @@ func (a *Acts) StartRecording(name string) string {
 		Owner:    winctx.Self(),
 		OwnerPID: uint32(os.Getpid()),
 		StopWhen: c.stop,
+		// ── AND WHAT TO CAPTURE, SAID OUT LOUD AND NOT INHERITED ──
+		//
+		// This window records plain coordinates and the real pauses. That is not
+		// a preference, it is what the path IS: it does not look at the screen,
+		// which is the whole reason it works on a menu drawn over a live 3D world
+		// where recognition has no answer.
+		//
+		// It used to be left to `$MARCO_CV` / `$MARCO_ANCHORS`, read once when
+		// Studio started. So a window launched from a shell with anchors on
+		// captured a picture of any click whose crop happened to be distinctive —
+		// and a press found by matching a picture cannot be stopped at, so
+		// `codegen.Unpropagatable` refused the whole recording at Save. The same
+		// demonstration saved or was refused depending on a variable nobody in
+		// the window could see and the pixels under the pointer. Twice in a row,
+		// two different answers, no way to tell why.
+		//
+		// Stated here, where the recording is started, so it is this window's
+		// claim and not the shell's. See orchestrator.Deps.Mode.
+		Mode: studioCaptures,
 	}
+	// AND WHAT THE PAGE WILL BE TOLD IS A COPY OF WHAT THE RECORDER IS TOLD.
+	//
+	// Not the constant a second time. The mutation gate for this slice took the `Mode`
+	// out of the backend above and left a window still promising coordinates over a
+	// recording that had gone back to inheriting them — two statements of one fact, and
+	// the page was the one that lied. So the fact is stated once, to the thing that acts
+	// on it, and the sentence somebody reads is taken from there.
+	a.mu.Lock()
+	c.mode = d.Mode
+	a.mu.Unlock()
+
 	// THE RECORDER IS STARTED HERE, SYNCHRONOUSLY, so a refusal reaches the button that
 	// asked for it. Started in a goroutine it would reach the person at Stop instead —
 	// a window that said "recording", took their whole demonstration, and then told
@@ -336,10 +389,25 @@ func (a *Acts) Recording() Recording {
 	c := a.capture
 	a.mu.Unlock()
 	if c == nil {
-		return Recording{}
+		// NOTHING IS BEING RECORDED, AND THE LINE BESIDE RECORD IS STILL AN ANSWER.
+		//
+		// What a recording STARTED NOW would capture, so the page can say it before
+		// anybody presses anything — which is where it matters, because the choice
+		// being described is one somebody is about to make. The same field a running
+		// capture fills with its own mode, so the page needs no second question and
+		// no sentence of its own.
+		return Recording{Mode: string(studioCaptures),
+			Captures: capturesSentence(studioCaptures)}
 	}
 	out := Recording{Name: c.name,
 		StopKey: recorder.ParseStopKey(os.Getenv("MARCO_STOP_KEY")).Label()}
+	// WHAT IT IS CAPTURING, FROM THE CAPTURE AND NOT FROM THIS WINDOW'S INTENTIONS.
+	//
+	// `c.mode` is what the recorder was actually told when this one started, so a Studio
+	// whose Deps stopped stating a mode would show nothing here rather than go on
+	// promising coordinates. The sentence is the window's; the word is the recording's.
+	out.Mode = string(c.mode)
+	out.Captures = capturesSentence(c.mode)
 	select {
 	case <-c.done:
 	default:
@@ -457,6 +525,22 @@ func oneStep(s macroir.Step) string {
 	// has no sentence for is still a step that will run, and a review that omitted it
 	// would be a review of a shorter routine than the one being saved.
 	return string(s.Kind)
+}
+
+// capturesSentence is what a mode means, for somebody about to demonstrate something.
+//
+// The word `coordinates` is what the saved file states and is not what a person needs read to
+// them. Unstated says so plainly rather than describing one of the things it might have been:
+// that is the honest shape of a blank, and this window never produces one — a recording started
+// here always states a mode, so an empty sentence here means the statement stopped happening.
+func capturesSentence(m orchestrator.RecordedAs) string {
+	switch m {
+	case orchestrator.Coordinates:
+		return "Where you press and how long you pause, and nothing about how the " +
+			"screen looked. It does not take a picture of anything."
+	}
+	return "what this recording captures is not being stated, so it depends on how " +
+		"Marco was started"
 }
 
 // recorderNow is the input recorder, or whatever a test put in its place.

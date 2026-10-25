@@ -335,6 +335,37 @@ running. The saved source is now read **once**, into a snapshot taken before the
 claimed; the provisional record carries all three; and the same snapshot is what executes, so no
 second reading of the file can make the record cite source the run never performed.
 
+## What a recording captures is stated, not inherited
+
+`$MARCO_CV` and `$MARCO_ANCHORS` are read once, into package variables, when a process starts.
+That is the right shape for a command — you set the switch, run `marco learn`, and the process
+ends — and the wrong one for a window that stays open all afternoon holding the environment of
+whichever shell launched it.
+
+The cost was not cosmetic. With anchors inherited on, a click whose cropped region happened to be
+*distinctive* carried a template; a press found by matching a picture cannot be stopped at, so
+`codegen.Unpropagatable` refused the **whole** guarded recording at Save. So the same
+demonstration saved or was refused depending on a variable nobody in the window could see and on
+the pixels that happened to be under the pointer. There was a quieter half as well: `learnOptions`
+caps every recorded gap to 50ms when CV is on, so a Studio launched with `$MARCO_CV=on` against a
+flat menu captured no anchor to wait on *and* took the recorded pauses out — a routine that presses
+a menu before it has drawn, and that looks correct in review.
+
+So a recording's mode is now stated by the thing that starts it, before the hooks go on, and the
+statement beats the environment. `Inherited` is the zero value and is every caller there was — the
+overlay, `marco learn`, `director demonstrate-visual`, the CLI — because turning the switch on and
+demonstrating something is what the switch is *for* there. Studio states `coordinates`, once, to
+the thing that acts on it; the sentence beside Record is a copy of that rather than the constant a
+second time. The word travels on the draft, into the saved source as a comment line, and from
+there into the run record off the same single read as the digest and the contract.
+
+Absence survives all of it. A caller that states nothing writes no line; a file with no line reads
+back as *unstated*; a word this build does not recognise reads back as *unstated* rather than being
+echoed into a record as something verified; and the page renders a blank as a blank rather than as
+`undefined` or as the likeliest answer. Every routine already in a library says nothing, and what
+those captured depended on the environment of a process that has since exited.
+[[ADR-254-what-a-recording-captures-is-stated]]
+
 ## Validated by
 
 - `internal/director/demo` unit tests (`demo.go`, `record.go`, `validate.go`)

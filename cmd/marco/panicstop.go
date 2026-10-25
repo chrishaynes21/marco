@@ -112,6 +112,14 @@ type ran struct {
 	// second answer to the question, and a weaker one: it cannot see `incomplete` at all,
 	// so a record would have called an incomplete route guarded.
 	Contract string
+	// Mode is what the saved source STATES it was recorded as, or empty when it says
+	// nothing — which is every routine saved before Studio could state one.
+	//
+	// Read by `orchestrator.ModeOf` off the same single read as the digest and the
+	// contract, and for the same reason: the file is the account, and a second reading of
+	// it is a second answer. Empty travels to the record as `unstated`, which is the word
+	// the record already used before anything could put another one there.
+	Mode string
 }
 
 // contractUnstated is what the record says when the contract could not be read at all.
@@ -174,7 +182,8 @@ func take(d orchestrator.Deps, rt routes.Route, named map[string]string, positio
 	s.filled = routes.ApplyArgs(string(src), named, positional)
 	// WHAT IS ABOUT TO RUN, DESCRIBED ONCE. See `ran`.
 	s.contract, _ = orchestrator.ContractOf(s.filled)
-	s.did = ran{Digest: routes.DigestOf(string(src)), Contract: string(s.contract)}
+	s.did = ran{Digest: routes.DigestOf(string(src)), Contract: string(s.contract),
+		Mode: string(orchestrator.ModeOf(s.filled))}
 	return s
 }
 

@@ -106,6 +106,16 @@ type Routine struct {
 	// say what scale that window was drawn at, so it will refuse rather than press" is
 	// the one case where reading it beforehand saves somebody a minute of refusals.
 	Checks string `json:"checks,omitempty"`
+	// Mode is what the saved source STATES it was recorded as, and Captures is that in a
+	// sentence. Both absent when it says nothing.
+	//
+	// Absent, not a guess. Every routine saved before this says nothing, and so does one
+	// recorded by the overlay or by `marco learn` — and what those captured depended on
+	// the environment of a process that has long since exited. A card that filled the
+	// blank in with the likeliest answer would be telling somebody how their routine was
+	// made on the strength of an average. See orchestrator.ModeOf.
+	Mode     string `json:"mode,omitempty"`
+	Captures string `json:"captures,omitempty"`
 	// Source is the saved Marco. Shown on request, always available: a routine is legal
 	// Marco so that somebody can read what they kept and recognise it — the same reason
 	// an Act shows its play.
@@ -195,6 +205,12 @@ func (a *Acts) Routines() []Routine {
 		}
 		contract, lacks := orchestrator.ContractOf(src)
 		r.Contract, r.Checks = string(contract), checksSentence(contract, lacks)
+		// AND HOW IT WAS RECORDED, WHEN THE FILE SAYS. Off the same source as the
+		// contract, by the one reader of that line, and left empty when there is no
+		// line — see Routine.Mode.
+		if m := orchestrator.ModeOf(src); m != orchestrator.Unstated {
+			r.Mode, r.Captures = string(m), capturesSentence(m)
+		}
 		switch {
 		case cannot[r.ID] != "":
 			r.Why = cannot[r.ID]

@@ -52,13 +52,26 @@ import (
 // The WORD is `internal/runs`', because Studio reads it and there is no compiler between the two.
 const kindRoutine = runs.KindRoutine
 
-// modeUnstated is what a routine's record says about its mode until Studio states one.
+// modeUnstated is what a routine's record says about its mode when the source states none.
 //
-// Older source can say nothing about how it was recorded, and guessing from an environment
-// variable nobody can see afterwards would be a claim rather than a reading. `unstated` is the
-// truth today for every routine on disk; the explicit coordinate mode is separately scoped work
-// and is what will put a word here.
+// Older source says nothing about how it was recorded, and guessing from an environment variable
+// nobody can see afterwards would be a claim rather than a reading. It was the truth for every
+// routine on disk until Studio could state a mode, and it stays the truth for every one of them:
+// `orchestrator.ModeOf` reads the word the source carries, and a file that carries none reads
+// back as this rather than as a default.
 const modeUnstated = "unstated"
+
+// modeOf is the word this record uses for what the source said it was recorded as.
+//
+// One place, because the record's vocabulary is the record's: an empty reading becomes the word
+// `unstated` HERE rather than being written as an empty field that a reader would have to know to
+// interpret. See `ran.Mode`.
+func modeOf(did ran) string {
+	if did.Mode == "" {
+		return modeUnstated
+	}
+	return did.Mode
+}
 
 // routineRun is one attempt at a saved routine, as somebody would cite it in a bug report.
 //
@@ -134,7 +147,7 @@ func aRoutineRun(id string, at time.Time, rt routes.Route, did ran) routineRun {
 		Build:   buildid.Revision(),
 		Routine: rt.Slug, Application: rt.App, Scope: scopeOf(rt),
 		Library: marcopaths.Routes(),
-		Mode:    modeUnstated,
+		Mode:    modeOf(did),
 		Source:  did.Digest, Contract: did.Contract,
 		Started: at.Format(time.RFC3339),
 	}

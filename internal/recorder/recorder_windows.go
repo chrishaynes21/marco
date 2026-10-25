@@ -128,7 +128,36 @@ type winRecorder struct {
 	threadID       atomic.Uint32
 	pollStopped    chan struct{} // app poller finished
 	captureStopped chan struct{} // click-template capture worker finished
+	// mode is what this recorder was TOLD to capture, or Inherited when nothing was.
+	//
+	// Per RECORDER rather than per package, because stating a mode is something a caller
+	// does about one recording. `Start` publishes it to `plainCoordinates`, which is where
+	// the hook callbacks can reach it — see the capture state below.
+	mode Mode
 }
+
+// Capture states what this recorder captures, overriding what the process was launched with.
+//
+// See recorder.Mode. Called before Start; a recorder is reusable and the mode stays until it is
+// stated again, which is the same lifetime the environment-read variables have.
+func (r *winRecorder) Capture(m Mode) { r.mode = m }
+
+// plainCoordinates is "the recording that is running was told to capture coordinates only".
+//
+// Package-level and atomic for the same reason every other piece of capture state here is: the
+// hook callbacks are C callbacks and can reach nothing but package state. Written by `Start` from
+// the recorder's own `mode`, so what a CALLER stated is what the hooks read — and read on every
+// click rather than once at process start, which is the whole defect this closes.
+var plainCoordinates atomic.Bool
+
+// anchoring reports whether this recording captures a picture of what was pressed.
+//
+// `captureAnchors` is the environment, read at process start. `plainCoordinates` is a caller
+// saying so about THIS recording, and it wins: a stated mode an inherited variable could
+// overrule would not be a stated mode. Every point that would capture, crop, colour-sample or
+// listen for the anchor key asks this one question, so a fourth such point cannot be added
+// without answering it.
+func anchoring() bool { return captureAnchors && !plainCoordinates.Load() }
 
 // captureReq asks the off-thread worker to snapshot the patch around a click and
 // write it back onto the already-recorded event at idx. The capture is done off
@@ -175,6 +204,14 @@ func (r *winRecorder) Start() error {
 	recMu.Unlock()
 	lastMoveNanos.Store(0)
 	recActive.Store(true)
+	// WHAT THIS RECORDING CAPTURES, FROM THE CALLER THAT STARTED IT. Published before
+	// the hooks go on, because after them the first press can already have been seen.
+	plainCoordinates.Store(r.mode == Coordinates)
+	// AND NOTHING IS LEFT ARMED FROM A RECORDING BEFORE THIS ONE. The arm is a one-shot
+	// consumed by the next click, so an unconsumed one outlives the recording it was
+	// tapped in — which would put a picture in the first click of a recording that asked
+	// for none.
+	anchorArmed.Store(false)
 
 	r.done = make(chan struct{})
 	r.stopped = make(chan struct{})
@@ -391,7 +428,16 @@ func keyboardProc(nCode int, wParam, lParam uintptr) uintptr {
 				// next click is captured), so it's never recorded and is swallowed so the
 				// app never sees it. Skip this when the anchor key is also the stop key —
 				// then it must fall through to be recorded so the demo can be stopped.
-				if anchorKey != "" && name == anchorKey && !stopKey.Has(name) {
+				// AND THE ANCHOR KEY IS AN ORDINARY KEY IN A COORDINATE
+				// RECORDING. Belt and braces, recorded as such: the gate
+				// in `recordClickDown` already refuses to honour an arm in
+				// this mode, so a mutation removing THIS one changes no
+				// behaviour and the gate run for it is recorded as
+				// unfalsifiable rather than as a kill. It stays because it
+				// is the honest expression of the rule at the point where
+				// the key is read, and because the two gates protect
+				// different things if either ever moves.
+				if anchoring() && anchorKey != "" && name == anchorKey && !stopKey.Has(name) {
 					if down {
 						anchorArmed.Store(true) // tap to start; the next click ends it
 					}
@@ -446,8 +492,20 @@ func mouseProc(nCode int, wParam, lParam uintptr) uintptr {
 // full capture queue just drops the template; the click itself is already recorded.
 func recordClickDown(button string, x, y int) {
 	idx := recordIndexed(newClick(button, true, x, y))
-	armed := anchorArmed.Load()
-	if armed || (captureAnchors && (button == "left" || cvKitchenSink)) {
+	// ── A STATED COORDINATE MODE TAKES THE ARM WITH IT, AND NOTHING ELSE CHANGES ──
+	//
+	// The arm is the one path that captures a picture of a click the global switch would
+	// not have anchored — a tap of the anchor key makes the next click an anchor whatever
+	// button it is. So a gate that asked only about `captureAnchors` would have left
+	// exactly one way for a coordinate recording to come back carrying a picture.
+	//
+	// It is `plainCoordinates` here and not `anchoring()`, and the difference is a defect
+	// this very mutation gate found: `anchoring()` is the conjunction, so using it would
+	// have made an armed click do nothing whenever the switch was off, taking the
+	// tap-then-click anchor away from every caller instead of from this recording. With
+	// no mode stated, both lines below are what they were before, term for term.
+	armed := !plainCoordinates.Load() && anchorArmed.Load()
+	if armed || (anchoring() && (button == "left" || cvKitchenSink)) {
 		select {
 		case captureReqs <- captureReq{idx: idx, x: x, y: y, armed: armed}:
 		default:

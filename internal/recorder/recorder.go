@@ -156,3 +156,54 @@ func resolveImages(events []RecordedEvent, look func(uint32) string) {
 		events[i].Process = name
 	}
 }
+
+// ── WHAT A RECORDING CAPTURES, WHEN SOMEBODY SAYS SO ──────────────────────────
+
+// Mode is what a recording captures beside the coordinate and the clock.
+//
+// # Why a recorder has to be TOLD, and not left to read the environment
+//
+// `captureAnchors` and `cvKitchenSink` are package variables read ONCE, from `$MARCO_CV` and
+// `$MARCO_ANCHORS`, when the process starts. That is right for a command: you set the switch and
+// run `marco learn`, and the setting is the whole of what you asked for.
+//
+// It is wrong for a window that stays open. Studio inherits whatever launched it for the life of
+// the window, and with anchors on a click whose cropped region is distinctive carries a picture —
+// which `codegen.Unpropagatable` then refuses, because a press found by matching a picture cannot
+// be stopped at. So the same demonstration SAVES OR IS REFUSED depending on a variable nobody in
+// the window can see and the pixels that happened to be under the pointer. A person recording a
+// routine twice gets two different answers and no way to tell why.
+//
+// So a caller that has a mode in mind states it, for the recording it is about to start, and what
+// it states wins. A caller that states nothing is every caller there was: the overlay, `marco
+// learn`, `director demonstrate-visual` and the CLI all keep reading the environment, because
+// turning the switch on and demonstrating something is what the switch is FOR there.
+type Mode int
+
+const (
+	// Inherited leaves it to $MARCO_CV / $MARCO_ANCHORS — the behaviour every caller
+	// had before any of this, and the behaviour they keep.
+	Inherited Mode = iota
+	// Coordinates captures the coordinate and the clock and nothing else: no picture of
+	// the control, no colour under it, and the anchor key stays an ordinary key that
+	// reaches whatever is in front.
+	//
+	// It is not "CV off" spelled differently. `$MARCO_CV=off` is a setting of the
+	// process; this is a statement about ONE recording, made by the thing that started
+	// it, and it cannot be overridden by what the process was launched with.
+	Coordinates
+)
+
+// Stated is a recorder that can be told what to capture.
+//
+// An interface, and an optional one, for the reason `inputCounter` is: the rule has to be
+// exercisable against a recorder that is not the real one, and a backend with no notion of
+// pictures to turn off (the stub) must not have to grow one. A caller asks, and a recorder that
+// cannot answer is a recorder that captures what it always did.
+type Stated interface {
+	// Capture states the mode for the recording `Start` begins next.
+	//
+	// Before Start, because the hooks read it: a mode stated afterwards would be a mode
+	// stated after the first press could already have been captured.
+	Capture(Mode)
+}

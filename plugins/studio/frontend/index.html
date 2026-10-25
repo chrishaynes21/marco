@@ -369,6 +369,14 @@
     <div class="muted" style="margin-top:6px">Press <b>Record</b>, go and do it, then come
       back and press <b>Stop recording</b>. Nothing is saved until you have looked at it
       and pressed Save.</div>
+    <!-- WHAT IT WILL CAPTURE, SAID BEFORE IT DOES.
+         From the backend rather than written here, because it is the backend that tells
+         the recorder: a page with the sentence typed into it would go on promising
+         coordinates after the statement stopped being made. It used to depend on
+         $MARCO_CV / $MARCO_ANCHORS in whatever shell launched Studio, which meant the
+         same demonstration could save or be refused with nothing on screen to say why.
+         See recording.go. -->
+    <div class="muted" style="margin-top:6px" id="capCaptures"></div>
     <div class="row" style="margin-top:10px"><label style="width:7em">call it</label>
       <input type="text" id="capName" placeholder="what you will ask Marco for"></div>
     <div class="row" style="margin-top:10px">
@@ -407,6 +415,10 @@
          save. Said here so a generator error does not arrive at a button press. -->
     <div class="no hide" style="margin-top:6px" id="capUnsupported"></div>
     <div class="muted" style="margin-top:6px" id="capWhere"></div>
+    <!-- AND WHAT IT CAPTURED, at review and again on the saved card. The same sentence
+         as beside Record, from the recording that actually ran rather than from what
+         this window intended. -->
+    <div class="muted" style="margin-top:6px" id="capReviewCaptures"></div>
     <ol id="capSteps" class="muted" style="margin-top:10px"></ol>
     <!-- HOW IT WILL BE PERFORMED, when that is not a choice. See pollCapture. -->
     <div class="muted hide" style="margin-top:10px" id="capBrings"></div>
@@ -481,6 +493,13 @@
            nothing, and an incomplete one refuses. Reading it here is what saves somebody a
            minute of watching refusals. See ADR-251. -->
       <div class="muted" style="margin-top:12px" id="routineChecks"></div>
+      <!-- AND HOW IT WAS RECORDED, WHEN THE FILE SAYS SO.
+           Hidden rather than filled in when it does not. Every routine saved before
+           Studio could state a mode says nothing, and what those captured depended on
+           the environment of a process that has since exited — so a sentence here would
+           be this window telling somebody how their routine was made on the strength of
+           a guess. See routines.go. -->
+      <div class="muted hide" style="margin-top:6px" id="routineCaptures"></div>
       <div class="banner bad hide" style="margin-top:8px" id="routineWhy"></div>
       <div class="row" style="margin-top:12px">
         <button class="go" id="routinePlayBtn" onclick="playRoutine()">Play — press for
@@ -1304,6 +1323,16 @@
      showing($('captureCard'), !r.active && !r.review)
      showing($('capturing'), !!r.active)
      showing($('capReview'), !!r.review)
+     // WHAT A RECORDING CAPTURES, ON EVERY POLL AND IN BOTH PLACES.
+     //
+     // Outside the signature check below on purpose: that check exists to stop the
+     // review list being rebuilt under somebody's cursor, and this is one line of text.
+     // Blank when the backend states nothing, which is the honest rendering of a
+     // statement that is not being made — never a guess at which mode it might be.
+     text($('capCaptures'), r.captures || '')
+     text($('capReviewCaptures'), r.captures || '')
+     showing($('capCaptures'), !!r.captures)
+     showing($('capReviewCaptures'), !!r.captures)
      if (r.active) {
        text($('capDoing'), 'Recording ' + (r.name ? '“' + r.name + '”' : '') + '…')
        // AND THE OTHER WAY OUT, NAMED. The button is not the only one and somebody
@@ -1447,8 +1476,8 @@
      if (chosenRoutine && !routines.some(r => r.id === chosenRoutine)) {
        chosenRoutine = ''
      }
-     const sig = routines.map(r => [r.id, r.name, r.contract, r.runnable, r.saved_at]
-       .join('\u0001')).join('\u0000') + '\u0000' + chosenRoutine
+     const sig = routines.map(r => [r.id, r.name, r.contract, r.mode, r.runnable,
+       r.saved_at].join('\u0001')).join('\u0000') + '\u0000' + chosenRoutine
      if (sig !== shownRoutines) { shownRoutines = sig; drawRoutines() }
    }).finally(() => setTimeout(pollRoutines, 2500))
  }
@@ -1493,6 +1522,11 @@
    showing($('routineChosen'), !!r)
    if (!r) { return }
    text($('routineChecks'), r.checks || '')
+   // WHAT IT WAS RECORDED AS, OR NOTHING AT ALL. See the element's comment: absent is
+   // rendered as absent, and `recorded as` names it as a statement the file makes rather
+   // than as a property this window worked out.
+   text($('routineCaptures'), r.captures ? 'Recorded as ' + r.mode + '. ' + r.captures : '')
+   showing($('routineCaptures'), !!r.captures)
    showing($('routineWhy'), !r.runnable)
    text($('routineWhy'), r.why || '')
    text($('routineSource'), r.source || '')

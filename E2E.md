@@ -1610,9 +1610,12 @@ What to check, and what each failure would mean:
   press happened. Nothing here checked that the application did what you wanted.` That last
   clause is deliberate: a routine presses, and nothing on this path looks at the screen
   afterwards. A window claiming it worked would be claiming the one thing it cannot see.
-- **It says `a routine â no run record` where an Act's run shows a reference**, and *Technical
-  details* says a routine does not report phases. "The run cited no reference, so there is no
-  canonical account of it" is the wrong sentence here, and the transcript under it is the account.
+- **A routine's run screen names a reference, and *Technical details* says it reports no phases.**
+  The old instruction here was to CHECK for `a routine — no run record`; that was the defect, and
+  the sentence survives only as a fallback reading `a routine — this marco wrote no run record`.
+  Seeing it now means the `marco.exe` beside Studio predates the record — close Studio and run
+  `build.cmd`. "The run cited no reference, so there is no canonical account of it" is still the
+  wrong sentence for a routine: the record is the account, and the transcript sits under it.
 - **Now resize the game window and press Play again.** It should stop at the first press and say
   so, with the reason in the banner: `"ark graphics" stopped, and nothing after the press that did
   not happen was done. It said: ark-graphics stopped: the window this was recorded in was
@@ -1678,6 +1681,30 @@ What to check, and what each failure would mean:
 - **And the Act it describes is the one the run names.** Run an Act, open a different one, then
   report the first run. *THE ACT, AS IT STANDS NOW* must describe the Act that ran, not the one on
   screen.
+
+- **It says what it will capture, BEFORE you press Record.** Under *Record a routine*: *Where you
+  press and how long you pause, and nothing about how the screen looked. It does not take a
+  picture of anything.* That sentence is the window's claim about what it tells the recorder, so
+  nothing there is the statement having stopped being made.
+- **And a shell that asks for anchors cannot change it.** This is the check worth doing by hand,
+  because it is the defect: open a terminal, `$env:MARCO_CV="on"`, launch Studio **from that
+  terminal**, and record something with a distinctive button in it. It must still say coordinates,
+  must still save, and the saved routine must still read `every press is checked`. Before this,
+  that same demonstration was refused at Save with *this recording contains a press found by
+  matching a picture* — depending on the pixels under the pointer, so the same menu could go either
+  way twice in a row.
+- **The saved card says how it was recorded.** Choose the routine: *Recorded as coordinates.* with
+  the same sentence under it. Open the file and the line is there too — `// Recorded as:
+  coordinates.` near the top. That line is what `marco do` puts in the run record.
+- **And an older routine says nothing, rather than a guess.** Any routine from before this build —
+  anything in your library already — must show NO *Recorded as* line on its card. Not `unstated`,
+  not `undefined`, not a sentence: nothing. What those captured depended on the environment of a
+  process that has long since exited, and a window filling that gap in would be telling you how
+  your routine was made on the strength of an average.
+- **The run record carries the word.** Play the new routine, press **Report a problem**, and the
+  record says `"mode": "coordinates"`. Report a run of an OLDER routine and it says
+  `"mode": "unstated"`. Both are readings of the file; neither is read from the environment of the
+  `marco.exe` that performed it.
 
 Then: `studio-console.exe -trial <store>` reads back what this trial recorded about itself,
 including which build, which contract the routine ran under, and the run's own answer. A routine's

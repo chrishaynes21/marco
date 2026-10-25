@@ -98,6 +98,14 @@ type Draft struct {
 	App string
 	// StoppedBy says how the capture ended, which review may want to show.
 	StoppedBy string
+	// Mode is what the recording was TOLD to capture, or Unstated when nothing was.
+	//
+	// It travels on the draft because review happens before the save: a person deciding
+	// whether to keep a recording is entitled to know what was captured, and a window
+	// that asked the environment again at that moment would be answering about the
+	// process rather than about the recording in front of them. `Save` writes this and
+	// nothing re-derives it. See Deps.Mode.
+	Mode RecordedAs
 }
 
 // Pressable counts the steps that send input, which is what makes a draft worth saving.
@@ -125,6 +133,8 @@ type Capture struct {
 	name     string
 	argNames []string
 	stop     recorder.StopKey
+	// mode is what this capture told its recorder to capture. See Deps.Mode.
+	mode RecordedAs
 }
 
 // Begin starts the recorder and returns the capture in flight.
@@ -135,10 +145,21 @@ func (d Deps) Begin(name string) (*Capture, error) {
 	name, argNames := routes.SplitArgs(name)
 	stop := recorder.ParseStopKey(d.StopKey)
 	mlog.Debug("draft: starting recorder", "route", name, "stop_key", stop.Label())
+	// ── WHAT TO CAPTURE, STATED BEFORE THE HOOKS GO ON ──
+	//
+	// Before `Start`, because the hooks read it and a mode stated afterwards would be
+	// stated after the first press could already have been captured. A recorder that
+	// cannot be told keeps doing what it did, which is the whole of "other callers are
+	// preserved": every caller that states nothing sends `Inherited` and the environment
+	// decides, exactly as it always has.
+	mode := d.recordedAs()
+	if s, ok := d.Rec.(recorder.Stated); ok {
+		s.Capture(mode.capture())
+	}
 	if err := d.Rec.Start(); err != nil {
 		return nil, fmt.Errorf("can't record on this platform: %w", err)
 	}
-	return &Capture{d: d, name: name, argNames: argNames, stop: stop}, nil
+	return &Capture{d: d, name: name, argNames: argNames, stop: stop, mode: mode}, nil
 }
 
 // Name is what this capture will be called, after the argument names have been taken off it.
@@ -192,6 +213,11 @@ func (c *Capture) Finish() *Draft {
 	return &Draft{
 		Name: name, Args: argNames, Steps: steps, Events: events,
 		App: app, StoppedBy: how,
+		// THE MODE THIS CAPTURE WAS STARTED UNDER, carried from the capture and
+		// not asked of the environment again. `Begin` is where it was stated and
+		// where the recorder was told; a second reading here could disagree with
+		// what the hooks were actually running under.
+		Mode: c.mode,
 	}
 }
 
@@ -267,8 +293,11 @@ func (d Deps) Save(dr *Draft, scope Scope, app string) (routes.Route, error) {
 	default:
 		steps = stripLeadingActivate(steps)
 	}
-	src, assets, err := codegen.Route(dr.Name, codegenApp, steps,
-		d.Reg.ScopeDir(rt), dr.Args...)
+	// THE DRAFT'S OWN MODE, not this Deps'. A draft can outlive the window state that
+	// made it — recorded, reviewed, saved under another name minutes later — and the
+	// recording is what the line describes.
+	src, assets, err := codegen.RouteAs(codegen.Recorded{Mode: string(dr.Mode)},
+		dr.Name, codegenApp, steps, d.Reg.ScopeDir(rt), dr.Args...)
 	if err != nil {
 		return rt, err
 	}
@@ -588,6 +617,98 @@ func NameIn(src, slug string) string {
 		return rest[:j]
 	}
 	return strings.ReplaceAll(slug, "-", " ")
+}
+
+// ── WHAT A SAVED ROUTINE SAYS ABOUT HOW IT WAS RECORDED ───────────────────────
+
+// RecordedAs is what a recording was told to capture, in the word a saved routine states.
+//
+// # Why it is stated and never inferred
+//
+// Because it cannot be inferred. A routine with no pictures in it may have been recorded in
+// coordinate mode on purpose, or recorded with the anchor stack on against a flat menu that
+// offered nothing distinctive to anchor to. Those are two different facts about somebody's
+// afternoon and the file looks identical. So the mode is a claim the thing that started the
+// recording makes, or it is absent — and absent is read as absent.
+//
+// # And the word is not the engineering switch
+//
+// `$MARCO_CV` and `$MARCO_ANCHORS` are settings of a process, read once when it starts. This is a
+// statement about ONE recording, and it beats the environment: see recorder.Mode for the defect
+// that made it necessary, which is one demonstration saving or being refused depending on a
+// variable nobody in the window could see.
+type RecordedAs string
+
+const (
+	// Unstated is a recording whose caller said nothing about what to capture, which is
+	// every caller but Studio's coordinate mode and every routine already on disk.
+	//
+	// The zero value on purpose: a `Deps` built without thinking about this behaves as
+	// every `Deps` did before it existed.
+	Unstated RecordedAs = ""
+	// Coordinates is the coordinate and the clock and nothing else: no picture of the
+	// control pressed, no colour under it, and the anchor key left as an ordinary key.
+	//
+	// It is what makes a recording's saveability a property of the recording. A press
+	// found by matching a picture cannot be stopped at, so `codegen.Unpropagatable`
+	// refuses a whole guarded routine that contains one — and with anchors inherited ON,
+	// whether a recording contains one depends on the pixels that happened to be under
+	// the pointer.
+	Coordinates RecordedAs = "coordinates"
+)
+
+// recordedAs is the mode this Deps states, with the default named rather than left blank.
+func (d Deps) recordedAs() RecordedAs {
+	if d.Mode == Coordinates {
+		return Coordinates
+	}
+	return Unstated
+}
+
+// capture is this mode as the recorder is told it.
+//
+// Two vocabularies on purpose, and the conversion is HERE, in one function. `recorder.Mode` is
+// about hooks and pictures; `RecordedAs` is the word a saved routine carries and a run record
+// prints. A recorder that knew the saved word would be a recorder answering a question about a
+// file format.
+func (m RecordedAs) capture() recorder.Mode {
+	if m == Coordinates {
+		return recorder.Coordinates
+	}
+	return recorder.Inherited
+}
+
+// modeStated is the comment line codegen writes and this reads back.
+//
+// One constant shared by the writer and the reader would be better, and it cannot be: `codegen`
+// may not import this package. Held by test instead — TestTheModeASaveWritesIsTheModeThisReads
+// generates a route in each mode and requires this to read back what was stated.
+const modeStated = "// Recorded as: "
+
+// ModeOf reads how a saved route states it was recorded, or Unstated when it does not say.
+//
+// From the SOURCE, for the same reason `ContractOf` is: the saved Marco is the only durable
+// account of a route, and a second record of it beside the file is a second record to disagree
+// with it. Unstated covers every route saved before this, every route whose generator was told
+// nothing, and every route somebody edited the line out of — all three of which are "this file
+// does not say", which is the honest answer and not a default.
+func ModeOf(src string) RecordedAs {
+	for _, line := range strings.Split(src, "\n") {
+		rest, found := strings.CutPrefix(strings.TrimSpace(line), modeStated)
+		if !found {
+			continue
+		}
+		switch RecordedAs(strings.TrimSuffix(strings.TrimSpace(rest), ".")) {
+		case Coordinates:
+			return Coordinates
+		}
+		// A WORD THIS DOES NOT KNOW IS NOT A MODE. A newer build's word, or a
+		// hand-typed one, reads as "unstated" rather than being passed on: a reader
+		// that echoed whatever it found would put an unrecognised string into a run
+		// record as though this had verified it.
+		return Unstated
+	}
+	return Unstated
 }
 
 // ── WHAT A SAVED ROUTINE SAYS ABOUT ITS OWN PRESSES ───────────────────────────

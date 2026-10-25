@@ -110,6 +110,23 @@ type Deps struct {
 	// placeholder ("an argument goes here" → {{N}}); empty uses simplify.DefaultArgKey
 	// (F9). Set from $MARCO_ARG_KEY by the binary. "off" disables it.
 	ArgKey string
+	// Mode is what a recording started through this Deps is told to capture, or
+	// Unstated — the zero value — to leave it to $MARCO_CV / $MARCO_ANCHORS.
+	//
+	// # Why a caller may state it, and why almost none do
+	//
+	// Because the CV switches are read once when a process starts, which is the right
+	// shape for a command and the wrong one for a window that stays open. `marco learn`
+	// and the overlay are started, do a thing, and end; whatever you set is what you
+	// asked for. Studio is open all afternoon with whatever environment launched it, and
+	// with anchors inherited on, a click whose crop happens to be distinctive carries a
+	// picture — which makes the whole guarded recording unsaveable. The same
+	// demonstration then saves or is refused depending on a variable nobody in the window
+	// can see.
+	//
+	// So a caller with a mode in mind states it here and it wins. Unstated is every
+	// caller there was, and they are unchanged: see RecordedAs and recorder.Mode.
+	Mode RecordedAs
 }
 
 // learnOptions are the simplify defaults for a demonstration, honoring the
@@ -122,7 +139,14 @@ func (d Deps) learnOptions() simplify.Options {
 	// With CV/anchors OFF there is no wait-gate to absorb menu-transition time, so the ROUTE
 	// must carry the real pauses: preserve the recorded timings faithfully instead of capping
 	// every wait to 50ms (the cap only made sense when the CV poll did the real waiting).
-	if cvOff() {
+	//
+	// A STATED COORDINATE MODE IS ASKED FIRST, and for the same reason it exists at all.
+	// `cvOff` reads the environment, so a Studio launched with `$MARCO_CV=on` capped every
+	// recorded gap to 50ms while capturing no anchor to wait on — a routine with the
+	// pauses taken out and nothing put in their place, which is a menu pressed before it
+	// has drawn. The stated mode is about this recording and the variable is about the
+	// process, so the statement wins.
+	if d.recordedAs() == Coordinates || cvOff() {
 		o.MaxWaitMs = 24 * 60 * 60 * 1000 // effectively no cap — keep the exact recorded gaps
 	}
 	return o

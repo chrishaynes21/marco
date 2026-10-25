@@ -7903,3 +7903,58 @@ Eight mutations killed and a no-op control surviving. Two are worth the record: 
 nothing changed) and was redone through the registry with a panic on a failed read; and the page's
 absent count renders as the literal word `undefined` rather than as `0`, so the negative assertion
 alone does not catch it — the test asserts what the row MUST say, not only what it must not.
+
+## 38S — what a recording captures is stated, and not inherited from a shell
+
+The first piece of the next authorized slice: **explicit coordinate recording**. Readiness and
+Record again are the other two and are separate commits.
+
+Nothing here was coded wrong. `captureAnchors` and `cvKitchenSink` are package variables read ONCE,
+from `$MARCO_CV` / `$MARCO_ANCHORS`, when a process starts — the right shape for a command you set
+a switch and run, and the wrong one for a window that stays open all afternoon holding the
+environment of whichever shell launched it. And the setting is not cosmetic. With anchors inherited
+on, a click whose cropped region happened to be *distinctive* carried a template; a press found by
+matching a picture cannot be stopped at, so `codegen.Unpropagatable` refuses the WHOLE guarded
+recording at Save. **Record the same menu twice and you can get two different answers, with nothing
+on screen to explain either** — a variable nobody in the window can see, and the pixels that
+happened to be under the pointer.
+
+The quieter half was worse. `learnOptions` caps every recorded gap to 50ms when CV is on, because
+the anchor poll was supposed to do the real waiting. So a Studio launched with `$MARCO_CV=on`
+against a flat menu captured **no anchor to wait on and took the pauses out as well** — a routine
+with its timings removed and nothing put in their place, which presses a menu before it has drawn
+and looks perfectly correct in review.
+
+So `recorder.Mode` is a statement about ONE recording, handed to the recorder BEFORE `Start`
+because the hooks read it and the first press can already have been seen. `Inherited` is the zero
+value and is every caller there was. `Coordinates` is the coordinate and the clock and nothing
+else, and it beats the environment at every point that would capture, crop, colour-sample or listen
+for the anchor key — all of which ask one function, `anchoring()`. `Start` also clears any
+unconsumed arm, because the anchor key's arm is a one-shot that outlives the recording it was
+tapped in. Studio states it once, to the thing that acts on it, and the word travels on the draft,
+into the saved source as `// Recorded as: coordinates.`, and from there into the run record through
+`orchestrator.ModeOf` off the same single read as the digest and the contract.
+
+**Absence survives all of it**, which is §38R's lesson one layer up: no line when nothing was
+stated, `unstated` read back from a file with no line, `unstated` for a word this build does not
+recognise rather than echoing it into a record as something verified, and a blank rendered as a
+blank rather than as `undefined` or as the likeliest answer. Every routine already in a library
+says nothing, and what those captured depended on the environment of a process that has long since
+exited.
+
+Nine mutations: eight killed, one recorded as **unfalsifiable** (the anchor-key gate in
+`keyboardProc` is redundant with the one in `recordClickDown`, so removing it changes no
+behaviour), and a no-op control surviving. **Two of them changed the code rather than the tests**,
+which is the whole point of running them:
+
+- The arm gate had been written as `anchoring() && anchorArmed.Load()`. `anchoring()` is the
+  conjunction, so that made an armed press do nothing whenever the global switch was off — taking
+  the tap-then-click anchor away from EVERY caller instead of from this recording. It is
+  `!plainCoordinates.Load()` now, and the test was rebuilt around a **right-click**, which is the
+  one press the arm alone decides. The first version of that test evaluated the conjunction in its
+  own body and was therefore unfalsifiable; it drives `recordClickDown` now.
+- Studio stated the mode at two sites — once to the backend and once to the capture the page reads.
+  Deleting the backend's left the window still promising coordinates over a recording that had gone
+  back to inheriting them. The page's word is a COPY of what the recorder was told.
+
+See [[ADR-254-what-a-recording-captures-is-stated]]. Readiness and Record again are not started.
