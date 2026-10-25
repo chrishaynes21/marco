@@ -1544,7 +1544,15 @@ invisible to a green suite, and so was the stale window that hid its fix.
 > **resized** window being refused with nothing sent, **two runs** leaving two distinct
 > references, **Stop** ending a run as cancelled with nothing arriving afterwards, a **killed
 > runner** leaving an unfinished record, **readiness** noticing its own sibling binary moved
-> aside, and a routine **saved while the window is open** appearing in it.
+> aside, and a routine **saved while the window is open** appearing in it. It also presses
+> **Report a problem** on the run it performed and keeps the file, so the child's own output is
+> retained by the window that gathers it.
+>
+> Two things it does deliberately, worth knowing if you read its output: a scenario that could not
+> ask its question is **NOT RUN and not a pass** — a partial run never exits 0 — and before any
+> scenario claims that nothing arrived, the fixture is asked, from inside its own message loop,
+> whether it has finished processing what it was sent. A run finishing only means nothing more
+> will be sent.
 >
 > It cannot cover the recording itself. Marco's hooks discard injected input on purpose, so no
 > automated run can establish that Windows captured a physical gesture — and every report the

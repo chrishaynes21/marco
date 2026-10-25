@@ -137,15 +137,26 @@ func theWindowChangedSize(w *world) result {
 	if err := st.play(); err != nil {
 		return ending(started, err)
 	}
-	// THE RUN FINISHING IS WHAT SAYS NOTHING WILL ARRIVE — not an interval.
+	// NOTHING WILL ARRIVE, AND NOTHING IS WAITING EITHER. Two separate facts, and the
+	// absence needs both.
 	//
-	// A harness that waited two seconds and then checked for silence would be asserting
-	// that nothing had happened YET. The run record's `ended` is the moment after which
-	// nothing more can be sent, which makes "it sent nothing" a fact rather than a guess.
+	// The run record's `ended` is the moment after which nothing more can be SENT, which is
+	// what rules out an assertion about an interval that had not finished. It says nothing
+	// about what the fixture has got round to PROCESSING — and the log is written on
+	// processing, so a press queued in a fixture that is behind is a press this would report
+	// as never having happened. The barrier is the fixture's own word that its loop ran out
+	// of work. See barrier.go, including what it does not establish.
 	rec, err := waitForRecord(60*time.Second, st.store, records)
 	if err != nil {
 		st.fail()
 		return fail(started, err.Error())
+	}
+	if err := st.f.drained(30 * time.Second); err != nil {
+		// NOT A REFUSAL ESTABLISHED, AND NOT A PRESS FOUND EITHER. Without the barrier
+		// this scenario's whole claim is unreadable, so it says so rather than reading
+		// the log anyway — and NOT RUN is not a success.
+		st.fail()
+		return skip(started, err.Error())
 	}
 	presses, err := st.f.presses(seq)
 	if err != nil {

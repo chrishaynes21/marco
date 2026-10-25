@@ -98,9 +98,10 @@ func main() {
 	}
 	fmt.Printf("marco e2e — artifacts in %s\n\n", art.dir)
 
+	var checks []string
 	m, err := checkDesktop()
 	if err != nil {
-		finish(art, m, nil, err, started, run, *keep)
+		finish(art, m, checks, nil, err, started, run, *keep)
 		return
 	}
 	// THE STORE, AND THE RULE THAT FINDS IT, SET BEFORE ANYTHING READS A ROUTE.
@@ -111,7 +112,7 @@ func main() {
 	// ways is how a routine saved in one place came to be invisible in another.
 	store := storeOf(run)
 	if err := os.MkdirAll(store, 0o755); err != nil {
-		finish(art, m, nil, err, started, run, *keep)
+		finish(art, m, checks, nil, err, started, run, *keep)
 		return
 	}
 	os.Setenv(marcopaths.EnvHome, store)
@@ -121,9 +122,27 @@ func main() {
 
 	b, err := makeBundle(m, filepath.Join(run, "bundle"), art)
 	if err != nil {
-		finish(art, m, nil, err, started, run, *keep)
+		finish(art, m, checks, nil, err, started, run, *keep)
 		return
 	}
+
+	// THE HARNESS'S OWN PRECONDITION, BEFORE ANY SCENARIO LEANS ON IT.
+	//
+	// Four scenarios below assert that something did NOT arrive, and every one of them reads
+	// the fixture's log after the sender stopped. Whether that read is an account of what
+	// arrived or only of what the fixture had got round to depends entirely on the drain
+	// barrier — so the barrier is demonstrated against a fixture that is genuinely behind
+	// before the first absence is asserted, and the run does not continue if it cannot be.
+	//
+	// Not a scenario: it is a claim about this harness, and the layer totals are claims about
+	// Marco. See checkTheBarrier.
+	checked, err := checkTheBarrier(b, art)
+	if err != nil {
+		finish(art, m, checks, nil, err, started, run, *keep)
+		return
+	}
+	checks = append(checks, checked)
+	fmt.Printf("%s\n", checked)
 
 	var results []result
 	// ONE WORLD, AND A NUMBER PER SCENARIO.
@@ -137,6 +156,8 @@ func main() {
 		if *only != "" && !strings.Contains(s.name, *only) {
 			continue
 		}
+		// THE SELECTED SET IS WHAT `results` HOLDS, which is what makes a selection
+		// that matched nothing distinguishable from a run where everything passed.
 		fmt.Printf("\n%s — %s\n", s.name, s.about)
 		w.scenarioN = i + 1
 		w.art = art.scope(fmt.Sprintf("%02d-%s", i+1, slug(s.name)))
@@ -153,7 +174,7 @@ func main() {
 		}
 		fmt.Printf("  FAILED: %s\n", r.why)
 	}
-	finish(art, m, results, nil, started, run, *keep)
+	finish(art, m, checks, results, nil, started, run, *keep)
 }
 
 // world is what a scenario is given: this run's binaries, store and machine.
@@ -233,10 +254,10 @@ func newRunDir() (string, error) {
 	return dir, os.MkdirAll(dir, 0o755)
 }
 
-func finish(art *artifacts, m machine, results []result, err error, started time.Time,
-	run string, keep bool) {
+func finish(art *artifacts, m machine, checks []string, results []result, err error,
+	started time.Time, run string, keep bool) {
 
-	code := report(art, m, results, err, started)
+	code := report(art, m, checks, results, err, started)
 	if !keep {
 		// THE STORE GOES, THE ARTIFACTS STAY. The store held a library and some run
 		// records, and both have been copied into the artifacts if anything needed them;

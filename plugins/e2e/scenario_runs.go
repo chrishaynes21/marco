@@ -47,6 +47,12 @@ func twoRunsAreTwoRecords(w *world) result {
 			}
 		}
 	}
+	// AND EXACTLY TWO IS ALSO AN ABSENCE: no third press. See barrier.go — a count read from
+	// a fixture that is behind is a lower bound, and this one is asserted as an equality.
+	if err := st.f.drained(30 * time.Second); err != nil {
+		st.fail()
+		return skip(started, err.Error())
+	}
 	presses, err := st.f.presses(seq)
 	if err != nil {
 		return fail(started, err.Error())
@@ -111,6 +117,14 @@ func stoppingARunEndsItAsCancelled(w *world) result {
 		return fail(started, err.Error())
 	}
 	w.art.step("the stopped run recorded %s", rec)
+	// THE SECOND PRESS NEVER ARRIVED is the claim, and a fixture that is behind cannot be
+	// asked it: a press sent before the stop took effect could be sitting in its queue
+	// unprocessed, and reading the log then would report the stop as having worked. See
+	// barrier.go.
+	if err := st.f.drained(30 * time.Second); err != nil {
+		st.fail()
+		return skip(started, err.Error())
+	}
 	presses, err := st.f.presses(seq)
 	if err != nil {
 		return fail(started, err.Error())
@@ -186,6 +200,13 @@ func killingTheRunnerLeavesAnUnfinishedRecord(w *world) result {
 			"A reference is supposed to be claimed and a provisional record written "+
 			"before anything is sent, so that a run that goes away still has an "+
 			"account", saw))
+	}
+	// AND THE PRODUCER IS GONE, WHICH IS WHEN THE BARRIER MEANS SOMETHING. Nothing more can
+	// be sent by a process that no longer exists; what remains is whether the fixture had
+	// processed what it was already given. See barrier.go.
+	if err := st.f.drained(30 * time.Second); err != nil {
+		st.fail()
+		return skip(started, err.Error())
 	}
 	presses, _ := st.f.presses(seq)
 	why := firstOf(

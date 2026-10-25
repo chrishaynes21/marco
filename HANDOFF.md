@@ -8209,3 +8209,60 @@ scenario reset the counter that keeps their stores apart, so every scenario used
 same artifact paths. The second scenario's wait for *the fixture wrote its oracle* was satisfied
 instantly by the first scenario's file, and everything it then read described a window that had
 already closed. One world, a number per scenario, and a scope per scenario's artifacts.
+
+## §38X — two false-green paths in the harness, closed
+
+The Architect reviewed the harness and approved its shape, with two corrections. Both were ways
+the harness could report success without having established anything, which is the one defect
+class a harness must not have.
+
+**A partially skipped run exited 0.** The verdict was *something passed and nothing failed*, so a
+run in which a scenario declined — the window would not resize, the fixture would not start, the
+foreground was not ours — reported success with that scenario's question never asked. The one most
+able to decline is the resized-window refusal, which is also the one that establishes the guard
+refuses at all. A skip is now an ending of its own: `verdictOf` names every case, including a
+selection that matched nothing (which establishes nothing while having failed nothing) and a
+failure beside a skip (where the failure wins, because a finding outranks a gap). A partial run
+says `INCOMPLETE` in words above the counts, and `TestASkippedScenarioIsNotASuccess` asserts four
+shapes of partial run separately not to exit 0. `run.cmd` now builds and runs the binary instead of
+`go run`, which reports a child's code as a sentence on stderr and exits 1 itself — flattening 2
+and 3 into "a scenario failed" for whatever reads it.
+
+**A run finishing did not establish that the fixture had seen what it was already sent.** The
+refusal scenarios took the run record's `ended` as the moment that made "the log is empty" a fact.
+It is half of it: `ended` says nothing more will be SENT, and the log is written when the
+fixture's message loop DISPATCHES a message. A fixture that is behind can hold a press in its
+queue while the harness reads the log and reports that the guard refused — a press that happened,
+reported as a press that did not. A longer wait is the same sentence with a bigger number in it.
+
+So the fixture answers for itself: the harness writes a token and the fixture writes it back once
+its pump has gone **idle after reading the request**, an idle meaning the queue held nothing at
+all. An idle rather than an acknowledged message, because a posted message is retrieved *ahead* of
+queued input — a sentinel would come back with the presses still behind it, which is worse than no
+barrier because it would look like proof. Five scenarios cross it, and
+`TestEveryCountOfWhatArrivedIsTakenAfterTheBarrier` reads the rule off the syntax, because the
+mistake is an omission and nobody catches those by reading.
+
+It is proved before the first scenario rather than assumed. `--selftest` makes the fixture queue a
+press in its own message queue and stop its loop until released; the harness reads the log there
+and must find nothing — **that read is the false green, reproduced on purpose** — asks for the
+barrier while the loop is still stopped, and reads again afterwards, where the press must be. The
+sentence it produces is printed in every report. The mode is confined to the self-check by
+`TestOnlyTheBarrierSelfCheckStagesAPress`, because it is the one thing here that produces a press
+nobody sent. What the barrier does NOT establish is written where it is defined: input the system
+has accepted but not yet handed to that queue, which a system thread does and nothing in user mode
+orders against.
+
+**And the transcript is retained, by the window that gathers it.** `studio-screen.txt` is every
+word UI Automation can read off the page, which is not the child's output: that lives in a `<pre>`
+behind a collapsed `<details>`, correctly absent from the accessibility tree. The product already
+gathers it — **Report a problem** writes the record, what the run said as it ran, and the routine
+as it stands, into one file and sends it nowhere — so the spine presses that button and keeps what
+the window wrote. A product path with no automated coverage at all is now exercised, the window
+says where the file went and the harness reads it from there, and an unavailable transcript is
+labelled by the product rather than silently absent.
+
+Verified: 9 of 9 again, the barrier's self-check held (the staged press invisible before it and
+present after), `-only` with a name that matches nothing exits 2 through `run.cmd`, and the
+retained report holds eight lines of the child's own output. The outcome-word observation stays
+parked, as asked.

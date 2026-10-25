@@ -4,13 +4,14 @@ package main
 
 // THE RULES THAT MAKE A RESULT FROM THIS HARNESS MEAN ANYTHING.
 //
-// Held as tests rather than as prose, and all four run without a desktop, without input and
-// without opening anything. They are about what the CODE can reach and what two copies of one
-// fact say, which is the kind of thing that stays true until somebody takes a shortcut — and the
-// whole point of them is to fail on that day rather than to go green beside a scenario that has
-// quietly stopped establishing anything.
+// Held as tests rather than as prose, and every one of them runs without a desktop, without input
+// and without opening anything. They are about what the CODE can reach, what two copies of one
+// fact say, and what a verdict adds up to — the kind of thing that stays true until somebody takes
+// a shortcut, and the whole point of them is to fail on that day rather than to go green beside a
+// scenario that has quietly stopped establishing anything.
 
 import (
+	"go/ast"
 	"go/parser"
 	"go/printer"
 	"go/token"
@@ -149,6 +150,157 @@ func TestTheCardIdIsBuiltTheSameWayThePageBuildsIt(t *testing.T) {
 			t.Errorf("cardID(%q) = %q, and the page would make %q", c.identity, got,
 				c.want)
 		}
+	}
+}
+
+// AND A SCENARIO THAT DID NOT RUN IS NOT A SUCCESS.
+//
+// # The false green this is about
+//
+// The exit code used to be 0 whenever something passed and nothing failed, which made a partial
+// run and a complete one the same answer. The scenario that establishes a guard REFUSES is also
+// the one most able to decline — the window would not resize, the foreground was not ours, the
+// fixture would not start — and a run where only that one was missing exited 0. Whatever read
+// that code was told the product works, by a harness that had not asked the question.
+//
+// So every case is named here, including the two that are easy to leave out: a selection that
+// matched nothing, which is a run that establishes nothing while having failed nothing; and a
+// failure alongside a skip, where the failure has to win because a finding outranks a gap.
+func TestASkippedScenarioIsNotASuccess(t *testing.T) {
+	passed := result{passed: true}
+	failed := result{why: "something disagreed"}
+	notRun := result{skipped: true, why: "the window would not resize"}
+	for _, c := range []struct {
+		about    string
+		results  []result
+		selected int
+		verdict  string
+		code     int
+	}{
+		{"everything selected ran and passed", []result{passed, passed}, 2,
+			"passed", 0},
+		{"one of them did not run", []result{passed, notRun}, 2, "incomplete", 2},
+		{"a failure outranks a skip", []result{failed, notRun}, 2, "failed", 1},
+		{"a failure outranks a pass", []result{passed, failed}, 2, "failed", 1},
+		{"none of them ran", []result{notRun, notRun}, 2, "not run", 2},
+		{"the selection matched nothing", nil, 0, "nothing selected", 2},
+	} {
+		verdict, code := verdictOf(c.results, c.selected)
+		if verdict != c.verdict || code != c.code {
+			t.Errorf("%s: verdictOf gave %q/%d and the honest answer is %q/%d",
+				c.about, verdict, code, c.verdict, c.code)
+		}
+	}
+	// AND THE ONE THAT MATTERS MOST, SAID TWICE: no shape of partial run exits 0.
+	for _, rs := range [][]result{
+		{notRun},
+		{passed, notRun},
+		{notRun, passed},
+		{passed, passed, notRun},
+	} {
+		if _, code := verdictOf(rs, len(rs)); code == 0 {
+			t.Errorf("a run of %d scenario(s) with one that did not run exited 0, "+
+				"so a scenario that never asked its question reads as a "+
+				"scenario that passed", len(rs))
+		}
+	}
+}
+
+// AND NOTHING IS ASSERTED ABOUT WHAT ARRIVED UNTIL THE FIXTURE SAYS IT HAS FINISHED.
+//
+// # Why this is structural rather than a matter of care
+//
+// The fixture logs input when its message loop DISPATCHES it. So every count read out of that log
+// is a lower bound until the fixture's own loop has gone idle — and four scenarios here assert an
+// exact count or an absence, which is the one direction that fails quietly: a press sitting in a
+// queue reads as a press that never happened, and the report says the guard refused.
+//
+// A reviewer cannot hold that by reading each scenario, because the mistake is an omission. So the
+// rule is read off the syntax: in a scenario, a call that counts what arrived must come after the
+// barrier in the same function. `barrier.go` is excluded by name — it reads the log BEFORE the
+// barrier on purpose, because that read is the false green, reproduced to prove the barrier closes
+// it.
+func TestEveryCountOfWhatArrivedIsTakenAfterTheBarrier(t *testing.T) {
+	fset := token.NewFileSet()
+	for _, path := range goFiles(t, ".") {
+		base := filepath.Base(path)
+		if !strings.HasPrefix(base, "scenario_") {
+			continue
+		}
+		file, err := parser.ParseFile(fset, path, nil, 0)
+		if err != nil {
+			t.Fatalf("parsing %s: %v", path, err)
+		}
+		for _, decl := range file.Decls {
+			fn, ok := decl.(*ast.FuncDecl)
+			if !ok {
+				continue
+			}
+			var barrier, counted token.Pos
+			ast.Inspect(fn, func(n ast.Node) bool {
+				call, ok := n.(*ast.CallExpr)
+				if !ok {
+					return true
+				}
+				sel, ok := call.Fun.(*ast.SelectorExpr)
+				if !ok {
+					return true
+				}
+				switch sel.Sel.Name {
+				case "drained":
+					if !barrier.IsValid() {
+						barrier = call.Pos()
+					}
+				case "presses":
+					if !counted.IsValid() {
+						counted = call.Pos()
+					}
+				}
+				return true
+			})
+			if !counted.IsValid() {
+				continue
+			}
+			if !barrier.IsValid() || barrier > counted {
+				t.Errorf("%s counts what the fixture received at %s without "+
+					"crossing the drain barrier first. Until the fixture's "+
+					"own loop has gone idle, that count is a lower bound — "+
+					"and a press still queued reads as a press that never "+
+					"happened", fn.Name.Name, fset.Position(counted))
+			}
+		}
+	}
+}
+
+// AND THE FIXTURE'S SELF-TEST MODE IS REACHED FROM ONE PLACE ONLY.
+//
+// `--selftest` makes the fixture put a press in its own queue. That exists so the barrier can be
+// proved against a window that is genuinely behind, and it is the one thing in this whole system
+// that produces a press nobody sent — so a scenario that reached for it would be a scenario
+// asserting that Marco pressed something when the fixture had pressed itself. It is confined to
+// the self-check by a test rather than by everybody remembering.
+func TestOnlyTheBarrierSelfCheckStagesAPress(t *testing.T) {
+	for _, path := range goFiles(t, ".") {
+		base := filepath.Base(path)
+		if base == "barrier.go" || strings.HasSuffix(base, "_test.go") {
+			continue
+		}
+		if strings.Contains(withoutComments(t, path), "--selftest") {
+			t.Errorf("%s asks the fixture for its self-test mode, which stages a "+
+				"press nobody sent. Only the barrier's own self-check may: a "+
+				"scenario that used it would be reporting a press as Marco's",
+				base)
+		}
+	}
+	// AND IT IS STILL THERE TO BE CONFINED. A rename would otherwise make this test pass
+	// by looking for a string that no longer exists anywhere.
+	if !strings.Contains(read(t, "barrier.go"), "--selftest") {
+		t.Error("barrier.go no longer asks for the fixture's self-test mode, so the " +
+			"drain barrier is no longer proved against a fixture that is behind")
+	}
+	if !strings.Contains(read(t, filepath.Join("..", "fixture", "Fixture.cs")),
+		"--selftest") {
+		t.Error("the fixture no longer offers the mode the barrier is checked with")
 	}
 }
 

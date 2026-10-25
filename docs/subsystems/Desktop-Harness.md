@@ -66,9 +66,47 @@ can read a file", and every scenario would still pass.
 4. **Drives the real Studio** through UI Automation: the DOM id is the element address, `Invoke`
    runs the page's own handler, and a snapshot is the operating system's account of what is on
    screen.
-5. **Compares two accounts** and reports the FIRST place they disagree, from the act outwards.
+5. **Waits for the fixture to say it has nothing left to process** before reading its log for a
+   count or an absence. See below: a run finishing says nothing more will be SENT, which is not
+   the same as the application having seen what it already has.
+6. **Compares two accounts** and reports the FIRST place they disagree, from the act outwards.
    Everything after the first disagreement is consequence, and listing consequences as findings is
    how a report becomes something nobody reads.
+
+## The drain barrier, and why an absence needs one
+
+The fixture's log is written when its message loop DISPATCHES a message. So a press sent to a
+fixture that is behind exists while the log does not mention it — and every scenario whose claim is
+*nothing arrived* reads that log right after the sender stopped. Reading it there reports the guard
+as having refused when a press is sitting in a queue, which is the one direction that fails
+quietly. A longer wait is the same sentence with a bigger number in it.
+
+So the fixture answers: the harness writes a token, and the fixture writes it back once its pump
+has gone **idle** after reading the request — an idle meaning the queue held nothing, so whatever
+was in it has been dispatched and written down. An idle and not an acknowledged message, because a
+posted message is retrieved *ahead* of queued input and a sentinel would come back with the presses
+still behind it.
+
+It establishes that the fixture's queue was empty. It does **not** establish that input the system
+had accepted but not yet handed to that queue had arrived — a system thread does that handoff and
+nothing in user mode orders against it. The barrier closes the gap a slow fixture opens, which is
+the one a harness can be slower than, and the code says so where it is defined.
+
+`checkTheBarrier` proves it before the first scenario, against a fixture holding a press its own
+loop has not seen: invisible before, present after. `TestEveryCountOfWhatArrivedIsTakenAfterTheBarrier`
+reads the rule off the syntax, because the mistake is an omission.
+
+## A partial run is not a pass
+
+	0  every scenario selected ran, and passed
+	1  a scenario failed
+	2  something selected did not run — none, some, or a selection that matched nothing
+	3  the harness itself could not get started
+
+This used to be 0 whenever something passed and nothing failed, so a run missing only the
+resized-window refusal — the scenario most able to decline, and the one that establishes the guard
+refuses at all — reported success. `run.cmd` builds and runs the binary rather than using `go run`,
+which would flatten 2 and 3 into 1.
 
 ## What it establishes today
 
@@ -76,7 +114,7 @@ Nine scenarios, about 36 seconds, one command.
 
 | | |
 |---|---|
-| a seeded routine presses the application | all three channels: what the fixture received, what the record says, and what the window itself says |
+| a seeded routine presses the application | all three channels: what the fixture received, what the record says, and what the window itself says — and it presses Report a problem, which is how the child's transcript is kept |
 | a moved window still gets the press | a guarded press re-bases onto the window where it is now |
 | a resized window is refused | and the application receives NOTHING, which only the event log can establish |
 | two runs are two records | distinct references, both accounted for |
@@ -110,6 +148,7 @@ the failure would look exactly like a success.
 
 ## Validated by
 
-- `plugins/e2e` — the scenarios themselves, and the four boundary tests beside them
+- `plugins/e2e` — the scenarios themselves, the barrier's own self-check, and the eight boundary
+  tests beside them
 - `internal/acceptance` `boundary_test.go` — the oracle rule and the input rule, over the tree
 - `plugins/fixture/Fixture.cs` — the witness, and the rule written at the top of it

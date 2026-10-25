@@ -20,10 +20,16 @@ rem
 rem An unavailable desktop is reported as NOT RUN and exits 2. That is never a pass.
 rem
 rem EXIT CODES
-rem   0  every scenario that ran, passed
+rem   0  every scenario selected ran, and passed
 rem   1  a scenario failed
-rem   2  nothing ran, for a reason that is a fact about the machine
+rem   2  something selected did not run: none of them, some of them, or the selection
+rem      matched nothing. A partial run is not a pass — the scenario that did not run is
+rem      the one whose question nobody asked
 rem   3  the harness itself could not get started
+rem
+rem The harness is BUILT and then RUN, rather than `go run`: go run reports a child's exit
+rem code as a sentence on stderr and exits 1 itself, which would flatten 2 and 3 into "a
+rem scenario failed" for whatever is reading this.
 rem ---------------------------------------------------------------------------
 setlocal
 cd /d "%~dp0"
@@ -37,5 +43,10 @@ if errorlevel 1 (
   exit /b 3
 )
 
-go run . %*
+go build -o e2e.exe .
+if errorlevel 1 (
+  echo e2e: the harness could not be built.
+  exit /b 3
+)
+"%~dp0e2e.exe" %*
 exit /b %errorlevel%

@@ -105,6 +105,8 @@ type fixtureRun struct {
 	state      string
 	eventsFile string
 	art        *artifacts
+	// drains counts the barriers asked for, so each question carries a token of its own.
+	drains int
 }
 
 // startFixture opens the window and waits until it is there to be read.
@@ -112,7 +114,7 @@ type fixtureRun struct {
 // The oracles are written OUTSIDE the store Marco is given, which is not tidiness: the store is
 // the one directory this run hands to Marco, and an oracle inside it would be a file Marco could
 // reach by walking its own library.
-func startFixture(b *bundle, art *artifacts, stubborn bool) (*fixtureRun, error) {
+func startFixture(b *bundle, art *artifacts, stubborn bool, extra ...string) (*fixtureRun, error) {
 	f := &fixtureRun{art: art,
 		state:      art.path("fixture-state.json"),
 		eventsFile: art.path("fixture-events.jsonl"),
@@ -121,6 +123,7 @@ func startFixture(b *bundle, art *artifacts, stubborn bool) (*fixtureRun, error)
 	if stubborn {
 		args = append(args, "--stubborn")
 	}
+	args = append(args, extra...)
 	f.cmd = exec.Command(b.fixture, args...)
 	if err := f.cmd.Start(); err != nil {
 		return nil, fmt.Errorf("starting the fixture: %w", err)

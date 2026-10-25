@@ -2,7 +2,7 @@
 type: adr
 status: accepted
 date: 2026-10-25
-decision: "ACCEPTED — STUDIO'S PRODUCT PATH IS EXERCISED BY AN UNATTENDED HARNESS THAT DRIVES THE REAL WINDOW ON A REAL DESKTOP, AND THE ONE THING IT CANNOT ESTABLISH IS PRINTED IN EVERY REPORT. Studio's flow was testable in two places and provable in neither: the browser tests render the real page with the Go bindings STUBBED, and the backend tests drive the real backend with the recorder and the desktop REPLACED. Between them sat the whole product path — page, binding, backend, library, generated Marco, child executor, native input, window guard, run record — and the only thing that had ever exercised it was a person working through E2E.md by hand, eighteen bullets at a time. `plugins/e2e` is that path, run by one command: a bundle of binaries built fresh into a directory of its own, an isolated store, `plugins/fixture` as the application, and the real `studio.exe` driven through UI AUTOMATION so that every press runs the page's own handler and therefore the real binding and the real backend. It asserts two accounts that are never crossed — the fixture's own log of what it RECEIVED, which Marco may never read, against the run record Marco wrote — and reports the FIRST place they disagree. THE LIMIT IS STRUCTURAL AND IS STATED RATHER THAN WORKED AROUND: Marco's recorder discards injected input in both hooks, on purpose, because attributing Marco's own presses to a person would let a replay be learned as a demonstration. So no unattended run can establish that Windows captured a physical gesture, and no door was added to pretend otherwise. Routines are SEEDED through the production generator and labelled seeded, never recorded; the report carries three lines — passed desktop scenarios, passed recording-integration scenarios, and `physical recording capture: NOT EXERCISED` — and the third is printed on a green run in the same words, because a limit mentioned only beside a failure is a limit nobody reads."
+decision: "ACCEPTED — STUDIO'S PRODUCT PATH IS EXERCISED BY AN UNATTENDED HARNESS THAT DRIVES THE REAL WINDOW ON A REAL DESKTOP, AND THE ONE THING IT CANNOT ESTABLISH IS PRINTED IN EVERY REPORT. Studio's flow was testable in two places and provable in neither: the browser tests render the real page with the Go bindings STUBBED, and the backend tests drive the real backend with the recorder and the desktop REPLACED. Between them sat the whole product path — page, binding, backend, library, generated Marco, child executor, native input, window guard, run record — and the only thing that had ever exercised it was a person working through E2E.md by hand, eighteen bullets at a time. `plugins/e2e` is that path, run by one command: a bundle of binaries built fresh into a directory of its own, an isolated store, `plugins/fixture` as the application, and the real `studio.exe` driven through UI AUTOMATION so that every press runs the page's own handler and therefore the real binding and the real backend. It asserts two accounts that are never crossed — the fixture's own log of what it RECEIVED, which Marco may never read, against the run record Marco wrote — and reports the FIRST place they disagree. THE LIMIT IS STRUCTURAL AND IS STATED RATHER THAN WORKED AROUND: Marco's recorder discards injected input in both hooks, on purpose, because attributing Marco's own presses to a person would let a replay be learned as a demonstration. So no unattended run can establish that Windows captured a physical gesture, and no door was added to pretend otherwise. Routines are SEEDED through the production generator and labelled seeded, never recorded; the report carries three lines — passed desktop scenarios, passed recording-integration scenarios, and `physical recording capture: NOT EXERCISED` — and the third is printed on a green run in the same words, because a limit mentioned only beside a failure is a limit nobody reads. TWO FALSE-GREEN PATHS WERE FOUND IN REVIEW AND CLOSED. A partially skipped run exited 0, so the scenario most able to decline — the resized-window refusal — could go unrun while the harness reported success; a skip is now an ending of its own, and no shape of partial run exits 0. And a run finishing established only that nothing more would be SENT, not that the fixture had processed what it already had: every absence now crosses a DRAIN BARRIER the fixture answers from inside its own message loop, demonstrated before the first scenario against a fixture holding a press it has not seen, with what the barrier cannot establish — the system's own delivery to that queue — stated rather than implied."
 supersedes: []
 affects:
   - interface
@@ -114,6 +114,83 @@ happened does, and in the log it is a `left_down` on the wrong control with the 
 produced it. `internal/acceptance`'s boundary test now scans for both oracle names across the
 tree, so no production package may learn either.
 
+## Nothing arrived, versus nothing has arrived yet
+
+Four scenarios assert an absence: a resized window receives nothing, a stopped run sends no second
+press, a killed runner sends no further press, two runs produce exactly two presses and not a
+third. Every one of them reads the fixture's log after the thing sending input has stopped.
+
+The first version of this took the run record's `ended` as the moment that made such a read sound,
+and it is only half of what that read needs. `ended` establishes that nothing more will be SENT.
+The fixture's log is written when its message loop DISPATCHES a message — so a fixture that is
+behind, for any of the ordinary reasons an application is, can have a press sitting in its queue at
+the moment the harness looks. The harness would then report that the guard refused and the
+application received nothing, and be wrong in the one direction that matters: a press that
+happened, reported as a press that did not. **A longer wait is not the fix.** Waiting two seconds
+and finding silence establishes that nothing has arrived in two seconds.
+
+So the fixture answers for itself. The harness writes a token, and the fixture writes it back once
+its pump has gone idle *after* reading the request — an idle meaning the queue held nothing at all,
+so whatever was in it has been dispatched, and dispatched is when the witness writes a press down.
+It is an idle rather than an acknowledged message on purpose: a posted message is retrieved AHEAD
+of queued input, so a sentinel would come back with the presses still waiting behind it, which is
+worse than no barrier because it would look like proof.
+
+The channel carries a token and nothing else. What the window received stays in the two oracles the
+harness reads for itself; a synchronisation channel that reported facts would be one the harness
+could be tempted to believe instead of looking.
+
+**What it does not establish**, said here because the code says it too: input the system had
+accepted but not yet handed to that queue. That handoff is done by a system thread and nothing in
+either process orders against it. What bounds it is the producer — `marco` returns from sending
+before it writes `ended` — and the residue is an interval inside the operating system whose end no
+user-mode observation can see. The gap this closes is the one a harness can be slower than.
+
+And it is demonstrated rather than assumed, before any scenario leans on it, against a fixture
+that is genuinely behind: `--selftest` queues a press in the fixture's own message queue and stops
+the loop until released. The harness reads the log there and must find nothing — **that read is the
+false green, reproduced on purpose** — asks for the barrier while the loop is still stopped, and
+reads again afterwards, where the press must be. A barrier nobody has watched hold is an assumption
+with a function name.
+
+## A scenario that did not run is not a success
+
+The exit code was 0 whenever something passed and nothing failed, which made a partial run and a
+complete one the same answer. The scenario most able to decline is the resized-window refusal — the
+window would not resize, the fixture would not start, the foreground was not ours — and it is also
+the one that establishes the guard refuses at all. A run missing only that one exited 0, and
+whatever read that code was told the product works by a harness that had not asked the question.
+
+	0  every scenario selected ran, and passed
+	1  a scenario failed — which outranks everything, because a finding outranks a gap
+	2  something selected did not run: none of them, some of them, or a selection that
+	   matched nothing, which establishes nothing while having failed nothing
+	3  the harness itself could not get started
+
+A partial run also says so in words, above the per-layer counts, because the counts are totalled by
+a reader in their head and this sentence must not be. And `run.cmd` builds the harness and runs the
+binary rather than using `go run`, which reports a child's code as a sentence on stderr and exits 1
+itself — flattening 2 and 3 into "a scenario failed" for whatever is reading it.
+
+## The child's own words, kept by the window that gathers them
+
+The harness kept every word UI Automation could read off the window, which is not the child's
+transcript: that lives in a `<pre>` behind a collapsed `<details>`, correctly absent from the
+accessibility tree, because a thing nobody can see is a thing no assistive technology should claim
+is there. So the one artifact saying what `marco` actually said as it ran was the one missing.
+
+The product already gathers it. **Report a problem** writes the run's record, what the run said as
+it ran, and the routine as it stands now into one file somebody can attach — and sends it nowhere,
+which is the whole design of it. So the spine presses that button, and the harness keeps what the
+product produced: a product path with no automated coverage at all is now exercised, and the
+transcript is retained because the window gathered it rather than because the harness scraped it.
+
+Two channels again: the window says where the file went, and the harness reads the file from the
+place the window named. And an unavailable transcript is LABELLED rather than missing — `Report`
+writes the section either way, with a sentence saying the window keeps only what the run in front
+of it said and that the record is the durable account. The harness asserts the section exists and
+reports which of the two it got. A report that silently omitted it would be the finding.
+
 ## What it will not do
 
 - It never renames, moves or rebuilds a binary in the tree, so it cannot be the reason a
@@ -172,13 +249,16 @@ Nine scenarios, eight desktop and one recording, in about 36 seconds.
   exactly once; the application's own count incremented by one; the run record agreeing about the
   route, the contract, the stated mode, the build and the number of input actions asked for; and
   the WINDOW's own sentence, read back through UI Automation, naming the routine, saying it
-  performed, and still saying that nothing checked what the application did.
+  performed, and still saying that nothing checked what the application did. It also presses
+  **Report a problem** and keeps what the window wrote, which is how the child's own transcript is
+  retained — the one account the rendered page does not hold.
 - `plugins/e2e` `window/moved window still gets the press` and
   `window/resized window is refused with nothing sent` — **the pair, and it has to be a pair.** A
   harness that showed a press surviving a move and never checked the refusal would be evidence
   that the guard is permissive, presented as evidence that it works. The refusal is asserted on
-  what the application did NOT receive, and the moment after which nothing more can arrive is the
-  run record's own `ended` rather than an interval somebody chose.
+  what the application did NOT receive, and on two facts rather than an interval somebody chose:
+  the run record's own `ended`, after which nothing more can be sent, and the fixture's own word
+  that its message loop had run out of work, without which the count is a lower bound.
 - `plugins/e2e` `runs/two runs are two records` — two references, distinct. The failure this is
   about is not a crash: one run's account quietly replacing another's leaves a history short by one
   and a reference that resolves to the wrong attempt.
@@ -200,6 +280,22 @@ Nine scenarios, eight desktop and one recording, in about 36 seconds.
   named scripted-recorder tests, run explicitly, where a name that matched nothing would be the
   quietest possible green and a skip is not a pass. Labelled apart from the desktop layer and
   never totalled with it.
+- `plugins/e2e` `checkTheBarrier` — **the harness's own precondition, run before the first
+  scenario and fatal if it cannot be met.** A press queued in a fixture whose loop is stopped must
+  be invisible to the log, must still be invisible when the barrier is asked while the loop is
+  stopped, and must be there once the barrier answers. Not a scenario: it is a claim about the
+  harness, and the layer totals are claims about Marco. Its sentence is printed in every report.
+- `plugins/e2e` `TestASkippedScenarioIsNotASuccess` — the whole table, including the two cases
+  easiest to leave out: a selection that matched nothing, and a failure beside a skip where the
+  failure has to win. Four shapes of partial run are asserted separately not to exit 0.
+- `plugins/e2e` `TestEveryCountOfWhatArrivedIsTakenAfterTheBarrier` — read off the syntax, because
+  the mistake is an omission and no reviewer catches those by reading. In a scenario, a call that
+  counts what the fixture received must come after the barrier in the same function. `barrier.go`
+  is excluded by name: it reads the log BEFORE the barrier deliberately.
+- `plugins/e2e` `TestOnlyTheBarrierSelfCheckStagesAPress` — the fixture's `--selftest` mode is the
+  one thing in this system that produces a press nobody sent, so it is confined to the self-check
+  by a test rather than by everybody remembering. It also asserts the mode still exists on both
+  sides, so a rename cannot make the confinement pass vacuously.
 - `plugins/e2e` `TestTheHarnessSendsNoInput` — **the load-bearing test of the module.** No path
   through it names `SendInput`, `keybd_event`, `SetCursorPos`, Marco's input backend, the engine,
   or the recorder's constructor. Comments are stripped before the scan, so the rule can be

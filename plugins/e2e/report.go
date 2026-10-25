@@ -46,13 +46,59 @@ const (
 		"only evidence of that; see E2E.md."
 )
 
+// verdictOf is what a set of results adds up to, and the ending it adds up to.
+//
+// # A SKIPPED SCENARIO IS NOT A SUCCESS
+//
+// This used to return 0 whenever something passed and nothing failed, which made a partial run
+// indistinguishable from a complete one. The resized-window refusal could decline to run — the
+// window would not resize, the fixture would not start, the foreground was not ours — and the
+// harness exited 0 with the one scenario that establishes the guard refuses never having run. A
+// script reading that exit code was told the product works.
+//
+// So the endings are, and a reader of the code is the point of the list being here:
+//
+//	0  every scenario selected ran, and passed
+//	1  a scenario failed — which outranks everything, because a failure is a finding
+//	2  something selected did not run: nothing did, some did not, or the selection
+//	   matched nothing at all. None of those is a result about Marco
+//	3  the harness itself could not get started
+//
+// `selected` is how many scenarios the selection matched, which is the only way to tell "every
+// scenario passed" from "`-only` matched nothing, so an empty run passed vacuously".
+func verdictOf(results []result, selected int) (verdict string, code int) {
+	passed, failed, skipped := 0, 0, 0
+	for _, r := range results {
+		switch {
+		case r.skipped:
+			skipped++
+		case r.passed:
+			passed++
+		default:
+			failed++
+		}
+	}
+	switch {
+	case failed > 0:
+		return "failed", 1
+	case selected == 0:
+		return "nothing selected", 2
+	case passed == 0:
+		return "not run", 2
+	case skipped > 0:
+		return "incomplete", 2
+	default:
+		return "passed", 0
+	}
+}
+
 // report prints the summary, writes it beside the artifacts, and returns the exit code.
 //
-//	0  every scenario that ran, passed
-//	1  a scenario failed
-//	2  nothing ran, and the reason is a fact about the machine
-//	3  the harness itself could not get started
-func report(art *artifacts, m machine, results []result, fatal error, started time.Time) int {
+// `checks` are the harness's own preconditions — the things it established about itself before any
+// scenario leaned on them — printed on every run because a reader of a green summary is entitled
+// to know they were checked rather than assumed.
+func report(art *artifacts, m machine, checks []string, results []result, fatal error,
+	started time.Time) int {
 	fmt.Printf("\n%s\n", strings.Repeat("─", 78))
 
 	if fatal != nil {
@@ -61,26 +107,12 @@ func report(art *artifacts, m machine, results []result, fatal error, started ti
 			fmt.Printf("NOT RUN: %s\n", nr.why)
 			describe(m)
 			fmt.Printf("\n%s\n", notExercised)
-			keepSummary(art, m, results, "not run", nr.why, started)
+			keepSummary(art, m, checks, results, "not run", nr.why, started)
 			return 2
 		}
 		fmt.Printf("the harness could not start: %v\n", fatal)
-		keepSummary(art, m, results, "broken", fatal.Error(), started)
+		keepSummary(art, m, checks, results, "broken", fatal.Error(), started)
 		return 3
-	}
-
-	ran, passed, failed, skipped := 0, 0, 0, 0
-	for _, r := range results {
-		switch {
-		case r.skipped:
-			skipped++
-		case r.passed:
-			ran++
-			passed++
-		default:
-			ran++
-			failed++
-		}
 	}
 
 	for _, layer := range []string{layerDesktop, layerRecording} {
@@ -131,25 +163,41 @@ func report(art *artifacts, m machine, results []result, fatal error, started ti
 		fmt.Println()
 	}
 	fmt.Printf("%s\n", notExercised)
+
+	verdict, code := verdictOf(results, len(results))
+	// AND A PARTIAL RUN SAYS SO IN WORDS, not only in an exit code.
+	//
+	// The counts above are per layer and a reader totals them in their head; the one sentence
+	// that has to be unmissable is that this run does not cover everything it selected.
+	switch verdict {
+	case "incomplete":
+		fmt.Printf("\nINCOMPLETE: %d of the %d selected scenarios did not run, so this "+
+			"result says nothing about what they establish.\n",
+			countSkipped(results), len(results))
+	case "not run":
+		fmt.Printf("\nNOT RUN: none of the %d selected scenarios ran.\n", len(results))
+	case "nothing selected":
+		fmt.Printf("\nNOTHING SELECTED: no scenario matched, so nothing was " +
+			"established. A selection that matches nothing is not a pass.\n")
+	}
+	for _, c := range checks {
+		fmt.Printf("%s\n", c)
+	}
 	describe(m)
 	fmt.Printf("\nartifacts: %s\n", art.dir)
 
-	verdict := "passed"
-	switch {
-	case failed > 0:
-		verdict = "failed"
-	case ran == 0:
-		verdict = "not run"
+	keepSummary(art, m, checks, results, verdict, "", started)
+	return code
+}
+
+func countSkipped(results []result) int {
+	n := 0
+	for _, r := range results {
+		if r.skipped {
+			n++
+		}
 	}
-	keepSummary(art, m, results, verdict, "", started)
-	switch {
-	case failed > 0:
-		return 1
-	case ran == 0:
-		return 2
-	default:
-		return 0
-	}
+	return n
 }
 
 // firstLine is what a reader needs beside a scenario's name: its finding, or what it established.
@@ -182,8 +230,8 @@ func describe(m machine) {
 	}
 }
 
-func keepSummary(art *artifacts, m machine, results []result, verdict, why string,
-	started time.Time) {
+func keepSummary(art *artifacts, m machine, checks []string, results []result,
+	verdict, why string, started time.Time) {
 
 	type line struct {
 		Name     string   `json:"name"`
@@ -211,6 +259,7 @@ func keepSummary(art *artifacts, m machine, results []result, verdict, why strin
 		"verdict":                    verdict,
 		"why":                        why,
 		"physical_recording_capture": "not exercised",
+		"checks":                     checks,
 		"machine":                    m,
 		"scenarios":                  lines,
 		"took_ms":                    time.Since(started).Milliseconds(),

@@ -163,11 +163,30 @@ func playASeededRoutine(w *world) result {
 	}
 	w.art.step("Marco recorded %s", rec)
 	w.art.copyIn("run-record.json", rec.file)
+
+	// ── AND THE WINDOW'S OWN REPORT, GATHERED BY THE WINDOW ──────────────────
+	//
+	// Pressed here rather than after the assertions, so a scenario that is about to fail
+	// keeps the report too — which is when somebody actually wants the child's output.
+	said, err := keepReport(st, rec.Run)
+	if err != nil {
+		st.fail()
+		return fail(started, err.Error())
+	}
+	w.art.step("%s", said)
+
 	after, err := f.read()
 	if err != nil {
 		return fail(started, err.Error())
 	}
 	w.art.copyIn("fixture-state-after.json", f.state)
+	// EXACTLY ONE PRESS IS A COUNT, AND A COUNT IS AN ABSENCE OF THE NEXT ONE. The barrier
+	// is what makes `notExactlyOne` readable as a count rather than as a lower bound on a
+	// fixture that is still working through its queue. See barrier.go.
+	if err := f.drained(30 * time.Second); err != nil {
+		st.fail()
+		return skip(started, err.Error())
+	}
 	presses, err := f.presses(seq)
 	if err != nil {
 		return fail(started, err.Error())
