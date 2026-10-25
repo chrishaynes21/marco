@@ -329,10 +329,10 @@ func resultVerdict(t trial) []string {
 	// ── A ROUTINE'S RUN, WHEN IT IS THE LAST THING THAT HAPPENED ──
 	//
 	// Asked first and only when it is LATER: a trial may contain both kinds, and the
-	// verdict is about the last run in it. A routine's performance has no canonical
-	// reference and writes no run record by construction — it is `marco do`, not the
-	// supervised runner — so the sentences below would report every one of them as a run
-	// that cited nothing.
+	// verdict is about the last run in it. A routine's performance does cite a reference
+	// and write a record — but in `marco do`'s words, not the supervised runner's, and
+	// this journal was never handed the reference — so the sentences below would report
+	// every one of them as a run that cited nothing.
 	ran, ok := t.last(trialRan)
 	if pressed, had := t.last(trialPressed); had && (!ok || pressed.Seq > ran.Seq) {
 		return routineResult(pressed)

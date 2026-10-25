@@ -657,10 +657,11 @@ func TestAWordThatIsNotOneOfTheSevenIsNotAnAnswer(t *testing.T) {
 
 // A ROUTINE'S RUN IS NOT RENDERED AS A SUPERVISED PERFORMANCE.
 //
-// It has no canonical reference and writes no run record, by construction: it is `marco do`
-// performing a program, not the runner writing an account of a performance. A view that expected
-// the other thing would tell somebody their perfectly good routine "cited no reference, so there
-// is no canonical account of it".
+// It is `marco do` performing a program, not the runner writing an account of a performance.
+// It cites a reference and writes a record of its own now, and the window READS that citation —
+// so what is checked here is that nothing INVENTS one when the runner printed none, and that no
+// runner's state appears beside it. A view that expected the other thing would tell somebody
+// their perfectly good routine "cited no reference, so there is no canonical account of it".
 func TestARoutinesRunSaysItIsOne(t *testing.T) {
 	w := aRunThatSaid(t, outcome.Line(outcome.Performed))
 	if !w.Routine {

@@ -138,10 +138,13 @@ const (
 	trialRan  trialKind = "ran"
 	// trialPressing is a saved ROUTINE started, and trialPressed its published result.
 	//
-	// Apart from the two above because a routine's run is not a supervised performance:
-	// it has no canonical reference and writes no run record, so a reader that filed one
-	// as the other would report a perfectly good routine as a run that never finished
-	// writing an account of itself. See `pressing`.
+	// Apart from the two above because a routine's run is not a supervised performance.
+	// It has a record of its own now, and the `marco` that performs it cites a reference
+	// for it — but the record is a routine's and so are the words in it, and this journal
+	// was never handed that reference. So a reader that filed one as the other would read
+	// `performed` through the supervised vocabulary and report a perfectly good routine as
+	// a run that never finished writing an account of itself. What this journal knows
+	// about a routine is what it was told. See `pressing`.
 	trialPressing trialKind = "pressing"
 	trialPressed  trialKind = "pressed"
 )
@@ -450,10 +453,12 @@ func (t *trials) playing(act string, live, layout bool) {
 //
 // A kind of its own rather than `trialPlay` with a routine's name in it, because the two are not
 // the same claim and the reader of this journal would have had to tell them apart by what was
-// MISSING. An Act's performance cites a canonical reference and a run record; a routine's
-// performance has neither by construction — so a reader that filed one as the other would print
-// "the run cited no reference, so there is no canonical account of it" about a routine that
-// performed perfectly, which is a false verdict in the one document a trial is read from.
+// MISSING. Both kinds cite a reference and write a record now, but they are two records in
+// two vocabularies, and this journal is handed neither for a routine — so a reader that filed one
+// as the other would print "the run cited no reference, so there is no canonical account of it",
+// or an Act's verdict, about a routine that performed perfectly: a false verdict in the one
+// document a trial is read from. What a routine's note holds is what it was told, here and in
+// `pressed`.
 //
 // `contract` is legacy, guarded or incomplete — see orchestrator.ContractOf. It is in the journal
 // because it is the question the trial is being run to answer: whether a routine recorded in this
