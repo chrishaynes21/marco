@@ -1,4 +1,4 @@
-# Handoff â Marco (feat/host-ffi)
+# Handoff — Marco (feat/host-ffi)
 
 State as of this handoff: **all green** (Go packages pass), gofmt + vet clean (modulo
 the standard Windows LL-hook `unsafe.Pointer` notes), branch `feat/host-ffi` (unmerged).
@@ -6,7 +6,7 @@ Binaries built and current: `marco.exe`, `marco-macros.exe` (repo root),
 `plugins/overlay/overlay.exe`, `plugins/ocr/ocr.exe`. The engine has **zero external
 deps**; overlay (ebiten), voice (vosk), ocr (tesseract CLI) are separate modules.
 
-**Logging is at production defaults:** `$MARCO_LOG` unset â **info** (notable events +
+**Logging is at production defaults:** `$MARCO_LOG` unset → **info** (notable events +
 warnings + errors only; a normal click is silent, a low-confidence anchor is a Warn, a
 followed move is an Info). `MARCO_LOG=debug` turns on the full per-click scoring /
 coordinate / origin trace. The forced `MARCO_LOG=debug` is no longer written into
@@ -14,7 +14,7 @@ coordinate / origin trace. The forced `MARCO_LOG=debug` is no longer written int
 the console.
 
 Read this, then `README.md` (user-facing), `E2E.md` (manual test walkthrough), and
-`spec/` (language). **`docs/` is the Director's documentation** â one file per milestone,
+`spec/` (language). **`docs/` is the Director's documentation** — one file per milestone,
 each ending in a "Known gaps" section that states what is not proven (item 19).
 Cross-session notes live in the author's memory; the durable project facts are also
 captured here.
@@ -22,84 +22,84 @@ captured here.
 ## What this session built (on top of the host-FFI port)
 
 1. **Named command arguments.** Declare at teach time with `with`: `teach "say hello
-   with name"` â route `say hello`, arg `name`. Place the value during a demo by
-   tapping the **arg key F9** (no typing `{{â¦}}` into the app); run as `say hello
+   with name"` → route `say hello`, arg `name`. Place the value during a demo by
+   tapping the **arg key F9** (no typing `{{…}}` into the app); run as `say hello
    name:chris`. Multi-word values run to the next `key:`. Positional `with a, b`
-   (â `{{1}}`,`{{2}}`) still works as a fallback.
+   (→ `{{1}}`,`{{2}}`) still works as a fallback.
    - `internal/routes/args.go`: `SplitArgs` (teach decl / positional), `ParseInvocation`
-     (run â route + named map + positional), `ApplyArgs` (fill, escaped), `ArgNames`.
+     (run → route + named map + positional), `ApplyArgs` (fill, escaped), `ArgNames`.
    - `internal/simplify`: `Options.ArgKey` (`MARCO_ARG_KEY`, default `f9`) + `ArgNames`;
-     the Nth F9 tap â `{{ArgNames[N-1]}}` (named) or `{{N}}`.
+     the Nth F9 tap → `{{ArgNames[N-1]}}` (named) or `{{N}}`.
    - `internal/codegen`: `Route(name, app, steps, dir, declaredArgs...)`; `splitSecrets`
-     keeps numeric + declared-plain `{{name}}`, everything else â `Secret`.
+     keeps numeric + declared-plain `{{name}}`, everything else → `Secret`.
    - `cmd/marco`: `dispatchDo(d, name, named, positional)` + `runRoute`;
      `runAssistantDo`/`runDo` call `ParseInvocation` BEFORE nlu resolution.
 
 2. **Secret named args (passwords, remembered).** A declared arg named
    password/pass/pwd/pin/secret/token/otp/apikey/key (`codegen.isSecretArg`) is NOT
-   text-substituted â codegen emits `do OS's Secret with "<routebase>:<argname>"`
+   text-substituted — codegen emits `do OS's Secret with "<routebase>:<argname>"`
    (route-qualified, never in the route source). `oshost.Host.SetArgs(named)` (set in
    `cmd/marco runRoute`) lets `doSecret` use a value passed inline AND remember it
    (`sec.Set`), falling back to the credential store next run. So `login to facebook
-   with username, password` â enter once, reuse after.
+   with username, password` → enter once, reuse after.
 
 3. **Voice / narrate teach.** `internal/voiceteach` (pure `Parse` + `Session` over an
    injectable `Env`; `OSEnv` reads cursor/window/screen). `marco teach --narrate
    <name>` reads one phrase per stdin line (typed OR piped from the voice plugin).
-   Overlay: say/type **"narrate teach <name>"** â `acts.go` spawns the child and
+   Overlay: say/type **"narrate teach <name>"** → `acts.go` spawns the child and
    forwards every `Run` phrase to it. Vocabulary: click/anchor this/wait for this
    screen/wait N/type/press/activate/undo/done/cancel. Narration also makes **named**
    args (`New(env, argNames...)` + `Session.resolveArg`: "type person" / "type the
-   first argument" â `{{person}}`).
+   first argument" → `{{person}}`).
 
 4. **Overlay teach prompts, redone.** Prompts render BELOW the command line
-   (terminal-style transcript), answered **type-then-Enter** (press y/n/s, see `âº y`,
-   Enter to send; Esc = no), with a live `â rec M:SS` timer during recording. Scope
-   prompt **inverted** â app-only is the happy path (yes/Enter). See
+   (terminal-style transcript), answered **type-then-Enter** (press y/n/s, see `› y`,
+   Enter to send; Esc = no), with a live `● rec M:SS` timer during recording. Scope
+   prompt **inverted** → app-only is the happy path (yes/Enter). See
    `overlay-teach-prompt-handshake` memory + `plugins/overlay/{model,view,controller_windows,acts}.go`.
 
 5. **Overlay auto-pop args.** `marco args "<phrase>"` prints a route's arg labels;
-   `pollArgHints` (debounced 150ms) â `drawArgHints` shows `name: password: (tab)`
+   `pollArgHints` (debounced 150ms) → `drawArgHints` shows `name: password: (tab)`
    after the command; **Tab** (`actAcceptHint`) appends the next `name:`.
 
-6. **`forget all` / `delete all`** â confirm, then wipe every route (`cmd/marco
+6. **`forget all` / `delete all`** — confirm, then wipe every route (`cmd/marco
    runForget`). Fixes the old "no route named delete all".
 
-7. **Overlay opacity** â idle floor up (`textIdle` 0.85, config `Idle` default 0.72),
-   **focus â fully solid**, config opacity slider **live-previews** while the editor
+7. **Overlay opacity** — idle floor up (`textIdle` 0.85, config `Idle` default 0.72),
+   **focus → fully solid**, config opacity slider **live-previews** while the editor
    is open (`view.go` opacity switch; `config.go`).
 
 8. **README synced**, **`E2E.md`** added (manual test guide, verified scriptable parts).
 
 9. **First-class anchors with a resolver chain.** An anchor is now resolved **a couple
    of ways** as a wait gate, tried each poll round until one succeeds (`oshost.doFind`):
-   (1) **Image** template match (primary), then (2) **Colour** â the pixel under the
+   (1) **Image** template match (primary), then (2) **Colour** — the pixel under the
    recorded click point matches the colour captured at teach time. Colour only ever
    *upgrades* a would-be timeout into a confident resolve; it never overrides a positive
    image match, so it's strictly safe in the wait-gate model (the route clicks the
    recorded coordinate either way). The click pixel is read for free from the same
-   armed full-frame capture (`recorder_windows.go` worker â `screen.ColorAt`), carried
-   on `RecordedEvent.Color` â `macroir.Step.Color` (`simplify`) â the `Anchor` set's
+   armed full-frame capture (`recorder_windows.go` worker → `screen.ColorAt`), carried
+   on `RecordedEvent.Color` → `macroir.Step.Color` (`simplify`) → the `Anchor` set's
    `Color`/`X`/`Y` fields (`codegen.emitImageClick`). Backward compatible: anchors
-   taught before this carry no colour and run image-only â re-teach to gain the
+   taught before this carry no colour and run image-only — re-teach to gain the
    fallback. Resolver chain is the extension point for future plugin resolvers
    (OCR text, vision) per the dep boundary. Tests: `oshost` `TestFind{ImageResolves,
    ColorFallback,ColorMismatchFails}`, `codegen` `TestImageClick{ColorResolver,NoColor}`.
 
 10. **Third anchor resolver: text (OCR), as a plugin.** Image and colour are GATES
-    (confirm a static screen â click the recorded coordinate); text is a LOCATOR for a
-    target that MOVED (reflowing UI) â click where the word is now. OCR needs a dep, so
+    (confirm a static screen → click the recorded coordinate); text is a LOCATOR for a
+    target that MOVED (reflowing UI) → click where the word is now. OCR needs a dep, so
     it's a **bridge host plugin**, not engine code:
     - `plugins/ocr` (own module): a `Text` act with a `Find` action. Captures via the
       engine's `internal/screen` (local `replace`, so no new engine dep), OCRs with the
       **tesseract CLI** (cross-platform, behind an `ocrEngine` interface for future
-      native backends), parses TSV, matches the word/phrase â centre Point. Pure
+      native backends), parses TSV, matches the word/phrase → centre Point. Pure
       parse/match unit-tested (`ocr_test.go`); tesseract not needed to test.
     - Engine wiring: `macroir.Step.AnchorText`; `internal/textmod` embeds `text.marco`
       (the `Text` surface; `use text.` resolves via `driver.builtinModule` like `os`);
       `codegen.emitAnchoredClick` emits a `Text's Find` fallback that clicks `that` (the
       located point), reusing one `Anchor` set for both hosts; `voiceteach` `ClickText`
-      ("click the text X"). `text.marco` does NOT redeclare `Point` (uses os.marco's â
+      ("click the text X"). `text.marco` does NOT redeclare `Point` (uses os.marco's —
       avoids a duplicate-symbol merge error when a route `use os.`+`use text.`).
     - Run wiring: `cmd/marco` `newDeps` adds `Hosts["Text"] = bridgehost.New($MARCO_OCR)`
       (lazy) when set; `setup.ps1 -OCR` builds `ocr.exe`, **installs tesseract** (winget,
@@ -107,66 +107,66 @@ captured here.
       `MARCO_OCR` + a pinned `MARCO_TESSERACT` into `overlay.cmd`. **Graceful absence:**
       with no Text host, `Text's Find` falls through
       to the OS host (the `*` default), which now declines a text-only anchor quietly
-      (`oshost.doFind`) â route clicks its recorded coordinate. Needs `tesseract` (or
+      (`oshost.doFind`) → route clicks its recorded coordinate. Needs `tesseract` (or
       `$MARCO_TESSERACT`). Tests: `codegen` `TestTextOnlyClickRoute`/`TestGateAndTextClickRoute`,
       `voiceteach` ClickText cases, `plugins/ocr` parse/match.
 
 11. **Route scopes are now folders: context / focus / global.** Each app owns two
     subfolders beside the top-level `global/`:
-    - `routes/global/<slug>.marco` â **global**: app-less, runs anywhere, no switch.
-    - `routes/<app>/context/<slug>.marco` â **context**: only while `<app>` is in front,
+    - `routes/global/<slug>.marco` — **global**: app-less, runs anywhere, no switch.
+    - `routes/<app>/context/<slug>.marco` — **context**: only while `<app>` is in front,
       no switch (the in-app command).
-    - `routes/<app>/focus/<slug>.marco` â **focus**: from anywhere; brings `<app>` to the
+    - `routes/<app>/focus/<slug>.marco` — **focus**: from anywhere; brings `<app>` to the
       front first (codegen prepends `Activate`).
     `internal/routes`: `Route` gains `Focus bool` (App""=global; App+!Focus=context;
-    App+Focus=focus). `Resolve` order: foreground app's context â its focus â any other
-    app's focus (activates it) â global. `Save`/`SaveRecording`/`ScopeDir` now take a
+    App+Focus=focus). `Resolve` order: foreground app's context → its focus → any other
+    app's focus (activates it) → global. `Save`/`SaveRecording`/`ScopeDir` now take a
     `Route`. **Legacy:** a loose `routes/<app>/<slug>.marco` (pre-split) reads + stays as
-    context (`locDir` fallback) â existing routes work untouched; new ones use subfolders.
-    Teach: `saveTaught` maps scopeContext/Focus/Global â the folders (only focus passes
+    context (`locDir` fallback) — existing routes work untouched; new ones use subfolders.
+    Teach: `saveTaught` maps scopeContext/Focus/Global → the folders (only focus passes
     an app to codegen, so only focus activates); `TeachAuto` defaults to context.
     Display: `marco routes [--json]` carries `scope` ("context"|"focus"|"global");
     overlay help groups into **context / focus / global** (acts.go `helpLines`). Tests:
     `routes` `TestFocusResolvesAnywhere`/`TestContextBeatsFocusInApp`/`TestFolderLayout`/
     `TestLegacyLooseContext`. NOTE: old "focus" routes saved before this live in
-    `routes/global/` with an `Activate` in the body (e.g. mute-discord) â they still work
+    `routes/global/` with an `Activate` in the body (e.g. mute-discord) — they still work
     (display as global, behave like focus); re-teach to reclassify them as focus.
 
-12. **Anchors are a SCORED bundle (Phase 1).** `oshost.doFind` no longer chains imageâ
+12. **Anchors are a SCORED bundle (Phase 1).** `oshost.doFind` no longer chains image→
     colour; it SCORES candidate locations and fuses signals into a CONFIDENCE
     (`scoreAnchor`). Candidates: the recorded point P (resolved window-relative via
-    `anchorPoint` â fixes the old stale-absolute colour/position bug) and, when the image
+    `anchorPoint` — fixes the old stale-absolute colour/position bug) and, when the image
     matches elsewhere, its best-match centre Lb (so a MOVED target is followed). Confidence
     = evidence from **image** (`screen.Match.Score`, now exposed) + **colour** (tolerance-
     aware `colorScore`), normalised over available signals; **position is a selection
     prior, NOT evidence** (P is always dist 0 from itself, so it can't certify
-    correctness â it only favours the nearer candidate). Weights `wImage 0.8 / wColor 0.2`,
+    correctness — it only favours the nearer candidate). Weights `wImage 0.8 / wColor 0.2`,
     `positionFloor 0.7`; threshold `findConfidence()` = `$MARCO_FIND_CONFIDENCE` (default
-    0.6). Above threshold â ok at the located point (codegen's confident arm clicks
-    `that`); below â failed + an INFO "low confidence â¦ re-teach to repair this anchor"
+    0.6). Above threshold → ok at the located point (codegen's confident arm clicks
+    `that`); below → failed + an INFO "low confidence … re-teach to repair this anchor"
     line, and the route's `or?` clicks the recorded coordinate (or tries Text/OCR). codegen
     emits the anchor with X,Y (+ RelX,RelY) always; confident arm clicks `that`. The gate
-    timeout dropped 20000â1500ms (fail fast; the diff-mask experiment was removed). Tests:
+    timeout dropped 20000→1500ms (fail fast; the diff-mask experiment was removed). Tests:
     `oshost` `TestFind{ImageConfident,MovedTarget,ColorCarries,LowConfidence}`. NOT yet:
     edge signal (Phase 2), last-known location (Phase 3), Text fused into the score (still a
-    separate `or?` locator â cross-host), and the inline overlay "repair this anchor?"
+    separate `or?` locator — cross-host), and the inline overlay "repair this anchor?"
     prompt (today it's a log hint + re-teach).
 
 13. **Button recognition (all pure Go, `internal/screen`).** Built on one edge primitive
     (`edgeStrength`, `EdgeTolerance`):
     - **Auto-crop to the button** (`AutoCrop`, used by the recorder capture worker): at
-      capture it snaps the saved template to the DETECTED button containing the click â
+      capture it snaps the saved template to the DETECTED button containing the click —
       which also drops adjacent disconnected things (a tooltip is a separate component).
       Falls back to the edge bounding box, then unchanged (dense/flat patch). Capture radius
-      bumped 40â64.
-    - **Edge-match signal** (`Screen.FindEdge` â `findEdgeDT`): production CV â matches the
+      bumped 40→64.
+    - **Edge-match signal** (`Screen.FindEdge` → `findEdgeDT`): production CV — matches the
       button's OUTLINE via a **distance transform** (`distanceTransform`, 2-pass chamfer), so
       a template edge only has to be NEAR a screen edge, tolerant to anti-aliasing and a small
       shift, and indifferent to fill colour (survives recolour/theme). Scored 0..1 by average
       edge closeness over subsampled template edge points (`edgePointCap` 160) with a cheap
       sample prefilter; `Ambiguous` set when a distinct second outline scores as well. Tunable:
       `EdgeTolerance` via `$MARCO_EDGE_TOLERANCE`; `edgeSlack`/`edgeMatchThreshold` consts.
-      Wired into `oshost.scoreAnchor` as a second LOCATOR beside image â `wImage 0.5 / wEdge
+      Wired into `oshost.scoreAnchor` as a second LOCATOR beside image — `wImage 0.5 / wEdge
       0.3 / wColor 0.2`; the scorer is generalised over a `[]locator`, a locator only creates a
       move candidate when STRONG and colour-corroborated, and is gated on a region-restricted
       search (`!region.Empty()`, so a full-screen wait-image stays image-only). Existing
@@ -174,7 +174,7 @@ captured here.
 
     - **Multi-scale** (`matchMultiScale` / `findEdgeMultiScale`): both the pixel and edge
       matchers try the template at several scales (default `1.0, 0.8, 1.25`, tunable via
-      `$MARCO_FIND_SCALES`) via a bilinear `resize`, keeping the best â so a DPI/resolution
+      `$MARCO_FIND_SCALES`) via a bilinear `resize`, keeping the best — so a DPI/resolution
       change that renders the control a different size than the recorded template still
       resolves. The edge path computes the screen distance transform ONCE (`edgeDT`) and
       reuses it across scales (`matchOutline`), so it stays cheap. Tests: `TestFindEdgeMultiScale`,
@@ -183,12 +183,12 @@ captured here.
     - **Colour-histogram (palette) confirm** (`colorHistogram`/`histIntersection`, `screen`):
       `match` computes the 64-bucket RGB histogram intersection between the template and the
       matched window and returns it as `Match.ColorScore`; the scorer folds it in (`wColorHist`)
-      as a palette confirm on an image match â order-invariant, so a small warp/AA that hurts
+      as a palette confirm on an image match — order-invariant, so a small warp/AA that hurts
       the spatial score doesn't hurt this. Tests: `TestColorHistogramSamePalette`.
     - **Window-name context** (`Anchor.Window`): a click records the foreground window TITLE
-      (`winctx.ForegroundTitle`, captured in `recorder.newClick`, threaded recorderâsimplifyâ
-      `macroir.Step.Window`âcodegenâAnchor). At run time `oshost.windowFactor` multiplies the
-      anchor's confidence by how well the live foreground title matches â a clear wrong-window
+      (`winctx.ForegroundTitle`, captured in `recorder.newClick`, threaded recorder→simplify→
+      `macroir.Step.Window`→codegen→Anchor). At run time `oshost.windowFactor` multiplies the
+      anchor's confidence by how well the live foreground title matches — a clear wrong-window
       mismatch (Steam's library vs friends vs store) is knocked below the threshold (fail-safe),
       a shared significant word keeps most of it (drifting titles). Only applied once a window
       was Activated this run (else the overlay's focus would false-mismatch). Tests:
@@ -196,18 +196,18 @@ captured here.
     - **Last-known-location** (`internal/oshost/anchorcache.go`): each confident resolve is
       cached (keyed by template path, JSON under the user cache dir, atomic write); the next
       run widens the search box to cover BOTH the recorded point and last-known and boosts the
-      position prior there â so the search FOLLOWS a UI that drifts across runs, with the
+      position prior there — so the search FOLLOWS a UI that drifts across runs, with the
       recorded point still a safety net. `$MARCO_ANCHOR_CACHE=0` disables;
       `$MARCO_ANCHOR_CACHE_FILE` overrides the path. Tests: `TestAnchorCacheRoundTrip`.
 
     - **Move-following is hardened** (the demonstrated point is sacred). To click a LOCATED
-      point other than the recorded one, the scorer now requires: a locator â¥ `locateFloor`
-      (raised **0.85â0.90**), colour corroboration (`colorCorroborates` returns false with no
+      point other than the recorded one, the scorer now requires: a locator ≥ `locateFloor`
+      (raised **0.85→0.90**), colour corroboration (`colorCorroborates` returns false with no
       recorded colour, so an image-only anchor never moves), AND the moved candidate must beat
-      the recorded point's score by `moveMargin` (**0.12**) â otherwise it stays put. A
+      the recorded point's score by `moveMargin` (**0.12**) — otherwise it stays put. A
       look-alike button in a busy menu / a lenient brightness match can no longer drag the
       click off where you clicked (the freeplay regression). `scoreAnchor` also recovers from
-      any matcher panic â falls back to the recorded point (a bad template can't crash a run),
+      any matcher panic → falls back to the recorded point (a bad template can't crash a run),
       and a last-known cache entry more than `maxDriftPx` (**600px**) from the recorded point
       is ignored as stale/poisoned. Tests: `TestFindStaysWhenRecordedStillValid` (+ the
       existing move/stay tests). Race-clean (`go test -race`).
@@ -216,26 +216,26 @@ captured here.
     low-confidence anchor is a **Warn** (`re-teach to repair`); `MARCO_LOG=debug` for the
     full trace.
     - **Segmentation** (`DetectButtons`): connected-component (dilated edges) button-rectangle
-      detection over any image â drives AutoCrop, and **`SnapToButton`** (windowed, fast on a
+      detection over any image — drives AutoCrop, and **`SnapToButton`** (windowed, fast on a
       full screenshot) is wired into the **OCR resolver** (`plugins/ocr`): "click the text X"
       now snaps to the centre of the button CONTAINING the word, not the word itself. Tests:
       `screen` `TestAutoCrop*`/`TestDetectButtons`/`TestSnapToButton`, `oshost` `TestFindEdgeConfirms`.
-    - **Edges are Sobel** (`edgeStrength`): a symmetric 3Ã3 Sobel gradient magnitude on
+    - **Edges are Sobel** (`edgeStrength`): a symmetric 3×3 Sobel gradient magnitude on
       luminance (replacing the old single-neighbour diff), so faint and anti-aliased borders
-      are caught. `EdgeTolerance` default rescaled to 100 (Sobel magnitude is ~4Ã a raw step);
+      are caught. `EdgeTolerance` default rescaled to 100 (Sobel magnitude is ~4× a raw step);
       still `$MARCO_EDGE_TOLERANCE`.
-    - **Lighting/contrast-invariant pixel match â normalised cross-correlation** (`match`):
+    - **Lighting/contrast-invariant pixel match — normalised cross-correlation** (`match`):
       when a template's compared pixels have real internal contrast (`opaqueVaried`), the
-      matcher models the screen window as a linear transform of the template â predicted =
-      `screenMean + gainÂ·(template â templateMean)`, gain = std ratio (`meanStdOpaque`,
+      matcher models the screen window as a linear transform of the template — predicted =
+      `screenMean + gain·(template − templateMean)`, gain = std ratio (`meanStdOpaque`,
       clamped `gainLo..gainHi`). The MEAN term cancels a brightness/white-balance/theme shift
       (night mode, dimming, f.lux); the GAIN term cancels a contrast/gamma change. Pre-filter
       is offset-invariant (sample DELTAS) so a shifted match isn't pre-rejected. Gated on
-      opaque-pixel contrast so a flat/uniform-foreground template stays exact-tolerance â
+      opaque-pixel contrast so a flat/uniform-foreground template stays exact-tolerance —
       backward-compatible. Tests: `TestMatchBrightnessInvariant`, `TestMatchContrastInvariant`.
     - **Oriented-edge matching** (`orientedEdgeDT`/`matchOutline`, `orientationBin`): edge
-      matching now keys on edge ORIENTATION, not just presence â gradient direction is bucketed
-      into `orientBins`=4 over [0Â°,180Â°) (folded so contrast inversion shares a bin), and a
+      matching now keys on edge ORIENTATION, not just presence — gradient direction is bucketed
+      into `orientBins`=4 over [0°,180°) (folded so contrast inversion shares a bin), and a
       template edge only scores against a screen edge running the SAME way (its own bin's
       distance transform). Rejects the accidental edge alignments a busy/game UI throws up.
       `sobelGrad` exposes the gradient components; the per-orientation DTs are still computed
@@ -246,13 +246,13 @@ captured here.
     (`osmod/os.marco`, `oshost` actions, backend `keyDown`/`keyUp`), new `macroir.StepKeyDown`/
     `StepKeyUp`, codegen renders `do OS's KeyDown/KeyUp with "q"`.
     - **Detection** (`simplify.markHolds`, lookahead): a non-modifier key press is a hold when
-      it lasts â¥ `holdThreshold` (**500ms**) OR another action (a click / another key) happens
-      before its release; otherwise it stays a tap/`Type`. The 500ms is DETECTION-only â the
-      real held duration is preserved for free by the existing timingâwaits pass (KeyDown at
+      it lasts ≥ `holdThreshold` (**500ms**) OR another action (a click / another key) happens
+      before its release; otherwise it stays a tap/`Type`. The 500ms is DETECTION-only — the
+      real held duration is preserved for free by the existing timing→waits pass (KeyDown at
       press time, KeyUp at release time, the gap becomes a wait).
     - **Safety:** `oshost.Host` tracks held keys; `ReleaseHeld()` (deferred by the driver via
       the `heldKeyReleaser` interface, alongside the cursor restore) releases any still down at
-      route end â success, error, or Esc â so a per-command process can never exit with a key
+      route end — success, error, or Esc — so a per-command process can never exit with a key
       STUCK down. Tests: `simplify` `TestHoldKey*`/`TestQuickTapIsNotHold`, `oshost`
       `TestKeyDownReleasedAtRouteEnd`/`TestKeyUpClearsHold`.
     - **Tap linger:** plain key taps now hold ~25ms (`tapHold`, `$MARCO_KEY_HOLD_MS`) between
@@ -264,205 +264,205 @@ captured here.
     and writes the recognised label to `macroir.Step.AnchorText`, so codegen emits the same
     `Text's Find` move-following fallback a narrated "click the text X" produces. Previously
     text anchors were narration-only.
-    - **New OCR action `Read`** (`plugins/ocr/read.go`): imageâtext (the reverse of `Find`'s
-      wordâpoint). Input `{ Image }` (base64 PNG of the button crop) â `{ Text }`; declines
+    - **New OCR action `Read`** (`plugins/ocr/read.go`): image→text (the reverse of `Find`'s
+      word→point). Input `{ Image }` (base64 PNG of the button crop) → `{ Text }`; declines
       (`failed`, no error) when nothing readable, so the anchor stays gate-only. `joinLabel`
       orders words into reading order (lines top-to-bottom, words left-to-right) so a two-word
       label ("Start Game") still matches at run time; `hasLetter` rejects OCR punctuation noise.
       Wired into `main.go handle()` as `case "read"`. Pure parse/order unit-tested
-      (`read_test.go`) â tesseract not needed.
+      (`read_test.go`) — tesseract not needed.
     - **Engine wiring** (`internal/orchestrator`): `enrichTextAnchors`/`labelAnchors`/
       `readAnchorText` call `Hosts["Text"].Invoke(Text's Read, {Image, ClickX, ClickY})` per
       anchored click (recursing loop bodies), after `Simplify` in `Teach` (both passes),
       `TeachAuto`, and `SimplifyRoute` (re-simplify rebuilds steps from raw events, so anchors
-      are re-labelled each time â text isn't stored in the recording). **Graceful + additive:**
-      no Text host wired (`$MARCO_OCR` unset) â skipped entirely; OCR engine absent / button
-      unreadable â anchor stays image/colour-only. The Text host was already in `newDeps()`
+      are re-labelled each time — text isn't stored in the recording). **Graceful + additive:**
+      no Text host wired (`$MARCO_OCR` unset) → skipped entirely; OCR engine absent / button
+      unreadable → anchor stays image/colour-only. The Text host was already in `newDeps()`
       (shared by teach), so no new run wiring. `text.marco` documents `Read` (not a route
-      capability â teach calls it directly over the bridge). Tests: `orchestrator`
+      capability — teach calls it directly over the bridge). Tests: `orchestrator`
       `TestTeachTextAnchorFromOCR`/`TestTeachTextAnchorNoHost`, `plugins/ocr` `read_test.go`.
     - **Read the button UNDER the click, not the whole crop.** Whole-crop OCR mislabels: a
       captured menu yields a jumble of every button's text, and the one you clicked (often
-      highlighted â inverted contrast) is the one OCR misses. So the click's position inside
+      highlighted → inverted contrast) is the one OCR misses. So the click's position inside
       the template is threaded through: `screen.AutoCropAt` now also returns the ORIGINAL
       click-local point (even when the anchor re-centres on a wider button); recorder stores
       it on `RecordedEvent.ClickX/Y` (both armed full-frame and auto-crop paths); `simplify`
       carries it to `macroir.Step.AnchorClickX/Y`; the orchestrator passes it to `Read`.
       `plugins/ocr` `labelAt` picks the contiguous same-line run around the word nearest the
-      click â a small inter-word gap keeps a multi-word label ("EXIT TO MAIN MENU") whole, a
+      click — a small inter-word gap keeps a multi-word label ("EXIT TO MAIN MENU") whole, a
       wide gap splits side-by-side buttons (YES | NO), and a click farther than
-      `clickReachFactor` (Ãword height, default 2; `$MARCO_OCR_CLICK_REACH`) from any readable
+      `clickReachFactor` (×word height, default 2; `$MARCO_OCR_CLICK_REACH`) from any readable
       word DECLINES (an unreadable highlighted button stays gate-only instead of grabbing a
       neighbour). Verified on the real RL pause menu: RESUME GAME / CHANGE MODE/MATCH /
       SETTINGS each read correctly, the highlighted EXIT TO MAIN MENU declines.
-    - **Preprocessing for OCR** (`plugins/ocr/preprocess.go`): grayscale â bilinear upscale
+    - **Preprocessing for OCR** (`plugins/ocr/preprocess.go`): grayscale → bilinear upscale
       (`$MARCO_OCR_SCALE`, default 3, **scale-adaptive**: capped so the long side stays under
       `maxUpscaledLong`=2600, so a full-screen run-time capture isn't tripled into a slow OCR)
-      â global Otsu to clean FILLED dark-on-white, background-oriented. `$MARCO_OCR_RAW=1`
+      → global Otsu to clean FILLED dark-on-white, background-oriented. `$MARCO_OCR_RAW=1`
       bypasses. **The key recall fix was PSM, not thresholding:** tesseract now runs **PSM 3**
-      (full page segmentation, `$MARCO_OCR_PSM`) instead of sparse PSM 11 â PSM 11 SKIPS a
+      (full page segmentation, `$MARCO_OCR_PSM`) instead of sparse PSM 11 — PSM 11 SKIPS a
       solid-filled button (a highlighted/selected row), PSM 3 reads it, and tesseract 4+
       auto-handles inverted text so one pass covers both polarities. (A local adaptive
-      threshold was tried and rejected â it left thick game-font strokes hollow/unreadable;
+      threshold was tried and rejected — it left thick game-font strokes hollow/unreadable;
       Otsu's filled strokes + PSM 3 is what works.) Plus precision gates in `Read`: tesseract
-      confidence floor (`Word.Conf`, `$MARCO_OCR_MIN_CONF` default 65) and â¥2 letters/token, so
+      confidence floor (`Word.Conf`, `$MARCO_OCR_MIN_CONF` default 65) and ≥2 letters/token, so
       an icon's stray glyph never becomes a label.
     - **Validated on the real RL crops** (`Read` with the click point): RESUME GAME, CHANGE
       MODE/MATCH, SETTINGS, NO, YES (highlighted), ACCEPT (stylized) all read correctly; EXIT
-      reads "EXIT TQ MAIN MENU" (an OâQ misread â harmless because run-time `Find` OCRs the same
+      reads "EXIT TQ MAIN MENU" (an O→Q misread — harmless because run-time `Find` OCRs the same
       way, below); the mute icon declines. Stylized/highlighted buttons that PSM 11 + old
       preprocessing couldn't read now resolve.
     - **Run-time `Find` uses the SAME pipeline** (`plugins/ocr/find.go` `locate`): it now
       preprocesses the capture and OCRs with PSM 3 identically to teach-time `Read`, mapping the
-      matched word's centre back from upscaled space (Ã·scale) before `SnapToButton` on the
-      original capture. So a label captured at teach time â including any OCR quirk like the
-      OâQ â is read back identically at run time and therefore MATCHES (self-consistent).
+      matched word's centre back from upscaled space (÷scale) before `SnapToButton` on the
+      original capture. So a label captured at teach time — including any OCR quirk like the
+      O→Q — is read back identically at run time and therefore MATCHES (self-consistent).
       `$MARCO_OCR_DUMP=<path>` writes the binarized image for inspection.
     - **Demonstrated text anchors search a REGION, not the whole screen** (`codegen`
       `TextSearchMargin`=400): a demonstrated anchor (it carries the recorded click) emits
-      `X1/Y1/X2/Y2` of Â±400px around that point on the `Text` anchor, so run-time `Find`
-      OCRs just that box â faster and no stray match elsewhere on a busy desktop. A narrated
+      `X1/Y1/X2/Y2` of ±400px around that point on the `Text` anchor, so run-time `Find`
+      OCRs just that box — faster and no stray match elsewhere on a busy desktop. A narrated
       text-only anchor (no coordinate) keeps the whole-screen search. Tests: `codegen`
       `TestGateAndTextClickRoute` (region present), `TestTextOnlyClickRoute` (absent).
-    - **Recall limit:** icon-only buttons (grad-cap, shovel) have no text â they stay
+    - **Recall limit:** icon-only buttons (grad-cap, shovel) have no text — they stay
       image/edge/colour-anchored (correct), and are the motivation for the Vision resolver
       (item 16). Tests: `plugins/ocr` `preprocess_test.go` (scale cap, Otsu separation),
       `read_test.go` (click-point selection, precision gates).
 
-16. **Semantic vision resolver â `plugins/vision` (NEW, scaffolded + validated).** A learned
-    UI-element detector as a fourth resolver, for the controls OCR and geometry can't anchor â
+16. **Semantic vision resolver — `plugins/vision` (NEW, scaffolded + validated).** A learned
+    UI-element detector as a fourth resolver, for the controls OCR and geometry can't anchor —
     an icon on a gradient with no text and no clean edge. It's a bridge host plugin (sibling of
     `plugins/ocr`), so its heavy ONNX dependency never reaches the zero-dep engine.
-    - **Pipeline** (mirrors the user's sketch): capture (`internal/screen`) â letterbox+normalise
-      (`yolo.go`, pure Go) â ONNX YOLOv8-style detector (`backend_onnx.go`) â decode+NMS
-      (`yolo.go`) â labelled boxes. The `Vision` act exports **Detect** (region â `{Elements:[{Label,
-      X,Y,W,H,Score}]}`) and **Locate** (`{Label?, X?,Y? hint, region?}` â a `{X,Y}` Point, same
+    - **Pipeline** (mirrors the user's sketch): capture (`internal/screen`) → letterbox+normalise
+      (`yolo.go`, pure Go) → ONNX YOLOv8-style detector (`backend_onnx.go`) → decode+NMS
+      (`yolo.go`) → labelled boxes. The `Vision` act exports **Detect** (region → `{Elements:[{Label,
+      X,Y,W,H,Score}]}`) and **Locate** (`{Label?, X?,Y? hint, region?}` → a `{X,Y}` Point, same
       shape as `Text's Find` so it drops into the same `or?` slot). `Locate` picks the highest-
       scoring element of the requested label (case-insensitive substring; omit = any), nearest an
-      optional hint. OCR-of-crops is NOT done here â compose with the `Text` host so each resolver
+      optional hint. OCR-of-crops is NOT done here — compose with the `Text` host so each resolver
       stays single-purpose.
     - **Dependency-free by default, real backend opt-in.** `backend_null.go` (default) has no
-      external dep, declines gracefully (`Ready()=false`) â the plugin builds, runs, and speaks the
+      external dep, declines gracefully (`Ready()=false`) — the plugin builds, runs, and speaks the
       bridge protocol everywhere. The real detector is `backend_onnx.go` behind `//go:build
       onnxvision`, using **`github.com/yalue/onnxruntime_go`** (cgo, like the voice plugin; loads
-      `onnxruntime.dll` dynamically, works on Windows â the cgo-free `onnxruntime-purego` does NOT
+      `onnxruntime.dll` dynamically, works on Windows — the cgo-free `onnxruntime-purego` does NOT
       build on Windows, that was tried). **Validated:** default build+tests green; the tagged build
-      COMPILES against the real API (cgo+gcc, 5.4MB) â only actual inference is unvalidated (needs
+      COMPILES against the real API (cgo+gcc, 5.4MB) — only actual inference is unvalidated (needs
       the runtime lib + a model). `go.mod` carries NO external require (the dep is added only when
       building with the tag).
     - **Engine wiring:** `internal/visionmod` embeds `vision.marco` (`use vision.` resolves via
       `driver.builtinModule` like `os`/`text`); `cmd/marco newDeps` adds `Hosts["Vision"]=
       bridgehost.New($MARCO_VISION)` (lazy). **`setup.ps1 -Vision` AUTO-PROVISIONS the whole real
       detector** (kitchen sink): `Install-OnnxRuntime` downloads the ONNX Runtime Windows lib
-      (`onnxruntime-win-x64-$ver.zip` â `onnxruntime.dll`); `Get-VisionModel` downloads the
-      OmniParser `icon_detect` weights and EXPORTS them to ONNX via ultralytics (Python) â or takes
+      (`onnxruntime-win-x64-$ver.zip` → `onnxruntime.dll`); `Get-VisionModel` downloads the
+      OmniParser `icon_detect` weights and EXPORTS them to ONNX via ultralytics (Python) — or takes
       `-VisionModel <onnx>` (BYO); then `go get`s the binding and builds `-tags onnxvision` (needs
-      gcc). Any missing piece (no gcc/Python/download) â null detector + a note on what's missing,
+      gcc). Any missing piece (no gcc/Python/download) → null detector + a note on what's missing,
       never hard-fails. Pins `MARCO_VISION`/`MARCO_ONNXRUNTIME`/`MARCO_VISION_MODEL`/`_LABELS`
-      (OmniParser is single-class â `icon`) + a `--host Vision=bridge:` line into `overlay.cmd`.
+      (OmniParser is single-class → `icon`) + a `--host Vision=bridge:` line into `overlay.cmd`.
       Downloads land in `_dl/` + `plugins/vision/models/` (gitignored). Overrides:
       `-OnnxRuntimeVersion`, `-VisionModelUrl`, `-VisionLabels`. Env: `MARCO_VISION_MODEL`, `MARCO_ONNXRUNTIME`,
       `MARCO_VISION_LABELS` (or `labels.txt` beside the model), `MARCO_VISION_SIZE`/`CONF`/`IOU`,
       `MARCO_VISION_INPUT`/`OUTPUT`. Tests: `plugins/vision` `yolo_test.go` (letterbox, decode, NMS,
       un-letterbox), `detect_test.go` (Locate selection, null detector declines).
-    - **Teach integration â DONE (the single demonstration path).** A demonstrated anchor is
-      now labelled by BOTH wired hosts in one teach-time walk (`orchestrator.enrichAnchors` â
-      `readAnchorText` + `readAnchorVision`): the Text host's `Read` (imageâtext) sets
-      `AnchorText`, the Vision host's new **`Identify`** action (image+clickâclass label, the
+    - **Teach integration — DONE (the single demonstration path).** A demonstrated anchor is
+      now labelled by BOTH wired hosts in one teach-time walk (`orchestrator.enrichAnchors` →
+      `readAnchorText` + `readAnchorVision`): the Text host's `Read` (image→text) sets
+      `AnchorText`, the Vision host's new **`Identify`** action (image+click→class label, the
       teach-time analog of Locate; `plugins/vision/identify.go`, `elementAt` picks the element
       whose box contains the click) sets `macroir.Step.AnchorVision`. Codegen's
-      `emitAnchoredClick` is now a general ORDERED locator chain â gate â Text's Find â Vision's
-      Locate â recorded coordinate (text before vision: exact beats class) â emitting `use
+      `emitAnchoredClick` is now a general ORDERED locator chain — gate → Text's Find → Vision's
+      Locate → recorded coordinate (text before vision: exact beats class) — emitting `use
       vision.`, a `Label`+region+hint vision anchor, and the nested `or?` arms. (Narration is NOT
-      wired and won't be â per the plan, voice will just START demonstration teaching, so there's
+      wired and won't be — per the plan, voice will just START demonstration teaching, so there's
       one teaching path.) Tests: `orchestrator` `TestTeachVisionAnchorFromDetector`, `codegen`
       `TestGateTextVisionClickRoute` (chain + ordering), `plugins/vision` `identify_test.go`.
     - **Debug spike: `marco vision detect <png> [out]`** (`plugins/vision/cmd_detect.go`, engine
       passthrough in `cmd/marco/vision.go`): runs the detector over a SCREENSHOT FILE (no live
       capture), prints a `{label, score, box}` table, and writes an annotated copy (one colour per
       class + legend). The way to test a candidate model on *your* UIs before trusting it in teach.
-      Null build â "no model"; `-tags onnxvision` + model â real output.
+      Null build → "no model"; `-tags onnxvision` + model → real output.
     - **The real gating risk is the MODEL, not the wiring.** A YOLOv8 UI detector (e.g. Microsoft
-      OmniParser v2) must be sourced/licensed AND verified to detect *these* game UIs â likely a
+      OmniParser v2) must be sourced/licensed AND verified to detect *these* game UIs — likely a
       domain gap (trained on web/desktop UIs), the same problem OCR hit; and `Identify` runs the
       detector on a small button CROP, which a full-screen-trained model may handle poorly (a
       teach-time spike would tell). The pure-Go pre/post is model-agnostic, so swapping models is
-      config, not code. Graceful throughout: no model â no vision label â anchor unaffected.
+      config, not code. Graceful throughout: no model → no vision label → anchor unaffected.
 
-17. **Local-first NL resolver â `plugins/llama` (NEW).** A small language model that runs
+17. **Local-first NL resolver — `plugins/llama` (NEW).** A small language model that runs
     ON THE USER'S MACHINE, so `marco assistant`/`marco do` understands loose phrasing the
-    deterministic `internal/nlu` matcher misses ("fire up the pirate game" â
-    `start-sea-of-thieves`) â the step toward Marco feeling conversational. It's a drop-in
+    deterministic `internal/nlu` matcher misses ("fire up the pirate game" →
+    `start-sea-of-thieves`) — the step toward Marco feeling conversational. It's a drop-in
     for the existing **`$MARCO_RESOLVER`** seam (`internal/resolver` protocol,
-    `{input,routes}â{route}`), so **ZERO engine changes** â the local model plugs into the
+    `{input,routes}→{route}`), so **ZERO engine changes** — the local model plugs into the
     exact spot `claude-resolver` did.
     - **One plugin, OpenAI-compatible.** It speaks `POST <base>/chat/completions`, so the
       SAME binary drives a **local llama via Ollama** (default `http://localhost:11434/v1`,
       no key), LM Studio / `llama.cpp` server, OR OpenAI's cloud (`MARCO_LLM_URL=
-      https://api.openai.com/v1` + `MARCO_LLM_KEY`). **Local is the deliberate default** â
+      https://api.openai.com/v1` + `MARCO_LLM_KEY`). **Local is the deliberate default** —
       no key, no cost, private, no public API to slam; cloud is opt-in only.
-    - **Own module, `net/http` only** â no model SDK reaches the zero-dep engine, and unlike
+    - **Own module, `net/http` only** — no model SDK reaches the zero-dep engine, and unlike
       `claude-resolver` (Anthropic SDK) there's nothing to `go get`. `main.go` (stdin/stdout
       protocol) + `llm.go` (config from env, chat call, `pick` extracts a valid slug from a
       chatty small-model reply with token-boundary safety). **Graceful:** server down /
-      missing / slow / garbled â empty route â the assistant falls back to its offline
+      missing / slow / garbled → empty route → the assistant falls back to its offline
       matcher/teach, never blocks (hard `MARCO_LLM_TIMEOUT_MS` cap, default 20s). The engine
       re-verifies the slug, so a hallucinated route can't run.
     - **Config (env):** `MARCO_LLM_URL` (default Ollama), `MARCO_LLM_MODEL` (default
       `llama3.2:3b`), `MARCO_LLM_KEY` (opt-in cloud), `MARCO_LLM_TIMEOUT_MS`.
     - **`setup.ps1 -Llama`** builds `llama.exe`, installs Ollama (winget `Ollama.Ollama`),
       `ollama pull`s `-LlamaModel`, and pins `MARCO_RESOLVER`+`MARCO_LLM_MODEL` into
-      `overlay.cmd` (WINS over `-Resolver` when both built â both set `MARCO_RESOLVER`,
-      local-first). Any missing piece (no winget/Ollama) â plugin still wired, degrades until
+      `overlay.cmd` (WINS over `-Resolver` when both built — both set `MARCO_RESOLVER`,
+      local-first). Any missing piece (no winget/Ollama) → plugin still wired, degrades until
       Ollama runs. Tests: `plugins/llama` `llm_test.go` (exact/chatty/NONE/unknown-slug/
-      server-down/empty-input via `httptest`, `pick` boundaries) â no live model needed.
-18. **Route-level dispatch â `internal/dispatch`** (built as `internal/director`; **RENAMED**
-    when the desktop Director landed â see item 19. `marco dispatch "<phrase>"`,
+      server-down/empty-input via `httptest`, `pick` boundaries) — no live model needed.
+18. **Route-level dispatch — `internal/dispatch`** (built as `internal/director`; **RENAMED**
+    when the desktop Director landed — see item 19. `marco dispatch "<phrase>"`,
     `dispatch.Dispatcher`, `dispatch.PluginAdvisor`, `$MARCO_ASSISTANT`. The two systems are
     separate and neither imports the other: dispatch picks a saved MACRO, the Director decides
     what to do to the SCREEN.) The decision-maker that turns
-    a plain line into ONE verified `Decision` â `run` (a checked slug) / `teach` (a new
-    command name) / `chat` / `clarify` â so a front-end holds a natural back-and-forth.
+    a plain line into ONE verified `Decision` — `run` (a checked slug) / `teach` (a new
+    command name) / `chat` / `clarify` — so a front-end holds a natural back-and-forth.
     - **Independent of any LLM by design.** Its baseline is the deterministic offline matcher
-      (`internal/nlu`): exact name â run, near match â clarify, else â teach. That works with
-      NO model. Smarter understanding layers in via the **`Advisor`** interface â an optional
+      (`internal/nlu`): exact name → run, near match → clarify, else → teach. That works with
+      NO model. Smarter understanding layers in via the **`Advisor`** interface — an optional
       intelligence source the director consults and always re-verifies (a proposed route must
       be one the user has, so no backend can make it run something that doesn't exist). A
       local LLM is one Advisor (`director.PluginAdvisor`, `llm.go`); a rules engine / remote /
       test double are equally valid. The director owns policy, the model is swappable.
     - **`Decide` vs `Propose`.** `Decide` = full policy, always returns a usable Decision (the
       overlay/`marco director` seam). `Propose` = ONLY the Advisor's validated suggestion, ok=
-      false when unconfigured/unsure â so the interactive assistant layers the brain on top of
+      false when unconfigured/unsure — so the interactive assistant layers the brain on top of
       its existing fuzzy-confirm flow WITHOUT regressing a legacy `$MARCO_RESOLVER`-only setup
-      (a converse-illiterate resolver returns empty-intent â Propose false â classic path runs).
+      (a converse-illiterate resolver returns empty-intent → Propose false → classic path runs).
     - **Plugin protocol** (`plugins/llama` converse mode): `{mode:"converse",input,routes,app}
-      â {intent,route,name,reply}`. The `mode` field lets ONE `llama.exe` serve both the legacy
+      → {intent,route,name,reply}`. The `mode` field lets ONE `llama.exe` serve both the legacy
       resolver and the director. Small-model-tolerant parse (`parseDecision`: extracts the JSON
       object from prose, snaps a `run` slug to a real route case-insensitively or downgrades to
-      clarify, rejects an unknown intent). Graceful: model down/garbled â empty intent â director
+      clarify, rejects an unknown intent). Graceful: model down/garbled → empty intent → director
       falls back.
     - **Wiring:** `internal/director.PluginPath` reads `$MARCO_ASSISTANT` then `$MARCO_RESOLVER`
-      (same binary serves both, so `-Llama` enables conversation too â it now pins both).
+      (same binary serves both, so `-Llama` enables conversation too — it now pins both).
       `cmd/marco/director.go`: `marco director "<phrase>" [--json]` (non-acting classifier seam
       for the overlay; `--json` emits the decision) + `converseTurn` woven into `runAssistant`
-      (exact â run fast-path, else brain `Propose`, else classic flow). Tests: `internal/director`
+      (exact → run fast-path, else brain `Propose`, else classic flow). Tests: `internal/director`
       `director_test.go` (deterministic-only exact/clarify/teach, Advisor pass-through + hallucinated-
       route rejection + not-ok fallback + exact-skips-advisor, PluginAdvisor over a fake plugin),
       `plugins/llama` `llm_test.go` converse cases (teach/canonicalize/downgrade/wrapped-JSON/bad-
       intent/server-down).
     - **NOT yet:** overlay UI wiring (the ebiten front-end calling `marco dispatch --json` and
-      rendering the reply / kicking off teach) â the engine seam is ready; that's a
+      rendering the reply / kicking off teach) — the engine seam is ready; that's a
       `plugins/overlay` MVC change. Voice stays "start demonstration" only (one teaching path).
 
-19. **The Director â `internal/director`, `cmd/director`, `pkg/directorapi` (the large NEW
+19. **The Director — `internal/director`, `cmd/director`, `pkg/directorapi` (the large NEW
     subsystem).** Where dispatch runs a route you already taught, the Director builds a world
     model of the desktop from the accessibility tree and plans, executes and VERIFIES arbitrary
-    semantic actions against it â "click Save", "focus the search box then type Director and
+    semantic actions against it — "click Save", "focus the search box then type Director and
     press enter", "close every Notepad window". It is built ON Marco, not beside it.
     - **The Marco boundary is load-bearing.** The Director does not call `Host.Invoke`. It lowers
       each planned step to **legal Marco source** (`internal/director/marcoexec`), which then goes
-      through lexer â parser â graph â compile â runtime like any route, so Marco's compiler
-      validates every action before anything moves. There is **no second path** â the old
+      through lexer → parser → graph → compile → runtime like any route, so Marco's compiler
+      validates every action before anything moves. There is **no second path** — the old
       `internal/platform/marcohost` adapter was deleted, and a test asserts the Director holds no
       duplicate platform implementation. This caught three capabilities (`ClipboardGet/Set`,
       `MoveWindow`, act `Accessibility`) that "worked" from `oshost` but no line of Marco could
@@ -471,7 +471,7 @@ captured here.
       plan, action, confidence, actionability); `internal/director/*` is the Director proper
       (perception, target, plan, program, execute, verify, wait, values, variables, collections,
       trace, actiongraph, memory, policy, edit, service); `internal/platform/*` are the adapters
-      (`uiaclient`, `ocrclient`, `wincapture`, `winprovider`, `marcorunner`) â the Director sees
+      (`uiaclient`, `ocrclient`, `wincapture`, `winprovider`, `marcorunner`) — the Director sees
       only `directorapi` interfaces and imports no engine code. `plugins/uia` is the C#
       accessibility bridge (its own module, off the zero-dep engine).
     - **It's a SERVICE.** `director serve` holds the warm accessibility client (Chromium only
@@ -479,13 +479,13 @@ captured here.
       tree). `marco director "<phrase>"` is the thin client; the overlay/voice go through it.
       Plus a deep diagnostic surface: `status`, `explain`, `plan`, `trace`, `lower`, `wait`,
       `visual`, `ocr`, `observations`, `fusion`, `collections`, `graph`, `history`, `stop`.
-    - **The docs are in `docs/`, one per milestone, and they carry the real detail** â
+    - **The docs are in `docs/`, one per milestone, and they carry the real detail** —
       `director-marco-boundary.md`, `-programs.md`, `-perception.md`, `-waits.md`, `-editing.md`,
       `-service.md`, `-cancellation.md`, `-collections.md`. Each ends with a **Known gaps**
       section stating what is NOT proven; read those before trusting a capability.
     - **Collections** (`internal/director/collections`, `execute/iterate.go`,
       service collection events, `director collections` / `explain collection`). A collection is
-      a bounded semantic QUERY re-run every iteration â never a captured list of ids/handles â
+      a bounded semantic QUERY re-run every iteration — never a captured list of ids/handles —
       with a second bulk-policy gate (closed allowlist: `focus`/`activate`; a bulk click always
       asks), semantic-key member identity, verify-before-advance, and ordinal-drift protection
       across a clarification pause. See `docs/director-collections.md`.
@@ -493,8 +493,8 @@ captured here.
       above Program: the user describes an OUTCOME and the Director produces the program.
       15 goals (`rename`, `create_folder`, `save`, `save_as`, `print`, `delete`,
       `close_without_saving`, `duplicate`, `download`, `move`, `copy`, `paste`, `open_file`,
-      `open_settings`, `create_tab`) expand through 18 HAND-WRITTEN typed procedures â never
-      LLM-generated â into ordinary `program.Program`s, validated by the ordinary validator,
+      `open_settings`, `create_tab`) expand through 18 HAND-WRITTEN typed procedures — never
+      LLM-generated — into ordinary `program.Program`s, validated by the ordinary validator,
       so **nothing downstream changed**: variables, collections, clarification, replay and
       verification all keep working untouched. Application overrides select most-specific-first
       (`explorer rename` reaches Rename from the context menu; `vscode rename symbol` is a
@@ -504,7 +504,7 @@ captured here.
       destructive/external/irreversible, confirmation) before expansion, and missing
       requirements are refused as a typed question BEFORE anything runs. New diagnostics:
       `director goals`, `director procedures [name]`, `director explain goal "<request>"
-      [--app X]` â which expands without running. See `docs/director-goals.md`, including its
+      [--app X]` — which expands without running. See `docs/director-goals.md`, including its
       **HARDENED**: goal-level confirmation is now enforced between expansion and step 1
       (accepted/rejected/unavailable distinguished; unavailable never means yes); goal
       provenance is persisted on action-graph nodes as DIAGNOSTIC metadata that replay
@@ -517,25 +517,25 @@ captured here.
       CLOSED object-kind vocabulary (file/folder/document/editor_buffer/symbol/control/
       window/text_selection), decisive-evidence recording, ambiguity candidates, a
       stability token, and REVALIDATION before action (refresh on a harmless re-observe;
-      REFUSE when focus moved â never silently re-bind). Implemented and unit-tested but
+      REFUSE when focus moved — never silently re-bind). Implemented and unit-tested but
       **NOT yet wired into the execution path**. Registry validation is now enforced at
       service startup and in every CLI command (`goal.NewValidatedRegistry`). Live
-      scenarios now SKIP with precise unmet prerequisites instead of failing by design â
+      scenarios now SKIP with precise unmet prerequisites instead of failing by design —
       **no live scenario has ever run**. Still NOT implemented: action-level confirmation
       for non-goal actions, replay confirmation policy, and the live harness itself.
     - **SEMANTIC UI ACTIONS** (`internal/director/uiact`, `pkg/directorapi/
-      semantic.go`). The action vocabulary grew from six verbs to **33** â expand, collapse,
+      semantic.go`). The action vocabulary grew from six verbs to **33** — expand, collapse,
       toggle, check, select, choose, invoke, open, close, dismiss, submit, confirm, cancel,
       refresh, back/forward, next/previous, undo/redo, copy/cut/paste, scroll_here,
       show_context_menu, maximize/minimize/restore, pin/unpin. The planner emits the VERB and
       stops; `uiact.Ladder` picks the implementation at execution time from the control's REAL
-      capabilities (accessibility pattern â generic invoke â click â refuse), recording every
+      capabilities (accessibility pattern → generic invoke → click → refuse), recording every
       stronger rung it rejected and why. Seven new Marco capabilities (`Accessibility's
       Invoke/Expand/Collapse/Toggle/Select/Deselect/ScrollIntoView`) in `uia.marco` + the C#
       bridge; the bridge now also reports each control's **patterns** and its expanded/checked
       state, which is what makes the ladder evidence-driven rather than a guess. Verification is
       per-verb (an expand is proved by the node reporting itself expanded or its children
-      appearing â never by "the screen changed"). The action graph stores the verb and the
+      appearing — never by "the screen changed"). The action graph stores the verb and the
       query, never the mechanism, so a replay chooses the lowering again. New diagnostics:
       `director actions [name]`, `director explain action`. See
       `docs/director-semantic-actions.md`, including its Known gaps.
@@ -549,27 +549,27 @@ go build -o marco-macros.exe ./cmd/marco-macros
 go -C plugins/overlay build -o overlay.exe .
 .\overlay.cmd                              # Windows: launches voice|serve + overlay stack
 ```
-- The overlay is long-running â **restart `overlay.cmd`** to pick up a new
+- The overlay is long-running — **restart `overlay.cmd`** to pick up a new
   `overlay.exe`. Engine binaries (`marco.exe`) are spawned fresh per command, so they
   take effect immediately. `$MARCO_BIN` overrides which engine the overlay shells to.
 - CLI tests that mutate routes: set `$MARCO_ROUTES` to a temp dir. `marco do` uses the
-  REAL OS host (types for real) â never run it blind in a test; use `marco run --host
+  REAL OS host (types for real) — never run it blind in a test; use `marco run --host
   dryrun` or the Go tests for behavior checks.
 
 ## Architecture orientation
 
-- **Engine** (`cmd/marco`, `internal/*`): lexerâparserâgraphâcompileâruntime;
+- **Engine** (`cmd/marco`, `internal/*`): lexer→parser→graph→compile→runtime;
   `driver` is the run/serve/check entry; `routes` is the registry + arg parsing;
   `orchestrator` is the teach/run loop (`Teach`, `TeachAuto`, `TeachVoice`,
   `SimplifyRoute`, `dispatchDo` via cmd). `oshost` fulfils the `OS` act; `secrets`
   is the credential store; `winctx`/`screen`/`recorder` are the OS surfaces (Windows
   + cross-platform stubs).
-- **Overlay** (`plugins/overlay`): MVC â `model.go` (state), `view.go` (ebiten draw),
-  `controller_windows.go` (global LL keyboard hook â callbacks MUST return fast, see
+- **Overlay** (`plugins/overlay`): MVC — `model.go` (state), `view.go` (ebiten draw),
+  `controller_windows.go` (global LL keyboard hook — callbacks MUST return fast, see
   `ll-hook-callbacks-must-return-fast` memory), `acts.go` (the `Overlay` act + child
   spawning). Behavior lives in `plugins/overlay/overlay.marco`.
 - **Run stack:** `marco serve --host OS=bridge:marco-macros --host Overlay=bridge:overlay plugins/overlay/overlay.marco`,
-  with `voice.exe | â¦` piping Voice events into serve's stdin.
+  with `voice.exe | …` piping Voice events into serve's stdin.
 
 ## Director: Grounding DINO challenger, benchmarked (latest)
 
@@ -599,10 +599,10 @@ of the model. That is the single most actionable follow-up.
 digest in every report), `GroundingDINO` adapter over a Python subprocess, `Classical`
 rectangle detector, `LoadFixture` with a required privacy-review field, threshold sweep,
 per-backend acceptance calibration. `plugins/vision-groundingdino/detect.py` is detection
-only â it is handed a prompt built by the Go side and never asked an open question.
+only — it is handed a prompt built by the Go side and never asked an open question.
 
 **Two defects the first real run exposed, both mine:**
-1. **`temporal persistence 102%`** â the same occurrences-vs-frames bug fixed in the observe
+1. **`temporal persistence 102%`** — the same occurrences-vs-frames bug fixed in the observe
    metrics, reintroduced here. Several boxes of one class landing in one coarse ninth share
    an identity (intended) and each was counted. Now counts frames.
 2. **The adapter and the acceptance filter spoke different vocabularies.** `NormaliseLabel`
@@ -611,7 +611,7 @@ only â it is handed a prompt built by the Go side and never asked an open q
    blamed the model. Retargeted onto the detector contract's own vocabulary.
 
 **And a third, which was NOT a bug but read like one:** with production floors (0.35/0.50)
-Grounding DINO lost 12 of 13 to confidence alone â it returned 0.32 for a correct text
+Grounding DINO lost 12 of 13 to confidence alone — it returned 0.32 for a correct text
 region and 0.40 for a correct menu. Confidence scales are not comparable between models, so
 a backend may now declare its own acceptance floors and the report states which were used.
 Accepted rose from 1 to 8.
@@ -622,7 +622,7 @@ or if the runtime imports the benchmark package.
 
 **Not done:** the DNFC fixture corpus, region-classification mode (Part 9), scoped-OCR
 impact measurement (Part 13), the statistical-variance report (Part 15), and memory
-measurement (Part 16). Definition-of-Done items 1â4, 6â9, 11â14 are met; 5 is partial
+measurement (Part 16). Definition-of-Done items 1–4, 6–9, 11–14 are met; 5 is partial
 (Rocket League only) and 10 is open.
 
 ## Director: vision benchmark harness
@@ -630,42 +630,42 @@ measurement (Part 16). Definition-of-Done items 1â4, 6â9, 11â14 a
 **Status: the harness is built, tested and mutation-verified. It has NOT yet been run
 against real game fixtures, and no AI backend has been evaluated.** Nothing is committed.
 
-**`internal/director/visionbench` (NEW)** â registry, frozen-fixture runner, metrics,
+**`internal/director/visionbench` (NEW)** — registry, frozen-fixture runner, metrics,
 weighted scoring, comparison report. A backend is an adapter and one `Register` call; the
 package owns no perception and never touches a desktop.
 
 - **Frozen fixtures only.** Two backends benchmarked against two different moments are not
   comparable, and the difference would look exactly like a difference between models.
 - **Acceptance mirrors production.** A detection is judged by what the Director *would*
-  accept â the same confidence floors, the same structural bar, the same class vocabulary â
+  accept — the same confidence floors, the same structural bar, the same class vocabulary —
   so a backend whose boxes are all rejected downstream scores as having not helped.
 - **Documented weights** (structural 30, temporal 25, naming 20, trust 15, latency 10) with
   the reasoning for each in the package doc. **Detection count carries weight zero** and
   appears only for context.
 - **Every score shows its working**: each dimension reports its points and why, and the
   report names the dimension that separated the top two.
-- **`Classical`** â a pure-Go rectangle detector as the second backend, proving pluggability
+- **`Classical`** — a pure-Go rectangle detector as the second backend, proving pluggability
   with no model, weights or plugin. Not expected to win; expected to be measurable.
 
 **The mutation tests found my own tests were too weak.** Of the three the spec asks for,
 only one initially failed:
-- *reward raw volume* â caught.
-- *ignore anonymous detections* â NOT caught, because the noisy backend already lost on
+- *reward raw volume* — caught.
+- *ignore anonymous detections* — NOT caught, because the noisy backend already lost on
   structure and stability, so the anonymity dimension was never load-bearing in any
   assertion. Added a test of two backends identical except that one names what it finds.
   (The first mutation attempt also didn't compile, which made the count meaningless until I
-  wrote one that builds â worth remembering: a mutation that fails to compile proves
+  wrote one that builds — worth remembering: a mutation that fails to compile proves
   nothing.)
-- *randomise frame order* â NOT caught, because every fixture frame was identical, so
+- *randomise frame order* — NOT caught, because every fixture frame was identical, so
   reordering changed nothing, and the ordering test only asserted that the two backends
   agreed. Frames now differ in size and the test asserts the FIXTURE's order.
 
 All three now fail the suite.
 
-**Not done:** real DNFC and Rocket League fixture corpora (Parts 9â10), an actual AI backend
-adapter (Part 11 â only the classical one exists), `director benchmark-vision --fixture`
+**Not done:** real DNFC and Rocket League fixture corpora (Parts 9–10), an actual AI backend
+adapter (Part 11 — only the classical one exists), `director benchmark-vision --fixture`
 wiring to the new harness, `director vision backends`, and shadow evaluation. Definition-of-
-Done items 1â5 and 7 are met inside the package; 6 and 8 are open.
+Done items 1–5 and 7 are met inside the package; 6 and 8 are open.
 
 **Still outstanding from the previous milestone:** the accessibility provider is not pinned
 to a session's window, so a live observation session is vision-only. That does not affect
@@ -678,16 +678,16 @@ still blocks any conclusion about the Director's combined perception.
 NOT valid yet, because a defect found while running it means the benchmark measured
 vision alone rather than the Director's perception.** Nothing is committed.
 
-**First, a crash the DNFC session caused** â `fatal error: too many callback functions`.
+**First, a crash the DNFC session caused** — `fatal error: too many callback functions`.
 `syscall.NewCallback` allocates from a fixed process-wide table Go never frees. `Monitors()`
 had leaked one per call for a long time, harmlessly, because it was rarely called; then
 `onScreen()` began calling it PER WINDOW inside `LiveWindows()`, and a session sampling
 every 2s exhausted the table and killed the service in under three minutes. Both callbacks
 are now created once via `sync.Once`, and the monitor layout is read once per enumeration.
-`internal/winctx/callback_windows_test.go` runs 4,500 enumerations â a regression crashes
+`internal/winctx/callback_windows_test.go` runs 4,500 enumerations — a regression crashes
 the test binary, which is the right severity for "the process dies".
 
-**`internal/director/observe/metrics.go` (NEW)** â semantic usefulness, not detection
+**`internal/director/observe/metrics.go` (NEW)** — semantic usefulness, not detection
 volume: stable-entity yield, anonymous ratio, structural-role coverage, safe-label
 opportunity, flicker rate, transition utility, unstable-structure ratio. Named thresholds,
 every failure reported rather than the first, deterministic output. `director
@@ -703,17 +703,17 @@ safe-label opportunity     0%       (want 15%+)
 flicker                  0.30       (want under 0.15)
 transition utility        36%
 vocabulary          icon=129 grid=10 pane=1
-â NOT suitable as a default: fails 5 of 7 thresholds
+→ NOT suitable as a default: fails 5 of 7 thresholds
 ```
 
-**Then the defect that invalidates the comparison.** Calibrating against VS Code â which has
-a rich accessibility tree â produced 46 entities, **all of them `role=icon`**. Not one
+**Then the defect that invalidates the comparison.** Calibrating against VS Code — which has
+a rich accessibility tree — produced 46 entities, **all of them `role=icon`**. Not one
 accessibility element reached the sample.
 
 Cause: the sampler pins the validated window for vision and OCR, which read
 `Runtime.activeWindow`. The ACCESSIBILITY provider has its own notion of the active window
-and is not pinned, so during a targeted session it observes whatever is actually in front â
-the terminal â and `buildSample`'s window filter then correctly discards all of it. **A
+and is not pinned, so during a targeted session it observes whatever is actually in front —
+the terminal — and `buildSample`'s window filter then correctly discards all of it. **A
 targeted observation session is therefore vision-only by construction.**
 
 So the baseline number above is honest about `icon_detect` ALONE, and says nothing about the
@@ -723,7 +723,7 @@ accessibility reaches a pinned session.
 **Not done:** the second backend (only one learned detector exists on this machine; a
 classical-CV candidate over `screen.DetectButtons` is writable but unwritten), Rocket League
 benchmark evidence, role-mapping tables, open-vocabulary evaluation, hybrid routing, and the
-fixture-based benchmark that needs no service. Definition-of-Done item 1 is met; 2â12 are
+fixture-based benchmark that needs no service. Definition-of-Done item 1 is met; 2–12 are
 open.
 
 **Next, in order:** pin the accessibility provider to the session's window; re-run the DNFC
@@ -732,12 +732,12 @@ baseline; only then compare backends.
 ## Director: observation privacy rewrite + mutation guard
 
 **Status: the privacy defect is fixed and verified live. Durable storage, fixture export
-and event streaming are NOT built** â deliberately, since nothing should become durable
+and event streaming are NOT built** — deliberately, since nothing should become durable
 while the classifier was wrong. Nothing is committed.
 
 **The classifier is now two-stage, and the first stage is structural.**
 
-The old rule asked what the TEXT looked like â word length, letter ratio, a marker
+The old rule asked what the TEXT looked like — word length, letter ratio, a marker
 blacklist. That cannot work, and the live Chrome session proved it: `"Chris Haynes Plus"`
 is three ordinary capitalised words, indistinguishable by shape from `"Exit To Menu"`.
 
@@ -746,22 +746,22 @@ interface; text found inside an icon's box is a fact about the person using it. 
 
 1. **Structural eligibility.** Only `button`, `menu_item`, `menu`, `tab`, `checkbox`,
    `radio` may hold plaintext. `icon`, `text`, `image`, `unknown` and anything added later
-   default to private â the allowlist is closed, so a new role is refused until somebody
+   default to private — the allowlist is closed, so a new role is refused until somebody
    decides otherwise.
 2. **Shape**, unchanged, as defence in depth: even a button's name is refused if it looks
    like a token.
 
 Everything else keeps role + length + confidence + digest, which is all temporal analysis
-ever needed â the digest is what makes "this changed" observable without "this said" being
+ever needed — the digest is what makes "this changed" observable without "this said" being
 retained.
 
 **Verified live against the content that leaked.** Re-ran the same Chrome session and
 scanned both the human report and `--json`: `Chris Haynes`, `Silly Fire`,
-`Notes app assistant`, `Marco Language Design`, `blakeus` â all clean. Labels now render as
+`Notes app assistant`, `Marco Language Design`, `blakeus` — all clean. Labels now render as
 `(withheld, 6 chars, ff5d43925d81)`.
 
 **What it costs, stated plainly.** The detector in use emits one class that maps to
-`RoleIcon`, so a game's menu labels are withheld too â the same `RESUME GAME` that reads
+`RoleIcon`, so a game's menu labels are withheld too — the same `RESUME GAME` that reads
 perfectly is now a digest, because nothing structural vouches for it being a button. That is
 the honest trade: a classifier loose enough to keep those would also keep a friends list.
 The remedy is a detector with a real class vocabulary, which was already the top known gap
@@ -773,50 +773,50 @@ looks like a quiet moment, and resuming stitches two halves together as though n
 happened between them.
 
 **Not done:** durable store (Part 2), fixture export (Part 3), event streaming to clients
-(Part 4 â the runner publishes to `NopEvents` at the composition root), barrier tests for
+(Part 4 — the runner publishes to `NopEvents` at the composition root), barrier tests for
 blocked providers (Part 6), game-pack interpretation (Part 7), and the five-minute live
-Rocket League run (Part 8). Definition-of-Done items 4 and 6 are met; 1â3, 5 and 7â10 are
+Rocket League run (Part 8). Definition-of-Done items 4 and 6 are met; 1–3, 5 and 7–10 are
 open.
 
-## Director: passive observation â runs live
+## Director: passive observation — runs live
 
 **Status: the vertical slice works end to end against a real application.** Nothing is
-committed. **One privacy defect is open and must be fixed before storage lands â see below.**
+committed. **One privacy defect is open and must be fixed before storage lands — see below.**
 
 ```
 director observe-game --application chrome --duration 30s --interval 1s
-  â returned in 32ms
+  → returned in 32ms
 director observation-session observe_1
-  â State: observing   Target: application chrome â chrome   Samples: 3
-director status            â answered in 30ms mid-sample
-director cancel-observation observe_1 â returned in 30ms, evidence kept, INCOMPLETE
-director observation-insights observe_1 â stable entities, changes, unreliable evidence,
+  → State: observing   Target: application chrome → chrome   Samples: 3
+director status            → answered in 30ms mid-sample
+director cancel-observation observe_1 → returned in 30ms, evidence kept, INCOMPLETE
+director observation-insights observe_1 → stable entities, changes, unreliable evidence,
                                           hypotheses with contradictions and validations
 ```
 
 **What was wired** (`cmd/director/observe{wiring,snapshot,registry,cmd}.go`):
-- `liveTarget` over the existing `windowref.Tracker` â adds no selector rules of its own, so
+- `liveTarget` over the existing `windowref.Tracker` — adds no selector rules of its own, so
   a session cannot be more permissive than an ordinary command.
 - `liveSampler` over the existing collector and fusion, pinning the validated window for the
   cycle. No session-specific perception, no second fusion.
-- `buildSample` â the privacy and identity narrowing: no ElementID, no handle, no desktop
+- `buildSample` — the privacy and identity narrowing: no ElementID, no handle, no desktop
   coordinates, no raw OCR. Geometry is window-relative so it still compares after the game
   moves monitors.
-- One-at-a-time registry, bounded to 10 finished sessions **in memory only** â a restart
+- One-at-a-time registry, bounded to 10 finished sessions **in memory only** — a restart
   loses them and the listing says so.
 - Protocol `OBSERVE` / `OBSERVATION`, five CLI commands, `--json` throughout.
 
 **Two defects the live run found that synthetic tests could not:**
-1. **Presence ratios above 100%** â "present in 925% of samples". Identity is
+1. **Presence ratios above 100%** — "present in 925% of samples". Identity is
    role + label + coarse quadrant, so nine indistinguishable icons in one quadrant share one
    identity (intended), but `SamplesSeen` counted OCCURRENCES. Fixed to count samples, with
-   `Occurrences` kept separately â the difference is what tells one control from nine.
+   `Occurrences` kept separately — the difference is what tells one control from nine.
    Regression test added.
 2. **The label classifier kept a real person's name in the clear.** "Chris Haynes Plus"
    passed every rule: three ordinary words, all letters, no marker, high confidence. Shape
    cannot separate a person's name from a control's name, and the earlier "Qovisivre ys"
    case only failed because confidence was low. **NOT FIXED.** It reached terminal output
-   only â nothing is persisted yet â but durable storage is the next milestone and this must
+   only — nothing is persisted yet — but durable storage is the next milestone and this must
    be resolved first. The realistic options are an explicit opt-in for plaintext labels, or
    restricting the clear-text case to control-shaped vocabulary; both are judgement calls
    rather than bug fixes.
@@ -829,7 +829,7 @@ value-taking flag is registered. That table has now failed silently twice.
 emission (the runner publishes to `NopEvents` at the composition root), the barrier tests
 for blocked-provider responsiveness, and mutation refusal against an observed window.
 
-Gates: `go build ./...`, `go test ./...`, `gofmt` â all passing.
+Gates: `go build ./...`, `go test ./...`, `gofmt` — all passing.
 
 ## Director: passive observation runner
 
@@ -837,7 +837,7 @@ Gates: `go build ./...`, `go test ./...`, `gofmt` â all passing.
 protocol, CLI, storage and fixture export are NOT.** There is still no
 `director observe-game`. Nothing is committed.
 
-**`internal/director/observesession` (NEW)** â the orchestration half. Owns scheduling,
+**`internal/director/observesession` (NEW)** — the orchestration half. Owns scheduling,
 bounds, the state machine, target loss and the OCR budget; owns no perception at all.
 Everything arrives as a narrow interface it cannot construct: `Clock`, `Target`, `Sampler`,
 `Events`.
@@ -849,7 +849,7 @@ Everything arrives as a narrow interface it cannot construct: `Clock`, `Target`,
   BUILD one could eventually build something else.
 - **Scheduled against intended times, not `sleep(interval)` after the work.** Sleeping after
   a 700ms capture on a 500ms interval drifts 700ms per cycle, so a three-minute session
-  silently takes five. Missed slots are skipped and COUNTED rather than queued â a backlog
+  silently takes five. Missed slots are skipped and COUNTED rather than queued — a backlog
   would run captures back to back and describe a burst that never happened.
 - **A sample exists only when ownership is proven.** The target is revalidated before every
   frame; a failure produces no sample rather than a sample with a caveat. Verified: when the
@@ -857,7 +857,7 @@ Everything arrives as a narrow interface it cannot construct: `Clock`, `Target`,
 - **Target loss is bounded and never substituted.** State becomes `target_unavailable`, a
   seam is marked in the timeline, and the session either reacquires (per selector
   semantics) or ends honestly. The reason literally contains "NOT complete", and
-  `Result.Complete()` is false â only `Completed` licenses reading conclusions from the
+  `Result.Complete()` is false — only `Completed` licenses reading conclusions from the
   sample size.
 - **Scoped OCR is the exception, not the rule.** First sample always reads; after that every
   Nth, capped per session. From the measured 9.0s for 39 regions, reading every frame would
@@ -869,7 +869,7 @@ Everything arrives as a narrow interface it cannot construct: `Clock`, `Target`,
   a snapshot; if the sampling path held the lock the control plane needs, it deadlocks
   rather than fails, so the timeout is the assertion.
 
-**Two tests failed on first run because the bounds worked** â 3s and 1s sessions were
+**Two tests failed on first run because the bounds worked** — 3s and 1s sessions were
 refused against the 5s minimum. Fixed the tests, not the bound.
 
 **Not done:** the service protocol and its events (Part 10), the CLI commands (Part 11),
@@ -877,18 +877,18 @@ the active-session registry and busy policy (Part 8), sanitized storage (Part 12
 export (Part 13), the privacy marker audit across every surface (Part 14), pack
 interpretation (Part 16), and live validation (Part 18). The concrete `Target`/`Sampler`
 implementations over the window tracker and perception pipeline (Parts 5-6) are also
-unwritten â the interfaces exist and are tested against fakes, but nothing implements them
+unwritten — the interfaces exist and are tested against fakes, but nothing implements them
 yet. Definition-of-Done items 3-8 are met inside the runner; **1, 2, 9-14 are open**.
 
 Gates: `go build ./...`, `go test ./...`, `go test -race`, `go vet`, `gofmt`,
-`GOOS=darwin` cross-build â all passing.
+`GOOS=darwin` cross-build — all passing.
 
 ## Director: passive observation core
 
 **Status: the analysis core is built and tested (24 tests). The sampling loop, service
 protocol and CLI are NOT.** Nothing is committed.
 
-**`internal/director/observe` (NEW)** â the session model, bounds, safe snapshots, temporal
+**`internal/director/observe` (NEW)** — the session model, bounds, safe snapshots, temporal
 analysis and hypothesis generation. Pure and deterministic: no platform, no capture, no
 clock of its own, so all of it replays from a fixture with no game, detector or OCR.
 
@@ -900,14 +900,14 @@ clock of its own, so all of it replays from a fixture with no game, detector or 
   nothing it can reach knows how.
 - **Bounds reject rather than truncate.** A three-hour request is refused with the limit
   quoted, not quietly shortened to fifteen minutes. The 500ms default interval comes from
-  measured cost â a detection pass ran 170â730ms live, label reading ~230ms per control â so
+  measured cost — a detection pass ran 170–730ms live, label reading ~230ms per control — so
   anything faster would queue rather than observe.
 - **Only `completed` counts as success.** A session cut short by a lost target kept real
   evidence and an incomplete picture; calling it complete would let a reader draw
   conclusions from a sample size nobody told them about.
 - **Privacy is opt-in plaintext.** A label is stored in the clear only if it is short,
   mostly letters, confidently read, free of person-shaped markers, and made of
-  ordinary-length words. Everything else becomes role + length + digest â enough to observe
+  ordinary-length words. Everything else becomes role + length + digest — enough to observe
   that a label CHANGED without keeping what it said.
 - **Jitter is not movement.** A box wandering inside 0.02 of relative width produces no
   transition; a genuine relocation produces exactly one.
@@ -918,7 +918,7 @@ clock of its own, so all of it replays from a fixture with no game, detector or 
   would read as "nothing more happened".
 
 **One real gap found by the tests.** The privacy classifier kept
-`TTVX-FINAL-SECRET-6b8d-XYZZYPLOV` in the clear â one token, 84% letters, under the length
+`TTVX-FINAL-SECRET-6b8d-XYZZYPLOV` in the clear — one token, 84% letters, under the length
 cap, matching no marker. Whole-string character ratios cannot tell an identifier from a
 label; word SHAPE can. Words are now capped at 15 characters and may not mix letters with
 digits, which refuses tokens and session keys while keeping "EXIT TO MAIN MENU" and "50%".
@@ -926,25 +926,25 @@ digits, which refuses tokens and session keys while keeping "EXIT TO MAIN MENU" 
 **Not done:** the sampling loop itself (Part 5), target-loss and bounded reacquisition
 during a session (Part 4), adaptive sampling and the OCR budget (Part 9), the session
 analyzer's live wiring, pack interpretation (Part 12), storage and fixture export
-(Parts 13â14), the `observe-game` / `observation-session` / `observation-insights` commands
-and their protocol events (Parts 15â16), concurrency and responsiveness under load
-(Part 17), and live validation (Part 20). Definition-of-Done items 1â3 and 9â14 are open;
-items 4â8 are met within the core.
+(Parts 13–14), the `observe-game` / `observation-session` / `observation-insights` commands
+and their protocol events (Parts 15–16), concurrency and responsiveness under load
+(Part 17), and live validation (Part 20). Definition-of-Done items 1–3 and 9–14 are open;
+items 4–8 are met within the core.
 
-Gates: `go build ./...`, `go test ./...`, `gofmt`, `go vet`, `GOOS=darwin` cross-build â all
+Gates: `go build ./...`, `go test ./...`, `gofmt`, `go vet`, `GOOS=darwin` cross-build — all
 passing.
 
 ## Director: explicit window targeting
 
 **Status: Part 1 of the passive-observation milestone is complete and proven live. The
-observation session itself (Parts 2â9) is NOT built.** Nothing is committed.
+observation session itself (Parts 2–9) is NOT built.** Nothing is committed.
 
 **The gap this closes.** Every diagnostic looked at whatever was in front. Running one from
 a terminal gives the terminal focus, which is why three separate live attempts at Rocket
 League all described VS Code or the terminal instead. Focus is now an input only when
 nobody says otherwise.
 
-- **`windowref.Selector`** â one typed selector, exactly one primary of
+- **`windowref.Selector`** — one typed selector, exactly one primary of
   `--window-id` / `--window-title` / `--application` / `--process`. Two primaries is an
   error rather than a query needing a tie-break nobody asked for.
 - **`Resolve`** returns `resolved` / `not_found` / `ambiguous` / `stale_id` /
@@ -970,20 +970,20 @@ nobody says otherwise.
 application as `"--json"`. The table's existing comment warns about exactly this failure,
 from a previous occurrence. All the new value-taking flags are now listed.
 
-**Not done â the substance of the milestone:** the bounded passive `ObservationSession`
-(Parts 2â3), temporal stability and transition analysis (Part 4), insight/hypothesis
+**Not done — the substance of the milestone:** the bounded passive `ObservationSession`
+(Parts 2–3), temporal stability and transition analysis (Part 4), insight/hypothesis
 generation (Part 5), pack interpretation of summaries (Part 7), the `observe-game`
 diagnostics (Part 8), sanitized session storage and fixture export (Part 9), privacy
 redaction (Part 10), adaptive sampling (Part 11), and their tests. The no-input structural
 boundary test does not exist yet either. Part 1 was the stated prerequisite and is the only
 part attempted.
 
-Gates: `go build ./...`, `go test ./...`, `gofmt`, `GOOS=darwin` cross-build â all passing.
+Gates: `go build ./...`, `go test ./...`, `gofmt`, `GOOS=darwin` cross-build — all passing.
 
 ## Director: window liveness + stale-capture prevention
 
-**Status: the reliability gate is closed.** The defect the live Rocket League run exposed â
-a destroyed window handle kept, and its remembered bounds captured on another monitor â is
+**Status: the reliability gate is closed.** The defect the live Rocket League run exposed —
+a destroyed window handle kept, and its remembered bounds captured on another monitor — is
 fixed at two independent layers, mutation-verified, and validated live against the real
 Windows API. Nothing is committed. Read `docs/director-windows.md` first.
 
@@ -991,31 +991,31 @@ Windows API. Nothing is committed. Read `docs/director-windows.md` first.
 1. `wincapture.CaptureWindow` FELL BACK to the caller's remembered bounds when the live
    lookup failed. A dead window's lookup always fails, so the camera was pointed at where
    the window used to be.
-2. `activeWindow` returned the last observed world's window unvalidated â correct for
+2. `activeWindow` returned the last observed world's window unvalidated — correct for
    choosing a candidate, but nothing asked the platform whether it still existed.
 
-**`internal/director/perception/windowref` (NEW)** â the lifecycle, with no Windows code in
+**`internal/director/perception/windowref` (NEW)** — the lifecycle, with no Windows code in
 it. `Platform` is the seam, which is what makes destroyed windows, recycled handles and
 ambiguous candidates testable at all.
 - **Validation asks the platform every time**: window exists, expected process, process
   alive, same application, usable bounds, intersects a monitor. Cached bounds are never
   evidence of any of it.
-- **Invalidation is atomic** â afterwards no caller can reach the old handle or bounds.
+- **Invalidation is atomic** — afterwards no caller can reach the old handle or bounds.
   There is nothing left to fall back TO, which makes the original failure structurally
   impossible rather than merely guarded.
 - **Reacquisition searches by executable name**, never by old geometry, never assuming the
-  handle is unchanged. Ranking: foreground â largest visible â **ambiguous**. Two equal
+  handle is unchanged. Ranking: foreground → largest visible → **ambiguous**. Two equal
   candidates refuse rather than guess.
 - **Epochs**: a generation per distinct window, incrementing on a different handle or
   process but NOT on a window that merely moved. Diagnostics show the generation and
-  deliberately **not** the raw handle â a handle invites the across-time comparison that
+  deliberately **not** the raw handle — a handle invites the across-time comparison that
   caused the incident.
 - `valid` is an allow-list of one, so any state added later is refused by default.
 
-**`internal/winctx/liveness.go` (NEW)** â `IsWindow`, `WindowProcessID`, `ProcessAlive`
+**`internal/winctx/liveness.go` (NEW)** — `IsWindow`, `WindowProcessID`, `ProcessAlive`
 (via exit code, not just an openable handle), `ProcessImage`, `LookUpWindow`, `LiveWindows`,
 plus an `onScreen` test that asks about monitor intersection rather than the sign of X, so a
-monitor left of the primary still works. Non-Windows stubs answer "no" â the safe direction.
+monitor left of the primary still works. Non-Windows stubs answer "no" — the safe direction.
 
 **The capture-time guard.** `wincapture` no longer has a fallback: no lookup wired, or a
 lookup that says the window is gone, is a refusal. Ownership is checked before AND after the
@@ -1026,17 +1026,17 @@ pixels are read, so a window that closes or changes hands mid-capture yields
 - **The first mutation attempts were not caught.** Removing the liveness check left the RL
   regression passing, because the process-exit check masked it; removing the process check
   left the recycled-handle test passing, because an application-name check masked it. Both
-  tests were sharpened until each mutation fails on its own â a destroyed window whose
+  tests were sharpened until each mutation fails on its own — a destroyed window whose
   process survives, and a handle recycled within the same application.
 - **Every window reported `generation 0` live.** `Propose` overwrote the validated
   reference, so a proposal was indistinguishable from a fact and the confirm path skipped
   the one place an epoch is assigned. Proposals are now kept separate. Caught by running it,
-  not by a test â and now pinned by three.
+  not by a test — and now pinned by three.
 
 **Live validation.** `MARCO_LIVE_WINDOW_TEST=1 go test ./internal/platform/winprovider/
 -run Live` launches a real program, validates its window, kills it and asserts the refusal.
 On the machine where the incident happened: `validated: mspaint window, generation 1, at
-1536x864+191+107` â `refused, correctly: unavailable â no window belonging to mspaint is
+1536x864+191+107` → `refused, correctly: unavailable — no window belonging to mspaint is
 currently available to capture`.
 
 **Not done:** the full Rocket League close/relaunch driven through `director` with a person
@@ -1044,7 +1044,7 @@ in Free Play. The mechanism is proven live and the exact scenario is a unit test
 end-to-end run has not happened. Region-scoped label reading is unregressed.
 
 Gates: `go build ./...`, `go test ./...`, `go test -race`, `go vet`, `gofmt`, `GOOS=darwin`
-cross-build, and both plugin modules â all passing.
+cross-build, and both plugin modules — all passing.
 
 ## Director: live vision bring-up + region-scoped label reading
 
@@ -1053,7 +1053,7 @@ Seven defects found and fixed, one new perception capability added. Nothing is c
 `docs/director-vision.md` carries the detail; `fixtures/rocketleague/` carries the evidence.
 
 **The model, audited rather than assumed.** `plugins/vision/models/icon_detect.onnx` is
-Ultralytics YOLO11m (OmniParser), `names={0:'icon'}` â **one class** â trained on
+Ultralytics YOLO11m (OmniParser), `names={0:'icon'}` — **one class** — trained on
 `som_office`, i.e. office UI. Input `images[1,3,640,640]`, output `output0[1,5,8400]`.
 ONNX Runtime 1.26.0 (the binding wants API 26; 1.23 fails loudly). Everything below follows
 from that audit, which is why it came first.
@@ -1063,8 +1063,8 @@ from that audit, which is why it came first.
    "button" and nothing asked the model its class name. `button` maps to a control role and
    `icon` to a weaker one, so a one-class icon detector announced 56 desktop icons as
    controls. Now reads the model's embedded `names`; explicit config still wins.
-2. **Grid inference was unreachable.** Candidacy was gated on `ClassSlot` â an inventory
-   word no general detector emits â so `gridsOver` returned on its first line on every
+2. **Grid inference was unreachable.** Candidacy was gated on `ClassSlot` — an inventory
+   word no general detector emits — so `gridsOver` returned on its first line on every
    screen. Invisible to synthetic tests, which say `slot` when they mean cell.
 3. **`bySize` chained.** Single-linkage from an arbitrary seed merged distinct size
    families. Now sorted by area, so a group spans one bounded tolerance.
@@ -1074,11 +1074,11 @@ from that audit, which is why it came first.
    two-row band.
 6. **A 4MB bridge line cap killed plugins silently.** An RL frame encodes to ~4.6MB base64
    (game renders do not PNG-compress like desktops). The scanner hit the cap, the loop
-   ended, the process exited, and the Director reported "the pipe has been ended" â
+   ended, the process exited, and the Director reported "the pipe has been ended" —
    indistinguishable from a crash. Now `bridgehost.MaxLine` (64MB) and overflow is reported
    on both stdout and stderr.
 7. **The Director cached a dead window.** After Rocket League was closed and relaunched it
-   kept reporting `hwnd:661516` â the destroyed handle â and captured at its stale bounds
+   kept reporting `hwnd:661516` — the destroyed handle — and captured at its stale bounds
    on another monitor. "169 detections on the rocketleague window" were VS Code icons. Not
    yet fixed; see Pending.
 
@@ -1090,14 +1090,14 @@ refused a frame taken while the window moved.
 it addressable is what it says. `vision.LabelReader` crops each accepted structural
 detection, enlarges it, reads it, and attaches the words as the observation's `Label`.
 - **Scoped to the box because nothing else works.** On the live pause menu: whole-frame OCR
-  read 1 string of 12, whole-frame at 2Ã/3Ã read 2, tiling read 151 and 127 mostly
+  read 1 string of 12, whole-frame at 2×/3× read 2, tiling read 151 and 127 mostly
   hallucinated, per-box read **4 of 4 exactly**. An engine pointed at arena texture invents
-  glyphs â that negative result is what forced the design.
+  glyphs — that negative result is what forced the design.
 - **A label is a property OF a control**, attached to its detection, never a second
   observation at the same geometry. The grid-position lesson, applied again.
 - **Two filters, not interchangeable:** shape rejects symbol soup; confidence rejects
   letter-shaped nonsense like `"Qovisivre ys"`, which no shape rule can catch.
-- **Edge-trimming was written and reverted** â it rescues `"Â»)  (ee i"` as `"ee i"`, and was
+- **Edge-trimming was written and reverted** — it rescues `"»)  (ee i"` as `"ee i"`, and was
   unnecessary because engines report words and border marks arrive as their own
   low-confidence spans. The note is kept in the code so the next person does not redo it.
 - **Bounded:** 39 boxes cost 9.0s unbounded; `MaxLabels` (24, largest first) plus a minimum
@@ -1109,18 +1109,18 @@ detection, enlarges it, reads it, and attaches the words as the observation's `L
 
 **What this model can and cannot do**, which is the milestone's actual answer:
 - **In play: it cannot help.** Free Play yields *zero* detections at the 0.25 floor; at 0.05
-  exactly one box â the boost gauge, correctly located â at **0.13**. OCR reads nothing:
+  exactly one box — the boost gauge, correctly located — at **0.13**. OCR reads nothing:
   Rocket League draws "33" as disconnected horizontal bars, unreadable at three PSMs even
-  cropped and 3Ã upscaled. No threshold fixes this.
-- **In menus: it works.** The pause menu's four buttons at 0.59â0.64 on defaults, all four
+  cropped and 3× upscaled. No threshold fixes this.
+- **In menus: it works.** The pause menu's four buttons at 0.59–0.64 on defaults, all four
   labels read exactly.
 
 **Not done:** the Rocket League capability pack (game state, HUD entities). Stopped
-deliberately before it, on the user's call â region-scoped OCR was the prerequisite and is
+deliberately before it, on the user's call — region-scoped OCR was the prerequisite and is
 now in.
 
 Gates: `go build ./...`, `go test ./...`, `go test -race`, `go vet`, `gofmt`, and both
-plugin modules â all passing.
+plugin modules — all passing.
 
 ## Director: vision perception provider
 
@@ -1129,7 +1129,7 @@ now accept observations produced from IMAGES instead of accessibility, under the
 every other provider obeys. **No model has been loaded and no screen has been detected in.**
 Nothing is committed.
 
-Read `docs/director-vision.md` first â it carries the design, the thresholds and the Known
+Read `docs/director-vision.md` first — it carries the design, the thresholds and the Known
 gaps.
 
 - **Vision produces observations; fusion produces belief.** Vision may never execute,
@@ -1138,12 +1138,12 @@ gaps.
   and `perception_boundary_test.go` already forbids anything outside
   `internal/director/perception`, `internal/recorded` and `cmd/director` from seeing an
   observation at all.
-- **`internal/director/perception/capture` (NEW)** â the frame and its transform back to
+- **`internal/director/perception/capture` (NEW)** — the frame and its transform back to
   desktop coordinates, hoisted out of OCR so both providers place boxes the same way. OCR
   now aliases it.
-- **`.../providers/vision` (NEW)** â `Detector` is three lines (`Detect`, `Model`), so the
-  backend is replaceable: OpenCV today, YOLO tomorrow. `provider.go` does capture â detect â
-  filter â observations; `grid.go` reads repeated shapes as grids; `frame.go` keeps a
+- **`.../providers/vision` (NEW)** — `Detector` is three lines (`Detect`, `Model`), so the
+  backend is replaceable: OpenCV today, YOLO tomorrow. `provider.go` does capture → detect →
+  filter → observations; `grid.go` reads repeated shapes as grids; `frame.go` keeps a
   20-frame log **and never keeps a picture**.
 - **Opt-in, always.** `Observe` returns nothing unless the request carries `SourceVision`
   (`observation.WithVision(region)`). A Director with the provider wired but nobody asking
@@ -1154,24 +1154,24 @@ gaps.
   bounds, DPI scale and monitor origin it has no way to get right. `plugins/vision`'s
   `Detect` gained that image mode alongside its original capture-it-yourself mode.
 - **Vision never fabricates actionability.** Seeing *Delete* does not produce a Delete
-  button. `element()` leaves `Enabled`/`Visible`/`Focused` **nil** â vision cannot know any
+  button. `element()` leaves `Enabled`/`Visible`/`Focused` **nil** — vision cannot know any
   of the three. Structural classes carry a HIGHER confidence bar (0.50) than text (0.35),
   because "there is a button here" is a stronger claim. `TestTextDoesNotBecomeAButton` was
   verified to catch a real regression (weakening the check to `if false && !class.Structural()`
   fails it).
 - **The safety actually rests on fusion rank + policy, and the doc says so.** Fusion ranks
-  vision at 2 (OCR 3, accessibility 6) and defaults an *unreported* `Enabled` to true â a
+  vision at 2 (OCR 3, accessibility 6) and defaults an *unreported* `Enabled` to true — a
   deliberate pre-existing decision, so the carefully-preserved nil does not survive into
   belief. The doubt is carried by `Confidence` and `Sources`, which is what policy reads.
   `TestAVisionOnlyWorldIsNotSafeToActIn` proves the gate, against a control world of
   identical role composition seen structurally.
-- **Grids are geometric and unnamed.** â¥4 cells, â¥2 rows and columns, sizes within 25%,
-  alignment within 40%, 0.6 regularity â `grid`/`grid_row`/`grid_column`/`grid_index`
+- **Grids are geometric and unnamed.** ≥4 cells, ≥2 rows and columns, sizes within 25%,
+  alignment within 40%, 0.6 regularity → `grid`/`grid_row`/`grid_column`/`grid_index`
   attributes. Palworld's interpreter reads them without knowing vision produced them.
 - **Diagnostics lead with what was REFUSED.** `director vision [--region] [--last]`,
   `director explain vision`, `director frames`; unknown classes are marked `?` because a
   model this build cannot speak to looks exactly like a model that found nothing. Protocol:
-  `RequestVision`. All control plane. With no detector installed â the ordinary case â it
+  `RequestVision`. All control plane. With no detector installed — the ordinary case — it
   names why and points at `$DIRECTOR_VISION`.
 - **The bridge seam is tested, and testing it found a silent killer.** `decode` and
   `errText` marshalled a `runtime.Value` DIRECTLY; its fields are unexported, so the
@@ -1179,20 +1179,20 @@ gaps.
   yielded **zero detections and no error**. Against a live plugin the provider would have
   reported an empty screen forever and every diagnostic would have agreed. Fixed to go
   through `runtime.JSONFromValue`, as `ocrclient` already did.
-  `internal/platform/visionclient/visionclient_test.go` (10 tests) now covers encode â
-  call â decode, and holds the three distinguishable failures apart: no plugin, a plugin
+  `internal/platform/visionclient/visionclient_test.go` (10 tests) now covers encode →
+  call → decode, and holds the three distinguishable failures apart: no plugin, a plugin
   that failed, a plugin that answered with nothing.
 - **Five faults the checks caught while building**, all fixed: the marshal bug above; grid
   position emitted as a
   second same-source observation produced two elements per cell (fusion deliberately never
-  merges same-source observations â `TestSameSourceNeverMerges`), fixed by running the grid
+  merges same-source observations — `TestSameSourceNeverMerges`), fixed by running the grid
   pass BEFORE building observations; two fusion tests asserted the wrong thing (OCR outranks
   vision, so OCR wins disputed bounds; incompatible roles do not merge at all); and the
   policy test passed for the wrong reason twice (a hand-built world had zero stored
   confidence; a buttons-only fixture tripped the coverage gate instead of the source gate).
 
 Gates: `go build ./...`, `go test ./...`, `go test -race ./...`, `go vet ./...` (modulo the
-four known Windows LL-hook `unsafe.Pointer` notes) and `gofmt` â all passing.
+four known Windows LL-hook `unsafe.Pointer` notes) and `gofmt` — all passing.
 
 **Next:** the live validation, which is now the same run for all four outstanding
 milestones. Build `plugins/vision` with a model, set `$DIRECTOR_VISION`, put Palworld in
@@ -1208,104 +1208,104 @@ rather than Director special cases; the first pack (Palworld) registers, detects
 contributes and expands through the ordinary pipeline. **Nothing has been run against a
 running game.** Nothing is committed.
 
-Read `docs/director-games.md` first â it carries the design, the arithmetic and the Known
+Read `docs/director-games.md` first — it carries the design, the arithmetic and the Known
 gaps.
 
 - **The claim is checkable.** Adding a game is one line in `registeredPacks()`
   (`cmd/director/gamewiring.go`) and nothing else; `internal/director/boundary_test.go`
   forbids `internal/director` importing `internal/gamepacks`, so it is a property of the
   build rather than a discipline. Same shape as the platform adapters.
-- **`internal/director/game` (NEW)** â the `Capability` interface, registry, detection,
+- **`internal/director/game` (NEW)** — the `Capability` interface, registry, detection,
   inventory semantics, conditions, safety policy and the diagnostics surface. There is no
   execution in it: a pack contributes six kinds of thing and every one plugs into an
-  extension point that already existed (interpreters â enrichment, procedures â
-  `goal.Registry`, roles â the alias table, conditions â the wait engine, verifiers â
-  `verify`, policies â `policy`).
+  extension point that already existed (interpreters → enrichment, procedures →
+  `goal.Registry`, roles → the alias table, conditions → the wait engine, verifiers →
+  `verify`, policies → `policy`).
 - **Packs reason over BELIEF, not evidence.** The first design had packs contributing
-  `observation.Provider`s; `perception_boundary_test.go` correctly refused it â only
+  `observation.Provider`s; `perception_boundary_test.go` correctly refused it — only
   `internal/director/perception` may see observations. A pack now contributes an
   `Interpreter` over fused ELEMENTS, applied by `Registry.Enrich` after fusion. A pack
   therefore cannot capture a screen or contribute evidence nobody weighed. A pack needing a
   real new source contributes an ordinary perception provider at the composition root.
 - **Core hooks added (the Director gains extension points, not game knowledge):**
-  `directorapi.EntityIdentity` carried observation â fusion â element (mirrors
+  `directorapi.EntityIdentity` carried observation → fusion → element (mirrors
   `ResourceIdentity`); `verify.EvidenceSource` (additive, attributed, capped at 0.7, and an
   inconclusive verdict it does not rescue STAYS inconclusive); `policy.Rule` (a `Verdict`
   with `Refuse`/`Confirm` and **no field meaning allow**); `goal.RegisterControlRole` so a
   pack names controls by meaning and gets the ordinary alias matching.
 - **Quantity is a pointer, deliberately.** An empty slot holds zero; an unreadable slot
   holds an unknown number. `Inventory.Full()` returns *(full, known)* and every selection
-  reports what it skipped â "deposit everything" that silently left four things behind is
+  reports what it skipped — "deposit everything" that silently left four things behind is
   the failure this prevents.
 - **Safety is structural, not a filter.** The `Automation` vocabulary has no value for
   combat, aiming, movement or player interaction, so a pack cannot permit one. `Protected`
   refuses absolutely; nothing-permitted refuses; `Competitive` confirms every action.
   `game.Procedure` pairs a procedure with the automation it declares, and registration
-  REFUSES a pack shipping automation it did not permit â the Director does not start.
+  REFUSES a pack shipping automation it did not permit — the Director does not start.
 - **Detection combines four signals** (process 0.40, title 0.35, interface 0.60, the pack's
   own entities 0.70), combining probabilistically past a 0.60 threshold: no single weak
   signal reaches it, any two do. A tie between packs detects NOTHING.
 - **Two general outcomes arrived with the first pack:** `goal.Sort` and `goal.Craft`, with
   generic procedures and built-in `sort_command`/`craft_command` roles. Neither is a game
-  concept â that is the test for vocabulary-versus-pack, and the pack is what surfaced it.
+  concept — that is the test for vocabulary-versus-pack, and the pack is what surfaced it.
 - **Diagnostics:** `director game`, `director capabilities`, `director explain game`,
   `director explain inventory`, `marco games`; `director procedures` lists the pack's.
-  Protocol: `RequestGame`. All control plane â none takes the command lock.
+  Protocol: `RequestGame`. All control plane — none takes the command lock.
 - **Three faults the checks caught while building**, all fixed: two Palworld procedures
-  collided on `open_settings` (the registry validator â which is what led to `Sort`/`Craft`);
+  collided on `open_settings` (the registry validator — which is what led to `Sort`/`Craft`);
   the pack-as-perception-provider design (the perception boundary test); and detection
   weights that did not deliver what their own comment claimed (0.35+0.30 = 0.545, below the
   threshold the comment promised two signals would clear).
 
 Gates: `go build ./...`, `go test ./...`, `go test -race ./...`, `go vet ./...` (modulo the
-four known Windows LL-hook `unsafe.Pointer` notes) and `gofmt` â all passing.
+four known Windows LL-hook `unsafe.Pointer` notes) and `gofmt` — all passing.
 
-**Next:** the live validation â run `director serve` with Palworld in front and check
+**Next:** the live validation — run `director serve` with Palworld in front and check
 `director game` detects it, `director explain inventory` sees anything at all, and a
 procedure resolves. The honest expectation is that Palworld exposes no accessibility tree,
-detection falls back to process+title, and the interpreter sees nothing â which is the
+detection falls back to process+title, and the interpreter sees nothing — which is the
 result that tells you the next piece of work is a vision provider.
 
 ## Director: demonstration recording + semantic procedure extraction
 
 **Status: complete off the desktop, unproven on it.** The user can demonstrate a task once
-and the Director extracts a reusable procedure from the SEMANTICS of what it verified â
+and the Director extracts a reusable procedure from the SEMANTICS of what it verified —
 recorded, extracted, explained, approved and registered alongside the built-ins. Every part
 is regression-tested against fixtures and against the real pipeline. **No demonstration has
 been performed on a live desktop.** Nothing is committed.
 
-Read `docs/director-demonstrations.md` first â it carries the design and the Known gaps.
+Read `docs/director-demonstrations.md` first — it carries the design and the Known gaps.
 
 - **`internal/director/demo` (NEW).** The whole layer: `Demonstration`/`Step` (semantic
-  only â verbs, semantic targets, waits, evidence KINDS, and action-graph node
+  only — verbs, semantic targets, waits, evidence KINDS, and action-graph node
   REFERENCES), `Recorder`, `Extract`, `Validate`, `Unsafe`, `Explain`, `Learned`, `Store`.
 - **Recording adds no observation path.** The recorder's one subscription is
-  `Runtime.Handle`'s own outcome â a request already observed, executed, verified and
+  `Runtime.Handle`'s own outcome — a request already observed, executed, verified and
   recorded. It observes nothing, so "recording never bypasses verification" is structural:
   there is nothing to record until an action has been verified.
 - **Nothing mechanical survives**, asserted over the serialised form rather than by
   inspection: no coordinates, handles, native/element/runtime ids, screenshots or OCR, and
-  no value the value layer called sensitive. A CLICK is recorded as an INVOKE â the same
+  no value the value layer called sensitive. A CLICK is recorded as an INVOKE — the same
   act at the level a procedure is made of.
 - **The goal comes from the ACTIONS, never the phrase** (`signatures`): 13 of the 15
   outcomes have recovery signatures; `delete` and `close_without_saving` are deliberately
-  absent because safety refuses every demonstration of them first. `copy â paste` is a
+  absent because safety refuses every demonstration of them first. `copy → paste` is a
   DUPLICATE. Two signatures that fit equally well REFUSE.
 - **One parameter rule: a value becomes a parameter when the user TYPED it.** Four
   exceptions keep typed text constant (application name, control name, procedural verb,
-  empty). The SUBJECT is generalised too â the first step aimed at a content element
+  empty). The SUBJECT is generalised too — the first step aimed at a content element
   becomes "the object the user points at", which is what makes the learned procedure answer
   "rename this file to Q4".
 - **Two refusal layers, at two moments.** Safety at session CLOSE (may this EVER be
   learned: credentials, auth, payment, destructive controls, bulk, confirmation, unverified,
-  cancelled, clarified) â a durable fact, not a verdict to be re-reached later. Validation at
+  cancelled, clarified) — a durable fact, not a verdict to be re-reached later. Validation at
   extraction (does this DESCRIBE a procedure). Both refuse the whole demonstration.
 - **Approval is a step nothing skips.** `Extract` returns an `Extraction`; the registry
   takes a `goal.Procedure`; only `Approve` bridges them, and the type is the gate. The
   service re-runs the extraction rather than accepting a candidate from a client, so
   approval cannot become a way to author procedures.
 - **A learned procedure is an ordinary procedure.** `AsProcedure` is an adapter over stored
-  DATA â it evaluates nothing. It expands, validates, binds, confirms, lowers to Marco and
+  DATA — it evaluates nothing. It expands, validates, binds, confirms, lowers to Marco and
   verifies by the built-in path because it IS the built-in path. The demonstrated value is
   never typed again: the procedure declares the requirement its parameters imply, so a
   rename with no new name is refused BEFORE expansion as a typed question.
@@ -1316,25 +1316,25 @@ Read `docs/director-demonstrations.md` first â it carries the design and th
   already knew cannot stop the service from starting.
 - **Every decision is recorded where it fires** and stored WITH the approved procedure, so
   `explain procedure` answers months later with the reasoning the user approved.
-- **Wiring:** `demo.Recorder`+`demo.Store` on the daemon (control plane â no `r.mu`, so
+- **Wiring:** `demo.Recorder`+`demo.Store` on the daemon (control plane — no `r.mu`, so
   they answer while the command they are recording runs); `RequestDemonstration` protocol
   action; `director demonstrate start|stop|abandon|status`, `demonstrations`,
   `demonstration <id>`, `extract <id> [--why|--approve]`, `explain procedure <name>`;
   `director procedures` marks learned ones `*`.
 - **The round trip runs in CI** (`roundtrip_test.go`): a demonstration driven through the
-  REAL pipeline â observe, resolve, plan, policy, execute, re-observe, verify, record â
+  REAL pipeline — observe, resolve, plan, policy, execute, re-observe, verify, record —
   recorded, extracted, approved, registered, and expanded again for a DIFFERENT file with a
   DIFFERENT name.
 - **Two extraction rules the round trip forced**, both now stated in the docs: rename is
   recovered from ordering (rename command invoked, then text typed) rather than from "the
   text went into the inline editor", because a verified action record carries no control
-  CLASS; and destructiveness is read from the control ROLE, not from verb reversibility â
+  CLASS; and destructiveness is read from the control ROLE, not from verb reversibility —
   the latter calls invoke/paste/submit irreversible and refused every demonstration.
 
 Gates: `go build ./...`, `go test ./...`, `go test -race ./...`, `go vet ./...` (modulo the
-four known Windows LL-hook `unsafe.Pointer` notes) and `gofmt` â all passing.
+four known Windows LL-hook `unsafe.Pointer` notes) and `gofmt` — all passing.
 
-**Next:** the live validation in the milestone â demonstrate a rename in real Explorer,
+**Next:** the live validation in the milestone — demonstrate a rename in real Explorer,
 extract, approve, and run the learned procedure on another file; then create-folder and
 duplicate. That needs a desktop and has not been attempted.
 
@@ -1343,7 +1343,7 @@ duplicate. That needs a desktop and has not been attempted.
 **Status: complete off the desktop, unproven on it.** The inline-editor model, its pipeline
 wiring, the graph evidence, the diagnostics and the docs are all done and regression-tested
 against fixtures built from the real captured Explorer tree. **The live run has still never
-executed since the wiring landed** â that is the one thing left, and it is the only way the
+executed since the wiring landed** — that is the one thing left, and it is the only way the
 remaining claims get proven. Nothing is committed.
 
 Gates as of now: `go build ./...`, `go test ./...`, **`go test -race ./...`**, `go vet
@@ -1351,34 +1351,34 @@ Gates as of now: `go build ./...`, `go test ./...`, **`go test -race ./...`**, `
 
 ### What this session finished
 
-- **Part 14 â pipeline regressions** (`internal/director/execute/editor_test.go`, 11 tests
-  over an Explorer fixture that CONTAINS the decoy): rename mode acts on the bound file Â·
-  the text goes to the verified editor Â· text that did not land fails the step Â· a commit is
-  aimed at the open editor and proved by its closure Â· a commit leaving it open fails Â· an
-  absent editor stops without reaching the host, the resolver or the graph Â· two editors ask
-  Â· the derived pin does not escape the request Â· the node records the edit and no way to
-  re-find the control Â· replay re-derives Â· the diagnostics account for it.
+- **Part 14 — pipeline regressions** (`internal/director/execute/editor_test.go`, 11 tests
+  over an Explorer fixture that CONTAINS the decoy): rename mode acts on the bound file ·
+  the text goes to the verified editor · text that did not land fails the step · a commit is
+  aimed at the open editor and proved by its closure · a commit leaving it open fails · an
+  absent editor stops without reaching the host, the resolver or the graph · two editors ask
+  · the derived pin does not escape the request · the node records the edit and no way to
+  re-find the control · replay re-derives · the diagnostics account for it.
 - **Two real defects the regressions found**, both in code written and never run end to end:
   1. **`directorapi.ElementQuery.Constrained()` did not count `NativeID`**, so the one way a
-     derived target can be expressed was refused as "not specific enough to look for" â the
+     derived target can be expressed was refused as "not specific enough to look for" — the
      editor step could never have resolved.
   2. **A commit re-applied the discovery-time value check** and refused the very editor it
      was about to commit (the box no longer holds the original name by then). New
      `inline.FindOpen` drops clause 5 for a commit only; `deriveEditor` picks it via
      `isCommit`.
-- **Part 11 â graph evidence.** `actiongraph.ActionNode.Editor *inline.Snapshot`, stamped by
+- **Part 11 — graph evidence.** `actiongraph.ActionNode.Editor *inline.Snapshot`, stamped by
   `noteEditor`. Carries property, resource, class, initial/final value and evidence, and
   **no element id or native id** (asserted over the serialised form). `unpinEditor` also
   takes the pinned native id back out of the node's stored plan, and
   `actiongraph.analyzeElement` now reports a derived-editor node as deriving its target at
-  run time instead of `TARGET_MISSING` â before that, such a node was unreplayable on the
+  run time instead of `TARGET_MISSING` — before that, such a node was unreplayable on the
   strength of a handle nobody should have been keeping.
-- **Part 15 â diagnostics.** `BindingDiagnostics` gained `EditorOutcome` (the post-action
+- **Part 15 — diagnostics.** `BindingDiagnostics` gained `EditorOutcome` (the post-action
   verdict, kept apart from the derivation), `Describe()` renders the editor with its
   evidence/missing/candidates, `Empty()` accounts for it, and `director graph <node>` grew
   an **Edited** section plus a "target: derived at run time" line. `attempt` now takes the
   diagnostics (nil from replay, which reports its own way).
-- **Part 16 â docs.** `docs/director-goals.md` has a full **The inline editor** section (the
+- **Part 16 — docs.** `docs/director-goals.md` has a full **The inline editor** section (the
   decoy, the captured tree, the five correlation clauses and where clause 5 is dropped,
   derived-target vs binding, verification, what history keeps, the two defects, coverage),
   new status-table rows, and rewritten Known gaps.
@@ -1386,19 +1386,19 @@ Gates as of now: `go build ./...`, `go test ./...`, **`go test -race ./...`**, `
 ### The finding this milestone rests on
 
 Captured from a real Windows 11 Explorer window, before and after invoking the command-bar
-Rename button (element count identical, 166 â 166 â one control replaces another):
+Rename button (element count identical, 166 → 166 — one control replaces another):
 
 ```
-ClassName    UIRenameTextElement     â exists ONLY in rename mode; the marker
+ClassName    UIRenameTextElement     ← exists ONLY in rename mode; the marker
 ControlType  ControlType.Edit
-AutomationId ""                      â none, so the class is the only handle
-Value        "Alpha.txt"             â the item's current display name
+AutomationId ""                      ← none, so the class is the only handle
+Value        "Alpha.txt"             ← the item's current display name
 Focused      true
-parent       UIItemsView ("Items View")   â a SIBLING of the row, not a descendant
+parent       UIItemsView ("Items View")   ← a SIBLING of the row, not a descendant
 ```
 
 At the same moment the selected row's Name cell (`AutomationId System.ItemNameDisplay`,
-`ClassName UIProperty`) goes **empty** â the editor replaces its presentation.
+`ClassName UIProperty`) goes **empty** — the editor replaces its presentation.
 
 **The decoy that broke the previous run:** a details view has an Edit control per column
 per row. The selected row's Name cell is an Edit with value `Alpha.txt` and a ValuePattern.
@@ -1411,7 +1411,7 @@ Other observed facts worth keeping:
 - The editor's live `ValuePattern` reported *Unsupported* from PowerShell even though the
   cached walk reports `value`. The edit ladder's fallbacks (select-all + type) are the
   expected path; this has not been exercised live.
-- Extensions were SHOWN on this machine â the editor opened containing `Alpha.txt`, so
+- Extensions were SHOWN on this machine — the editor opened containing `Alpha.txt`, so
   replacing with `Budget` yields `Budget` (no extension). The live test accepts either
   `Budget` or `Budget.txt`; a deterministic expectation should be derived from the
   editor's observed initial value.
@@ -1420,23 +1420,23 @@ Other observed facts worth keeping:
 
 - **`internal/director/inline`** (new): `Editor`, `Property`, `Result`
   (verified/mismatched/ambiguous/absent/unverified), `Verification`, `Snapshot`.
-  `Find` correlates on: known editor CLASS (`editorClasses` table) Â· same window Â· exactly
-  one Â· the bound item still selected Â· initial value matches the item's name (extension
+  `Find` correlates on: known editor CLASS (`editorClasses` table) · same window · exactly
+  one · the bound item still selected · initial value matches the item's name (extension
   optional). `VerifyValue` re-finds by native id and compares. `VerifyClosed` is explicitly
   only half the commit check and says so.
-  Tests cover: real editor found Â· Name cell refused Â· search box refused Â· address bar
-  refused Â· distractor editor refused Â· two editors ambiguous Â· other window ignored Â·
-  selection moved refused Â· container-focus handled Â· value verified/wrong/closed/replaced Â·
-  hidden extension Â· snapshot keeps no way to re-find the control.
+  Tests cover: real editor found · Name cell refused · search box refused · address bar
+  refused · distractor editor refused · two editors ambiguous · other window ignored ·
+  selection moved refused · container-focus handled · value verified/wrong/closed/replaced ·
+  hidden extension · snapshot keeps no way to re-find the control.
 
-### The pipeline wiring (now regression-tested â see "What this session finished")
+### The pipeline wiring (now regression-tested — see "What this session finished")
 
-- `directorapi.ElementQuery.NativeID` â exact match, set only by a step that derived the
+- `directorapi.ElementQuery.NativeID` — exact match, set only by a step that derived the
   control in the same request. **`Constrained()` now counts it** (it did not, which is the
   first of the two defects above).
-- `directorapi.ReferenceExpression.RequiresEditor` â "the editor for the thing I bound".
+- `directorapi.ReferenceExpression.RequiresEditor` — "the editor for the thing I bound".
 - `goal.Directive.TargetEditor`; `explorer rename` uses it for **set text** and **confirm**.
-- `execute/editor.go` â `deriveEditor` (request-local, pins the reference by native id;
+- `execute/editor.go` — `deriveEditor` (request-local, pins the reference by native id;
   `inline.FindOpen` for a commit), `verifyEditorValue`, `verifyEditorClosed`, `isCommit`,
   `statusForEditor`, `unpinEditor`.
 - `prepare()` derives the editor before planning and STOPS if it cannot.
@@ -1453,7 +1453,7 @@ Other observed facts worth keeping:
 ### Gates
 
 `go build ./...`, `go test ./...`, `go test -race ./...`, `go vet ./...` (modulo the four
-known Windows LL-hook `unsafe.Pointer` notes) and `gofmt` â all passing, full sweep re-run.
+known Windows LL-hook `unsafe.Pointer` notes) and `gofmt` — all passing, full sweep re-run.
 
 **C# bridge: rebuilt successfully, no warnings** (`built D:\Macros\marco\plugins\uia\uia.exe`).
 `Shell.cs` was added to `build.ps1`'s source list in the previous milestone; nothing in the
@@ -1489,7 +1489,7 @@ success if the text lands somewhere else.
 
 The blocker from the previous milestone is closed: the bridge now surfaces a **canonical
 path** for the selected File Explorer item, and it flows all the way to the binding. The
-live rename is **still not passed** â read `docs/director-goals.md` ("Status of each
+live rename is **still not passed** — read `docs/director-goals.md` ("Status of each
 claim") before claiming otherwise.
 
 - **`plugins/uia/Shell.cs`** (new, and `build.ps1` now compiles it). Uses
@@ -1501,13 +1501,13 @@ claim") before claiming otherwise.
   vanished item, shell/filesystem kind disagreement, tree/shell selection-count
   disagreement, caption mismatch. A path is **never** assembled from folder + caption.
 - **`directorapi.ResourceIdentity`** (new): kind, path, parsing name, display name,
-  source, confidence, link, evidence. No handles, no PIDLs, no coordinates â a test
+  source, confidence, link, evidence. No handles, no PIDLs, no coordinates — a test
   asserts that over the serialised form. Carried on `Observation` and `Element`, both as
   omitted-when-absent pointers so an older bridge decodes unchanged.
 - **`binding.classify`** consults it first, so kind comes from the shell: a folder called
   `Reports.txt` is a folder, and a file called `Reports` is a file. Re-identification uses
   the same path (`resourcePath`), and a native-id match whose resource DIFFERS is now
-  refused â that is a view that navigated, reusing element ids.
+  refused — that is a view that navigated, reusing element ids.
 - **`winctx.ActivateTitle` / `CloseTitle`**: bring forward and politely close ONE window by
   title, refusing an ambiguous match. `CloseTitle` posts WM_CLOSE. Neither ever terminates
   a process; `explorer.exe` is never killed.
@@ -1516,7 +1516,7 @@ claim") before claiming otherwise.
   diagnostics to confirm the observed path equals the expected one **before** submitting.
 
 - **Two procedure defects, found live and fixed.** `explorer rename` opened the context
-  menu (a Windows 10 assumption â Win11 has a command-bar Rename button, and a context menu
+  menu (a Windows 10 assumption — Win11 has a command-bar Rename button, and a context menu
   is its own top-level window the Director never walks). And a step naming no control
   reached the resolver with an empty query: an edit with no target now means "the field the
   previous step opened", a targetless verb means "the focused control", both ANAPHORIC and
@@ -1524,14 +1524,14 @@ claim") before claiming otherwise.
 
 Live status: **not passed.** Binding resolves live with the real shell path. Of the four
 rename steps, 1 (select) and 3 (set text to "Budget") verify against real Explorer, and 2
-(invoke Rename) verified once and was unverified on a later run â the Invoke lands, but the
+(invoke Rename) verified once and was unverified on a later run — the Invoke lands, but the
 focus change is not always observed inside the settle window. Step 4 has not been reached.
 No rename has completed; no filesystem verification has passed. **Next: step 2's
 verification timing**, not its execution.
 
 ## Director: runtime activation + first live run
 
-The Director now confirms, verifies and runs end to end from the daemon â and the scenario
+The Director now confirms, verifies and runs end to end from the daemon — and the scenario
 has been run against a real desktop. **It is not live-tested**: real input occurred and the
 rename did not happen. Read `docs/director-goals.md` ("Status of each claim") before making
 any claim about what is validated.
@@ -1540,24 +1540,24 @@ any claim about what is validated.
   `execute.Confirmer`, is built in `NewRuntime` and wired into the pipeline. It publishes
   `CONFIRMATION_REQUIRED` to the client watching the command and blocks for a `CONFIRM` on
   another connection. `director confirm` shows the question with no argument and answers it
-  with `yes`/`no`. Nobody listening â `unavailable` â blocked. 90s timeout â the same.
-  Abandoned â `cancelled`. **No configuration returns yes without a person.**
+  with `yes`/`no`. Nobody listening → `unavailable` → blocked. 90s timeout → the same.
+  Abandoned → `cancelled`. **No configuration returns yes without a person.**
 - **Verification runs automatically.** Per action: the object acted on must be the object
   bound (`verify.CorrelateTarget`), attached to the graph node as `binding_correlation`
   evidence, a demonstrated mismatch failing the record. Per goal: `verify.CorrelateRename`
   against a filesystem `Inspector` (`osResources` in the daemon), prepared *before* the
   program runs because the content and the sibling list are only knowable then.
-- **`Runtime.Windows()`** â new, because nothing let a client ask which windows exist.
+- **`Runtime.Windows()`** — new, because nothing let a client ask which windows exist.
   Observes on demand under a `TryLock` when its last look is stale.
 - **Live harness moved to `internal/live`** (build tag `livevalidation`). It may import
-  platform code â it arranges the scene â and `internal/director/boundary_test.go`
+  platform code — it arranges the scene — and `internal/director/boundary_test.go`
   correctly forbids that inside the Director.
 - **Two production defects found by running it**, both fixed with regressions:
   `HandleRequest` never reached the goal layer for a single-clause request (so "rename this
   file to Budget" was parsed as a *variable* rename); and a selected file was unreachable
   when the container held keyboard focus.
 - **Remaining blocker:** `plugins/uia` does not surface a shell item's parsing path, so an
-  Explorer list item has no backing resource and the binding layer refuses â correctly.
+  Explorer list item has no backing resource and the binding layer refuses — correctly.
   That is the next piece of work, and it is bridge work.
 
 To run it:
@@ -1573,13 +1573,13 @@ MARCO_UIA_BRIDGE="$PWD/plugins/uia/uia.exe" \
 ## Director: runtime binding enforcement + universal confirmation
 
 The binding layer is now **in force at run time**, and action-level confirmation exists.
-Precise status lives in `docs/director-goals.md` ("Status of each claim") â read that
+Precise status lives in `docs/director-goals.md` ("Status of each claim") — read that
 before making any claim about what is validated. **No live scenario has ever run.**
 
 - **`internal/director/binding`** grew a request-scoped `Store` (one mutable binding per
   request, on the `context`), a durable `Snapshot` for the action graph, and `Origin`
   provenance. `ReferenceExpression` gained `RequiresBinding` / `BindingID` /
-  `ExpectedKind` â the handle, not the binding, because a reference is copied into a
+  `ExpectedKind` — the handle, not the binding, because a reference is copied into a
   plan, a record and a node while revalidation *refreshes* the binding.
 - **`goal.Expand(r, g, binder)`** resolves deictic directives through the binder and
   attaches the binding to the step's reference. `goal.Plan(r, g)` is the display-only
@@ -1590,7 +1590,7 @@ before making any claim about what is validated. **No live scenario has ever run
 - **Three guards**: expansion, `ValidateBound` before step 1, and `requireBinding` per
   step. `TestTheUntypedFocusFallbackIsUnreachable` sweeps every procedure.
 - **Revalidation** happens in `prepare`, after the plan is built and *before* the policy
-  and confirmation gates, against the world that step already observed. Refused â nothing
+  and confirmation gates, against the world that step already observed. Refused → nothing
   reaches the host, and the binding is never re-pointed at what is focused now. Both the
   guard and the refusal were verified to FAIL against unfixed code.
 - **Confirmation**: one `Confirmer`, scopes `goal`/`action`/`replay`, closed outcomes
@@ -1603,13 +1603,13 @@ before making any claim about what is validated. **No live scenario has ever run
 - **`verify.CorrelateRename`** ties a result to the bound object (destination exists AND
   original gone AND content preserved AND distractors untouched). *Structurally tested*
   against fixtures; not yet called from the rename path.
-- **The shipped service wires no `Confirmer`** â `Runtime.SetConfirmer` is the point, and
+- **The shipped service wires no `Confirmer`** — `Runtime.SetConfirmer` is the point, and
   the daemon leaves it nil, so anything needing confirmation is BLOCKED rather than
   silently allowed.
 
 ## Pending / known issues / open decisions
 
-- ~~**The Director caches a dead window handle.**~~ FIXED â see the window-liveness
+- ~~**The Director caches a dead window handle.**~~ FIXED — see the window-liveness
   section above and `docs/director-windows.md`. Validation, reacquisition, epochs and a
   capture-time guard; mutation-verified and confirmed live against the real Windows API.
 - **Perception cannot be pointed at a non-active window.** `--region` narrows what is
@@ -1620,57 +1620,57 @@ before making any claim about what is validated. **No live scenario has ever run
 - **`visualstate` and `vision` share `SourceVision`.** Distinct provider names, one source
   identity. `rt.visual` is not in the collector today so nothing collides, but any request
   including `SourceVision` would activate both, and fusion never merges same-source
-  observations â duplicate elements for one thing. Latent.
+  observations — duplicate elements for one thing. Latent.
 - **Rocket League needs a different detector.** `icon_detect` covers menus and overlays and
   cannot see the in-play HUD at all. A pack built on it can answer "is the pause menu
   open" and must not claim to know the boost value.
 
 - **Director control plane blocked behind desktop work:** ~~`ActiveValues`,
-  `ActiveCollections` and `AbandonProgram` read the paused program under `Runtime.mu` â
-  the lock `Handle` holds for the ENTIRE duration of a desktop command â so
+  `ActiveCollections` and `AbandonProgram` read the paused program under `Runtime.mu` —
+  the lock `Handle` holds for the ENTIRE duration of a desktop command — so
   `director status`, `director collections` and `explain value` all hung until the
   running command finished. Worst in the common case: a program WITH collections set
   `activeCollections` and returned early, so it was the ordinary command with no
-  collections that hung status.~~ **Fixed** â `paused` now has its own `pausedMu`
+  collections that hung status.~~ **Fixed** — `paused` now has its own `pausedMu`
   (command path takes `mu` then `pausedMu`; the control plane takes `pausedMu` alone).
   `cmd/director/lockrule_test.go` grew a second, behavioural guard and its textual scan
-  now FOLLOWS same-receiver helper calls â the bug hid behind a delegation
+  now FOLLOWS same-receiver helper calls — the bug hid behind a delegation
   (`ActiveCollections` mentions no lock; the `mu` was one call down in
   `liveCollections`). Both guards were verified to fail against the unfixed code.
 - **`director status` never rendered its collections section:** ~~`renderActiveCollections`
   was written and the server already put the snapshot in the status payload, but
-  `printStatus` never called it.~~ **Fixed** â wired, and silent when nothing holds a
+  `printStatus` never called it.~~ **Fixed** — wired, and silent when nothing holds a
   collection.
 - **URL/colon edge:** ~~`routes.ParseInvocation` reads a leading `word:` as a named
-  arg, so `go to http://â¦` mis-splits.~~ **Fixed** â `ParseInvocation` skips any
+  arg, so `go to http://…` mis-splits.~~ **Fixed** — `ParseInvocation` skips any
   token whose value starts with `//` (URL schemes), so URLs in route phrases work.
 - **Auto-pop needs a saved route:** `marco args` resolves against saved routes, so
   labels don't appear until a route exists. Fine for normal use.
 - **Voice continuous-listen:** ~~requires the wake word per phrase during
-  narrate-teach.~~ **Fixed** â while a narrate-teach session is active the overlay
+  narrate-teach.~~ **Fixed** — while a narrate-teach session is active the overlay
   writes `$TEMP/marco-narrate.lock`; the voice plugin re-arms after each command
   phrase (instead of disarming), so only ONE wake-word utterance is needed to start
   the session. Override the lock path with `$MARCO_NARRATE_LOCK`.
 - **macOS/Linux:** `winctx`/`screen`/`recorder`/`secrets` have stubs only; backends
   are additive work.
 - **Anchor resolvers:** image + colour in the engine (item 9), text/OCR as a plugin
-  (item 10) â all three reuse one `Anchor` set. ~~teach-time text capture for
+  (item 10) — all three reuse one `Anchor` set. ~~teach-time text capture for
   *demonstrated* (not just narrated) text anchors~~ **Done** (item 15 below). Next OCR
   candidate: a native no-install backend behind `ocrEngine` (Windows.Media.Ocr, macOS
   Vision). **Claude-vision auto-crop** stays a deferred opt-in plugin (armed anchors are
   whole-frame capture; user crops manually for now).
-- **Arg key / secret-name list** are conventions (F9; password/pin/token/â¦) â
+- **Arg key / secret-name list** are conventions (F9; password/pin/token/…) —
   overridable later; `MARCO_ARG_KEY` exists, the secret-name list is hardcoded in
   `codegen.isSecretArg`.
 
 ## Env vars
 
-**`MARCO_CV`** (master CV switch â `setup.ps1 -CV` / `-NoCV`): `max` = KITCHEN SINK â every
+**`MARCO_CV`** (master CV switch — `setup.ps1 -CV` / `-NoCV`): `max` = KITCHEN SINK — every
 demonstrated click becomes a multi-signal anchor (image+edge+colour+histogram+window, OCR
 text locator, Vision class locator, last-known cache), EVERY button, even a non-distinctive
 patch (`recorder.cvKitchenSink`: anchors all buttons + skips the `Distinctive` gate so the
 OCR/Vision resolvers can still label it); `off` = plain coordinates, no anchors/resolvers.
-**CV IS NOW OFF BY DEFAULT** â a feature flag, because the anchor stack isn't reliable on real
+**CV IS NOW OFF BY DEFAULT** — a feature flag, because the anchor stack isn't reliable on real
 game UIs yet; **unset = off** (was: anchors on). Turn CV on with `MARCO_CV=on`/`max` or
 `MARCO_ANCHORS=1/on` (`setup.ps1 -CV`). Run-time scoring stays conservative either way (kitchen
 sink captures MORE signals, never clicks less safely). The one flag to A/B the whole CV
@@ -1678,24 +1678,24 @@ stack; re-run `setup.ps1` + relaunch `overlay.cmd` to flip. Tests: `recorder`
 `cv_windows_test.go`.
 
 **`MARCO_CV=off` is a first-class ALPHA mode: pure coordinates + recorded timings, no CV.** On
-real game UIs the anchor wait-gate was the failure mode â it hovers, polls for a match that
+real game UIs the anchor wait-gate was the failure mode — it hovers, polls for a match that
 never confidently resolves, and on timeout clicks the recorded coordinate anyway, by which time
-the menu has moved â "random" clicks. So `off` now fully scraps CV at BOTH ends: teach captures
+the menu has moved → "random" clicks. So `off` now fully scraps CV at BOTH ends: teach captures
 plain coordinates (recorder), AND (1) `orchestrator.teachOptions` drops the 50ms wait cap
-(`MaxWaitMs`â~â) so the ROUTE carries the REAL recorded pauses as `Sleep` steps (the pacing the
+(`MaxWaitMs`→~∞) so the ROUTE carries the REAL recorded pauses as `Sleep` steps (the pacing the
 CV poll used to provide), and (2) `oshost.doFind` short-circuits to the recorded coordinate
-immediately (no hover, no poll) â so existing anchored routes stop waiting too, no re-teach
+immediately (no hover, no poll) — so existing anchored routes stop waiting too, no re-teach
 needed to un-hang them (though re-teaching gives the proper timings vs the old capped 50ms).
 Gate: `cvOff()` (`$MARCO_CV=off` or `$MARCO_ANCHORS=0/off`), defined in both packages. Teach at
-the game's real pace â the pauses you make become the replay waits. Tests: `oshost`
+the game's real pace — the pauses you make become the replay waits. Tests: `oshost`
 `TestFindCVOffClicksRecorded`.
 
-**`marco edit "<route>"` â a web editor for a route's TIMINGS + CLICK COORDINATES**
+**`marco edit "<route>"` — a web editor for a route's TIMINGS + CLICK COORDINATES**
 (`cmd/marco/edit.go`), the companion to CV-off mode (where waits + coordinates ARE the whole
 route). Self-contained: `net/http` is stdlib, so it holds the zero-dep rule (no plugin needed).
 It resolves the route (`Reg.Resolve`, falling back to `findRouteByName` across scopes), reads the
 `.marco`, serves a local editor page (auto-opens the browser), and writes edits straight back via
-`Reg.Save`. The page shows the top-level action/wait sequence (`parseSteps`: `do â¦` body lines;
+`Reg.Save`. The page shows the top-level action/wait sequence (`parseSteps`: `do …` body lines;
 nested Find arms + decls hidden): each `Sleep` is an editable ms input, and each click/move at a
 named Point gets editable x,y inputs (its coords, looked up from the Point decls via
 `parsePoints`), plus the full source in a `<details>`. Save posts `{waits[], points{name:[x,y]}}`;
@@ -1704,68 +1704,68 @@ Point's X,Y (`pointDeclRE`), shifting its window-relative `RelX,RelY` by the SAM
 stay consistent. Tests: `cmd/marco` `edit_test.go`
 (`TestEditParseSteps`/`TestEditApplyPoints`/`TestEditRebuild`); verified end-to-end via the local
 server. NOTE: coord editing attaches to top-level `Click/Move with pN` steps (CV-off routes); an
-anchored route's top-level `Find` steps carry their coords on the anchor/fallback â editing those
+anchored route's top-level `Find` steps carry their coords on the anchor/fallback — editing those
 (anchor `Timeout`/`X,Y`) is the obvious next extension.
 
-**Editor now also DELETES steps and converts a click â DRAG.** The save engine is line-keyed
+**Editor now also DELETES steps and converts a click → DRAG.** The save engine is line-keyed
 (`rebuild` + `saveReq{Waits{line:ms}, Points{name:xy}, Deletes[line], Drags{line:[fromX,fromY,
-toX,toY]}}`): a `â` marks a step's source line for removal (an unused Point decl left behind
-compiles fine â verified), and a `drag` toggle on a click/move reveals a "to" point and rewrites
-that line into a real `Drag` (a `the dragN is a Drag with FromXâ¦ToYâ¦` decl + `do OS's Drag with
+toX,toY]}}`): a `✕` marks a step's source line for removal (an unused Point decl left behind
+compiles fine — verified), and a `drag` toggle on a click/move reveals a "to" point and rewrites
+that line into a real `Drag` (a `the dragN is a Drag with FromX…ToY…` decl + `do OS's Drag with
 dragN`, numbered after any existing drags via `dragNumRE`). Line-keying means a delete doesn't
-disturb the other edits. Verified end-to-end: clickâdrag + delete + wait edit â the route still
+disturb the other edits. Verified end-to-end: click→drag + delete + wait edit → the route still
 compiles.
 
-**Real drag primitive â `OS's Drag` (NEW).** Codegen used to fake a StepDrag as "move-to-start +
+**Real drag primitive — `OS's Drag` (NEW).** Codegen used to fake a StepDrag as "move-to-start +
 click-end" (the old `// TODO drag (no hold primitive)`); now there's a genuine one. `os.marco`
 exports `Drag` + a `Drag` set (`FromX,FromY,ToX,ToY,Button`); `oshost.doDrag` reads it and calls
 `backend.drag`, which (Windows) presses the button at the start, GLIDES to the end as a trail of
 injected MOVE events (so a game registers the drag motion, not a teleport), then releases;
-`codegen` `StepDrag` emits `the dragN is a Drag â¦` + `do OS's Drag with dragN`. Backend interface
+`codegen` `StepDrag` emits `the dragN is a Drag …` + `do OS's Drag with dragN`. Backend interface
 gained `drag(ctx, button, x1,y1,x2,y2)` (+ stub + `recBackend`). Absolute coords (window-relative
 is a later add). Tests: `oshost` `TestDrag`.
 
-**`MARCO_CV_SENSITIVITY`** (0 = strict â¦ 1 = loose, default 0.5) â the **CV find dial**,
+**`MARCO_CV_SENSITIVITY`** (0 = strict … 1 = loose, default 0.5) — the **CV find dial**,
 the fine control beside the coarse `MARCO_CV` switch. One knob that scales how eagerly an
 anchor is found, trusted, and followed. **0.5 reproduces every legacy value exactly** (each
 knob is a symmetric `cvLerp(strict, loose)` centred on its old value; each also keeps its own
 env override), so the dial is a no-op until dragged; the LOOSE end is deliberately aggressive
 (these are game UIs). It reaches three groups:
-  - `oshost` â ACT-ON-evidence gates (`oshost.cvLerp`): `findConfidence` (0.95â0.25, legacy 0.6;
-    `$MARCO_FIND_CONFIDENCE`), `locateFloor` (1.0â0.80, 0.90) and `moveMargin` (0.22â0.02, 0.12)
-    â how sure it must be to click a found box and to FOLLOW a moved one. PLUS `findTimeoutScale`:
-    the short click-gate timeout (â¤5s, the 1500ms `DefaultFindTimeoutMs`) stretches 1Ãâ4Ã above
+  - `oshost` — ACT-ON-evidence gates (`oshost.cvLerp`): `findConfidence` (0.95→0.25, legacy 0.6;
+    `$MARCO_FIND_CONFIDENCE`), `locateFloor` (1.0→0.80, 0.90) and `moveMargin` (0.22→0.02, 0.12)
+    — how sure it must be to click a found box and to FOLLOW a moved one. PLUS `findTimeoutScale`:
+    the short click-gate timeout (≤5s, the 1500ms `DefaultFindTimeoutMs`) stretches 1×→4× above
     neutral so a slower-appearing button gets more time before the route clicks anyway ("it went
-    too fast"); long wait-for-screen barriers untouched. Applied at run time in `doFind` â helps
+    too fast"); long wait-for-screen barriers untouched. Applied at run time in `doFind` → helps
     EXISTING routes.
-  - `screen` â FOUND gates + edge detection (`screen.cvLerp`), the fix for "the button is on
-    screen but it has no idea": `MatchThreshold` (1.00â0.50, legacy 0.75; `$MARCO_FIND_THRESHOLD`)
-    and `edgeMatchThreshold` (0.80â0.30, 0.55; `$MARCO_EDGE_MATCH`) are the pixel/edge locators'
-    `Found` gates â below them a present-but-imperfect button contributes ZERO evidence
+  - `screen` — FOUND gates + edge detection (`screen.cvLerp`), the fix for "the button is on
+    screen but it has no idea": `MatchThreshold` (1.00→0.50, legacy 0.75; `$MARCO_FIND_THRESHOLD`)
+    and `edgeMatchThreshold` (0.80→0.30, 0.55; `$MARCO_EDGE_MATCH`) are the pixel/edge locators'
+    `Found` gates — below them a present-but-imperfect button contributes ZERO evidence
     (`scoreAnchor` only credits a locator when `l.found`), so no confidence gate could rescue it;
-    `EdgeTolerance` (150â50, legacy 100; `$MARCO_EDGE_TOLERANCE`) drives edge matching AND
+    `EdgeTolerance` (150→50, legacy 100; `$MARCO_EDGE_TOLERANCE`) drives edge matching AND
     AutoCrop/DetectButtons. Run-time gates help existing routes; crop/edge-detect changes need a
     **re-teach**.
-  - `screen` â CROP-SIZE gates (`screen.cropScale`, 1Ã at/below neutral â **4Ã** at full-loose,
+  - `screen` — CROP-SIZE gates (`screen.cropScale`, 1× at/below neutral → **4×** at full-loose,
     floored at legacy so a stricter dial never shrinks a crop): the capture-time gates that were
-    rejecting HUGE game buttons into the small fallback patch â `maxButtonDim` (600â2400),
-    `maxRecenterPx` (140â560), `buttonSearchWin` (480â1920) and the `AutoCropAt` fallback radius
-    (ÃcropScale). Loosen the dial and re-teach â a big button is captured whole ("let the finder
+    rejecting HUGE game buttons into the small fallback patch — `maxButtonDim` (600→2400),
+    `maxRecenterPx` (140→560), `buttonSearchWin` (480→1920) and the `AutoCropAt` fallback radius
+    (×cropScale). Loosen the dial and re-teach → a big button is captured whole ("let the finder
     work its magic"). Capture-time, so **re-teach** to take effect.
 Exposed as the overlay config editor's **`cv find`** slider (`config.go` `Sensitivity`, step
 0.05); the overlay passes `MARCO_CV_SENSITIVITY` to each spawned `marco` when off-neutral
-(`acts.go streamChild`) â run AND teach â so a drag takes effect on the **next command with no
+(`acts.go streamChild`) — run AND teach — so a drag takes effect on the **next command with no
 restart** (`marco do` runs the OS host in-process; `screen`/`recorder` vars read the env at
 package init of the fresh process). Tests: `oshost` `sensitivity_test.go`
 (`TestCVSensitivityMapping`/`FindTimeoutScale`), `screen` `sensitivity_test.go`
 (`TestCVSensitivityGates`/`TestCropScaleGates`/`TestGateEnvOverride`).
 
 **Cursor glide (hover-settle).** The find hover no longer TELEPORTS the cursor to the
-recorded point (one absolute `MOUSEEVENTF_MOVE`) â a game UI that lights a control only when
+recorded point (one absolute `MOUSEEVENTF_MOVE`) — a game UI that lights a control only when
 the pointer physically travels onto it (RL's menu tiles) never saw the entry. `oshost.glide`
-now PULLS the cursor there as a trail of injected MOVE events (`winctx.CursorPos` start â
-interpolated steps â land on target), used at the hover-settle in `doFind`. `$MARCO_FIND_GLIDE=0`
-reverts to a single jump; the off-Windows stub (`CursorPos`â(0,0)) falls back to one move, so
+now PULLS the cursor there as a trail of injected MOVE events (`winctx.CursorPos` start →
+interpolated steps → land on target), used at the hover-settle in `doFind`. `$MARCO_FIND_GLIDE=0`
+reverts to a single jump; the off-Windows stub (`CursorPos`→(0,0)) falls back to one move, so
 tests are unchanged. The OS `Move` act stays a single atomic move. Tests: `oshost`
 `TestFindHoversBeforeMatching` (asserts the glide LANDS on the recorded point).
 
@@ -1788,7 +1788,7 @@ No commit/push was made (commit only when the user asks). No merge of
 
 ---
 
-# Session: navigation producer â hypotheses â first unknown-game live run (2026-08-09)
+# Session: navigation producer → hypotheses → first unknown-game live run (2026-08-09)
 
 Three milestones landed and a fourth is queued with its design already settled. The tree is green
 (`go build ./...`, `go test ./...`, `go test -race ./...` across 68 packages, `gofmt`, `go vet`,
@@ -1802,20 +1802,20 @@ Read the canonical notes rather than this section for architecture: [[Navigation
 
 ## 1. The live navigation producer
 
-`internal/platform/navsource` â a `WH_KEYBOARD_LL` hook that never suppresses, ignores injected
+`internal/platform/navsource` — a `WH_KEYBOARD_LL` hook that never suppresses, ignores injected
 events, and classifies raw key codes into a **closed intent vocabulary**
 (`up/down/left/right/confirm/back/pause/point`) on a worker goroutine. The hook callback does one
 thing: a non-blocking offer into a bounded 256-slot queue. Raw key identity dies inside the
-package â `rawEvent` is unexported, has no `String` method, and appears in no escaping type.
+package — `rawEvent` is unexported, has no `String` method, and appears in no escaping type.
 
-**Two defects found, both the same kind â a complete mechanism nothing invoked:**
+**Two defects found, both the same kind — a complete mechanism nothing invoked:**
 
 - The composition root never opened a subscription. Deleting `navSource.Open(...)` from
   `Runtime.newObservationSampler` failed **no test in the repository**, because the existing
   wiring test built its own subscription. A shipped build would have installed the hook,
   classified every intent, and discarded all of them.
-- The hook's drop counter was wired to nothing â `noteDropped` was dead code and the Windows
-  backend counted into a package-level atomic nobody read â making backpressure unobservable in a
+- The hook's drop counter was wired to nothing — `noteDropped` was dead code and the Windows
+  backend counted into a package-level atomic nobody read — making backpressure unobservable in a
   design whose entire justification for dropping is that it beats blocking.
 
 Also landed: **edge-local order** (`ScreenTransition.Sequences`, so `down, down, confirm` is no
@@ -1827,7 +1827,7 @@ separates "nobody pressed anything" from "nothing was listening".
 
 `internal/director/observe/hypothesis.go` + `terms.go`.
 
-The audit found `observe.Insight` already existed and was production-wired â but it reads
+The audit found `observe.Insight` already existed and was production-wired — but it reads
 `Findings`, the authoritative entity timeline. Everything the discovery stack had built lives in
 `ShadowTotals`, and **no generator read any of it**. `ShadowRegion` carries no text; OCR labels
 live on the authoritative side. `observe.Sample` carries both, which is where the join went.
@@ -1835,7 +1835,7 @@ live on the authoritative side. `observe.Sample` carries both, which is where th
 **The design decision this turns on:** OCR text is classified to meaning **at the boundary and
 then discarded**, exactly as key codes are. `SemanticEvidenceFrom` matches whole words against a
 closed vocabulary of *generic interface concepts* and returns terms; the text does not travel
-with the result. A typed username matches nothing, so it cannot become evidence â not by rule,
+with the result. A typed username matches nothing, so it cannot become evidence — not by rule,
 but because there is nowhere to put it. `backpack` is not `back`; a redacted label is never
 consulted.
 
@@ -1847,7 +1847,7 @@ text-entry requires an accessibility role rather than a shape. `classify` checks
 pointing the other way.
 
 Production call site: `observe.Hypotheses(stats.Shadow, ...)` on the terminal `Result` in
-`runner.go`, then `observationView` â protocol â `renderHypotheses` in the CLI.
+`runner.go`, then `observationView` → protocol → `renderHypotheses` in the CLI.
 
 ## 3. First live run on a game Marco had never been taught
 
@@ -1858,10 +1858,10 @@ nothing operable)`, so this tested **structure + navigation** with the text leg 
 52 valid inferences, 215 detections, **10 screen states and 48 tracks**. State-relative presence
 reproduced on a second game with no retuning (`shadow_1`: 43/52 `bursty` globally, **18/18
 `persistent` within its own state**). **Replay reproduced production exactly**, including the
-ordered `pause â pause` run â parity confirmed on live data rather than on a fixture.
+ordered `pause → pause` run — parity confirmed on live data rather than on a fixture.
 
 It formed **one `supported`** hypothesis (a recurring menu-like screen of 6 grouped controls
-across 3 visits) and four `contested` ones, and it never named a screen â there was no text, and
+across 3 visits) and four `contested` ones, and it never named a screen — there was no text, and
 the ceiling held.
 
 **Two limits it measured, which are the value of the run:**
@@ -1871,8 +1871,8 @@ the ceiling held.
   Exactly one of 21 observed edges carried any attribution. The conservative policy is behaving
   exactly as specified and, on a WASD-driven game, refuses nearly everything the player did.
 - **The group uniformity measure does not generalise.** Rocket League's evenly stacked menu column
-  scored 0.97; every recurring group here scores 0.00â0.01, so `possible_choice_group` is
-  contested on spacing for essentially every real group. Recorded rather than retuned â one game
+  scored 0.97; every recurring group here scores 0.00–0.01, so `possible_choice_group` is
+  contested on spacing for essentially every real group. Recorded rather than retuned — one game
   is not a basis for replacing a rule fitted to another.
 
 Also observed, neither diagnosed: cadence is tighter than Experiment-007 (1218ms median
@@ -1880,29 +1880,29 @@ inference, 3807ms median recorded gap against a 2s interval, 13 of 65 slots skip
 late), and segmentation looks loose (10 states in three minutes, six of them with a single
 inference, `state_unknown` involved in seven of 21 edges).
 
-## 4. NEXT TASK â state-conditional navigation admission
+## 4. NEXT TASK — state-conditional navigation admission
 
 The measured blocker on the product goal. [[ADR-013-navigation-is-meaning-not-keys]] already
-names this as the correct fix and cited the missing precondition â screen state on the producer's
-side of the boundary â which now exists and is proven live.
+names this as the correct fix and cited the missing precondition — screen state on the producer's
+side of the boundary — which now exists and is proven live.
 
 **No code was written. Three tasks are queued. The decisions below were settled during design and
 should not be re-derived:**
 
 - **The predicate must be non-circular.** Compute "this screen looks like a set of choices" from
-  ONE inference's **raw regions only**, in `observe` â the same discipline that keeps state
+  ONE inference's **raw regions only**, in `observe` — the same discipline that keeps state
   identity independent of tracking (`TestStateIdentityDoesNotDependOnTracking`). It must not read
   tracks, groups, states or hypotheses.
 - **The loop does not close, and that must stay true.** Screen state is decided from `regions`
   only; inputs are used only in `note()` for correlation. So admission depending on screen
   appearance does not make screen appearance depend on input. Re-verify after the change.
 - **Context is pushed from the composition root** (`liveSampler.Sample`), stored on the `Source`,
-  and read on the **worker** thread â never inside the hook callback.
+  and read on the **worker** thread — never inside the hook callback.
 - **Freshness comes from flip-off, not from the TTL.** The sampler sets `menuLike=false` on the
   next non-menu-like inference, so the error window is one inference gap (~3.8s measured). The
   TTL exists only to guard against inferences stopping altogether. A stale "menu-like" flag would
   manufacture navigation evidence during gameplay, which is the exact failure being avoided.
-- **Mapping:** W/A/S/D â up/left/down/right and Space â confirm, admitted **only** under a fresh
+- **Mapping:** W/A/S/D → up/left/down/right and Space → confirm, admitted **only** under a fresh
   menu-like context. With no context the behaviour is unchanged, so
   `TestGameplayAmbiguousKeysAreRefusedAndCounted` must still pass untouched.
 - **Conditionally admitted intents are weaker evidence and must say so.** An intent admitted
@@ -1910,9 +1910,9 @@ should not be re-derived:**
   unambiguous key. Carry a flag on `InputEvent`, count it in `InputStats`, surface it
   per-transition, and let a hypothesis qualify support resting entirely on it. This
   **deliberately requires extending the type allowlist in
-  `TestRawKeyIdentityCannotCrossTheBoundary`** â that test exists to make such an addition a
+  `TestRawKeyIdentityCannotCrossTheBoundary`** — that test exists to make such an addition a
   visible act, and a `bool` is not key identity. Extend it consciously; do not loosen the rule.
-- **Mandatory:** a composition-root wiring test, plus the mutation â delete the context push and a
+- **Mandatory:** a composition-root wiring test, plus the mutation — delete the context push and a
   production-path test must fail. This subsystem has now produced four mechanisms that were
   complete, unit-tested and unreachable.
 
@@ -1921,7 +1921,7 @@ should not be re-derived:**
 - `director.exe` at the repo root is a build artifact and is gitignored. The service it ran was
   **stopped**, which removed the keyboard hook.
 - The live trace (65 slots) is in the session scratchpad and is **not** in the repo. It contains
-  no key identity and no text â only closed-vocabulary intents and normalised geometry â but it
+  no key identity and no text — only closed-vocabulary intents and normalised geometry — but it
   was not promoted to a fixture, because committing a capture of somebody's screen session is the
   user's decision and not a tool's. See [[Vision-Corpus-Workflow]].
 - Shadow vision needs `MARCO_SHADOW_VISION=screenparser`,
@@ -1934,16 +1934,16 @@ should not be re-derived:**
 ## Not done / explicitly out of scope this session
 
 No commit or push (commit only when the user asks). No merge of `feat/host-ffi`. No new engine
-dependencies. No capability, no execution authority, no generated Marco and no proposal loop â
+dependencies. No capability, no execution authority, no generated Marco and no proposal loop —
 the discovery stack still ends at hypotheses, by design.
 
 ---
 
 # Session: state-conditional navigation admission (2026-08-09)
 
-Executes the next task recorded in the previous handoff. Tree is green â `go build ./...`,
+Executes the next task recorded in the previous handoff. Tree is green — `go build ./...`,
 `go test ./...`, `go test -race ./...` (68 packages), `go build -tags onnxvision ./...`,
-`gofmt`, `go vet`, `docscheck`, linux/darwin cross-builds â on `feat/host-ffi`, **nothing
+`gofmt`, `go vet`, `docscheck`, linux/darwin cross-builds — on `feat/host-ffi`, **nothing
 committed**.
 
 Canonical: [[Navigation]], [[ADR-013-navigation-is-meaning-not-keys]] (amended), Roadmap item 8.
@@ -1951,9 +1951,9 @@ Canonical: [[Navigation]], [[ADR-013-navigation-is-meaning-not-keys]] (amended),
 ## A stale roadmap entry, found and corrected
 
 The audit hit two canonical documents disagreeing. `Roadmap.md` item 8 said **"The proposal loop
-â NEXT"**, written before the first live run. [[Experiment-008-unknown-game-discovery]], later
-and also canonical, concluded the proposal loop was *unreachable* â *"Marco can see the screen
-and cannot see how the player reached it"* â and ADR-013 already named the fix.
+— NEXT"**, written before the first live run. [[Experiment-008-unknown-game-discovery]], later
+and also canonical, concluded the proposal loop was *unreachable* — *"Marco can see the screen
+and cannot see how the player reached it"* — and ADR-013 already named the fix.
 
 The roadmap simply had not been updated. It now records state-conditional admission as item 8
 (done) and the proposal loop as item 9 (next), with a note explaining the supersession, because
@@ -1964,18 +1964,18 @@ the next resumed session would otherwise trip over the same thing.
 W/A/S/D and Space are read as `up/down/left/right/confirm` **while, and only while, the last
 observation showed a set of choices on screen**. With no context, behaviour is unchanged.
 
-- `observe.MenuLike(regions)` â the predicate, over ONE inference's raw detections. Three or more
+- `observe.MenuLike(regions)` — the predicate, over ONE inference's raw detections. Three or more
   controls carrying a nameable role. It reads no tracks, states, groups or hypotheses.
-- `Source.SetScreenContext(menuLike, at)` â worker-side store, never touched by the hook.
-- `InputEvent.Conditional`, `InputStats.Conditional`, `ScreenTransition.ConditionalOnly` â the
+- `Source.SetScreenContext(menuLike, at)` — worker-side store, never touched by the hook.
+- `InputEvent.Conditional`, `InputStats.Conditional`, `ScreenTransition.ConditionalOnly` — the
   weaker class of evidence, carried and counted rather than resolved silently.
 
 ## The decision that matters most: no spacing rule
 
 The obvious predicate is "an evenly spaced column", and `StructuralGroup.Uniformity` already
 measures it. It was deliberately NOT used. Rocket League's menu column scores 0.97; every
-recurring group in Schedule I scores 0.00â0.01. Both are real interfaces full of real choices, so
-a spacing rule would admit navigation in one game and refuse it in the other â a Rocket League
+recurring group in Schedule I scores 0.00–0.01. Both are real interfaces full of real choices, so
+a spacing rule would admit navigation in one game and refuse it in the other — a Rocket League
 rule wearing the costume of a screen-shape rule, invisible until a third game.
 
 The signal used instead is how many controls carry a role whose name may be said, which is
@@ -1988,14 +1988,14 @@ layout-independent and separates choices from play in both recorded games with o
 - It must not be older than `ScreenContextTTL` (10s). That is a **backstop against inferences
   stopping**, not the freshness mechanism. The real bound is **flip-off**: the composition root
   sets the context on every valid inference, including the not-menu-like ones.
-- A **skipped** inference leaves the assessment standing â unknown is not false, and flipping off
+- A **skipped** inference leaves the assessment standing — unknown is not false, and flipping off
   there would lose admission every time the cadence gate declined (13 of 65 slots live).
 
 ## Privacy
 
 The type allowlist in `TestRawKeyIdentityCannotCrossTheBoundary` was widened by exactly one
 entry, `bool`, with the reasoning recorded **in the test**. Both privacy guards fired on the
-first build and had to be extended deliberately â which is what they exist to force.
+first build and had to be extended deliberately — which is what they exist to force.
 
 The flag says nothing about which key was pressed: `up` from an arrow and `up` from W are
 indistinguishable downstream. No character key can reach the classifier under any context
@@ -2006,14 +2006,14 @@ indistinguishable downstream. No character key can reach the classifier under an
 **The gain cannot be measured from any existing trace, and this is structural.** Admission is
 decided inside the producer at the moment of the press; a trace records the *outcome*, not the
 keystroke, because raw key identity dies in the adapter. Replaying the Schedule I trace under the
-new code therefore still shows 7 intents and 117 refusals â correctly.
+new code therefore still shows 7 intents and 117 refusals — correctly.
 
 What the trace CAN bound, and now reports: **17 of its 52 valid inferences (33%) showed a set of
 choices.** A third of that session was eligible for admission. `director shadow-trace` prints
 this under `choice screens`, with an explicit note that it bounds the opportunity and does not
 replay it.
 
-## Mutations â eight, each killed its test
+## Mutations — eight, each killed its test
 
 | mutation | test |
 |---|---|
@@ -2028,7 +2028,7 @@ replay it.
 
 All six mutated files verified byte-identical to their pre-mutation state afterwards.
 
-## NEXT TASK â the proposal loop (Roadmap item 9)
+## NEXT TASK — the proposal loop (Roadmap item 9)
 
 Surface a `supported` hypothesis as a question and record the answer as evidence in its own
 right. A declined proposal must be kept: it stops re-proposal every session and is the only
@@ -2039,8 +2039,8 @@ Marco.
 
 **Do the newly admitted intents actually correlate with screen changes, or only with walking
 around inside a menu screen?** 33% of the session was eligible; whether that converts into
-attributed edges cannot be determined offline. The shortest run that answers it is 60â90s of any
-application with a keyboard-driven menu â open a menu, move the selection with WASD, back out,
+attributed edges cannot be determined offline. The shortest run that answers it is 60–90s of any
+application with a keyboard-driven menu — open a menu, move the selection with WASD, back out,
 twice. Not Rocket League specifically; any unknown application is better evidence.
 
 ## Housekeeping
@@ -2055,9 +2055,9 @@ twice. Not Rocket League specifically; any unknown application is better evidenc
 
 # Session: the proposal / confirmation loop (2026-08-09)
 
-Executes Roadmap item 9. Tree is green â `go build ./...`, `go test ./...`, `go test -race ./...`
+Executes Roadmap item 9. Tree is green — `go build ./...`, `go test ./...`, `go test -race ./...`
 (68 packages), `go build -tags onnxvision ./...`, `gofmt`, `go vet`, `docscheck`, linux/darwin
-cross-builds â on `feat/host-ffi`, **nothing committed**.
+cross-builds — on `feat/host-ffi`, **nothing committed**.
 
 Canonical: [[Hypotheses]], [[ADR-015-a-question-is-evidence-not-settlement]],
 [[director-proposals]], Roadmap item 9.
@@ -2068,17 +2068,17 @@ Three existing question-shaped mechanisms, none a fit: `ConfirmationBroker` bloc
 command-scoped; `Clarification` is execution-time ambiguity resolution; `Insight.Validation` is a
 string describing *how a person could settle it*, not user validation. Nothing uninvoked.
 
-`LiveRecorder` had already solved **materiality** â keyed on the evidence-set digest, with the
+`LiveRecorder` had already solved **materiality** — keyed on the evidence-set digest, with the
 failure recorded in-file (keying on a growing count republished an unchanged claim forever). That
 principle was reused rather than re-derived.
 
 ## What it does
 
-`evidence â hypothesis â eligibility â question â answer â validation evidence â Result â CLI`
+`evidence → hypothesis → eligibility → question → answer → validation evidence → Result → CLI`
 
 - Ledger updated at the runner's per-sample choke point, beside `foldShadow`.
 - Answers enter via `ObserveQuery.Answer` and route to the active runner **or a finished
-  session's stored Result** â the latter is the ordinary case.
+  session's stored Result** — the latter is the ordinary case.
 - `director answer <session> <question-id> yes|no|not-now`.
 
 Three answers kept distinct all the way to the CLI. Confirmation adds `FromUser` support and
@@ -2088,17 +2088,17 @@ contradiction and leaves the observations listed; decline touches no semantic ev
 ## The defect a failing test found
 
 Question identity originally included the interface terms, so adding a term created a NEW
-question â a declined "is this a settings screen?" returned the moment OCR read one more label,
+question — a declined "is this a settings screen?" returned the moment OCR read one more label,
 bypassing suppression entirely. Identity is now **structural only** (kind, subject kind, roles,
 members); terms moved to the evidence digest, where they correctly make a declined question
 materially new and re-ask it as a re-ask (`Asked: 2`).
 
-## Mutations â seven; two survived at first and both were real test gaps
+## Mutations — seven; two survived at first and both were real test gaps
 
 Mandatory four all bite now. Two initially survived:
 
 - **Binding the answer to the earliest open question** survived because the test answered the
-  *first* of two â which that implementation also gets right by coincidence. The test now answers
+  *first* of two — which that implementation also gets right by coincidence. The test now answers
   the **second**.
 - **Allowing a contested hypothesis to be asked about** survived because `contested` implies
   contradictions, so the no-contradictions gate caught it first. A sharper mutation removing the
@@ -2112,11 +2112,11 @@ Mandatory four all bite now. Two initially survived:
 Already true of `Insights`; fixed rather than reproduced, since a second consumer reading
 unresolved thresholds is how that becomes load-bearing.
 
-## NEXT TASK â cross-session hypothesis identity (Roadmap item 10)
+## NEXT TASK — cross-session hypothesis identity (Roadmap item 10)
 
 A validated hypothesis dies with its session. `Subject.Fingerprint` exists and nothing consumes
 it, so a screen rediscovered next run is a new subject, gets a new question, and the user is
-asked something they already answered â the nagging the proposal policy prevents *within* a
+asked something they already answered — the nagging the proposal policy prevents *within* a
 session and cannot prevent *across* them. Needs a fingerprint matcher, a store for validated
 hypotheses, and an honest answer when two sessions' evidence is merely similar rather than same.
 
@@ -2124,15 +2124,15 @@ hypotheses, and an honest answer when two sessions' evidence is merely similar r
 
 The loop is proven by scripted sessions, production-path tests at runner and protocol level,
 replay equivalence and seven mutations. Nothing about it depends on environmental evidence. The
-one open environmental question from the previous milestone â whether context-admitted navigation
-correlates with screen changes â is unrelated and was deliberately not bundled in.
+one open environmental question from the previous milestone — whether context-admitted navigation
+correlates with screen changes — is unrelated and was deliberately not bundled in.
 
 ---
 
 # Session: cross-session semantic memory (2026-08-09)
 
-Executes Roadmap item 10. Tree is green â `go build ./...`, `go test ./...`, `go test -race ./...`,
-`go build -tags onnxvision ./...`, `gofmt`, `go vet`, `docscheck`, linux/darwin cross-builds â on
+Executes Roadmap item 10. Tree is green — `go build ./...`, `go test ./...`, `go test -race ./...`,
+`go build -tags onnxvision ./...`, `gofmt`, `go vet`, `docscheck`, linux/darwin cross-builds — on
 `feat/host-ffi`, **nothing committed**.
 
 Canonical: [[Semantic-Memory]], [[ADR-016-cross-session-identity-is-structural-and-conservative]],
@@ -2147,34 +2147,34 @@ composition alone collides across unrelated screens.
 
 ## The rule that matters
 
-**`same` requires a discriminator** â matching interface terms, or a matching envelope at
-IoU â¥ 0.90. Structure alone is `candidate` and inherits nothing. Several matches is
+**`same` requires a discriminator** — matching interface terms, or a matching envelope at
+IoU ≥ 0.90. Structure alone is `candidate` and inherits nothing. Several matches is
 `insufficient`, never the closest. Four verdicts, no similarity score.
 
 The honest consequence: **an application with no readable text and no envelope is never
-recognised.** OCR is unavailable on this machine, so this feature would not currently fire live â
+recognised.** OCR is unavailable on this machine, so this feature would not currently fire live —
 which is why Roadmap item 11 is "make OCR available and measure whether recognition fires".
 
 ## A settled assumption this milestone disproved
 
 ADR-015 defined the material-change digest as "the kinds of support and contradiction present,
-and the interface terms". The support-source set **grows within a session** (`[structure]` â
+and the interface terms". The support-source set **grows within a session** (`[structure]` →
 `[recurrence structure]` once a second episode lands), so memory recorded the digest at ANSWER
 time and a later session compared it at first-RECALL time. They never agreed and **every declined
 question returned on every restart**. Corrected to kind + structural identity + terms; recorded in
 ADR-016.
 
-## Mutations â seven mandatory, all bite; two initially spared the headline test
+## Mutations — seven mandatory, all bite; two initially spared the headline test
 
 Both survivors were test weaknesses, not false alarms:
 
 - The ephemeral-id mutation passed because the answered question was about a `choice_group`,
   whose `group_1` ref is stable across fixtures. The test now answers the **settings** question,
-  whose subject genuinely renumbers (`state_2` â `state_1`), and session B uses a deliberately
+  whose subject genuinely renumbers (`state_2` → `state_1`), and session B uses a deliberately
   reordered sampler so the tracker mints different identities as a restart does.
 - (The same class of weakness as the previous milestone's "answer the first open question" gap.)
 
-## NEXT TASK â Roadmap item 11: make OCR available and measure
+## NEXT TASK — Roadmap item 11: make OCR available and measure
 
 Interface terms are the only discriminator most screens have, and `tesseract` is not installed,
 so this machine has never produced one. Every text-supported hypothesis and every cross-session
@@ -2183,7 +2183,7 @@ captured evidence where possible: how many terms a real session yields, how many
 become text-supported, whether two sessions of one application recognise each other.
 
 Either answer is informative. If real OCR yields too few terms to discriminate, the honest
-conclusion is that recognition needs the envelope path extended to state subjects â **not** a
+conclusion is that recognition needs the envelope path extended to state subjects — **not** a
 looser bar.
 
 ## No live run was needed or performed
@@ -2194,10 +2194,10 @@ mutations.
 
 ---
 
-# Session: OCR as a semantic discriminator â measured, and it isn't one (2026-08-09)
+# Session: OCR as a semantic discriminator — measured, and it isn't one (2026-08-09)
 
-Roadmap item 11. Tree is green â build, tests, `-race`, `-tags onnxvision`, `gofmt`, `vet`,
-`docscheck`, linux/darwin cross-builds â on `feat/host-ffi`, **nothing committed**.
+Roadmap item 11. Tree is green — build, tests, `-race`, `-tags onnxvision`, `gofmt`, `vet`,
+`docscheck`, linux/darwin cross-builds — on `feat/host-ffi`, **nothing committed**.
 
 Canonical: [[Experiment-009-ocr-as-a-semantic-discriminator]], [[Semantic-Memory]], Roadmap 11.
 
@@ -2207,7 +2207,7 @@ Not because OCR fails. It runs through production, its output is correctly class
 text correctly dies at the boundary. It simply **supplied no interface term that accessibility had
 not already supplied, and none at all where accessibility supplied nothing.**
 
-The A/B that settles it â same application, 45s each:
+The A/B that settles it — same application, 45s each:
 
 | | terms | term observations | provenance |
 |---|---|---|---|
@@ -2224,28 +2224,28 @@ Both would have made the measurement meaningless, and both were fixed before mea
 
 - **Terms could never qualify in a live session.** Scoped OCR runs on ~1 inference in 6
   (`sequence == 1 || sequence%6 == 0`), and the term ratio divided by EVERY inference against a
-  0.50 threshold â capping a perfectly stable term at â0.17. The discriminator was structurally
+  0.50 threshold — capping a perfectly stable term at ≈0.17. The discriminator was structurally
   unreachable in production. Every test that seemed to exercise it set the evidence on every
   sample directly.
 - **Unavailable was indistinguishable from empty.** `CompareStructure` read a remembered subject's
-  terms against a session that could not read any and returned `MatchDifferent` â turning "Marco
+  terms against a session that could not read any and returned `MatchDifferent` — turning "Marco
   could not look" into "this is a different screen".
 
 Fixes: `SemanticEvidence.Observed`, `ScreenState.TermObservations` (the correct ratio
 denominator), `Fingerprint.TermsKnown` / `StructureSignature.TermsKnown`, and unknown terms are no
 longer evidence in either direction. Also `Store.Remember` now refuses subjects with no
-discriminator â they could never be matched, so records for them grow the file forever and can
+discriminator — they could never be matched, so records for them grow the file forever and can
 never be read.
 
 **The matcher was NOT loosened.** Conservative rules stand.
 
 ## Why OCR cannot currently help, architecturally
 
-OCR text becomes a label only via fusion's `TextFilledMissingLabel` â the element must be
+OCR text becomes a label only via fusion's `TextFilledMissingLabel` — the element must be
 structurally real AND its role must be in the plaintext allowlist (`button`, `menu_item`, `menu`,
 `tab`, `checkbox`, `radio`). So a term needs **accessibility for the structure** and text landing
-on it. Where accessibility names things, OCR is redundant; where it exposes roles without names â
-the case OCR exists for â the text did not attach, and much of it was quarantined by the
+on it. Where accessibility names things, OCR is redundant; where it exposes roles without names —
+the case OCR exists for — the text did not attach, and much of it was quarantined by the
 target-provenance guard first.
 
 ## Cost measured
@@ -2253,7 +2253,7 @@ target-provenance guard first.
 OCR 760ms/pass (capture 28ms, **recognise 731ms**) against ScreenParser 625ms median / 667ms p95.
 Both at a 2s cadence: **11 late samples of 9 taken** with OCR, **0 of 24** without.
 
-## NEXT TASK â Roadmap item 12: give the vision detector's roles a nameable path
+## NEXT TASK — Roadmap item 12: give the vision detector's roles a nameable path
 
 The missing discriminator is not text-reading, it is structure Marco is allowed to name.
 ScreenParser supplies `button`/`menu` regions on exactly the surfaces accessibility cannot see,
@@ -2265,15 +2265,15 @@ the envelope rather than on semantics.
 ## Not measured
 
 Cross-session recognition on live data. No real session produced a `supported` hypothesis, because
-an idle window never RECURS â recurrence needs a screen to appear, go, and come back, which needs
+an idle window never RECURS — recurrence needs a screen to appear, go, and come back, which needs
 interaction. Not requested of the user.
 
 ---
 
 # Session: giving vision-derived structure somewhere safe for a word to belong (2026-08-09)
 
-Roadmap item 12. Tree is green â build, tests, `-race` (including `cmd/director` at 169s),
-`-tags onnxvision`, `gofmt`, `vet`, `docscheck`, linux/darwin cross-builds, both plugins â on
+Roadmap item 12. Tree is green — build, tests, `-race` (including `cmd/director` at 169s),
+`-tags onnxvision`, `gofmt`, `vet`, `docscheck`, linux/darwin cross-builds, both plugins — on
 `feat/host-ffi`, **nothing committed**.
 
 Canonical: [[ADR-017-structure-earns-a-name-text-never-earns-structure]],
@@ -2290,22 +2290,22 @@ to be exactly right, and connecting the two halves was mostly wiring.
 Three links missing, one drifted:
 
 - **The experiment had no reader.** `newShadowVision` built a `vision.Provider` and never set
-  `Reader`. Scoped OCR had never run on a ScreenParser detection â the mechanism existed,
+  `Reader`. Scoped OCR had never run on a ScreenParser detection — the mechanism existed,
   fully tested, wired only into the authoritative provider.
-- **`ShadowRegion` has nowhere to put a word** â role, geometry, confidence, nameable.
+- **`ShadowRegion` has nowhere to put a word** — role, geometry, confidence, nameable.
 - **`SemanticEvidenceFrom(sample.Entities)` reads the FUSED side only**, and shadow evidence
   never reaches fusion by construction. Nothing the detector found could ever be classified.
-- **Nameability was four allowlists** â privacy classifier, shadow diagnostic, vision benchmark,
+- **Nameability was four allowlists** — privacy classifier, shadow diagnostic, vision benchmark,
   and (newly) the reader. Two carried a written rationale for being copies.
 
 ## What changed
 
 - `directorapi.ElementRole.NameablePlaintext` is now THE allowlist. The other three delegate.
-  It gates what is **READ**, not only what is kept â an unsayable region costs no OCR round trip
+  It gates what is **READ**, not only what is kept — an unsayable region costs no OCR round trip
   and its text never enters the process.
 - `Class.Nameable()`; scoped reading restricted to nameable structural classes; `text` regions
   read for SCREEN-level meaning only, producing terms and never a control.
-- `contested()` â overlapping nameable regions above `AmbiguousOverlap` (0.25 of the smaller)
+- `contested()` — overlapping nameable regions above `AmbiguousOverlap` (0.25 of the smaller)
   are refused, not resolved. Nesting is not a contest: stacked menu buttons overlap ~6% through
   detector jitter and must both be named.
 - Scoped reading is now opt-in **per cycle** on `SourceOCR` in the request, which is what
@@ -2324,12 +2324,12 @@ Same fixture, same production path, reader absent then present:
 | before | 6 | 4 | none | **false** (unknown, not empty) |
 | after | 6 | 4 | `audio, back, controls, settings` | true |
 
-Structure **unchanged** â text enriches structure and never creates it, and the test asserts the
+Structure **unchanged** — text enriches structure and never creates it, and the test asserts the
 counts are equal. Budget on that pass: unsayable 2, attempted 5, read 4, screen texts 1,
 ambiguous 0, skipped 0. The icon and the panel cost nothing.
 
 **The discriminator question.** Two settings screens with identical composition:
-structure-only `candidate` â structure+terms **`different`**. That is the false-merge case
+structure-only `candidate` → structure+terms **`different`**. That is the false-merge case
 ADR-016 has never had a way to resolve.
 
 | case | verdict |
@@ -2344,19 +2344,19 @@ absorbs intermittent evidence, and a term lost on every reading is a real differ
 matcher was not changed.**
 
 **Cost, on a real captured panel** (`fixtures/vision/rocketleague/05-pause-panel.png`, tesseract
-5.4.0, 3Ã): whole panel 521ms â **0 spans**; scoped region median **129ms**, p95 136ms. The
+5.4.0, 3×): whole panel 521ms → **0 spans**; scoped region median **129ms**, p95 136ms. The
 whole-panel failure reproduced two milestones later, on a different fixture. Arbitrary 47px bands
-read `EXIT TO MAIN MENU` exactly and `US Gem EVE CETTIN(SS` where a band straddled two buttons â
+read `EXIT TO MAIN MENU` exactly and `US Gem EVE CETTIN(SS` where a band straddled two buttons —
 more evidence that the structure is what makes the reading trustworthy.
 
-Budget arithmetic: 6 labels + 2 texts â 1.0s on top of a ~0.9s inference against a 2s cadence, so
+Budget arithmetic: 6 labels + 2 texts ≈ 1.0s on top of a ~0.9s inference against a 2s cadence, so
 a label pass will occasionally cost one skipped shadow slot. Counted, not silent.
 
 ## Eight mutations, each fails a production-path test
 
-reader deleted Â· nameability gate removed Â· text allowed to become an element Â· every role made
-nameable Â· unknown collapsed into empty Â· provenance bypassed Â· terms dropped before
-`SignatureOf` Â· association call disconnected with every helper left intact. The last is the
+reader deleted · nameability gate removed · text allowed to become an element · every role made
+nameable · unknown collapsed into empty · provenance bypassed · terms dropped before
+`SignatureOf` · association call disconnected with every helper left intact. The last is the
 instructive one: readings still happened (read 4, screen texts 1) and no term appeared.
 
 ## Deliberate deviation from a recorded decision
@@ -2367,11 +2367,11 @@ decides what may be stored"). Converged anyway: now that nameability gates what 
 counted nameable in one place and withheld in another promises evidence the system refuses to
 collect. Recorded in ADR-017.
 
-## NEXT â Roadmap 13: what CONNECTS two remembered semantic states
+## NEXT — Roadmap 13: what CONNECTS two remembered semantic states
 
 Marco can now recognise a screen across sessions without accessibility and say what it is about.
 It can say nothing about the relationship *between* two such screens. The evidence exists and is
-already correlated â transitions carry closed-vocabulary navigation intents per state â but no
+already correlated — transitions carry closed-vocabulary navigation intents per state — but no
 durable claim about a PAIR of subjects has ever been formed. Still not procedure learning: the
 claim is "these two remembered states are related, and this kind of navigation was observed at
 the boundary", not "here is how to get there".
@@ -2379,15 +2379,15 @@ the boundary", not "here is how to get there".
 ## Not measured
 
 No live run. The accessibility-poor fixture models such a screen; it is not one. And the shipping
-detector (`icon_detect`, one class, `icon`) still cannot benefit â correctly, and now *measured*
+detector (`icon_detect`, one class, `icon`) still cannot benefit — correctly, and now *measured*
 by `LabelsUnsayable` rather than inferred.
 
 ---
 
 # Session: remembering that two screens are connected (2026-08-09)
 
-Roadmap item 13. Tree is green â build, tests, `-race` (including `cmd/director` at 186s),
-`-tags onnxvision`, `gofmt`, `vet`, `docscheck`, linux/darwin cross-builds â on `feat/host-ffi`,
+Roadmap item 13. Tree is green — build, tests, `-race` (including `cmd/director` at 186s),
+`-tags onnxvision`, `gofmt`, `vet`, `docscheck`, linux/darwin cross-builds — on `feat/host-ffi`,
 **nothing committed**.
 
 Canonical: [[ADR-018-a-remembered-relationship-is-adjacency-not-a-route]], [[Semantic-Memory]],
@@ -2395,7 +2395,7 @@ Roadmap 13.
 
 ## What Marco can now remember
 
-> I recognise this subject. I recognise that one. I have seen the first become the second before â
+> I recognise this subject. I recognise that one. I have seen the first become the second before —
 > this navigation was around it, this often, across this many sessions.
 
 It still cannot say how to perform the transition, and nothing here can be executed. That
@@ -2403,22 +2403,22 @@ distinction is the milestone.
 
 ## The audit found the machinery mostly already existed
 
-`ScreenTransition` already carried every category the durable record needed â `Preceded`,
+`ScreenTransition` already carried every category the durable record needed — `Preceded`,
 `Unattributed`, `ConditionalOnly`, ordered `Sequences`. What did not exist was any way to key an
-edge on something that survives a restart: session-local `state_3 â state_8` is renumbered by
+edge on something that survives a restart: session-local `state_3 → state_8` is renumbered by
 the next run.
 
 So the durable object is a projection of `ScreenTransition` whose endpoints are
-`RememberedSubject` ids, resolved through `Memory.Recall` â the identity layer that already
+`RememberedSubject` ids, resolved through `Memory.Recall` — the identity layer that already
 exists. **The relationship layer does no matching of its own.** The Action Graph was considered
 and rejected: its edges serve executable semantics, and putting an observation there is the
 shortest path to executing it.
 
 ## Shape
 
-- `observe.RememberedRelationship` â from/to subject ids, application, observations, sessions,
+- `observe.RememberedRelationship` — from/to subject ids, application, observations, sessions,
   per-intent support, unattributed, conditional-only, bounded ordered runs, dropped-run count.
-- `observe.RelationshipsFrom(totals, hypotheses, application, memory)` â current evidence first,
+- `observe.RelationshipsFrom(totals, hypotheses, application, memory)` — current evidence first,
   memory second. Both endpoints must reach `same`; anything less stays session-local **and is
   reported**, because "nothing transitioned" and "nothing was recognised" are different sessions.
 - Store: `relationships` beside `subjects` in the same file, same lifecycle. Referential
@@ -2426,48 +2426,48 @@ shortest path to executing it.
   load (orphan dropped and counted).
 - **Choke point: `Runner.Run`, at session end, once.** The transition tally GROWS while a session
   runs, `Sessions` counts independent corroborations and only a finished session is one, and the
-  store writes its whole file atomically â so a batch is one write where n edges would be n.
+  store writes its whole file atomically — so a batch is one write where n edges would be n.
 
 ## Two defects found by tracing, not by a failing test
 
 - **One screen had two durable identities.** `possible_menu_like_state` set `Members` on the
   fingerprint; `possible_reversible_place` and `possible_text_entry_state` did not. `Members` is
-  identity-bearing with a Â±1 tolerance, so 4 vs 0 compared as DIFFERENT and `Remember` stored one
+  identity-bearing with a ±1 tolerance, so 4 vs 0 compared as DIFFERENT and `Remember` stored one
   screen as TWO subjects. Consequences ran downstream quietly: a question answered about one
   record did not suppress the other, and an endpoint resolved or not depending on which
-  interpretation named it. Fixed â `stateFingerprint`, one function, four call sites. Every
+  interpretation named it. Fixed — `stateFingerprint`, one function, four call sites. Every
   existing test compared a signature with itself, which is why nothing caught it.
 - **A privacy assertion was really a capacity assertion.** The boundedness test folded fifty
-  observations first, so `Preceded` was already at its cap when it offered `VK_RETURN` â refused
+  observations first, so `Preceded` was already at its cap when it offered `VK_RETURN` — refused
   by the BOUND, not by admission. Mutation 6 survived it. Split into
   `TestARawKeyIdentityIsRefusedByAdmissionNotByCapacity`, which starts empty; the on-disk store
   test now offers a raw key too, since a file that never saw one cannot show it refuses one.
 
 ## Eight mutations, each fails a production-path test
 
-delete the write Â· identity from ephemeral state ids Â· flatten direction Â· drop unattributed Â·
-context-admitted treated as strong Â· persist raw key identity Â· unresolved endpoint admitted Â·
+delete the write · identity from ephemeral state ids · flatten direction · drop unattributed ·
+context-admitted treated as strong · persist raw key identity · unresolved endpoint admitted ·
 duplicate edge per session. The last two are the interesting ones: the duplicate mutation grew
-the topology 2â4 across sessions and made 2000 observations into 2000 records.
+the topology 2→4 across sessions and made 2000 observations into 2000 records.
 
 ## Verified deterministically
 
 Cross-session corroboration through two runners over one store file, with session-local ids
 renumbered; a third session that corroborates rather than duplicates; direction preserved with
-different navigation each way; branching (AâB, AâC, BâA) kept apart; ordered runs kept as
+different navigation each way; branching (A→B, A→C, B→A) kept apart; ordered runs kept as
 plural counted observations; unattributed and context-admitted evidence surviving intact;
 2000 observations plateauing to one record with dropped variants counted; replay reproducing the
 same edges from the trace's safe representation.
 
-**No live run, and none needed** â Part 31's own reasoning. The model is deterministic and the
+**No live run, and none needed** — Part 31's own reasoning. The model is deterministic and the
 product-visible sentence ("I've seen you move between these two screens before") belongs to the
 next layer.
 
-## NEXT â Roadmap 14: turn a corroborated relationship into a QUESTION
+## NEXT — Roadmap 14: turn a corroborated relationship into a QUESTION
 
 Marco holds a map and cannot say anything about it to the person who walked it. The next layer
-decides when an edge has earned a sentence â enough observations, enough independent sessions,
-navigation that is not entirely unattributed and not entirely context-admitted â and puts it
+decides when an edge has earned a sentence — enough observations, enough independent sessions,
+navigation that is not entirely unattributed and not entirely context-admitted — and puts it
 through the proposal loop that already exists. Still not "shall I learn how to do that".
 Proposal before capability, confirmation before execution.
 
@@ -2475,15 +2475,15 @@ Proposal before capability, confirmation before execution.
 
 A durable edge needs BOTH endpoints to be subjects a person has settled, so early sessions
 produce session-local evidence and no topology at all. That is the design and it is reported,
-not silent. Tests that need topology seed both screens through `Store.Remember` â the production
-write â rather than depending on which questions the proposal policy happened to ask.
+not silent. Tests that need topology seed both screens through `Store.Remember` — the production
+write — rather than depending on which questions the proposal policy happened to ask.
 
 ---
 
 # Session: asking whether to learn a habit (2026-08-09)
 
-Roadmap item 14. Tree is green â build, tests, `-race` (including `cmd/director` at 167s),
-`-tags onnxvision`, `gofmt`, `vet`, `docscheck`, linux/darwin cross-builds, both plugins â on
+Roadmap item 14. Tree is green — build, tests, `-race` (including `cmd/director` at 167s),
+`-tags onnxvision`, `gofmt`, `vet`, `docscheck`, linux/darwin cross-builds, both plugins — on
 `feat/host-ffi`, **nothing committed**.
 
 Canonical: [[ADR-019-an-invitation-to-learn-is-not-a-correction]], [[Semantic-Memory]],
@@ -2496,7 +2496,7 @@ Roadmap 14.
 
 A yes buys a pending `LearningRequest` on the relationship record. **No procedure, no capability,
 no action, no route, no recorder.** Obtaining a demonstration is the next milestone precisely
-because it may need to watch more than passive discovery does â a yes that silently widened
+because it may need to watch more than passive discovery does — a yes that silently widened
 observation would be the worst reading of an invitation.
 
 ## The one thing that had to be got right
@@ -2506,20 +2506,20 @@ wrong* and becomes a durable contradiction; the new `no` means *I don't want tha
 must leave every observation intact. Sharing the machinery without separating the meanings would
 let "don't bother" delete evidence.
 
-`Proposal.Ask` is the whole distinction â `confirm_semantic_interpretation` vs
+`Proposal.Ask` is the whole distinction — `confirm_semantic_interpretation` vs
 `learn_observed_relationship`, empty reading as semantic so older records still parse. Nothing
 anywhere infers meaning from the wording. `Runner.Respond` branches on it.
 
 | | semantic | learning |
 |---|---|---|
 | yes | `KnowledgeConfirmed` | `LearningPending` |
-| no | `KnowledgeContradicted` | `LearningRefused` â preference, evidence untouched |
+| no | `KnowledgeContradicted` | `LearningRefused` — preference, evidence untouched |
 | not now | suppressed till shape changes | same rule, over the edge's digest |
 
-## Eligibility â discrete, no float, every refusal named
+## Eligibility — discrete, no float, every refusal named
 
-â¥2 independent sessions Â· â¥3 observations Â· dominant intent over â¥half Â· unattributed â¤half Â·
-not only context-admitted Â· not â¥3 one-off run variants Â· endpoints present and not
+≥2 independent sessions · ≥3 observations · dominant intent over ≥half · unattributed ≤half ·
+not only context-admitted · not ≥3 one-off run variants · endpoints present and not
 wholly rejected. Volume never rescues weakness: 20 observations with `confirm` before 3 is
 refused where 6 with `confirm` before 6 is offered.
 
@@ -2532,40 +2532,40 @@ remembered edge is judged and reported. "Marco did not ask" is otherwise undebug
 
 **The review runs once, at session end**, after this session's transitions are folded into the
 store. Not per sample. Two reasons: the evidence is only complete there, and it makes the
-semantics-before-behaviour priority STRUCTURAL rather than a race â a per-sample invitation won
+semantics-before-behaviour priority STRUCTURAL rather than a race — a per-sample invitation won
 the single interruption slot on sample 1, before any hypothesis had accumulated enough recurrence
 to be worth asking about. That was a real failure, caught by
 `TestASemanticQuestionTakesPriorityOverAnInvitation`, and moving the call fixed it properly
 instead of adding a priority rule.
 
 Materiality uses a **banded** session count (few/several/many) plus the intent set, the
-unattributed category, the conditional-only flag and the run shapes. Raw counts are excluded â
+unattributed category, the conditional-only flag and the run shapes. Raw counts are excluded —
 a digest that moved with them brings a declined question back within minutes.
 
 ## Nine mutations, each fails a production-path test
 
-delete the review call Â· Sessions replaced by raw observations Â· drop Unattributed Â· treat
-ConditionalOnly as strong Â· yes marks the edge learned Â· no wipes the evidence Â· decline treated
-as no Â· answer binds to the best current edge Â· digest tracks raw counts.
+delete the review call · Sessions replaced by raw observations · drop Unattributed · treat
+ConditionalOnly as strong · yes marks the edge learned · no wipes the evidence · decline treated
+as no · answer binds to the best current edge · digest tracks raw counts.
 
 ## Found on the way
 
 Two screens sharing a confirmed interpretation read as *"from the settings screen to the settings
-screen"* â a transition nobody made, inviting the user to correct a claim Marco never intended.
+screen"* — a transition nobody made, inviting the user to correct a claim Marco never intended.
 The second name is now dropped. Surfaced by mutation 2's failure output, not by a test.
 
 ## A test-only trap worth remembering
 
 Two `semanticmemory.Store` handles over one file is not a configuration production ever has (a
 Director owns exactly one), and the last whole-file write clobbers the other. A test that adds
-evidence while a runner holds the store must share the handle â `seedRelationshipIn` exists for
-that â or it measures the clobber.
+evidence while a runner holds the store must share the handle — `seedRelationshipIn` exists for
+that — or it measures the clobber.
 
-## NEXT â Roadmap 15: bounded demonstration capture
+## NEXT — Roadmap 15: bounded demonstration capture
 
 A pending request is a person saying "yes, watch me do it". Nothing yet watches. The next layer
-is the deliberate, consented, bounded capture of ONE clean example â start at the named subject,
-observe the navigation, arrive at the other â kept as a procedure CANDIDATE. Still proposal
+is the deliberate, consented, bounded capture of ONE clean example — start at the named subject,
+observe the navigation, arrive at the other — kept as a procedure CANDIDATE. Still proposal
 before capability: turning a candidate into something executable is a further decision with its
 own confirmation.
 
@@ -2573,8 +2573,8 @@ own confirmation.
 
 # Session: watching one demonstration (2026-08-09)
 
-Roadmap item 15. Tree is green â build, tests, `-race` (including `cmd/director` at 169s),
-`-tags onnxvision`, `gofmt`, `vet`, `docscheck`, linux/darwin cross-builds, both plugins â on
+Roadmap item 15. Tree is green — build, tests, `-race` (including `cmd/director` at 169s),
+`-tags onnxvision`, `gofmt`, `vet`, `docscheck`, linux/darwin cross-builds, both plugins — on
 `feat/host-ffi`, **nothing committed**.
 
 Canonical: [[ADR-020-watch-me-is-permission-to-observe-not-to-act]], [[Semantic-Memory]],
@@ -2602,21 +2602,21 @@ per-sample observation path, `Memory.Recall` for resolving where the user is, an
 
 ## Shape
 
-- `observe.Capture` â armed / capturing / complete / incomplete / cancelled. `NewCapture` is the
+- `observe.Capture` — armed / capturing / complete / incomplete / cancelled. `NewCapture` is the
   only constructor and needs a `RelationshipRef`; `armCapture` is the only caller and reads
   `PendingLearning` from durable memory. Authorisation is a shape, not a check.
-- Start and end from **current** evidence. The request says AâB, which is a claim about history;
+- Start and end from **current** evidence. The request says A→B, which is a claim about history;
   where the user is standing now is a question only this cycle can answer.
 - Bounds: 60 events, 8 checkpoints, 8 intents per run, 90 observations, 2 restarts. Exceeding one
   **stops** with its own reason rather than truncating.
-- Steps, not a flat list: `A ârunâ X ârunâ B`. An unrecognised X is a TRANSIENT checkpoint and is
+- Steps, not a flat list: `A —run→ X —run→ B`. An unrecognised X is a TRANSIENT checkpoint and is
   never promoted into memory.
 - Persistence: completed candidates survive, one per relationship, beside the topology. An active
   capture is never persisted, so it can never be resumed.
 
 ## Two subtleties the implementation had to get right
 
-Both the same class of mistake â a quantity that MATURES within a visit being treated as identity:
+Both the same class of mistake — a quantity that MATURES within a visit being treated as identity:
 
 - **`Members` excluded from checkpoint comparison.** It is the dominant structural group's size,
   which is 0 for a screen's first few observations and 4 later. Comparing on it split one screen
@@ -2630,8 +2630,8 @@ Both the same class of mistake â a quantity that MATURES within a visit bei
 
 ## Eight mutations, each fails a production-path test
 
-delete the arm call Â· capture without approval Â· drop ordered input Â· complete on timeout Â·
-accept the wrong destination Â· store a raw key Â· candidate becomes executable Â· unfinished capture
+delete the arm call · capture without approval · drop ordered input · complete on timeout ·
+accept the wrong destination · store a raw key · candidate becomes executable · unfinished capture
 not ended with the session.
 
 ## Not done, and honestly
@@ -2639,25 +2639,25 @@ not ended with the session.
 **Replay parity (Part 26) is not implemented.** A candidate is derived from `Memory.Recall`
 against the durable store, and the shadow trace carries no store. Reproducing a candidate from a
 trace needs the memory state of the moment as well, which is a second durable artefact this
-milestone did not create. The inputs the capture consumes are all safe and replayable â
-`CaptureInput` is intents, a signature and a verdict â so the gap is the memory snapshot, not the
+milestone did not create. The inputs the capture consumes are all safe and replayable —
+`CaptureInput` is intents, a signature and a verdict — so the gap is the memory snapshot, not the
 representation. Recorded rather than papered over.
 
-## NEXT â Roadmap 16: is a candidate a reproducible procedure?
+## NEXT — Roadmap 16: is a candidate a reproducible procedure?
 
 One watched example and no idea whether it generalises. The question is whether that can be
 settled WITHOUT executing uncontrolled input: a second demonstration to compare, step-by-step
 consistency, checkpoints that could be verified during a future attempt. The honest first
-deliverable is a judgement with named reasons â `single_example`, `steps_disagree`,
-`requires_text_entry`, `transient_checkpoint_unverifiable` â in the same shape as the
+deliverable is a judgement with named reasons — `single_example`, `steps_disagree`,
+`requires_text_entry`, `transient_checkpoint_unverifiable` — in the same shape as the
 learning-eligibility policy, rather than a promotion.
 
 ---
 
 # Session: what Marco knows from one watched example (2026-08-09)
 
-Roadmap item 16. Tree is green â build, tests, `-race` (including `cmd/director` at 168s),
-`-tags onnxvision`, `gofmt`, `vet`, `docscheck`, linux/darwin cross-builds, both plugins â on
+Roadmap item 16. Tree is green — build, tests, `-race` (including `cmd/director` at 168s),
+`-tags onnxvision`, `gofmt`, `vet`, `docscheck`, linux/darwin cross-builds, both plugins — on
 `feat/host-ffi`, **nothing committed**.
 
 Canonical: [[ADR-021-a-judgement-is-recomputed-not-recorded]], [[Semantic-Memory]], Roadmap 16.
@@ -2669,29 +2669,29 @@ Canonical: [[ADR-021-a-judgement-is-recomputed-not-recorded]], [[Semantic-Memory
 ```
 ProcedureCandidate  (durable, fixed, what happened)
       + Topology    (durable, IMPROVING, what Marco can recognise)
-      â CandidateAssessment (derived, never stored)
+      ↓ CandidateAssessment (derived, never stored)
 ```
 
 What Marco can conclude depends on what Marco remembers, and memory improves. A transient
 checkpoint nobody could recognise today becomes a remembered subject the moment the user names
-that screen â and the same demonstration becomes more verifiable with no new observation. A
+that screen — and the same demonstration becomes more verifiable with no new observation. A
 stored verdict would freeze a judgement made when Marco knew less.
 
 Enforced by a test that fails if `ProcedureCandidate` ever grows `Verdict`, `Assessment` or
-`Reasons`. It also makes replay parity statable: same candidate + same topology â same
+`Reasons`. It also makes replay parity statable: same candidate + same topology → same
 assessment, and there is no third input.
 
 ## Verdicts and reasons
 
-`candidate_consistent` (the CEILING â the observation hangs together, never "it works") Â·
-`insufficient_evidence` Â· `ambiguous` Â· `invalid`. **No confidence float**: the useful output is
+`candidate_consistent` (the CEILING — the observation hangs together, never "it works") ·
+`insufficient_evidence` · `ambiguous` · `invalid`. **No confidence float**: the useful output is
 the list of checkpoints Marco could not check, because that list is actionable and a number is
 not.
 
 Eleven closed reasons, each with `ResolvableByDemonstration()`. That split is the whole
 preparation for the next milestone without asking the user for anything: an ambiguous run is
 something a cleaner example would settle; a transient checkpoint and a text-entry boundary are
-not â one needs the user to name a screen, the other needs consent and a representation.
+not — one needs the user to name a screen, the other needs consent and a representation.
 
 `single_demonstration_only` is always present and deliberately not a downgrade. If it blocked the
 best verdict, the best verdict would be unreachable and meaningless.
@@ -2699,7 +2699,7 @@ best verdict, the best verdict would be unreachable and meaningless.
 ## Central question: verifiability, not performability
 
 Per step: *could Marco later tell whether it succeeded?* Coverage is a LIST with named gaps, not
-a percentage â "70% verifiable" tells a reader nothing; "the second screen cannot be recognised"
+a percentage — "70% verifiable" tells a reader nothing; "the second screen cannot be recognised"
 tells them exactly what to fix.
 
 Volume is not strength: `near_capture_bound` is a reason for LESS confidence, because a
@@ -2711,30 +2711,30 @@ Endpoints, checkpoint sequence (durable id where there is one, safe structure wh
 text-entry markers, and the **decisive** navigation of each run.
 
 Directional intents move a selection and commit to nothing, so `down, down, confirm` vs
-`down, down, down, confirm` â `compatible` (the same move one row further away). Everything else
-is decisive, so `left, back, down, confirm` does not reduce to `confirm` â `different`.
+`down, down, down, confirm` → `compatible` (the same move one row further away). Everything else
+is decisive, so `left, back, down, confirm` does not reduce to `confirm` → `different`.
 Deliberately not an edit distance over raw input, which would call every honest repeat different.
 
 ## Eight mutations, each fails a production-path test
 
-verified-by-default Â· transient checkpoint treated as verifiable Â· drop RequiresTextEntry Â·
-flatten ordered runs Â· ignore checkpoint identity in comparison Â· delete the production assessment
-call Â· store a verdict in the candidate Â· raw keys in the assessment.
+verified-by-default · transient checkpoint treated as verifiable · drop RequiresTextEntry ·
+flatten ordered runs · ignore checkpoint identity in comparison · delete the production assessment
+call · store a verdict in the candidate · raw keys in the assessment.
 
 **One was masked and re-run.** "Ignore transient unverifiability" (removing the first branch)
-survived, because a second branch â `!subjectKnown` on an empty subject id â catches the same
+survived, because a second branch — `!subjectKnown` on an empty subject id — catches the same
 case. That overlap is real defence in depth and a poor mutation target; the faithful form (mark
 the transient checkpoint verifiable) fails three tests. Worth remembering: overlapping guards make
 mutations look survivable when the behaviour is fine.
 
-## NEXT â Roadmap 17: ask for the second demonstration, and only where it would help
+## NEXT — Roadmap 17: ask for the second demonstration, and only where it would help
 
 The assessment already says which gaps another example could close. What is missing is the loop
 that acts on it: propose a second demonstration ONLY when `ResolvableByDemonstration` is true,
 capture it through the machinery that exists, compare with `CompareCandidates`.
 
 Two agreeing demonstrations are the first evidence in this system that a procedure is
-*reproducible* rather than merely observed â the point at which "verified" stops being
+*reproducible* rather than merely observed — the point at which "verified" stops being
 structurally unreachable. Still not permission to perform it.
 
 The failure to avoid: asking for a demonstration Marco already knows would not help. The user has
@@ -2744,8 +2744,8 @@ done enough live runs.
 
 # Session: asking for a second example, and mostly deciding not to (2026-08-10)
 
-Roadmap item 17. Tree is green â build, tests, `-race` (including `cmd/director` at 181s),
-`-tags onnxvision`, `gofmt`, `vet`, `docscheck`, linux/darwin cross-builds, both plugins â on
+Roadmap item 17. Tree is green — build, tests, `-race` (including `cmd/director` at 181s),
+`-tags onnxvision`, `gofmt`, `vet`, `docscheck`, linux/darwin cross-builds, both plugins — on
 `feat/host-ffi`, **nothing committed**.
 
 Canonical: [[ADR-022-ask-only-when-you-can-say-what-it-would-resolve]], [[Semantic-Memory]],
@@ -2757,7 +2757,7 @@ Roadmap 17.
 > evidence model can explain what another example would resolve.
 
 `FollowUpFrom` reads the assessment's verdict and partitions its reasons by
-`ResolvableByDemonstration`. It inspects the candidate for **nothing** â duplicating the
+`ResolvableByDemonstration`. It inspects the candidate for **nothing** — duplicating the
 assessment's rules in proposal code would be a second answer to "is this evidence any good".
 
 **One non-resolvable blocker is enough to stop.** `single_demonstration_only` +
@@ -2777,70 +2777,70 @@ kept beside the method.
 ## A real defect found on the way
 
 **A fulfilled learning request stayed `pending`.** `armCapture` reads `PendingLearning`, so every
-later session would have re-armed and watched the same route again â forever, without asking. Fixed
+later session would have re-armed and watched the same route again — forever, without asking. Fixed
 with `LearningFulfilled`, written when a completed candidate is stored.
 
 ## Shape
 
-- `AskSecondDemonstration` â a third `no` with a third meaning. Refusing here withdraws nothing:
+- `AskSecondDemonstration` — a third `no` with a third meaning. Refusing here withdraws nothing:
   candidate 1, the original request, the relationship's evidence and every endpoint's meaning are
   untouched.
-- Lineage `relationship â candidate 1 â assessment â follow-up â candidate 2`, with
+- Lineage `relationship → candidate 1 → assessment → follow-up → candidate 2`, with
   `ProcedureCandidate.Sequence` and candidates keyed on `(relationship, sequence)`. Candidate 1 is
-  never mutated â a comparison is worthless if one side has been edited.
+  never mutated — a comparison is worthless if one side has been edited.
 - Bounded at two: `second_demo_already_captured`.
 - `FollowUpDigest` over verdict + reason set + coverage pattern. Never counts, never timestamps.
-- Two agreeing â drop `single_demonstration_only`, reach `candidate_consistent`. Two differing â
+- Two agreeing → drop `single_demonstration_only`, reach `candidate_consistent`. Two differing →
   `demonstrations_disagree`, `ambiguous`, both kept, never averaged. **Nothing promoted.**
 
 ## Transient checkpoints now resolve at assessment time
 
 A screen unrecognisable when it was SEEN may be recognisable now. `resolveTransient` matches the
-checkpoint's structure against current memory (Members excluded â it matures within a visit, same
+checkpoint's structure against current memory (Members excluded — it matures within a visit, same
 reason as everywhere else). That is what makes "the judgement changes shape, so the declined
 question comes back" work through real memory rather than by editing a candidate.
 
 ## Ten mutations, each fails a production-path test
 
-ask regardless of resolvability Â· ignore blockers Â· bind the answer elsewhere Â· two demos means
-verified Â· flatten the comparison Â· NO withdraws the original request Â· NOT NOW becomes permanent Â·
-unlimited demos Â· delete follow-up generation Â· delete the comparison.
+ask regardless of resolvability · ignore blockers · bind the answer elsewhere · two demos means
+verified · flatten the comparison · NO withdraws the original request · NOT NOW becomes permanent ·
+unlimited demos · delete follow-up generation · delete the comparison.
 
 Two needed a second attempt: binding "to the newest route" happened to pick the right one, and
 `Remember` with an empty signature is refused by the store's discriminator guard so the
-contradiction mutation did nothing. Both re-run in faithful form. Worth remembering â a mutation
+contradiction mutation did nothing. Both re-run in faithful form. Worth remembering — a mutation
 that is silently a no-op looks exactly like a passing test.
 
-## NEXT â Roadmap 18: decide what a REHEARSAL is, before anything is performed
+## NEXT — Roadmap 18: decide what a REHEARSAL is, before anything is performed
 
 The strongest state reachable is one consistent candidate corroborated by a second agreeing one,
 with no authority at all. The next question is the first that touches acting: what evidence would
 justify Marco attempting a transition ITSELF, and under what containment?
 
-The deliverable is a DESIGN â promotion criteria, what a rehearsal may touch, how each step is
-verified before the next, what aborts it, what the user approves first â not an executor. Every
+The deliverable is a DESIGN — promotion criteria, what a rehearsal may touch, how each step is
+verified before the next, what aborts it, what the user approves first — not an executor. Every
 milestone so far has been arranged so this decision could be made deliberately rather than
 arrived at by accident.
 
 ## Live runs
 
 Still none needed, and none requested. The loop is now complete enough that ONE real
-demonstration would test the product interaction rather than plumbing â that is the first live
+demonstration would test the product interaction rather than plumbing — that is the first live
 run worth asking for, and it belongs after the rehearsal boundary is designed.
 
 ---
 
-# Session: language/spec reconciliation â what IS Marco? (2026-08-10)
+# Session: language/spec reconciliation — what IS Marco? (2026-08-10)
 
-A deliberate direction correction, not a Director milestone. Tree is green â build, tests,
-`-race`, `-tags onnxvision`, `gofmt`, `vet`, `docscheck`, linux/darwin â on `feat/host-ffi`,
+A deliberate direction correction, not a Director milestone. Tree is green — build, tests,
+`-race`, `-tags onnxvision`, `gofmt`, `vet`, `docscheck`, linux/darwin — on `feat/host-ffi`,
 **nothing committed**.
 
 Canonical: `spec/Core.md` (new, the only `status: normative` page), `CLAUDE.md` governance rule.
 
 ## What was actually wrong
 
-Not the implementation. **The compiler implements essentially everything the spec describes** â
+Not the implementation. **The compiler implements essentially everything the spec describes** —
 108 fixtures under `testdata/` exercise contracts, translators, feeds, queues, channels, locking,
 concurrency and tests. The drift was that nothing said which parts were a *promise*: 26 spec
 pages, no status on any of them, so a future session reading a normative-looking page reasonably
@@ -2848,13 +2848,13 @@ concludes Marco is obliged to implement it. That incentive is backwards.
 
 ## What changed
 
-- **`spec/Core.md`** â four nouns (`actor`, `act`, `script`, `set`), one way to do things
-  (`do X's Y with â¦`), four endings, branch/loop/wait/cleanup, the pronouns. Everything else is
+- **`spec/Core.md`** — four nouns (`actor`, `act`, `script`, `set`), one way to do things
+  (`do X's Y with …`), four endings, branch/loop/wait/cleanup, the pronouns. Everything else is
   listed as a supported extension with a pointer. Every example compiles.
-- **Every spec page declares `status:`** â normative (1), reference (22), historical (1: Audit),
+- **Every spec page declares `status:`** — normative (1), reference (22), historical (1: Audit),
   experimental (2: Inference, Reference Modes).
-- **`internal/spectest`** â normative examples are compiled through the real
-  lexâparseâbuildâcompile pipeline; pages must be classified; generated routes are held to
+- **`internal/spectest`** — normative examples are compiled through the real
+  lex→parse→build→compile pipeline; pages must be classified; generated routes are held to
   Core's vocabulary and off the backstage one; the generator's own source is scanned for what it
   is CAPABLE of emitting.
 
@@ -2862,17 +2862,17 @@ concludes Marco is obliged to implement it. That incentive is backwards.
 
 - **A corrupted route.** `routes/notepad/say-hello.marco` ended with a stray backtick.
 - **A backstage leak in the generator.** Every anchored route carried a comment explaining that
-  "the engine resolves by SCORING signals into a confidenceâ¦ how near a candidate isâ¦". That is
+  "the engine resolves by SCORING signals into a confidence… how near a candidate is…". That is
   the resolver's algorithm printed on stage. Rewritten to say what an Anchor *is*.
 - **Me, writing spec drift while writing the spec.** My first draft of Core.md documented
-  `this can Nudge with a Point.` and `this can Measure, gives a number.` â those are *contract*
-  forms (`it can â¦`), not actor forms. An actor capability is just `this can <Cap>.`; shapes live
+  `this can Nudge with a Point.` and `this can Measure, gives a number.` — those are *contract*
+  forms (`it can …`), not actor forms. An actor capability is just `this can <Cap>.`; shapes live
   on a contract. The compile gate caught it within a minute of existing.
 
 ## The finding to act on eventually
 
 **`actor`, `act` and `scene` are three words for one implementation kind** (`KindActor`). `act`
-earns its keep â it is the host surface and the only place `exports` appears. `scene` appears
+earns its keep — it is the host surface and the only place `exports` appears. `scene` appears
 **once** in the entire corpus and carries no distinction the compiler can see. Core v1 promises
 `actor`, `act`, `script`; `scene` was left working and flagged in `builder.go`. Deleting a
 keyword is a decision, not a cleanup.
@@ -2881,7 +2881,7 @@ keyword is a decision, not a cleanup.
 
 No compiler rewrite. The sentence-oriented lexer/parser is Marco's identity and showed no
 correctness blocker. A typed semantic-statement layer between the sentence AST and the graph is
-*arguable* â `compile.go` does match on word positions â but there is no drift or duplication it
+*arguable* — `compile.go` does match on word positions — but there is no drift or duplication it
 would currently remove, and architecture for its own sake is how a readable language acquires a
 framework. Recorded, not built.
 
@@ -2889,8 +2889,8 @@ framework. Recorded, not built.
 
 ## Six mutations, each fails
 
-a normative example stops compiling Â· a page loses its status Â· a route uses an out-of-Core
-construct Â· a route names a backstage concept Â· the normative page is gutted Â· the generator
+a normative example stops compiling · a page loses its status · a route uses an out-of-Core
+construct · a route names a backstage concept · the normative page is gutted · the generator
 re-emits the resolver explanation.
 
 Two needed strengthening after surviving: the vacuity guard counted "more than zero" examples
@@ -2899,19 +2899,19 @@ Two needed strengthening after surviving: the vacuity guard counted "more than z
 
 ---
 
-# Session: act, scene, actor, verb â the distinction made durable (2026-08-10)
+# Session: act, scene, actor, verb — the distinction made durable (2026-08-10)
 
-Roadmap item 18, and the last language milestone. Tree is green â build, tests, `-race`,
-`-tags onnxvision`, `gofmt`, `vet`, `docscheck`, linux/darwin â on `feat/host-ffi`,
+Roadmap item 18, and the last language milestone. Tree is green — build, tests, `-race`,
+`-tags onnxvision`, `gofmt`, `vet`, `docscheck`, linux/darwin — on `feat/host-ffi`,
 **nothing committed**.
 
 ## The audit
 
-`verb` is **not a keyword and never was** â it is the reader-facing name for `this can <Name>.`
-plus `this's <Name> doesâ¦`. Nothing to reconcile; the word belongs in prose, not in the lexer.
+`verb` is **not a keyword and never was** — it is the reader-facing name for `this can <Name>.`
+plus `this's <Name> does…`. Nothing to reconcile; the word belongs in prose, not in the lexer.
 
-`act`, `scene` and `actor` all lower to `KindActor`. That sharing is correct â at run time each
-one holds things, knows verbs, and hears and says â but the authored word was **thrown away**,
+`act`, `scene` and `actor` all lower to `KindActor`. That sharing is correct — at run time each
+one holds things, knows verbs, and hears and says — but the authored word was **thrown away**,
 and with it the distinction. Verified: `this exports Click.` on an `actor` compiled. So `act`
 carried no obligation a reader could rely on. **Finding B: an implementation gap erasing a
 language distinction**, not harmless sharing.
@@ -2922,8 +2922,8 @@ actor. It was testing that the three words are interchangeable.
 
 ## The change, and how small it is
 
-- `Node.Declared` â the authored word survives into the graph. No IR redesign, no new kind.
-- `checkExportsBelongToActs` â only an act offers capabilities outwards. The error says what to
+- `Node.Declared` — the authored word survives into the graph. No IR redesign, no new kind.
+- `checkExportsBelongToActs` — only an act offers capabilities outwards. The error says what to
   write instead.
 - `testdata/act_scene` rewritten to demonstrate the distinction.
 
@@ -2934,8 +2934,8 @@ a sentence the language could already write.
 
 ## Mutations: five killed, one not
 
-parse `scene` as `act` Â· erase the authored word Â· delete the distinction check Â· a scene verb
-need not finish â all killed by `internal/spectest`.
+parse `scene` as `act` · erase the authored word · delete the distinction check · a scene verb
+need not finish — all killed by `internal/spectest`.
 
 **Unkilled, reported rather than papered over:** dropping a scene's field declarations in the
 builder did not fail anything. My first containment test was proving the wrong thing (it removed
@@ -2945,7 +2945,7 @@ is not where I looked or the rejection comes from elsewhere. **A scene holding s
 not in the play may not be checked at all.** Worth an hour when somebody next touches the
 builder; not worth manufacturing a test for now.
 
-The generator mutation could not be applied â the emit line did not match my pattern. Also
+The generator mutation could not be applied — the emit line did not match my pattern. Also
 unresolved.
 
 ## Decisions
@@ -2953,21 +2953,21 @@ unresolved.
 | Word | Meaning | Implementation matched? | Change |
 |---|---|---|---|
 | act | the way in; offers capabilities outwards | **no** | `exports` now belongs to an act |
-| scene | where things happen; holds actors, knows verbs | partly â expressible, not distinguished | authored word kept; fixture rewritten |
+| scene | where things happen; holds actors, knows verbs | partly — expressible, not distinguished | authored word kept; fixture rewritten |
 | actor | a thing in the play | yes | none |
 | verb | what one of them does | yes (not a keyword) | documented as prose, not syntax |
 
-**Core v1 did not change** â no construct added, none renamed. **Director lowering unchanged**;
+**Core v1 did not change** — no construct added, none renamed. **Director lowering unchanged**;
 the previous mechanical proof stands, and nothing Director emits uses `exports`.
 
-## NEXT â back to Director
+## NEXT — back to Director
 
 Language work is CLOSED. Reopen only when a concrete Director requirement proves Core v1
-insufficient â not to make the implementation more elegant.
+insufficient — not to make the implementation more elegant.
 
 The queued Director work: **decide what a rehearsal is, before anything is ever performed.** The
 strongest state the learning loop can reach is one consistent candidate corroborated by a second
-agreeing one, with no authority at all. The next question is the first that touches acting â what
+agreeing one, with no authority at all. The next question is the first that touches acting — what
 evidence would justify Marco attempting a transition itself, and under what containment. The
 deliverable is a design with promotion criteria and a safety boundary, not an executor.
 
@@ -2975,20 +2975,20 @@ deliverable is a design with promotion criteria and a safety boundary, not an ex
 
 # Session: designing the rehearsal boundary (2026-08-10)
 
-Roadmap item 19. **Design only â no executor was built.** Tree is green â build, tests, `-race`,
-`-tags onnxvision`, `gofmt`, `vet`, `docscheck`, linux/darwin â on `feat/host-ffi`,
+Roadmap item 19. **Design only — no executor was built.** Tree is green — build, tests, `-race`,
+`-tags onnxvision`, `gofmt`, `vet`, `docscheck`, linux/darwin — on `feat/host-ffi`,
 **nothing committed**.
 
 Canonical: [[ADR-023-rehearsal-is-attempt-scoped-authority]], Roadmap 19.
 
 ## The audit's best finding
 
-**The seven "cannot execute" invariants were already true structurally.** Every learned type â
+**The seven "cannot execute" invariants were already true structurally.** Every learned type —
 `RememberedSubject`, `RememberedRelationship`, `LearningRequest`, `ProcedureCandidate`,
-`CandidateAssessment`, `Capture`, `Proposal` â is defined in `internal/director/observe`, whose
+`CandidateAssessment`, `Capture`, `Proposal` — is defined in `internal/director/observe`, whose
 transitive imports reach nothing that can touch a desktop. `TestTheObservationPackageCannotAct`
 already guaranteed the package; what it did not guarantee is that the learned types still LIVE
-there. The risk was never "somebody adds an import" â it is "somebody moves `ProcedureCandidate`
+there. The risk was never "somebody adds an import" — it is "somebody moves `ProcedureCandidate`
 somewhere more convenient", where it keeps every field, passes every one of its own tests, and
 quietly acquires a neighbourhood that can act.
 
@@ -2996,8 +2996,8 @@ So the types are now NAMED in `authority_test.go`. Moving one out fails loudly.
 
 ## The design, in five lines
 
-`candidate_consistent` (observation) â `rehearsal_eligible` (judgement) â `rehearsal_authorized`
-(permission, one attempt) â `verified_procedure` (an experiment succeeded once) â
+`candidate_consistent` (observation) → `rehearsal_eligible` (judgement) → `rehearsal_authorized`
+(permission, one attempt) → `verified_procedure` (an experiment succeeded once) →
 `generated_marco` (the durable thing).
 
 Eligibility is derived from `CandidateAssessment`, in the same shape `FollowUpFrom` uses. **No
@@ -3008,7 +3008,7 @@ check afterwards.* Default refusal.
 
 ## The counterexample, stated rather than weakened
 
-That rule excludes `down` in a menu â it moves a selection Marco's segmentation cannot see. Three
+That rule excludes `down` in a menu — it moves a selection Marco's segmentation cannot see. Three
 options considered; the accepted one is `progress_unobservable`: take the step, re-verify the
 screen is still the same screen, and record the intermediate as unobservable rather than as a
 success. `down, down, confirm` rehearses as four verified moments, two of which carry weaker
@@ -3018,11 +3018,11 @@ evidence and say so.
 
 - **A yes to "watch me" is not a yes to rehearse.** `AskRehearse` is a new typed proposal kind;
   overloading the existing yes would broaden authority silently.
-- **The grant has no durable representation at all** â the simplest way to guarantee it cannot
+- **The grant has no durable representation at all** — the simplest way to guarantee it cannot
   survive a restart.
 - **Text entry is rehearsal-ineligible and stays that way.** Nothing was retained, so there is
   nothing to replay, and the fix is not to start retaining. The path is a parameter supplied at
-  invocation â the shape Marco already uses for secrets.
+  invocation — the shape Marco already uses for secrets.
 - **A naked coordinate is not a target.** Rehearsable only when the click resolves to a semantic
   control; coordinates travel as corroboration, never identity.
 - **Marco never navigates to the start.** That would need another procedure it has not verified.
@@ -3033,7 +3033,7 @@ evidence and say so.
 
 ## Core v1 lowering: checked, not assumed
 
-Core v1 can express everything a verified procedure does â ordered intents, an act to perform
+Core v1 can express everything a verified procedure does — ordered intents, an act to perform
 them through, both endings, the entry point. **The two gaps are NAMES**: what to call the actor
 and the verb. That is a question for the person, not a language change. The one thing Core v1
 cannot express is a text-entry parameter, which is why text entry is rehearsal-ineligible rather
@@ -3041,24 +3041,24 @@ than a language request.
 
 **No language change proposed. Language work stays frozen.**
 
-## NEXT â Roadmap 20: eligibility and the authorization request
+## NEXT — Roadmap 20: eligibility and the authorization request
 
 The first implementation step, and deliberately the one that generates no input: turn
 `CandidateAssessment` into a `RehearsalJudgement`, add `AskRehearse` with the readable question,
 and record an attempt-scoped grant that expires. All testable without a desktop, and it ends one
-step short of acting â which is where a milestone about authority should end.
+step short of acting — which is where a milestone about authority should end.
 
 ---
 
-# Roadmap 20 â rehearsal eligibility and attempt-scoped authorization (2026-08-10)
+# Roadmap 20 — rehearsal eligibility and attempt-scoped authorization (2026-08-10)
 
 The first implementation step of rehearsal, and deliberately the one that **performs no desktop
 input at all**. The strongest state the system can now reach is an inert grant.
 
-`internal/director/observe/rehearsal.go` â judgement, question, grant.
-`internal/director/observesession/runner.go` â `reviewRehearsal` at session end,
+`internal/director/observe/rehearsal.go` — judgement, question, grant.
+`internal/director/observesession/runner.go` — `reviewRehearsal` at session end,
 `authorizeRehearsal` on the yes, `Grant`, `RevokeRehearsal`.
-`cmd/director/observeregistry.go`, `observecmd.go` â the explainability surface.
+`cmd/director/observeregistry.go`, `observecmd.go` — the explainability surface.
 
 ## Evidence is not authority
 
@@ -3070,7 +3070,7 @@ Four things a reader will want kept apart, and the milestone is mostly the keepi
 - a **grant** is one user's yes to one attempt.
 
 A previous yes to *shall I learn this?* authorised **watching**. `AskRehearse` is a separate
-`AskKind` so that permission cannot be reached from this one â and that is checked, not asserted:
+`AskKind` so that permission cannot be reached from this one — and that is checked, not asserted:
 `TestOnlyARehearsalYesCreatesAuthority` says yes to the learning question and to the
 second-demonstration question and proves neither produces authority.
 
@@ -3082,16 +3082,16 @@ per-step verdicts, because two would force a lie:
 | | |
 |---|---|
 | `directly_verifiable` | lands on a *different* remembered screen |
-| `progress_unobservable` | lands back on the screen it started on â `down` in a menu |
+| `progress_unobservable` | lands back on the screen it started on — `down` in a menu |
 | `unverifiable` | lands somewhere Marco cannot resolve |
 
-`Progressed()` â deliberately not `Succeeded()` â is true for the middle one. It permits
+`Progressed()` — deliberately not `Succeeded()` — is true for the middle one. It permits
 *continuing*, nothing more, and only while the screen it must remain on is still there. Bounded at
 `MaxUnobservableRun = 2`, and the last step must always be directly verifiable, because a
 rehearsal that ends on a step Marco can only contain is an attempt with no answer either way.
 
 **The design's discriminator was wrong and the code found it.** ADR-023 described the middle case
-as "a transient checkpoint that stayed inside a screen" â but an unresolved transient checkpoint
+as "a transient checkpoint that stayed inside a screen" — but an unresolved transient checkpoint
 is exactly what `CandidateAssessment` already refuses, so on that reading `progress_unobservable`
 was structurally unreachable. Same failure mode as the term-ratio denominator. Corrected to a
 comparison of where the step landed against where it started.
@@ -3107,12 +3107,12 @@ rather than trusted from issue time. Cancellation revokes it.
 
 It cannot act: no executor-shaped method, no field that could hold a key, a label, a title or a
 pixel, and it lives in the analysis core whose transitive imports reach no keyboard, mouse or
-runtime. It is never written to disk â `TestNoAuthoritySurvivesARestart` reads the store back and
+runtime. It is never written to disk — `TestNoAuthoritySurvivesARestart` reads the store back and
 proves there is no section a grant could be restored from.
 
 The judgement is **recomputed when the yes arrives**, and fails closed two ways: if Marco no
 longer believes the evidence, and if the evidence merely *changed* while staying good enough. The
-second half is what a verdict comparison cannot see â the user agreed to one attempt at what they
+second half is what a verdict comparison cannot see — the user agreed to one attempt at what they
 were shown, and a revised demonstration is no longer that.
 
 ## Two things found
@@ -3128,10 +3128,10 @@ were shown, and a revised demonstration is no longer that.
 18 mutations, 17 killed. The two survivors are reported rather than papered over, both
 defence-in-depth rather than sole gates: the plan's `unverifiable` branch (the assessment already
 refuses every unresolvable checkpoint) and the runner's one-active-grant guard (`MaxOpen` is 1 and
-`ReviewRehearsal` short-circuits on `granted`, so production cannot reach it â the reachable half
+`ReviewRehearsal` short-circuits on `granted`, so production cannot reach it — the reachable half
 of that invariant *is* killed). Detail in ADR-023.
 
-## NEXT â Roadmap 21: one rehearsal step, dry
+## NEXT — Roadmap 21: one rehearsal step, dry
 
 Lower a single directly-verifiable step to the point immediately before input and prove, against a
 host that records instead of acting, that what *would* have been sent is exactly the step's
@@ -3140,21 +3140,21 @@ anything reaches the boundary. Still no real input.
 
 ---
 
-# Roadmap 21 â one rehearsal step, dry (2026-08-10)
+# Roadmap 21 — one rehearsal step, dry (2026-08-10)
 
 One authorized step lowered to the last thing before a computer, which is a notebook. **No
 keyboard, mouse, controller, accessibility or OS actuation of any kind.**
 
-`internal/director/rehearse` â the attempt.
-`internal/platform/recordhost` â the notebook.
-`cmd/director/rehearsedry.go` â the composition root, and the only place that chooses a host.
+`internal/director/rehearse` — the attempt.
+`internal/platform/recordhost` — the notebook.
+`cmd/director/rehearsedry.go` — the composition root, and the only place that chooses a host.
 
 ## The audit found the boundary already built
 
 [[ADR-005-legal-marco-only]] settled where the last line is, years of this codebase ago:
 
 ```
-marcoexec.Operation â legal Marco â lexer â parser â graph â compile â runtime â runtime.Host
+marcoexec.Operation → legal Marco → lexer → parser → graph → compile → runtime → runtime.Host
 ```
 
 `oshost.Host` presses keys. `recordhost.Host` appends a line. **Nothing else differs.** So there
@@ -3170,15 +3170,15 @@ failure mode this repository has now recorded four times.
 
 The Director learned that somebody **confirmed**. It did not learn Enter.
 
-Lowering a `NavIntent` to a key chord would have put a device binding â a property of a keyboard
-and an application â inside the Director, throwing away on the acting side exactly what
+Lowering a `NavIntent` to a key chord would have put a device binding — a property of a keyboard
+and an application — inside the Director, throwing away on the acting side exactly what
 [[ADR-013-navigation-is-meaning-not-keys]] protects on the watching side. So:
 
 - `os.marco` gained `this exports Navigate.`
 - `marcoexec` gained `KindNavigate`, lowering to `do OS's Navigate with "confirm".`
-- the intentâkey table lives backstage in `internal/oshost/navigate.go`
+- the intent→key table lives backstage in `internal/oshost/navigate.go`
 
-**Not navsource's table reversed.** Watching admits W/A/S/D and Space as *conditional* evidence â
+**Not navsource's table reversed.** Watching admits W/A/S/D and Space as *conditional* evidence —
 they mean navigation only on a screen that looked like a set of choices. Acting cannot be
 conditional: there is one key to press, and pressing W when the arrow key was meant would drive
 the car. `point` is deliberately absent, because a pointer press needs a position and a position
@@ -3188,7 +3188,7 @@ One new act capability, no new syntax. **Language work stays frozen.**
 
 ## The claim comes first, and a step is atomic
 
-The grant is spent BEFORE anything can be produced, and it stays spent if setup then fails â
+The grant is spent BEFORE anything can be produced, and it stays spent if setup then fails —
 otherwise "one attempt" becomes "as many attempts as it takes to get past the setup". A step whose
 whole ordered run does not fit its budget is refused before its first input rather than truncated:
 half of `down, down, confirm` is not a smaller version of the procedure, it is a different one
@@ -3200,11 +3200,11 @@ world: zero calls reached the boundary.
 
 ## And it claims nothing
 
-Two words: `would_emit` and `refused`. A `DryStep` is an engineering artefact â it verifies
+Two words: `would_emit` and `refused`. A `DryStep` is an engineering artefact — it verifies
 nothing, counts towards nothing, alters no candidate, no relationship and no memory, and no part
 of the learning loop reads it. See [[ADR-024-a-dry-step-is-not-evidence]].
 
-`progress_unobservable` **does** lower â it is a step Marco may take â and arrives carrying its
+`progress_unobservable` **does** lower — it is a step Marco may take — and arrives carrying its
 weaker marker, which is what stops it being read as arrival. A grant's `MaxUnobservable` is now the
 authorized plan's own longest unobservable run rather than the constant, so a plan whose every step
 lands on a remembered screen carries a budget of zero.
@@ -3213,7 +3213,7 @@ lands on a remembered screen carries a budget of zero.
 
 **Answering a question on a FINISHED session never reached memory.** The registry recorded the
 answer in the durable ledger and stopped there. Every question this system asks is asked at
-session *end*, so `g.active` is nil by the time anybody can answer one â meaning the finished
+session *end*, so `g.active` is nil by the time anybody can answer one — meaning the finished
 branch is the only branch, and a user could say "yes, learn that" every session forever while
 Marco never once armed a capture. Fixed in `observationRegistry.Answer`; the wiring test found it
 on its first run.
@@ -3221,7 +3221,7 @@ on its first run.
 ## And a second defect, caught by reading the output
 
 A dry run CLASSIFIED the post-input screen. With a recording host the application does not move, so
-it reported `wrong_state` â "the screen became A, which is not what that step was for" â which
+it reported `wrong_state` — "the screen became A, which is not what that step was for" — which
 reads as a failed step when nothing had been sent. `Live` is now told whether its actuator reaches
 a computer; when it does not, the emission is the whole of what happened and the record says Marco
 did not try it.
@@ -3232,56 +3232,56 @@ did not try it.
 early `GrantConsumed` check in `BeginDryAttempt` duplicates the grant's own claim-time refusal, so
 removing it produces the same closed reason by the other route. It stays for the message.
 
-## NEXT â Roadmap 22: one rehearsal step, live
+## NEXT — Roadmap 22: one rehearsal step, live
 
 The first real learned input. Claim the grant, establish the current source subject through
 perception rather than as an argument, emit exactly one semantic input, settle, observe, and
 classify: `directly_verified`, `progress_unobservable`, `wrong_state`, `target_moved`,
-`target_unavailable`, `ambiguous`, `unobservable`. Then stop â no second step, and a
+`target_unavailable`, `ambiguous`, `unobservable`. Then stop — no second step, and a
 `RehearsalResult` becomes the first record in this system entitled to say Marco tried something.
 
 ---
 
-# Roadmap 22 â one rehearsal step, live (2026-08-10)
+# Roadmap 22 — one rehearsal step, live (2026-08-10)
 
 The first milestone in which something Marco learned by watching may move a real computer.
 
-`internal/director/rehearse/live.go` â the attempt.
-`cmd/director/rehearserun.go` â the composition root, and the only thing that chooses a real host.
-`director rehearse [--live]` â the trigger, and the only thing that spends a grant.
+`internal/director/rehearse/live.go` — the attempt.
+`cmd/director/rehearserun.go` — the composition root, and the only thing that chooses a real host.
+`director rehearse [--live]` — the trigger, and the only thing that spends a grant.
 
 See [[ADR-025-one-move-then-look]].
 
 ## Nothing above the host changed
 
 Same `Attempt`, same claim, same `LowerStep`, same `KindNavigate`, same legal Marco, same compiler
-and runtime. [[ADR-005-legal-marco-only]] holds unchanged â the live input is the same program the
+and runtime. [[ADR-005-legal-marco-only]] holds unchanged — the live input is the same program the
 dry milestone compiled, with `oshost.Host` beneath instead of the notebook.
 
 What this milestone adds is everything that must be true *around* one real input:
 
 ```
-look â compare â CLAIM â re-check the window â emit â settle â look again â classify â stop
+look → compare → CLAIM → re-check the window → emit → settle → look again → classify → stop
 ```
 
 ## The starting screen comes from perception
 
 Roadmap 21 accepted the source subject as scope input, which was right for a milestone that could
 not act and is not right now. `Live.establish` watches the window for a bounded run of
-observations and resolves the screen through `SignatureOfState` â `Memory.Recall` â the same path a
+observations and resolves the screen through `SignatureOfState` → `Memory.Recall` — the same path a
 demonstration capture uses. Wrong screen, unrecognised screen, ambiguous screen: nothing is sent.
 
-The grant says the user demonstrated A â B, which is a claim about history. Whether the interface
+The grant says the user demonstrated A → B, which is a claim about history. Whether the interface
 is showing A *now* is a question only looking can answer.
 
 ## The claim, and the guard after it
 
 The permission is spent **after** the comparison and **before** the emission. Before it Marco has
 not yet been able to act and a mismatch costs nothing; after it an input is possible, so the grant
-is gone whatever happens â otherwise "one attempt" becomes "as many as it takes to get past setup".
+is gone whatever happens — otherwise "one attempt" becomes "as many as it takes to get past setup".
 
 Then the final guard, as late as it can possibly be: re-acquire the window and compare identity,
-process and generation. This closes the race that matters most â **verify the screen, the user
+process and generation. This closes the race that matters most — **verify the screen, the user
 alt-tabs, the keystroke lands in their email.** Anything moved, zero input.
 
 ## A refusal is not a result
@@ -3299,23 +3299,23 @@ Seven outcomes, and two words that must not become one:
 | `unobservable` | a RUNTIME failure to look. Input went out; Marco cannot say what came of it. |
 
 `directly_verified` requires the SPECIFIC expected subject. A screen that became a different
-remembered screen is `wrong_state` â treating change as success is how a procedure gets promoted
+remembered screen is `wrong_state` — treating change as success is how a procedure gets promoted
 for going somewhere nobody asked for.
 
 ## Settling is watching
 
 The post-input wait watches the screen state, stops the moment it has held for three consecutive
-observations, and is bounded at eight. Not `execute`'s region waiter â that lives behind the
+observations, and is bounded at eight. Not `execute`'s region waiter — that lives behind the
 execution pipeline the rehearsal path must not reach, and it answers a question about pixels where
 this layer's evidence is screen states. Not a sleep either.
 
 ## Acting is an explicit decision, twice
 
-`rehearse.Live` is built with perception and memory â neither can affect anything â and is
+`rehearse.Live` is built with perception and memory — neither can affect anything — and is
 INCAPABLE of emitting until the composition root calls `WithActuator`. `--live` then chooses the
 real host. No session spends a grant, no session-end review spends one, nothing spends one on a
 timer, and a later session **withdraws** an unspent authorization rather than leaving it lying
-around. `Live` also takes a `Recogniser` â one method, and it is a read â so a rehearsal has no
+around. `Live` also takes a `Recogniser` — one method, and it is a read — so a rehearsal has no
 write to memory to reach.
 
 ## Found while building it
@@ -3337,23 +3337,23 @@ can move or vanish, a screen that changes when the input lands, and a runner tha
 of acting. **No application was launched and no physical input was emitted.** The first real
 actuation is the user's to choose, with `director rehearse --live`.
 
-## NEXT â Roadmap 23: the multi-step rehearsal state machine
+## NEXT — Roadmap 23: the multi-step rehearsal state machine
 
-Under one attempt grant: step â verify â step â verify through the whole candidate, stopping at the
-first outcome that is not `directly_verified` or a contained `progress_unobservable`. Then â and
-only then â a route that completes may produce a whole-procedure `RehearsalResult` eligible for
+Under one attempt grant: step → verify → step → verify through the whole candidate, stopping at the
+first outcome that is not `directly_verified` or a contained `progress_unobservable`. Then — and
+only then — a route that completes may produce a whole-procedure `RehearsalResult` eligible for
 verification, which is the first thing that could ever make `ProcedureCandidate.Verified` true.
 
 ---
 
-# Roadmap 23 â the multi-step rehearsal state machine (2026-08-10)
+# Roadmap 23 — the multi-step rehearsal state machine (2026-08-10)
 
-Marco proposes one step. Reality answers. Only then may Marco propose the next â and a rehearsal
+Marco proposes one step. Reality answers. Only then may Marco propose the next — and a rehearsal
 succeeds only when the WHOLE learned route survives that conversation.
 
-`internal/director/rehearse` â the state machine and the whole-attempt result.
-`internal/director/observe/rehearsal.go` â `RehearsalEvidence`, and what it does and does not prove.
-`internal/director/semanticmemory` â where a completed route is kept.
+`internal/director/rehearse` — the state machine and the whole-attempt result.
+`internal/director/observe/rehearsal.go` — `RehearsalEvidence`, and what it does and does not prove.
+`internal/director/semanticmemory` — where a completed route is kept.
 
 See [[ADR-026-verification-is-derived-from-a-completed-rehearsal]].
 
@@ -3368,8 +3368,8 @@ open --lower--> acted --observe--> open        the only loop
   +---------------+------------------+--> finished | cancelled
 ```
 
-`LowerStep` may run only from `open`. **ACT â ACT is impossible at the type**, so an orchestrator
-with a bug is REFUSED (`awaiting_observation`) rather than typing twice â the invariant is a
+`LowerStep` may run only from `open`. **ACT → ACT is impossible at the type**, so an orchestrator
+with a bug is REFUSED (`awaiting_observation`) rather than typing twice — the invariant is a
 property of the transition graph, not of somebody remembering to look.
 
 No second lowering path. No second actuator. No sequence executor beside the proven primitive: the
@@ -3378,7 +3378,7 @@ machine calls `LowerStep` repeatedly and everything below it is untouched.
 ## The authorization needed no widening
 
 `AskRehearse` already asks *"I'd like to try it once myself, one step at a time, and stop the moment
-the screen isn't what I expected"* â a bounded multi-step attempt described in the user's own words.
+the screen isn't what I expected"* — a bounded multi-step attempt described in the user's own words.
 Nothing about what they approved changed.
 
 The ATTEMPT owns authorization; a step owns none. Bounds come from the plan: inputs from the
@@ -3390,7 +3390,7 @@ ends, and cannot be resumed, reused or restored.
 
 The subtle one. A step the candidate said was **directly verifiable**, whose screen then did not
 change, is `wrong_state`. Inferring `progress_unobservable` afterwards would let every step that did
-nothing report itself as safely contained â and would eventually promote a procedure that presses
+nothing report itself as safely contained — and would eventually promote a procedure that presses
 keys into a void.
 
 And **a route cannot succeed on containment**: the final step must be directly verified, because
@@ -3402,13 +3402,13 @@ containment says the screen did not change and a destination nobody arrived at i
 property of an observation.
 
 A completed attempt stores `observe.RehearsalEvidence`: which candidate, which digest, which
-endpoints, how many steps and inputs, the per-step outcome vocabulary. **Nothing executable** â
+endpoints, how many steps and inputs, the per-step outcome vocabulary. **Nothing executable** —
 reproducing any of it means lowering the candidate again under a fresh authorization.
 
 `CandidateAssessment.WithRehearsal` then recomputes verification every time it is asked, and three
 things must hold: the route completed, the digest still matches, both endpoints are still
 recognised. A stored boolean would go on saying yes after the demonstration was revised or a screen
-was contradicted â the discipline [[ADR-021-a-judgement-is-recomputed-not-recorded]] established,
+was contradicted — the discipline [[ADR-021-a-judgement-is-recomputed-not-recorded]] established,
 applied to the strongest claim in the system.
 
 Persistence is required because the NEXT milestone cannot ask an exited process whether the route
@@ -3432,33 +3432,33 @@ for step 2+.
 
 ## READY for the first meaningful live test
 
-The smallest safe one: an application with a **reversible** two-step menu transition â open a
-settings screen, then open one of its sub-screens â with `director rehearse --live`. Two steps is
-enough to exercise act â observe â verify â act, and reversible means a wrong outcome costs a press
+The smallest safe one: an application with a **reversible** two-step menu transition — open a
+settings screen, then open one of its sub-screens — with `director rehearse --live`. Two steps is
+enough to exercise act → observe → verify → act, and reversible means a wrong outcome costs a press
 of Escape. It does not need to be any particular game. **I have not run it.**
 
-## NEXT â Roadmap 24: lower a verified procedure into readable Marco
+## NEXT — Roadmap 24: lower a verified procedure into readable Marco
 
 The first milestone that turns learned behaviour into something a person can read, edit and delete.
-Core v1 already expresses everything a verified route does; the two gaps are NAMES â what to call
-the actor and what to call the verb â and both are questions for the user.
+Core v1 already expresses everything a verified route does; the two gaps are NAMES — what to call
+the actor and what to call the verb — and both are questions for the user.
 
 ---
 
-# Roadmap 24 â what Marco learned becomes Marco (2026-08-10)
+# Roadmap 24 — what Marco learned becomes Marco (2026-08-10)
 
 *Director watched and verified the behaviour. What it learned is now ordinary readable Marco.*
 
-`internal/director/observe/lowering.go` â may it be written down?
-`internal/director/marcoexec/play.go` â writing it.
-`cmd/director/learnedplay.go`, `director learned` â the surface.
+`internal/director/observe/lowering.go` — may it be written down?
+`internal/director/marcoexec/play.go` — writing it.
+`cmd/director/learnedplay.go`, `director learned` — the surface.
 
 See [[ADR-027-what-marco-learned-becomes-marco]].
 
 ## The audit, and why nothing new was invented
 
 `internal/codegen` is the TEACH-side generator and is explicitly forbidden to the Director. There is
-no `internal/director/marcostep` â the comment naming it is stale; that package is `marcoexec`, which
+no `internal/director/marcostep` — the comment naming it is stale; that package is `marcoexec`, which
 already owns "a typed intention in, legal Marco out, one encoder, one set of escaping rules". A
 learned play is that same responsibility, so it lives there rather than in a third generator with a
 third set of escaping bugs.
@@ -3468,12 +3468,12 @@ vocabulary and to the backstage-word rule with the REAL lexer, parser, graph bui
 
 ## The four things that make it Marco rather than IR
 
-**Meanings only.** The lowering input is `[][]NavIntent` â nothing else is handed to the generator.
+**Meanings only.** The lowering input is `[][]NavIntent` — nothing else is handed to the generator.
 Not filtered at it: a field that exists eventually gets printed, so a `Digest` or `Checkpoint` field
 on the judgement type fails a test whether or not anything prints it.
 
 **The compiler decides.** Against the canonical `os.marco`, not the spec harness's stub. A meaning
-Core has no sentence for is a language-expression gap â reported, lowering stopped, language
+Core has no sentence for is a language-expression gap — reported, lowering stopped, language
 unchanged.
 
 **One actor, one verb, no manufactured scene.** A learned route has no place in the play, and
@@ -3481,7 +3481,7 @@ inventing one to look like an AST would be the exact shape this milestone exists
 
 **Provisional names that say so.** `UnnamedShortcut` and `Run`. Guessing a meaningful name from a
 screen's text would leak OCR into the language; guessing from the application would name the play
-after the wrong thing. `naming_required` was not needed â an inert artifact nothing can ask for by
+after the wrong thing. `naming_required` was not needed — an inert artifact nothing can ask for by
 name is safe to give a placeholder.
 
 ## What it produces
@@ -3513,14 +3513,14 @@ do UnnamedShortcut's Run...
 
 No file, no registry, no resolution path, nothing that can run. `marcoexec` cannot reach a runtime,
 host, platform adapter, rehearsal grant or execution path. The test that matters snapshots the
-working tree before and after and requires it byte-unchanged â not "contains no suspicious name",
+working tree before and after and requires it byte-unchanged — not "contains no suspicious name",
 because a play written anywhere a registry might later scan becomes resolvable by a request nobody
 made.
 
 ## Mutations
 
-12 run, 11 killed. The survivor is equivalent â every path that skips a step also adds a refusal,
-and `Eligible` already clears the steps â and is now documented at the guard itself rather than
+12 run, 11 killed. The survivor is equivalent — every path that skips a step also adds a refusal,
+and `Eligible` already clears the steps — and is now documented at the guard itself rather than
 counted as coverage.
 
 **Two of my own mutations exposed weak tests before the code:** one test built its expectation AFTER
@@ -3533,11 +3533,11 @@ watched only `routes/` for a write that could land anywhere.
 |---|---|
 | observe a procedure | **yes**, since Roadmap 15 |
 | verify a procedure | **yes**, derived from a completed rehearsal (Roadmap 23) |
-| express it as Marco | **yes** â this milestone |
+| express it as Marco | **yes** — this milestone |
 | persist the source | **no** |
 | register it as a learned skill | **no** |
 | resolve it from a later request | **no** |
-| execute it | **no** â and generating Marco is not authorization to run Marco |
+| execute it | **no** — and generating Marco is not authorization to run Marco |
 
 ## A gap found and left visible
 
@@ -3546,17 +3546,17 @@ beside the source rather than inside it, because the artifact is not persisted a
 yet to attach metadata to. It becomes load-bearing the moment a play IS saved: a learned route that
 cannot say which demonstration and which rehearsal it came from is a file nobody can audit.
 
-## NEXT â Roadmap 25: name it, save it, and only then let it be asked for
+## NEXT — Roadmap 25: name it, save it, and only then let it be asked for
 
-Four separate permissions in the order a person meets them â name, save, register, invoke. The
+Four separate permissions in the order a person meets them — name, save, register, invoke. The
 prerequisite Roadmap 24 exposed is the second one's: route metadata.
 
 ---
 
-# Roadmap 25 â a learned play is a file with a past (2026-08-10)
+# Roadmap 25 — a learned play is a file with a past (2026-08-10)
 
 *Director can turn verified learning into a named, auditable, durable Marco play that a fresh Marco
-process can find again â without that lifecycle granting itself permission to perform it.*
+process can find again — without that lifecycle granting itself permission to perform it.*
 
 `internal/routes/origin.go`, `internal/director/marcoexec/play.go`, `cmd/director/learnedplay.go`,
 `director learned --name --verb --save --register --forget`. See
@@ -3565,14 +3565,14 @@ process can find again â without that lifecycle granting itself permission 
 ## The prerequisite, re-verified
 
 Roadmap 24 said there is no route-metadata mechanism. Checked against the tree: half true. There is
-no metadata sidecar, but there IS a **companion-file convention** â a taught route keeps its
+no metadata sidecar, but there IS a **companion-file convention** — a taught route keeps its
 recording at `<slug>.rec.json` beside the source, and `Delete` and `Rename` already carry it along.
 The shape existed; the record did not. Provenance is now `<slug>.origin.json` in the same shape.
 
 ## Saved and registered are different PLACES
 
 Route discovery is a directory scan: `global/`, an app's loose files, `context/`, `focus/`. Nothing
-else is read. So a saved play lives in `<app>/learned/` â on disk, readable, editable, auditable,
+else is read. So a saved play lives in `<app>/learned/` — on disk, readable, editable, auditable,
 **structurally invisible to the resolver**. Registering is moving it somewhere the resolver looks.
 
 `saved == registered` is not a mistake code can make: there is no boolean to get wrong. And no
@@ -3581,13 +3581,13 @@ registry was invented, because discovery already is one.
 ## The two-file problem
 
 Source first, provenance second, both atomic through temp+rename. A crash between them leaves a
-`.marco` with no sidecar â an ordinary authored play, claiming nothing. The reverse would leave
+`.marco` with no sidecar — an ordinary authored play, claiming nothing. The reverse would leave
 provenance describing a file that does not exist, and a later unrelated file under that slug would
 inherit a past it never had; `Origin` refuses that separately, so it is unreachable twice.
 
 ## The user owns the file
 
-Editing a learned play is allowed and changes nothing about permission â it still resolves, still
+Editing a learned play is allowed and changes nothing about permission — it still resolves, still
 compiles, still runs under whatever authority ordinary routes run under. What changes is the CLAIM:
 the digest stops matching and the provenance reads `edited`. Registering an edited *staged* play is
 refused, because registering on Director's authority a file Director did not write would be
@@ -3596,11 +3596,11 @@ vouching for somebody else's edit.
 ## Naming
 
 Two names, because a play is a sentence: `do Volume's Mute...`. Validated against Marco's own rule
-with a readable refusal before the compiler's â not a second grammar. Naming REGENERATES from the
+with a readable refusal before the compiler's — not a second grammar. Naming REGENERATES from the
 same ordered meanings; a substitution is a rename that can change a procedure sharing a word, and
 the file would still compile.
 
-## Mutations â and a harness bug worth recording
+## Mutations — and a harness bug worth recording
 
 12 run, 12 killed. But the first "all killed" run was **wrong**: an earlier invocation had aborted
 on a shell syntax error mid-script, leaving a mutation applied and never restored, so three of the
@@ -3619,7 +3619,7 @@ have not looked at has not been checked.**
 | learn relationships | **yes** |
 | verify a procedure | **yes** (derived from a completed rehearsal) |
 | write readable Marco | **yes** |
-| name it | **yes** â the user does |
+| name it | **yes** — the user does |
 | persist it | **yes** |
 | audit where it came from | **yes** |
 | survive restart | **yes** |
@@ -3627,17 +3627,17 @@ have not looked at has not been checked.**
 | resolve a later request to it | **yes** |
 | execute it automatically | **no** |
 
-## NEXT â Roadmap 26: the last boundary
+## NEXT — Roadmap 26: the last boundary
 
 Everything up to *"I know which play you mean"* works and survives a restart. What remains is the
-sentence after it. The question is not how to run a `.marco` â Marco has always done that. It is
+sentence after it. The question is not how to run a `.marco` — Marco has always done that. It is
 whether a learned play resolved from a natural request reaches the ordinary invocation boundary on
 the ordinary authority, or needs one of its own. **Audit `marco do` first:** if resolution already
 runs immediately with no seam between, that seam is the milestone.
 
 ---
 
-# Roadmap 26 â resolution is not permission (2026-08-10)
+# Roadmap 26 — resolution is not permission (2026-08-10)
 
 *A learned play reaches the same execution door as every other Marco play, but knowing which play
 to use is never confused with permission to open that door.*
@@ -3648,35 +3648,35 @@ root. See [[ADR-029-resolution-is-not-permission]].
 ## The audit found no door
 
 ```
-Do(name) â Reg.Resolve(app, name) â d.Run(rt) â driver.RunFileWithHosts(...)
+Do(name) → Reg.Resolve(app, name) → d.Run(rt) → driver.RunFileWithHosts(...)
 ```
 
 One function. No seam. `confirm` existed but only for teaching. So the milestone was not "add
-learned-play permission" â it was **build the door**, for every route.
+learned-play permission" — it was **build the door**, for every route.
 
 ## What it is
 
-`Deps.Resolve` returns a `Resolved`: which play, what kind, what state its provenance is in â a
+`Deps.Resolve` returns a `Resolved`: which play, what kind, what state its provenance is in — a
 value that can be inspected, logged and refused, with nothing on it that runs anything. `Authorize`
 is the door. `Run` is behind it.
 
 | play | verdict |
 |---|---|
-| authored, taught | allowed â somebody wrote it |
+| authored, taught | allowed — somebody wrote it |
 | learned, provenance intact | ask, once per invocation |
-| learned, edited | allowed as ordinary â it is the user's writing now |
-| learned, no way to ask | refused â fail closed |
+| learned, edited | allowed as ordinary — it is the user's writing now |
+| learned, no way to ask | refused — fail closed |
 
 `Declined` (the user said no), `Refused` (Marco declined) and resolution failing are three
 different sentences. Authority is per invocation and is never written down: no `Trusted: true`, and
 asking again next time is correct rather than missing.
 
-After the decision it is `.marco` â lexer â parser â graph â compile â runtime â Host. No Director
+After the decision it is `.marco` → lexer → parser → graph → compile → runtime → Host. No Director
 executor, no candidate replay, no learned host, no fast path.
 
 8 mutations, 8 killed.
 
-## THE GAP â and it is the next milestone
+## THE GAP — and it is the next milestone
 
 **A learned play does not encode its own starting state, and Core v1 cannot express one.**
 
@@ -3685,8 +3685,8 @@ Marco already refuses to run unless that application is in front. SCREEN-level s
 Director verified *"from subject A"*; the play says only `do OS's Navigate with "down".`
 
 So a learned play invoked from the wrong screen inside the right application presses its keys
-anyway. **A confirmation does not fix that** â a user saying yes does not make an invalid starting
-state correct â and it was deliberately not hidden behind a Director graph consulted at execution
+anyway. **A confirmation does not fix that** — a user saying yes does not make an invalid starting
+state correct — and it was deliberately not hidden behind a Director graph consulted at execution
 time. The promise is that what Director learned becomes Marco; a play whose safety depends on
 something the play cannot say has not kept it.
 
@@ -3697,52 +3697,52 @@ something the play cannot say has not kept it.
 | observe, recognise, learn, remember, ask | **yes** |
 | watch a demonstration, compare two | **yes** |
 | request and perform bounded rehearsal | **yes** |
-| verify a whole route | **yes** â derived from a completed rehearsal |
+| verify a whole route | **yes** — derived from a completed rehearsal |
 | generate readable Marco, name, save, register, resolve | **yes** |
-| authorize an invocation | **yes** â this milestone |
+| authorize an invocation | **yes** — this milestone |
 | execute through ordinary Marco | **yes**, proved into a recording host |
-| verify the final real-world result | **no** â nothing observes after an ordinary run |
-| start-state safety | **partial** â application yes, screen no |
+| verify the final real-world result | **no** — nothing observes after an ordinary run |
+| start-state safety | **partial** — application yes, screen no |
 
 ## The product question, answered
 
-*If I teach Marco something today, close it, reopen tomorrow and ask for it â what happens?*
+*If I teach Marco something today, close it, reopen tomorrow and ask for it — what happens?*
 
 **In plain terms:** Marco finds the play you named, tells you it learned that one by watching you,
 and asks whether to run it. If you say yes it runs it like any other play you have. If you edited
 the file, it stops mentioning that it learned it and just runs it, like anything else you wrote.
 
-**The chain:** phrase â `nlu`/resolver â `Registry.Resolve` â `Classify` (reads `.origin.json`,
-digest checked) â `Authorize` â `AskFirst` â `driver.RunFileWithHosts` â lexer â parser â graph â
-compile â runtime â Host.
+**The chain:** phrase → `nlu`/resolver → `Registry.Resolve` → `Classify` (reads `.origin.json`,
+digest checked) → `Authorize` → `AskFirst` → `driver.RunFileWithHosts` → lexer → parser → graph →
+compile → runtime → Host.
 
 **The caveat:** it does not yet check you are on the right SCREEN. That is Roadmap 27.
 
-## NEXT â Roadmap 27: let a play say where it starts
+## NEXT — Roadmap 27: let a play say where it starts
 
 A LANGUAGE question before a Director one. Director knows the answer; Marco has no way to hear it.
 Investigate in order: whether an existing Core construct already carries it; if not, whether this
-is the concrete Director requirement that justifies reopening Core v1 â which the governance rule
+is the concrete Director requirement that justifies reopening Core v1 — which the governance rule
 reserves for exactly this case; and only then what the sentence should be.
 
 Until then a live Marco Moment would be a keypress into an unverified screen.
 
 ---
 
-# Roadmap 27 â a play says where it begins (2026-08-10) â PARTIAL
+# Roadmap 27 — a play says where it begins (2026-08-10) — PARTIAL
 
 **Core v1 did not change. No syntax was added.** See
 [[ADR-030-a-play-says-where-it-begins]].
 
 ## The investigation stopped at step one
 
-`when?` / `or?` over a capability that answers ok-or-failed already expresses an entry condition â
+`when?` / `or?` over a capability that answers ok-or-failed already expresses an entry condition —
 the same shape `OS's Focus` has always used to mean *"ok if the active window matches"*. It
 compiles today. Contracts and anchors were never reached for: a familiar word is not automatically
 the right abstraction.
 
 **What was missing was a CAPABILITY, not a construct.** Nothing could answer *"is the screen the
-user named the one in front?"*. A capability is declared in an act â the route
+user named the one in front?"*. A capability is declared in an act — the route
 [[Marco-Boundary]] already prescribes, and the one `Navigate` took in Roadmap 21.
 
 `internal/screenmod/screen.marco` declares one read-only export. Every capability in it READS;
@@ -3752,11 +3752,11 @@ capabilities of declared acts, so a typo fails at compile time.
 ## The compiler found the shape
 
 The first attempt wrapped the steps inside the `when ok?` arm and ended the `or?` arm with a
-period. Refused: *"falls off the end without an explicit return"* â the four endings are
+period. Refused: *"falls off the end without an explicit return"* — the four endings are
 exclamations, and a body whose only returns are inside a two-armed block is not recognised as
 returning.
 
-The shape that compiles is the early return â *ask, and stop if the answer is no* â which is also
+The shape that compiles is the early return — *ask, and stop if the answer is no* — which is also
 the one a person would say out loud. The readable shape and the legal shape turned out to be the
 same shape.
 
@@ -3788,10 +3788,10 @@ cannot start.
 
 Mismatch, ambiguity, unobservable, unavailable target, or a host that cannot answer at all are all
 *not ok*, and the `or?` arm returns before any effect. Under `cmd/marco` the fallback host is
-`oshost`, whose unknown-action branch returns **failed** â so a Marco with no recogniser wired
+`oshost`, whose unknown-action branch returns **failed** — so a Marco with no recogniser wired
 refuses a guarded play rather than running it. Silence is never yes.
 
-## Why this is PARTIAL â read before Roadmap 28
+## Why this is PARTIAL — read before Roadmap 28
 
 **The capability is declared but not fulfilled.** No host answers `Screen's Showing`, so today
 every guarded play refuses. Safe, deliberate, unfinished: a learned play is currently unrunnable
@@ -3803,24 +3803,24 @@ OCR, by the same rule that governs naming the play.
 
 **And it settles the availability question plainly:** a learned play cannot validate its own
 starting screen without Director. Application context is ordinary Marco; screen recognition is
-Director's. The separation is "Director figures out the play, Marco performs it" â not "Marco
+Director's. The separation is "Director figures out the play, Marco performs it" — not "Marco
 performs it alone".
 
 ## Postconditions
 
-The same mechanism would express one: `do Screen's Showing with "â¦"... when ok? â¦ or? this is
-failed â¦!` reads identically after the steps as before them. Nothing was implemented for it, but
-start conditions and final verification are NOT fundamentally different in the language â which is
+The same mechanism would express one: `do Screen's Showing with "…"... when ok? … or? this is
+failed …!` reads identically after the steps as before them. Nothing was implemented for it, but
+start conditions and final verification are NOT fundamentally different in the language — which is
 worth knowing when the verification milestone comes.
 
-## NEXT â Roadmap 28
+## NEXT — Roadmap 28
 
 Fulfil the act, and let the user name the screen. Then prove the wrong-screen Marco Moment end to
 end. Only then is a live Marco Moment defensible.
 
 ---
 
-# Roadmap 28 â the user names the stage (2026-08-10) â PARTIAL
+# Roadmap 28 — the user names the stage (2026-08-10) — PARTIAL
 
 **CORE_V1_CHANGED: NO.** No syntax was added.
 
@@ -3835,7 +3835,7 @@ screen.
 
 A test that read the source and asked the compiler shipped it. What caught it was running the play
 against a Screen host that said no and watching `OS's Navigate` come out regardless. The shape that
-works nests the steps INSIDE the `when ok?` arm â structural, because there is no line after the
+works nests the steps INSIDE the `when ok?` arm — structural, because there is no line after the
 block for control to fall through to.
 
 **Compiling is not behaving.** ADR-030 has been corrected rather than quietly rewritten; the
@@ -3850,7 +3850,7 @@ menu` typed by a person is allowed; the same words read off a screen are not.
 subjects in one application may not share a name; a duplicate arriving some other way is ambiguous,
 and ambiguous refuses.
 
-**A host that looks and compares and can do nothing else** â three read methods, reaching no OS
+**A host that looks and compares and can do nothing else** — three read methods, reaching no OS
 host, driver, window activation, grant, execution pipeline or orchestrator. Five internal outcomes
 collapse to `failed` at the language boundary and stay apart in diagnostics, because *"I could not
 look"* and *"I looked and it was different"* send you to fix different things.
@@ -3859,7 +3859,7 @@ look"* and *"I looked and it was different"* send you to fix different things.
 figures out the play; Marco performs it; Director still provides the eyes while it does. Stated
 plainly rather than contorted around.
 
-**The sidecar enforces nothing.** Delete the guard and the play runs anywhere â proved
+**The sidecar enforces nothing.** Delete the guard and the play runs anywhere — proved
 adversarially, and correct.
 
 ## Results
@@ -3885,8 +3885,8 @@ the name.
 
 ## Postconditions
 
-`POSTCONDITION_REUSABLE`. The same sentence reads identically after the steps â `do Screen's Showing
-with "controller settings"... when ok? this is ok! or? this is failed â¦!`. Nothing was implemented
+`POSTCONDITION_REUSABLE`. The same sentence reads identically after the steps — `do Screen's Showing
+with "controller settings"... when ok? this is ok! or? this is failed …!`. Nothing was implemented
 for it; the smallest next step after Roadmap 29 would be emitting it for the verified destination.
 
 ## LIVE_MARCO_MOMENT: NOT_READY
@@ -3894,14 +3894,14 @@ for it; the smallest next step after Roadmap 29 would be emitting it for the ver
 Blocker: the naming question. Every safety property holds, but no user has been asked what a screen
 is called, so no guarded play can be produced by the ordinary flow.
 
-## NEXT â Roadmap 29
+## NEXT — Roadmap 29
 
 Ask the user what the screen is called, through the existing proposal ledger, bound to the durable
 subject rather than to whatever is current when the answer arrives.
 
 ---
 
-# Roadmap 29 â the name is required, not requested (2026-08-10) â PARTIAL
+# Roadmap 29 — the name is required, not requested (2026-08-10) — PARTIAL
 
 **CORE_V1_CHANGED: NO.**
 
@@ -3909,18 +3909,18 @@ subject rather than to whatever is current when the answer arrives.
 
 **`observe.ScreenName`, with one constructor.** `UserSuppliedScreenName` is the only way to make
 one, and `Store.NameSubject` now takes that type rather than a `string`. Observed text cannot
-become a screen name by being assigned to the right variable â somebody has to write a conversion
+become a screen name by being assigned to the right variable — somebody has to write a conversion
 a reviewer can grep for. The privacy exception is now a property of the type rather than a rule.
 
 **`AskNameScreen`** added to the closed ask vocabulary.
 
 **Lowering REQUIRES the name, resolved from memory.** `JudgeLowering` reads `Called` for the actual
-source subject and refuses `screen_unnamed` when it is absent. The Roadmap 28 loophole â a caller
-passing any name it liked â is closed: the caller cannot supply it at all.
+source subject and refuses `screen_unnamed` when it is absent. The Roadmap 28 loophole — a caller
+passing any name it liked — is closed: the caller cannot supply it at all.
 
 **`RefusalScreenUnnamed` is distinct from a placeholder case, deliberately.** A play's actor and
 verb may be provisional because naming a behaviour can wait. A screen name cannot: `Screen's
-Showing with "â¦"` is executable meaning, and `"UnnamedScreen"` resolves to nothing.
+Showing with "…"` is executable meaning, and `"UnnamedScreen"` resolves to nothing.
 
 **The production path now emits the guard**, in the corrected nested shape:
 
@@ -3937,7 +3937,7 @@ this's Run does...
 The screen name in that line came from durable memory for the real source subject, and the whole
 file compiles against both canonical act surfaces.
 
-## What did NOT land â read before Roadmap 30
+## What did NOT land — read before Roadmap 30
 
 **The naming QUESTION is still not surfaced or answered through the ProposalLedger.** The ask kind
 exists; nothing produces the proposal, and no response path routes a user's answer into
@@ -3953,13 +3953,13 @@ parts that did land.
 ## LIVE_MARCO_MOMENT: NOT_READY
 
 Blockers, in order: the naming question is not production-wired; the mutation gate for Roadmaps
-28â29 has not been run.
+28–29 has not been run.
 
-## Roadmap 31 â Marco actually asks what the screen is called
+## Roadmap 31 — Marco actually asks what the screen is called
 
 Roadmaps 28 and 29 built a question and a durable write and never connected them. This closes it.
 
-**The demand.** `cmd/director/learnedplay.go:92` â when `JudgeLowering` refuses a
+**The demand.** `cmd/director/learnedplay.go:92` — when `JudgeLowering` refuses a
 rehearsal-verified candidate with `screen_unnamed`, the lowering loop raises the question for
 `c.Start.Subject`. That refusal is the *only* trigger. Marco does not name screens for tidiness,
 and it does not scan memory for unnamed subjects.
@@ -3969,13 +3969,13 @@ and it does not scan memory for unnamed subjects.
 it is about; application-scoped, so an answer typed while another program is in front does not
 land in the wrong namespace.
 
-**The answer.** A typed request of its own â `service.ObserveScreenName` â `director name-screen
-<session> <question-id> "the pause menu"` â converted to `observe.UserSuppliedScreenName` at
+**The answer.** A typed request of its own — `service.ObserveScreenName` → `director name-screen
+<session> <question-id> "the pause menu"` — converted to `observe.UserSuppliedScreenName` at
 `cmd/director/observeregistry.go:611`, the one production conversion point. The generic
 `ProposalLedger.Respond` refuses `AskNameScreen` outright: yes/no/not-now stays three words.
 
 **The write.** `cmd/director/observeregistry.go:450`. It happens *before* the question is settled,
-so a refused name leaves the question open â an invalid answer must not consume the only prompt
+so a refused name leaves the question open — an invalid answer must not consume the only prompt
 the user will ever get.
 
 **The recompute.** No cache is patched. The next `LearnedPlay` re-derives the judgement from
@@ -3985,7 +3985,7 @@ generator emits the guarded play with the user's exact words.
 ### Two things the mutation gate found that the tests did not
 
 **A vacuous cross-application test.** The first version switched the *selector* and not the target,
-so every session still reported `testgame` â the mutation that binds an answer to the application
+so every session still reported `testgame` — the mutation that binds an answer to the application
 in front survived, because nothing had switched. `otherApp` fixes it: the `Ref` decides which
 application a session is about, not the request. *A test that cannot fail is worse than no test,
 and only the mutation showed it.*
@@ -3995,7 +3995,7 @@ cross-record dedup in `ProposeScreenName` are both defence-in-depth: the trigger
 the first, and the one-open-question budget already prevents the second. They are reported as
 survivors rather than dressed up.
 
-## Roadmap 32 â a play says where it ends
+## Roadmap 32 — a play says where it ends
 
 A learned play now tells the whole story itself: **where it belongs, what happens, and how Marco
 knows the scene ended where it was supposed to.**
@@ -4006,7 +4006,7 @@ screen the play said it would finish on. Emitting every key is a claim about the
 is a claim about the *application*, and only the second is what anybody wanted.
 
 **The destination is verified semantics.** `LoweringJudgement.EndsOn` comes from durable memory
-for `c.Relationship.To` â the same edge the rehearsal completed. `LowerPlayBetween` takes both
+for `c.Relationship.To` — the same edge the rehearsal completed. `LowerPlayBetween` takes both
 names or neither; no caller may supply either.
 
 **One naming need, not two.** No `AskNameDestinationScreen`. `LoweringJudgement.Unnamed` lists
@@ -4015,7 +4015,7 @@ Naming it and recomputing surfaces the second. A subject that is the destination
 be the source of the next; `Called` lives on the subject and nothing role-specific is stored.
 
 **The two failures stay different in kind.** Wrong start: zero effects, the arrival is never even
-asked about. Wrong destination: the effects already happened and the play still fails â with no
+asked about. Wrong destination: the effects already happened and the play still fails — with no
 undo, no retry, no recovery input, no memory mutation.
 
 ### What the mutation gate found
@@ -4027,7 +4027,7 @@ mutation now kills.
 
 **Four kills came from the Marco compiler, not from a test.** Returning `ok!` early, moving the
 arrival check before the effects, and de-nesting the steps all produce source the compiler
-rejects â *unreachable code after terminal return*, *falls off the end without an explicit
+rejects — *unreachable code after terminal return*, *falls off the end without an explicit
 return*. That is a real structural guarantee and it is reported as what it is: the language
 refusing the weakening, not a behavioural test catching it.
 
@@ -4037,35 +4037,35 @@ the source and fail; `TestAPlayThatArrivesWhereItSaidSucceeds` additionally asse
 looked at twice. Two attempts at a faithful "check before effects" mutation were both rejected by
 the compiler, so that specific mutation remains unproven.
 
-## NEXT â the audit
+## NEXT — the audit
 
-Director's chain is complete end to end: learn â verify â generate Marco â persist â resolve â
-authorize â execute â verify. Before building anything else on it, run the saved independent
+Director's chain is complete end to end: learn → verify → generate Marco → persist → resolve →
+authorize → execute → verify. Before building anything else on it, run the saved independent
 adversarial audit against the whole chain.
 
 ---
 
-# Visibility â one account, three readings (2026-08-10)
+# Visibility — one account, three readings (2026-08-10)
 
 Director passed its adversarial audit and was frozen. The first blocker to real-world testing
 was not capability; it was that a person watching Marco could not see what it believed or why.
 
 Marco had ten diagnostic surfaces and no way to say what it was doing. `status`, `world`,
 `events`, `perception`, `explain`, `observation`, `live-analysis`, `observation-events`,
-`learned`, `game` â each answers a specialist's question precisely, and a front-end that wanted
+`learned`, `game` — each answers a specialist's question precisely, and a front-end that wanted
 to say *"I recognise this as the pause menu"* had to poll four of them and join the results
 itself. The overlay's Director panel did exactly that, which is why it showed provider counts
 and fusion totals: those were the questions it could answer without joining anything.
 
 ## What was built
 
-**`pkg/playbill`** â the canonical read-only account. CURRENT, SEEING, THINKING, LEARNING,
+**`pkg/playbill`** — the canonical read-only account. CURRENT, SEEING, THINKING, LEARNING,
 DOING, the one pending question, WHY, and a bounded semantic timeline; plus an opt-in
 DIAGNOSTICS section. Stdlib only, and it imports no `internal/` package, so a presentation has
 no path to the analysis it describes.
 
 **Three readings, one value.** `View.Normal()` is one word and a sentence, `View.Watch()` is the
-panel, `View.Deep()` is `Watch()` plus evidence â all in the shared package, so the overlay and
+panel, `View.Deep()` is `Watch()` plus evidence — all in the shared package, so the overlay and
 `marco director watch` cannot disagree about what a sentence says.
 
 **`PLAYBILL`, protocol v6.** Composed in two halves that stay apart on purpose:
@@ -4081,12 +4081,12 @@ The always-visible hint line is the NORMAL reading of the same value.
 ## What live testing found in the first ten minutes
 
 **The timeline flooded.** A first look at Chrome produced thirty near-identical moments in one
-instant â a hypothesis per candidate region, all created together. Two fixes, both presentational:
-runs of the same sentence collapse to `ÃN`, and `ValidationRecommended` stopped being a moment at
+instant — a hypothesis per candidate region, all created together. Two fixes, both presentational:
+runs of the same sentence collapse to `×N`, and `ValidationRecommended` stopped being a moment at
 all (it is advice, already carried on the reading in THINKING; a timeline is what *happened*).
 
 **"I can't see" was the wrong sentence.** Watch said Marco could not make out the screen while
-accessibility was feeding 687 observations a cycle. Both were true â screen recognition runs on
+accessibility was feeding 687 observations a cycle. Both were true — screen recognition runs on
 the structural detector, and accessibility is not it. Now: *"I can't tell one screen from another
 here"*, with `Diagnostics.Structure` naming why.
 
@@ -4096,8 +4096,8 @@ one-to-one onto something the session already counts.
 
 ## What it cost
 
-~11 Âµs per read, ~16 Âµs with diagnostics, ~2 Âµs to render, ~2.6 Âµs to digest â against a
-perception loop that samples every 500 ms and spends 170â730 ms of it on detection.
+~11 µs per read, ~16 µs with diagnostics, ~2 µs to render, ~2.6 µs to digest — against a
+perception loop that samples every 500 ms and spends 170–730 ms of it on detection.
 `cmd/director/playbillcost_test.go`.
 
 ## Constraints
@@ -4128,40 +4128,40 @@ observation    0 screens   0 transitions
 
 Two independent defects, and the second is why the first took so long to see.
 
-## Defect 1 â screen segmentation had exactly one evidence source, and it was opt-in
+## Defect 1 — screen segmentation had exactly one evidence source, and it was opt-in
 
-`ScreenSegmenter.Observe` was called from exactly one place, fed `Sample.Shadow.Regions` â
+`ScreenSegmenter.Observe` was called from exactly one place, fed `Sample.Shadow.Regions` —
 the EXPERIMENTAL detector's output. The detector is opt-in behind `$MARCO_SHADOW_VISION`
 because it costs ~1.25 GB.
 
 So the default Director had **no screen model for any application**, and the whole learning
-stack above it â recognition, relationships, demonstrations, rehearsal, plays â was reachable
+stack above it — recognition, relationships, demonstrations, rehearsal, plays — was reachable
 only through an experiment. `Sample.Entities` carried the same window-relative geometry and
 the same role vocabulary the segmenter wants, and there was no path from it.
 
-Fixed at the earliest wrong layer: the samplerâsession evidence boundary. `Sample.Structure`
+Fixed at the earliest wrong layer: the sampler→session evidence boundary. `Sample.Structure`
 is now a provenance-carrying composition; `StructureOf` prefers the fused authoritative world
 and falls back to the detector where fusion saw no structure. See
 [[ADR-036-a-screen-is-a-composition-not-a-provider]].
 
-## Defect 2 â vision's opt-in was enforced on one door of two
+## Defect 2 — vision's opt-in was enforced on one door of two
 
 `Observe` checked `req.Includes(SourceVision)` and said so in a comment. `ObserveTargeted`
 did not, and the collector prefers `ObserveTargeted`. Every ordinary cycle therefore ran a
-vision pass â a screen capture â that nobody asked for, and reported the resulting window
+vision pass — a screen capture — that nobody asked for, and reported the resulting window
 failure as a degradation in every live diagnosis this project has ever printed.
 [[ADR-037-opt-in-is-enforced-on-every-door]].
 
 ## What the fixtures had that reality did not
 
 Every screen-segmentation fixture hand-built `ShadowSample{Ran: true, TargetProven: true,
-Regions: â¦}`. All of them encoded "a proven structural detector exists". None exercised the
-default deployment, and none supplied accessibility structure â because there was no path
+Regions: …}`. All of them encoded "a proven structural detector exists". None exercised the
+default deployment, and none supplied accessibility structure — because there was no path
 for it. The regression fixture was written first, watched fail, and then fixed.
 
 ## What the mutation gate found
 
-Eight mutations, all killed â **after** two survivors exposed real coverage gaps:
+Eight mutations, all killed — **after** two survivors exposed real coverage gaps:
 
 - **the screen model published only when the experiment ran.** Every test had either a
   detector on every slot or no detector at all. Production has neither: the cadence gate
@@ -4172,7 +4172,7 @@ Eight mutations, all killed â **after** two survivors exposed real coverage
 ## Live result
 
 Chrome, VS Code, File Explorer and Task Manager all now form one stable screen from
-accessibility alone â 52 to 128 stable structures, real role vocabularies, classified
+accessibility alone — 52 to 128 stable structures, real role vocabularies, classified
 interface terms, and hedged hypotheses. `vision: no window to look at` is gone from every
 diagnosis.
 
@@ -4182,7 +4182,7 @@ means nothing changed, not that everything matches.
 
 ## NEXT
 
-Transitions were never exercised live â that needs one human UI interaction, and passive
+Transitions were never exercised live — that needs one human UI interaction, and passive
 observation cannot manufacture one. Everything else in the perception path is now validated
 against real unfamiliar software.
 
@@ -4191,37 +4191,37 @@ against real unfamiliar software.
 # The transition substrate, without a human (2026-08-11)
 
 Screens now form on real software. The remaining question was whether the machinery immediately
-downstream of them is ready for the first human demonstration â asked and answered entirely
+downstream of them is ready for the first human demonstration — asked and answered entirely
 through deterministic analysis, because the user was unavailable.
 
 ## The realistic fixtures
 
 `internal/director/observe/screenfixture` holds compositions shaped from what the live sessions
 measured: 128 structures over twelve roles (VS Code), 52 over eight (Chrome), 12 over two (Task
-Manager). Role and window-relative geometry only â there was never any content to redact.
+Manager). Role and window-relative geometry only — there was never any content to redact.
 
 Building them found the first thing: a fixture that scattered its list items over a lattice
 produced screens Marco could observe and never remember. Real trees have vertical runs, and a
 structural group is what earns a screen a hypothesis.
 
-## Defect â a session bound sized for the wrong evidence
+## Defect — a session bound sized for the wrong evidence
 
 `MaxActiveTracks = 128` was exactly one realistic accessibility screen. A two-screen session
-evicted **1,460 tracks** and produced structure for one screen out of two â so on real software
+evicted **1,460 tracks** and produced structure for one screen out of two — so on real software
 every session could see a transition and none could ever remember one.
 
-Raised to 1024/2048 with the arithmetic written down, and measured: 328 Âµs per inference at 716
-tracks against a 176â298 ms perception cycle. [[ADR-038-session-bounds-are-sized-for-the-evidence]].
+Raised to 1024/2048 with the arithmetic written down, and measured: 328 µs per inference at 716
+tracks against a 176–298 ms perception cycle. [[ADR-038-session-bounds-are-sized-for-the-evidence]].
 
-## Defect â an arbitrary string supplied as a ROLE reached the durable store
+## Defect — an arbitrary string supplied as a ROLE reached the durable store
 
 A role is a kind, and nothing checked that. A label arriving in that field entered the screen
 signature, the track table and from there `StructureSignature.Roles`, which is stored forever.
-Now refused on shape at the single point every structural region passes â shape rather than an
+Now refused on shape at the single point every structural region passes — shape rather than an
 allowlist, because real trees report `link`, `combo_box`, `progress_bar` and `scroll_bar` and an
 allowlist would have discarded most of an accessibility tree while looking careful.
 
-## Defect â Watch leaked a durable subject id
+## Defect — Watch leaked a durable subject id
 
 `Learning.Silence` forwarded a developer-facing rendered line that names subjects, putting
 `subj_ad7cea89aecd` on a Watch panel. The closed `LearningRefusal` vocabulary is now carried
@@ -4229,26 +4229,26 @@ beside the prose and translated; the prose no longer crosses.
 
 ## Two scale limits recorded and NOT changed
 
-Both are the same shape as the screen-model defect â a detector-scale constant meeting
-accessibility-scale evidence â and both need a measurement of real software:
+Both are the same shape as the screen-model defect — a detector-scale constant meeting
+accessibility-scale evidence — and both need a measurement of real software:
 
 - **`StateMatchSimilarity = 0.55` cannot serve both sources.** At accessibility scale a real
   interface change scores 0.693 while harmless churn scores 0.882; the detector's own frames of
-  the *same* screen score 0.71â0.79. Measured: only a full content-region replacement is
+  the *same* screen score 0.71–0.79. Measured: only a full content-region replacement is
   separable today. A command palette (0.883) is indistinguishable from churn.
 - **A screen can only be remembered if text was read.** `Discriminating()` counts terms or an
-  envelope; a whole screen has no envelope. So whenever a scoped reading does not happen â about
-  five samples in six, by design â the screens seen in that window can never become durable.
+  envelope; a whole screen has no envelope. So whenever a scoped reading does not happen — about
+  five samples in six, by design — the screens seen in that window can never become durable.
 
 ## What the substrate does
 
 Everything below the two limits works, through the production path, at realistic scale:
-stability under jitter/churn/reorder, transitions, unknownâunknown, attribution separated from
+stability under jitter/churn/reorder, transitions, unknown→unknown, attribution separated from
 existence, staleness refused, context-admitted evidence kept weaker, recurrence counted across
 real session boundaries, and the adversarial four-key variant correctly refused with
 `navigation_too_weak`.
 
-Twelve mutations, all killed â three only after survivors exposed real coverage gaps (a held key
+Twelve mutations, all killed — three only after survivors exposed real coverage gaps (a held key
 inflating a correlation, an off-by-one in Watch's own count, and an over-sensitive identity).
 
 ## NEXT
@@ -4259,11 +4259,11 @@ currently cannot see.
 
 ---
 
-# Roadmap 34 correction â Learn becomes goal-centric (2026-08-17)
+# Roadmap 34 correction — Learn becomes goal-centric (2026-08-17)
 
 The live-training sessions had turned into test-rig choreography: exact starting screens,
 returns to START, waits for grounding boxes. The correction is to the learning model itself,
-not to its staging. `Learn(A â B)` used to memorise a route and weld the capability to A; now
+not to its staging. `Learn(A → B)` used to memorise a route and weld the capability to A; now
 the DESTINATION is the capability, the demonstrated route is evidence for one known way in,
 and planning composes verified edges from wherever the person currently is.
 
@@ -4273,9 +4273,9 @@ and planning composes verified edges from wherever the person currently is.
 Learn "open mouse settings"
     demonstration:  A --x--> B --y--> C
     Marco learns:   goal = C                       (Goal record; structurally no start)
-                    edges AâB, BâC                 (one candidate each; durable topology)
-    later, from B:  plan = BâC                     (never a walk back to A)
-    later, from X:  plan = XâBâC if XâB is known
+                    edges A→B, B→C                 (one candidate each; durable topology)
+    later, from B:  plan = B→C                     (never a walk back to A)
+    later, from X:  plan = X→B→C if X→B is known
     no known chain: "I know what you want to reach, but I don't yet know
                      how to get there from here."
 ```
@@ -4288,7 +4288,7 @@ usable-edge predicate), `director reach` (read surface over rehearsal-verified e
 
 The live run's worst failure: the person clicked and Marco threw the click away, because a
 later layer could not interpret the surrounding state. `ShadowTotals.InputLog` now banks every
-admitted input event BEFORE any gate â structural return, quiet expiry, buffer consumption â
+admitted input event BEFORE any gate — structural return, quiet expiry, buffer consumption —
 with the context known at the time. Interpretation failure is no longer capture failure.
 [[ADR-057-attributed-input-survives-interpretation]].
 
@@ -4298,7 +4298,7 @@ Each valid inference pushes the window's actionable controls (bounds, role, admi
 focused) to the navigation producer beside the frame it already pushes; the worker resolves a
 placed press to the smallest containing control and a confirm to the focused one. The label
 gate is ONE function beside the classifier (`observe.AdmittedTargetLabel`): the canonical
-plaintext role allowlist, or â during an explicit Learn pass â the activatable control the
+plaintext role allowlist, or — during an explicit Learn pass — the activatable control the
 person's own event landed on, shape-filtered either way. The one deliberate privacy widening
 of the milestone, argued in [[ADR-058-a-demonstrated-target-may-keep-its-name]] and named in
 both type-allowlist tests and the candidate sweep.
@@ -4307,7 +4307,7 @@ Downstream: session transitions carry `TargetedSequence` (durable topology strip
 `NavSequence` structurally); candidates keep their steps' targets; a resolved click assesses
 `candidate_consistent`; the rehearsal lowers it to `Accessibility's Invoke` on the control
 resolved live at emission time (`rehearse.ControlResolver`, uniqueness demanded). A saved play
-still refuses `cannot_say_pointer` â run-time name-resolving activation is follow-on.
+still refuses `cannot_say_pointer` — run-time name-resolving activation is follow-on.
 
 ## Why live rehearsals "never fired"
 
@@ -4315,7 +4315,7 @@ Three defects, all fixed and tested:
 
 1. **They fired and always failed.** `StepRecord.Application`/`Source` were never populated,
    so every step's outcome recalled against the EMPTY application and classified
-   `unrecognised` â `stopped_at_step`, unconditionally, on every application. Invisible to
+   `unrecognised` → `stopped_at_step`, unconditionally, on every application. Invisible to
    tests because the memory fake ignored the application; the fakes are now scoped and the fix
    is mutation-gated (`TestALiveStepIsClassifiedAgainstItsOwnApplication`).
 2. **Input has no address.** No foreground gate existed, so the keys landed in the terminal
@@ -4349,11 +4349,11 @@ input-log bank deletion; goal-write no-op; per-edge candidate storage skip; grou
 
 ## Known gaps
 
-- Click routes are learnable, rehearsable, plannable â not yet saveable as plays.
+- Click routes are learnable, rehearsable, plannable — not yet saveable as plays.
 - Multi-edge plans are knowledge; execution is still per-edge through saved plays.
 - The armed-capture fallback still requires the person to be recognised at the terminal
   edge's start; the one-shot watched pass is the primary path and does not.
-- The live acceptance run (real Settings, real click) needs human hands â see E2E.md.
+- The live acceptance run (real Settings, real click) needs human hands — see E2E.md.
 
 ## Closeout
 
@@ -4363,15 +4363,15 @@ DEMONSTRATION_IS_CAPABILITY:         NO          DEMONSTRATION_IS_EVIDENCE:  YES
 GOAL_REQUIRES_ORIGINAL_START:        NO (structurally; test-enforced)
 RAW_ATTRIBUTED_INPUT_CAN_BE_DROPPED: NO (InputLog banks before every gate)
 CLICK_CAPTURE:                       YES         CLICK_TARGET_RESOLUTION:    YES (event time)
-KEYBOARD_TARGET_RESOLUTION:          YES (confirm â focused control)
+KEYBOARD_TARGET_RESOLUTION:          YES (confirm → focused control)
 MULTI_EDGE_DEMONSTRATION_DECOMPOSED: YES         REQUIRED_WAYPOINT_INFERRED: NO
 CURRENT_STATE_TO_GOAL_PLANNING:      YES (PlanToGoal + `director reach`)
 ALREADY_AT_GOAL:                     satisfied   UNKNOWN_ROUTE:              honest refusal
 REHEARSAL_AUTHORITY_CHANGED:         NO          PATIENT_REHEARSAL:          preserved + extended
 STALE_GROUNDING_CAN_LINGER:          NO          USER_CHOREOGRAPHY_REQUIRED: NO
 VISION_CHANGED: NO   OCR_CHANGED: NO   CORE_V1_CHANGED: NO   AUTHORITY_CHANGED: NO
-PRIVACY_CHANGED:  YES â explicitly (ADR-058, the admitted target label)
-LEARNING_SEMANTICS_CHANGED: YES â explicitly, route-centric â goal-centric (ADR-056)
+PRIVACY_CHANGED:  YES — explicitly (ADR-058, the admitted target label)
+LEARNING_SEMANTICS_CHANGED: YES — explicitly, route-centric → goal-centric (ADR-056)
 ```
 
 Everything above is proven deterministically: 76 packages green, docscheck clean, five
@@ -4379,8 +4379,8 @@ mutation runs killed by named tests.
 
 ## NEXT
 
-The live acceptance run â the one gate that needs a person, because foreground activation
-and injected-input attribution are refused by design. E2E.md Â§ "Realistic Learn acceptance"
+The live acceptance run — the one gate that needs a person, because foreground activation
+and injected-input attribution are refused by design. E2E.md § "Realistic Learn acceptance"
 (~5 min): Learn "open mouse settings" with one ordinary click; answer yes from the terminal
 and leave the terminal in front (verifies the foreground gate); `director reach` from
 somewhere that is not the demonstrated start. Roadmap 34 closes on that run reading as
@@ -4388,7 +4388,7 @@ normal computer use.
 
 ---
 
-# Live E2E round 1 â what the cold service found (2026-08-17)
+# Live E2E round 1 — what the cold service found (2026-08-17)
 
 Everything below ran against a real `director serve` on an isolated cold `$MARCO_HOME`, with
 live Windows Settings as the target. No injected input: the demonstration half still needs
@@ -4396,16 +4396,16 @@ human hands, so this round proves the parts around it.
 
 ## The blocker the deterministic suite could not see
 
-`director teach "open mouse settings"` â **the phrase in the roadmap, in E2E.md and in the
-milestone's own statement of what a normal person should be able to say** â was refused
+`director teach "open mouse settings"` — **the phrase in the roadmap, in E2E.md and in the
+milestone's own statement of what a normal person should be able to say** — was refused
 before anything was observed:
 
 ```
-director: "open mouse settings" is 3 word(s), and a play is a sentence of two â¦
+director: "open mouse settings" is 3 word(s), and a play is a sentence of two …
 ```
 
 `playNameFor` demanded the phrase be exactly two words. The unit tests passed because they
-asserted the PARSER'S RULE (`"open the downloads folder"` â refused) rather than the
+asserted the PARSER'S RULE (`"open the downloads folder"` → refused) rather than the
 acceptance criterion. A test can encode a policy perfectly and still be testing the wrong
 thing; only running the sentence a person would actually type showed it.
 
@@ -4413,15 +4413,15 @@ It was also the milestone's own failure mode: telling somebody their outcome mus
 in exactly two words, or that they must learn `--actor`/`--verb`, is Marco's protocol leaking
 into the user's sentence.
 
-**Fixed**: first word is the verb, the REST is the actor (`open mouse settings` â
+**Fixed**: first word is the verb, the REST is the actor (`open mouse settings` →
 `do MouseSettings's Open`; `MuteEveryone` is `CheckPlayName`'s own example of a legal actor).
-One word is still refused â it cannot be a sentence of two â and still at the request
+One word is still refused — it cannot be a sentence of two — and still at the request
 boundary, before anybody demonstrates.
 
 The original objection to welding is answered rather than overruled. It was written when the
 phrase WAS the play's name; under the goal-centric model the phrase is the OUTCOME's name,
 kept verbatim on the durable goal, and the play name is a separate artifact. So the
-derivation is **said out loud** â `teachView.WillBeCalled`, printed before the demonstration:
+derivation is **said out loud** — `teachView.WillBeCalled`, printed before the demonstration:
 
 ```
 If this works out I'll write it down as `do MouseSettings's Open`.
@@ -4438,20 +4438,20 @@ If this works out I'll write it down as `do MouseSettings's Open`.
   with their contradictions. Live role vocabulary: 12 `text`, 4 `list_item`, 4 `button`,
   3 `group`, 1 `list`.
 - **`pushActionables` has real evidence to push.** Eight of those persistent controls are
-  `Clickable()` roles, and the nav items are `list_item` â exactly the case the demonstration
+  `Clickable()` roles, and the nav items are `list_item` — exactly the case the demonstration
   licence in [[ADR-058-a-demonstrated-target-may-keep-its-name]] was written for (nameable
   only under Learn). A click on a Settings nav item has something to resolve to.
-- **The choreography is gone, and this is the headline.** On a COLD store â Settings never
-  established, no question ever answered about it, no `show-me` warm-up â `teach` reached
-  *"Okay â go ahead and show me"* and grounded the start (16 controls). Under the old model
+- **The choreography is gone, and this is the headline.** On a COLD store — Settings never
+  established, no question ever answered about it, no `show-me` warm-up — `teach` reached
+  *"Okay — go ahead and show me"* and grounded the start (16 controls). Under the old model
   this refused at its first step with `start_not_recognised`.
 
 ## Still needs human hands
 
 The demonstration itself, the rehearsal firing into the right window, and reuse from a
-different start. E2E.md Â§ "Realistic Learn acceptance" is the script.
+different start. E2E.md § "Realistic Learn acceptance" is the script.
 
-## Round 2 â the highlight surface, and one thing left unexplained
+## Round 2 — the highlight surface, and one thing left unexplained
 
 The first teach run (`--no-highlight`) saw nothing change on an idle Settings. The second,
 with highlights on, refused `destination_not_recognised`:
@@ -4467,21 +4467,21 @@ change what accessibility says about it. Owned-surface exclusion covers the VISI
 would not cover this.
 
 **Tested, and refuted.** A controlled 25s observation of Settings with a `marco-show` box
-held over it for 12s produced one screen (`state_1`), no new states and no transitions â
+held over it for 12s produced one screen (`state_1`), no new states and no transitions —
 identical to the box-free baseline. Accessibility-derived composition is not perturbed by
 an overlay. The surface also behaved: `FOREGROUND_HWND_UNCHANGED: YES`,
 `COMPANION_RECEIVED_POINTER: NO (0)`, click-through styles all set, and its window found by
 the new per-pid title.
 
 **So the two transitions are unexplained.** Not reproduced, cause not established, and
-recorded here as an observation rather than a conclusion â the same discipline the
+recorded here as an observation rather than a conclusion — the same discipline the
 desktop-hitch note in CLAUDE.md follows. Candidates not yet separated: genuine live content
 in Settings home over a 45s pass, or focus-related churn. Worth watching for during the
 human run; if `destination_not_recognised` appears on a real demonstration, `--watch` names
 the cause and this is the first place to look.
 
 **What this did prove about ADR-059**: the dismissal path was NOT exercised live. The
-surface exited ~3s in for its own safety reason (`p.blocking` â it found itself in front of
+surface exited ~3s in for its own safety reason (`p.blocking` — it found itself in front of
 a window that was not the foreground app, which is correct behaviour when teaching a
 background window). A live dismissal check needs Settings actually in front, so it belongs
 to the human run. The lifecycle itself stays covered by the mutation-gated unit tests.
@@ -4491,7 +4491,7 @@ background window works for perception but makes the highlights bail out immedia
 
 ---
 
-# Live E2E round 2 â three defects fixed, and the wall behind them (2026-08-17)
+# Live E2E round 2 — three defects fixed, and the wall behind them (2026-08-17)
 
 Five live Learn attempts against real Windows Settings, with a person clicking. Each one
 found something the deterministic suite could not, and the last one found the wall.
@@ -4500,36 +4500,36 @@ found something the deterministic suite could not, and the last one found the wa
 
 `pushNavContext` was gated on the SHADOW sample having run. Vision is off by default, so
 `shadowSampleFor` returns nil, `ensureShadow` supplies `{Ran: false}`, and the gate returned
-on EVERY cycle â the navigation producer never received a window frame, so
+on EVERY cycle — the navigation producer never received a window frame, so
 `windowBounds.fresh` was false forever and every pointer press became `unplaceable_pointer`.
 Live: `received=2 classified=0 unplaceable_pointer=2` for the two clicks the person made.
 
 The same shape as the 2026-08-10 defect where screen segmentation had one evidence source
 and it was opt-in. A window's rectangle is a fact about the WINDOW, from the reference the
-runner validated â not from an experiment. Ungated; `pushActionables` had inherited the same
+runner validated — not from an experiment. Ungated; `pushActionables` had inherited the same
 gate, so click-target resolution had never once run live either.
 `TestADefaultDirectorGivesThePointerAFrame`, mutation-gated.
 
-(Also confirmed by the same run: the desktop spans X â1920â+1920, and presses on the OTHER
+(Also confirmed by the same run: the desktop spans X −1920→+1920, and presses on the OTHER
 monitor were correctly refused. Not every `unplaceable_pointer` is a defect.)
 
 ## Fixed: the cause and its effect arrived in different samples
 
 With clicks placed, both transitions still came out `unattributed 2/2`. Attribution required
-the input and the screen change to land in the SAME inference â true of a keyboard menu that
+the input and the screen change to land in the SAME inference — true of a keyboard menu that
 flips on key-down, false of a Settings page that takes a beat to render. So the click was
 drained on one sample and the change was visible on the next, and the route was discovered
 and unlearnable (`no_attributed_navigation`).
 
 A run now survives ONE quiet inference and is still offered to a change on it, bounded by
-`TrackAbsenceTolerance` â which already means "one dip is not a disappearance", not a number
+`TrackAbsenceTolerance` — which already means "one dip is not a disappearance", not a number
 invented for the occasion. `TestAnOldKeypressIsNotForcedOntoALaterEdge` still passes: its gap
 is deliberately three. `TestAChangeOneInferenceAfterTheClickIsAttributedToIt`, mutation-gated.
 
 ## Fixed: a failed Learn made its own name unusable
 
 `RememberGoal` refused a name already bound to another subject. A goal written by an earlier
-FAILED attempt therefore blocked re-teaching under the same words â the person punished for
+FAILED attempt therefore blocked re-teaching under the same words — the person punished for
 Marco's failure. Now it REBINDS, which keeps the one-name-one-outcome invariant `reach`
 depends on while letting a person say what they mean now. The same rule `NameSubject` already
 follows for screens: renaming is ordinary and drops the old name.
@@ -4553,13 +4553,13 @@ Terms agree. Every shared role is within `RoleCountTolerance` (button 15 vs 16).
 decisive difference is that **a scroll bar appeared**, and `CompareStructure` opens with:
 
 ```go
-// The same roles must be present. A screen that gained a whole role â a progress bar, a
-// text field â is a different screen, not a jittered one.
+// The same roles must be present. A screen that gained a whole role — a progress bar, a
+// text field — is a different screen, not a jittered one.
 if !sameRoleSet(current.Roles, remembered.Roles) { return MatchDifferent }
 ```
 
 That rule is right for the detector's small vocabulary, where a progress bar appearing is a
-real event. At accessibility scale â fourteen roles, hundreds of elements â a scroll bar is
+real event. At accessibility scale — fourteen roles, hundreds of elements — a scroll bar is
 chrome that appears whenever content is a pixel taller. So the same page is a different
 screen, no endpoint resolves, no edge forms, and Learn cannot complete on mainstream
 software however well everything above it works.
@@ -4568,7 +4568,7 @@ It is the same FAMILY as the documented open debt in [[Semantic-Memory]] ("a dur
 can strand a subject"): identity criteria chosen for one evidence scale, meeting another.
 
 **Deliberately NOT fixed here.** That note says fixing the matcher "must not be done
-opportunistically â it is screen identity, and every remembered subject depends on it", and
+opportunistically — it is screen identity, and every remembered subject depends on it", and
 loosening `sameRoleSet` mid-E2E to make a test pass is the definition of opportunistic. The
 risk runs the other way too: this design's stated worst failure is over-merging two screens
 that differ only in what their text says. It needs its own task and its own measurement
@@ -4588,7 +4588,7 @@ route discovered; the goal remembered and rebound; every refusal honest, named, 
 at its real cause through the closed vocabularies. The goal-centric machinery works as far as
 the identity layer lets it reach.
 
-## Round 3 â the click vertical works live, and what still does not
+## Round 3 — the click vertical works live, and what still does not
 
 Ten live Learn attempts against Windows Settings. The headline, from the tenth:
 
@@ -4599,7 +4599,7 @@ input: received=2 classified=1 pointer_resolved=1 pointer_unnamed=0
 
 A person clicked a Settings nav item. The press was placed inside the watched window,
 matched against 41 offered controls, resolved to the smallest one containing it, and its
-name was admitted under the Learn licence. **The raw-click â placed â semantic-target
+name was admitted under the Learn licence. **The raw-click → placed → semantic-target
 vertical of [[ADR-058-a-demonstrated-target-may-keep-its-name]] works against real software.**
 Nothing above the identity layer is now blocking a click-driven demonstration.
 
@@ -4610,13 +4610,13 @@ Getting there took two more fixes and two diagnostics, all found live:
   one). Both recorded above.
 - **`unplaceable_pointer` was reported for presses made while nothing was watching.**
   Placement was checked before session membership, so a click made before a session started
-  read as "Marco could not place your click" â a perception fault â instead of "you clicked
+  read as "Marco could not place your click" — a perception fault — instead of "you clicked
   before I was watching". Six such presses sent one diagnosis in entirely the wrong
   direction. `TestAPressWithNoSessionSaysSoRatherThanBlamingPlacement`.
 - **A resolved-but-unnamed press read as unresolved.** A list item's text is not on the
-  plaintext allowlist, so passive observation withholds it â correctly. Reporting that as
+  plaintext allowlist, so passive observation withholds it — correctly. Reporting that as
   "landed on nothing" reads as a coordinate-space fault. The outcome is now three-way:
-  `pointer_resolved` Â· `pointer_unnamed` Â· `pointer_unresolved`, beside `controls_offered`.
+  `pointer_resolved` · `pointer_unnamed` · `pointer_unresolved`, beside `controls_offered`.
   Those two numbers are what turned a week of guessing into one measurement.
 
 ### The remaining wall is still identity, and it has a second face
@@ -4625,14 +4625,14 @@ The chrome fix ([[ADR-062-a-scroll-bar-is-not-a-screen]]) removed one cause. Ano
 and it is the one `PlaceToEstablish`'s settled check was already written against: **Windows
 Settings renders in stages**. Across ten runs the same Home page was fingerprinted with 24
 members and with 10, and `MemberTolerance` is 1. Runs alternate between resolving both
-endpoints and resolving neither â `both_unresolved=2 destination_unresolved=1
+endpoints and resolving neither — `both_unresolved=2 destination_unresolved=1
 source_unresolved=1` on the tenth.
 
 So a demonstration is captured, attributed and resolved, and then has nowhere durable to
 attach about half the time. Deliberately not fixed here for the same reason the scroll bar
 was fixed narrowly: this is the identity matcher, every remembered subject depends on it, and
 the honest next step is the measurement [[Experiment-011-two-level-identity-against-real-software]]
-did â several applications, repeated visits, quantify what actually fluctuates â rather than
+did — several applications, repeated visits, quantify what actually fluctuates — rather than
 another tolerance chosen mid-E2E.
 
 ### Process note, recorded because it cost the most
@@ -4651,28 +4651,28 @@ answered in one run what nine had not. **Instrument first, then look once.**
 Two things, in the order the campaign required them: measure before touching identity, and
 build the surface that makes the next round of measurement cheap.
 
-## `director light` â what Marco's Accessibility brain currently understands
+## `director light` — what Marco's Accessibility brain currently understands
 
 A live reading of the canonical account. It exists because the alternative was archaeology:
 several live Learn rounds chased the wrong layer because the number that mattered was on no
 surface at all.
 
 ```
-Watching â I'm watching applicationframehost.
+Watching — I'm watching applicationframehost.
 
   I CAN ACT ON
     40 controls I could aim at
-      System Â· Back Â· Home Â· Bluetooth Â· Add device Â· View all devices Â· â¦
+      System · Back · Home · Bluetooth · Add device · View all devices · …
       26 more I'm not allowed to name here
     focused: Bluetooth
 
   SEEING
     119 things are holding still here
-      button, combo_box, group, image, link, list, list_item, menu, â¦
+      button, combo_box, group, image, link, list, list_item, menu, …
       words I know here: back, settings
 
   THINKING
-    This might be a settings screen. â¦the evidence points both ways.
+    This might be a settings screen. …the evidence points both ways.
 ```
 
 - **One account, not a second one.** It renders `playbill.View` through the SAME
@@ -4682,7 +4682,7 @@ Watching â I'm watching applicationframehost.
   answer, no memory, no authority. Refreshing faster changes nothing about what Marco
   believes.
 - **New section: `Offers`.** The one part of the playbill that carries observed interface
-  text, and it introduces NO new permission â every name passes
+  text, and it introduces NO new permission — every name passes
   `observe.AdmittedTargetLabel`, the single policy [[ADR-058-a-demonstrated-target-may-keep-its-name]]
   already defined: plaintext role allowlist, widened to activatable controls only under a
   Learn licence, shape filter either way. A withheld name is listed by role and COUNTED, so
@@ -4694,7 +4694,7 @@ Watching â I'm watching applicationframehost.
 while watching a Settings window offering forty: a session fuses its own world for its pinned
 window and never touches the foreground pipeline's, so the surface was confidently describing
 a different window. `Runtime.lastWatched` now carries the session's world and the surface
-reads whichever is fresher. `TestLightModeDescribesTheWatchedWindow`, mutation-gated â as is
+reads whichever is fresher. `TestLightModeDescribesTheWatchedWindow`, mutation-gated — as is
 the label gate, which was bypassed on purpose and killed by five tests.
 
 **Privacy, verified live rather than assumed.** Windows Settings exposes the signed-in account
@@ -4713,20 +4713,20 @@ results that matter:
 |---|---|---|---|
 | Chrome | 4/15 | Discord | 10/15 |
 
-Settings â the application that failed live â produced byte-identical signatures every time.
+Settings — the application that failed live — produced byte-identical signatures every time.
 Chrome and Discord vary in content-bearing roles because they were displaying live content.
 
 **The "24 vs 10 members" premise was wrong, and reading the producer retired it.** A screen
 state's signature is `Roles + Terms` only: `stateFingerprint` never sets `Members` or
 `Envelope`. Those figures came from the GROUNDING line, which reports the dominant structural
-group's size â a quantity durable identity never reads.
+group's size — a quantity durable identity never reads.
 
 **What remains, and it is an evidence-completeness question, not a tolerance one.**
 `settledComposition()` requires two observations and every role's modal count seen twice.
 That is *"the composition has a stable mode"*, not *"this is the complete composition"*. Over
 a 13-sample dwell the mode is the finished page, which is why idle visits are stable. Over the
-few samples a place gets while somebody navigates through it â which is every live failure so
-far â the mode is whatever was on screen for those frames.
+few samples a place gets while somebody navigates through it — which is every live failure so
+far — the mode is whatever was on screen for those frames.
 
 `RoleCountTolerance` unchanged at 1, and nothing app-specific added.
 
@@ -4735,58 +4735,58 @@ far â the mode is whatever was on screen for those frames.
 The short-visit batch is void: the driver read the session list before a new session
 registered and captured the previous session's id (`inf=41` for a 2s visit is impossible).
 Duration independence is therefore NOT yet measured, and it is precisely the measurement the
-settle hypothesis needs. Batch 1 is sound â ids increment monotonically and every file's
+settle hypothesis needs. Batch 1 is sound — ids increment monotonically and every file's
 application matches its target.
 
-## 2026-08-17 â the two-step Learn: two stacked causes, both found by replaying the failure
+## 2026-08-17 — the two-step Learn: two stacked causes, both found by replaying the failure
 
-**Where this started.** The cold-store live Learn (`Settings Home â Bluetooth & devices â
+**Where this started.** The cold-store live Learn (`Settings Home → Bluetooth & devices →
 Mouse`) refused with `destination_not_recognised`, having captured, attributed and semantically
 resolved the whole demonstration. Everything worked and nothing was learned.
 
-### Cause 1 â a pass remembered only the place it ended on
+### Cause 1 — a pass remembered only the place it ended on
 
 All three screens settled and carried terms; all three passed every quality gate. Only Mouse
 became durable, because establishment considered `ShadowTotals.CurrentState` alone. Both edges
 therefore had an endpoint nothing could resolve:
 
 ```
-Home      â Bluetooth    destination_unresolved
-Bluetooth â Mouse        source_unresolved
+Home      → Bluetooth    destination_unresolved
+Bluetooth → Mouse        source_unresolved
 ```
 
 `observe.PlacesToEstablish` now returns every settled place, each clearing the SAME four gates
 independently, in first-sighting order, bounded by `MaxCheckpoints`.
-[[ADR-063-a-pass-remembers-every-place-it-settled-on]] â which amends exactly one bound of
+[[ADR-063-a-pass-remembers-every-place-it-settled-on]] — which amends exactly one bound of
 ADR-047 and reopens nothing else about it.
 
-### Cause 2 â and the first one was hiding it
+### Cause 2 — and the first one was hiding it
 
 Fixing establishment moved the report from `both_unresolved=2` to `destination_unresolved=2
 source_unresolved=2` and still produced **zero edges**. The walk was:
 
 ```
-state_1 â ? â state_2 â ? â state_3
+state_1 → ? → state_2 → ? → state_3
 ```
 
 Every real navigation crosses a frame Marco cannot place. `Transitions` is keyed by
 `(From, To)`, so two excursions aggregate to two entries into `state_unknown` and two exits out
-of it, and `AâC, BâB` fits the same counts as `AâB, BâC`. Bridging refused
+of it, and `A→C, B→B` fits the same counts as `A→B, B→C`. Bridging refused
 `ambiguous_interval` and lost **both** adjacencies. At ordinary human speed that is the common
 case, not an edge case: the one-shot multi-step Learn was impossible except at one step per
 session.
 
-`ScreenSegmenter` now keeps the session's **walk** â `ShadowTotals.Crossings`, every change in
+`ScreenSegmenter` now keeps the session's **walk** — `ShadowTotals.Crossings`, every change in
 order, written at the one call site every change already passes through, thin on purpose (no
 navigation, no counts; those stay on the aggregate). `unsettledIntervals` reads it, so each
-excursion has one entry and one exit by construction. `A â ? â C â ? â B` yields `AâC` and
-`CâB`: C stays in the middle rather than being refused OR skipped.
+excursion has one entry and one exit by construction. `A → ? → C → ? → B` yields `A→C` and
+`C→B`: C stays in the middle rather than being refused OR skipped.
 [[ADR-064-the-order-of-a-walk-is-evidence]].
 
 ### How both were found without a person at the keyboard
 
 `identityprobe -replay` runs a recorded session through the PRODUCTION establishment and
-relationship path against a cold store in a temp directory â `PlacesToEstablish`,
+relationship path against a cold store in a temp directory — `PlacesToEstablish`,
 `EstablishPlace`, `RelationshipsFrom`, no reimplementation of any gate. It printed the three
 places establishing and zero edges in one pass, which is what separated cause 2 from cause 1.
 Recordings that predate the walk say so rather than reading as a finding.
@@ -4799,19 +4799,19 @@ Recordings that predate the walk say so rather than reading as a finding.
 Mutations run and restored byte-identically: narrowing `PlacesToEstablish` to the current state;
 making the runner's loop skip non-current candidates; disabling the crossing log; refusing more
 than one interval (which reproduces the live failure exactly). The two real captured Settings
-sessions still replay â their walk is reconstructed only where the aggregate leaves one possible
+sessions still replay — their walk is reconstructed only where the aggregate leaves one possible
 ordering, and the fixture fails rather than guesses otherwise.
 
 **Not yet confirmed live.** The recorded session cannot answer this one: it predates the walk,
 and with two entries and two exits its order is genuinely unrecoverable. It needs one
 demonstration on a cold store.
 
-## 2026-08-17 (later) â the Learn control surface, and the CLI defect that forced it
+## 2026-08-17 (later) — the Learn control surface, and the CLI defect that forced it
 
 **The redirect.** Live Learn acceptance had failed too many times for reasons that were not about
 Marco: wrong foreground because the person returned to the terminal, session ids required for
 product actions, CLI flag ordering, PowerShell harnesses, needing to know when Marco was armed.
-The last one was decisive â `director rehearse --live` could not be invoked at all â and the
+The last one was decisive — `director rehearse --live` could not be invoked at all — and the
 conclusion was that Learn was being exercised through the wrong interface.
 
 ### The CLI defect, fixed and audited
@@ -4819,13 +4819,13 @@ conclusion was that Learn was being exercised through the wrong interface.
 `runRehearse` declared `-step`, `-live` and `-json`, parsed them, and then handed the SAME
 unconsumed slice to `observationQuery`, whose flag set knows only `-json`. Every invocation
 carrying a flag died with "flag provided but not defined: -live", so the only path to learned
-input was unreachable â while `director rehearse` with no flags worked and made the command look
+input was unreachable — while `director rehearse` with no flags worked and made the command look
 healthy. Found while holding a rehearsal grant that could not be spent.
 
 Fixed by separating the parse from the request (`observationRequest`), which makes the shape
 unavailable rather than merely corrected. Two tests: `TestRehearseArgumentsReachTheLivePath` over
 every shape a person types, and `TestNoCommandParsesItsArgumentsTwice`, which walks the package's
-AST â including one level of delegation, because the first version was evaded by splitting the bug
+AST — including one level of delegation, because the first version was evaded by splitting the bug
 across two functions.
 
 The audit found a second, larger instance of the same silence: `flagsFirst` reorders arguments
@@ -4833,7 +4833,7 @@ before the flag package sees them, so a value-taking flag missing from the `valu
 value read as the wrong token. It had bitten four times. **Twenty-two more were latent.**
 `TestEveryValueTakingFlagIsInTheReorderingTable` now holds the whole package to it.
 
-### Operating Marco is not demonstrating to it â ADR-065
+### Operating Marco is not demonstrating to it — ADR-065
 
 Two halves of one cause. Pressing Start brings Marco to the front, so a session that resolved its
 window then pinned the control panel; and the button presses themselves are real clicks inside the
@@ -4844,24 +4844,24 @@ composition root beside the window frame; `teach.WaitingForDemonstration` holds 
 session until there is a subject that is not Marco. Doubt falls toward KEEPING the person's
 evidence: with no ownership answer, or a stale one, input is admitted.
 
-### Stop is a product event â ADR-066
+### Stop is a product event — ADR-066
 
 A demonstration used to end on a forty-five-second clock or on the person happening to hold still.
 Both are guesses about something the person knows. `Coordinator.Finish` ends admission, keeps
-everything captured, and lets the ordinary pipeline run on a shorter pass â the observation layer
+everything captured, and lets the ordinary pipeline run on a shorter pass — the observation layer
 already defines cancellation as "stop early and keep the evidence".
 
 ### The panel
 
 A **Learn** tab in the control centre (`marco ui`): name, Start Learning, live status, Stop
-Learning, Try It, cancel, and what Marco currently understands â application, place, actions
+Learning, Try It, cancel, and what Marco currently understands — application, place, actions
 captured, how many named a control, controls on offer, the transition, what it would be called.
 `learnview.go` projects it from the coordinator's own session; the surface never parses prose and
 holds no state. Every verb turns into a request the Director already served: Start is a teach,
 Stop is a finish, **Try It is an ANSWER to the rehearsal question** through the same ledger, and
 Cancel is a cancel.
 
-Verified live over HTTP: Start â `waiting_for_demonstration`, goal derived, correct controls
+Verified live over HTTP: Start → `waiting_for_demonstration`, goal derived, correct controls
 offered, honest degradation when no Director is running.
 
 ### Known gaps, recorded rather than papered over
@@ -4873,7 +4873,7 @@ offered, honest degradation when no Director is running.
 - The panel does not yet show last-action / target-resolving / effect, and no live UI-driven Learn
   acceptance has been run.
 
-## 2026-08-17 (34B) â the Theater: what a learned play refers to
+## 2026-08-17 (34B) — the Theater: what a learned play refers to
 
 A learned play was about to say `do Accessibility's Invoke with a Control called "Mouse"`. It
 worked and it welded a **provider** into a **behaviour**. This is what it says instead:
@@ -4886,7 +4886,7 @@ use theater.
 
 **Theater is the production layer, not a renamed store.** Director decides what should be put on;
 Theater knows the Repertoire, looks at the Stage, casts an Actor that can play the part tonight,
-performs, and verifies. `semanticmemory` is the storage engine underneath the Repertoire â one
+performs, and verifies. `semanticmemory` is the storage engine underneath the Repertoire — one
 part of Theater, not all of it. No `theater/` package was created for the metaphor.
 
 **Marco's `scene` is untouched.** It is a first-class language word guarded by spectest, and
@@ -4894,7 +4894,7 @@ Director's `screen_state` is a different thing that rhymes. No mapping, no homon
 
 ### Durable Target
 
-`SubjectTarget`, through the canonical subject machinery â same match-or-append, same id
+`SubjectTarget`, through the canonical subject machinery — same match-or-append, same id
 derivation, same bound. Identity is **label + kind + place**, matched EXACTLY: a name is not a
 composition, and the tolerance that makes screens robust would merge two differently-named buttons.
 A kind that disagrees is a disagreement; a kind that is *missing* says nothing, which is what keeps
@@ -4906,7 +4906,7 @@ rectangle or coordinate, and a reflective test walks the type so a field added t
 ### Actors, not Players
 
 An Actor is a class of capability that can find and perform. Marco's `actor` is a thing in the
-play; a Theater Actor is a thing that can perform a part â same metaphor, opposite sides of the
+play; a Theater Actor is a thing that can perform a part — same metaphor, opposite sides of the
 curtain. Finding and performing are one interface because they are one competence: an Actor that
 finds a control through the tree presses it there; one that finds it by sight points at it.
 
@@ -4914,7 +4914,7 @@ finds a control through the tree presses it there; one that finds it by sight po
 
 ### What the mutations found
 
-Twelve run, twelve killed â but three survived first and each exposed a real hole:
+Twelve run, twelve killed — but three survived first and each exposed a real hole:
 
 - **the play naming its provider** appeared to survive because the test result was CACHED. Every
   mutation run now uses `-count=1`. Worth remembering.
@@ -4927,21 +4927,21 @@ Twelve run, twelve killed â but three survived first and each exposed a rea
 ### The restart proof, in its strongest form
 
 Not "it worked after one restart". The accessibility actor sends a **label** over the bridge on
-every call and never an element id, asserted on the wire â so no runtime id is ever held across a
+every call and never an element id, asserted on the wire — so no runtime id is ever held across a
 redraw, and every future restart is covered rather than the one a test happened to perform.
 
 ### Privacy
 
 `RememberedSubject.Structure.Label` is perception-derived and crosses the line `Called` drew. The
-exceptions are now a closed list with the licence written against each and their count asserted â
+exceptions are now a closed list with the licence written against each and their count asserted —
 which also fixed something older: `Called` had been passing only because "called" happens not to
 appear in the forbidden word list. Nobody had decided it was allowed.
 
-## Roadmap 34C â grounded, reversible naming
+## Roadmap 34C — grounded, reversible naming
 
 The 34B live run ended on a question Marco could not ground: *"what do you call this screen?"*, with
 two candidate screens and byte-identical wording for either. The person answered about the one they
-meant; the word landed on the other. Then it could not be repaired â withdrawing the answer removed
+meant; the word landed on the other. Then it could not be repaired — withdrawing the answer removed
 the judgement and left the name, and uniqueness reserved the word against every other place
 permanently. The screen they had actually meant could never receive it.
 
@@ -4957,7 +4957,7 @@ That is the whole justification for this milestone.
 
 - **Grounding is a description, not an identifier and not a highlight.** `KnownPlace.Describes`
   says what a place is made of ("about audio, 14 things on it"); `Handle` is opaque and never
-  shown. Two places may not read alike â that is asserted, because identical descriptions
+  shown. Two places may not read alike — that is asserted, because identical descriptions
   reproduce the failure exactly. Boxing the whole accessibility tree would say nothing about which
   thing is meant.
 - **The identity is bound before the question.** `AnswerName` writes to the subject the QUESTION
@@ -4967,7 +4967,7 @@ That is the whole justification for this milestone.
   says nothing about the place). An empty name is a **retraction**, not a validation error.
 - **Uniqueness is over live names only.** A word nothing is currently called is free.
 - **The namespace comes off the subject.** Deriving it from session context made the first
-  implementation fail with `no remembered screen â¦ in ""` â the same bug class, smaller.
+  implementation fail with `no remembered screen … in ""` — the same bug class, smaller.
 - **No focus choreography.** The person is typing into Marco's own field, so Marco is necessarily
   in front. A foreground gate would make naming impossible.
 - **Perception's word is not the Audience's word.** An observed label stays `Structure.Label` with
@@ -4975,8 +4975,8 @@ That is the whole justification for this milestone.
 
 ### Sight grew the two lines it was missing
 
-`director sight` now says what Marco can **act on** here â the Theater's durable targets grounded
-in the settled place, as label and kind â and what it **last did**, from the action graph. Both
+`director sight` now says what Marco can **act on** here — the Theater's durable targets grounded
+in the settled place, as label and kind — and what it **last did**, from the action graph. Both
 lines are omitted when there is nothing true to put in them; a surface that prints "nothing" every
 time trains a person to stop reading it.
 
@@ -4985,7 +4985,7 @@ time trains a person to stop reading it.
 Fourteen non-equivalent mutations, fourteen killed. Two were found to be **equivalent** and are
 recorded as such rather than faked:
 
-- **a rename with no place** is refused twice â once up front, once because an empty handle belongs
+- **a rename with no place** is refused twice — once up front, once because an empty handle belongs
   to no subject. Neither guard is individually killable. The test now asserts the OUTCOME (no
   subject changed) instead of only that an error came back, and the redundancy is documented as
   deliberate. It was replaced in the count by the real live defect: deriving the application from
@@ -4996,7 +4996,7 @@ recorded as such rather than faked:
 
 An honest equivalent mutation is worth more than a kill bought by weakening the code.
 
-## Roadmap 34E â one production body
+## Roadmap 34E — one production body
 
 **Director is the brain; Theater is the body.** The audit that established which side of that line
 each responsibility falls on is [[34E-director-theater-audit]]; this is what came of it. The
@@ -5008,25 +5008,25 @@ The first live rehearsal after the Theater landed ended at
 `cannot_express: the control does not implement InvokePattern` on every Windows Settings
 navigation step. Settings is built almost entirely from *selection* items, so this was the most
 obvious application anybody would teach Marco with. Phase 1 gave both paths the same activation
-ladder (`internal/activate`, Invoke â Select â Expand â Toggle) and that fixed the symptom. It left
+ladder (`internal/activate`, Invoke → Select → Expand → Toggle) and that fixed the symptom. It left
 the cause: two bodies that have to be kept in step by hand, only one of which runs during teaching.
 
 ### What changed
 
-- **`internal/production`** is the contract â `Request`, `Authority`, `Verifier`, `Report`, one
+- **`internal/production`** is the contract — `Request`, `Authority`, `Verifier`, `Report`, one
   closed `Refusal` vocabulary. Types and interfaces, no machinery, so the Director can name a
   production without importing the Theater. `internal/director/rehearse` still imports nothing
   that can act, which the boundary test continues to assert.
 - **An Actor writes legal Marco and performs nothing.** `Actor.Cast` returns a program; the
   Production boundary runs it through an injected `MarcoRunner`. Every real input therefore passes
-  the compile gate, and a dry run has something to record. `AccessibilityActor.Perform` â a direct
-  host call â is deleted.
+  the compile gate, and a dry run has something to record. `AccessibilityActor.Perform` — a direct
+  host call — is deleted.
 - **The live rehearsal's own path is gone.** `liveControls`, the element-id resolution inside
   `LowerStep`, and `pressThrough` are deleted rather than kept as a fallback. A press crosses as a
   name, a kind and a window; no runtime id survives the gap between deciding and doing.
 - **Verification travels with the request.** A standalone runtime brings none and gets
   `not_verified`; a rehearsal lends `observeOutcome` itself. `theaterhost.Verifier`
-  (`Changed(ctx) bool`) is deleted â it was a second idea of verification in the same file, and
+  (`Changed(ctx) bool`) is deleted — it was a second idea of verification in the same file, and
   with a nil verifier it made every standalone saved play report `failed`.
 - **`cmd/director` wires the Theater** with the same runner the rehearsal already chose, so a dry
   production lands in the notebook exactly as its navigation does.
@@ -5038,7 +5038,7 @@ the cause: two bodies that have to be kept in step by hand, only one of which ru
   a shared actor is one caller's window silently applied to another's production. Same reasoning
   retired the construction-time verifier.
 - **The loop asks its own verifier whether it ran**, not the report. A fake producer that claimed
-  to have verified without asking left the step with no outcome at all â which is how that was
+  to have verified without asking left the step with no outcome at all — which is how that was
   found. `StepEmission` carries nothing about the result at all now.
 - **`Reached` is `Performed || perform_failed`.** Nothing was sent for `target_not_found` or an
   ambiguous name, so those stay refusals; a cast program that ran and had its capability declined
@@ -5048,14 +5048,14 @@ the cause: two bodies that have to be kept in step by hand, only one of which ru
   `cmd/marco/theaterwiring.go`, which builds the runner's act map without the Theater in it. No
   depth counter.
 - **`internal/director/uiact` still lowers its own control activations** for the UI action path.
-  Separate caller, separate migration â named here so it is not mistaken for covered.
+  Separate caller, separate migration — named here so it is not mistaken for covered.
 
 ### What the mutations found
 
 Twelve non-equivalent mutations, twelve killed, across four packages. One was found **equivalent**
 and is recorded rather than faked: mapping `"Accessibility"` to the recorder in the dry rehearsal's
 act map changes nothing observable, because `marcorunner` installs the OS host as the default for
-any act with no entry and here that is the same recorder. It is written out anyway â an
+any act with no entry and here that is the same recorder. It is written out anyway — an
 Accessibility call served by the OS host is an accident of the fallback, and the live map names
 both explicitly.
 
@@ -5064,7 +5064,7 @@ Two tests that were gating the deleted verification (`TestAnActivationThatChange
 held moved to `perform_test.go` with the verification itself, and ADR-068's *Enforced by* was
 corrected to say so.
 
-# Roadmap 34F Phase 0 â one runnable product, proven live (2026-08-20)
+# Roadmap 34F Phase 0 — one runnable product, proven live (2026-08-20)
 
 The 34F audit found a product that could learn and could not run what it learned. Phase 0 closed
 that, and the closing was done by the live acceptance rather than by the deterministic work: four
@@ -5079,7 +5079,7 @@ taught again:
 ```
 marco do "Open Mouse Settings"        app=code
   route found            open-mouse-settings   scope=applicationframehost
-  authority              allowed (learned_play) â asked, and answered
+  authority              allowed (learned_play) — asked, and answered
   delegating to the Director
   step 1 of 2: verified
   step 2 of 2: verified
@@ -5090,12 +5090,12 @@ Twice, from two independent cold starts, with the Director killed and its endpoi
 between them. Learn established three durable Places (`Home`, `Bluetooth & devices`, `Mouse`), two
 edges, both `directly_verified`, and the Play was saved AND registered with no developer command.
 
-The chain, each arrow a real implementation: overlay/`marco do` â `dispatchDo` â `Registry.Resolve`
-â `orchestrator.Classify`/`Authorize` â `Resolved.Learned()` fork â `service.PerformQuery` â
-`Runtime.PerformGoal` â durable goal and application â `bringForward` â live desktop selector â
-`freshPlace` â `observe.PlaceNow` â `PlanToGoal` over verified edges â execution grant (epoch
-`asked`) â `rehearse.Live.Perform` â Theater â `AccessibilityActor.Cast` â legal Marco â compile
-gate â `bridgehost`/UIA â real input â per-edge verification â a second fresh look â
+The chain, each arrow a real implementation: overlay/`marco do` → `dispatchDo` → `Registry.Resolve`
+→ `orchestrator.Classify`/`Authorize` → `Resolved.Learned()` fork → `service.PerformQuery` →
+`Runtime.PerformGoal` → durable goal and application → `bringForward` → live desktop selector →
+`freshPlace` → `observe.PlaceNow` → `PlanToGoal` over verified edges → execution grant (epoch
+`asked`) → `rehearse.Live.Perform` → Theater → `AccessibilityActor.Cast` → legal Marco → compile
+gate → `bridgehost`/UIA → real input → per-edge verification → a second fresh look →
 `confirmArrival`.
 
 **No second performer was created.** `cmd/marco` gained a socket client, not eyes.
@@ -5104,10 +5104,10 @@ gate â `bridgehost`/UIA â real input â per-edge verification â
 
 | # | defect | found by |
 |---|---|---|
-| 1 | a learned Play registered as a **context** route, so it resolved only while its own application was already in front â asking for it from anywhere else offered to TEACH a play learned four minutes earlier | live |
+| 1 | a learned Play registered as a **context** route, so it resolved only while its own application was already in front — asking for it from anywhere else offered to TEACH a play learned four minutes earlier | live |
 | 2 | making it a focus route broke collision refusal: `Has` is scope-exact, so a learned play in `focus/` no longer collided with an authored play of the same name in `context/` | the suite, immediately |
 | 3 | `applicationframehost` hosts Settings, XBOX and Realtek Audio Console; activating by application name raised the wrong window and the look honestly said `place_unknown` about a window nobody asked about | live |
-| 4 | the accessibility bridge is a console executable, so starting it created a console window, and **a new console window takes the foreground** â stealing it from the application the Director had just brought forward. Cold path only | live |
+| 4 | the accessibility bridge is a console executable, so starting it created a console window, and **a new console window takes the foreground** — stealing it from the application the Director had just brought forward. Cold path only | live |
 | 5 | `Arrived = final == subject` made `"" == ""` true, so an unseeable screen reported "Done." | mutation, not the suite |
 
 Defect 2 is the one worth remembering: a fix that widens a scope silently narrows a guard, and the
@@ -5119,13 +5119,13 @@ asks every scope that could answer.
 - **A responsive application's structure signature is size-sensitive.** Resizing Settings from
   1936x1048 to 1500x950 collapsed its navigation pane, changed the control counts, and the taught
   Place stopped matching. [[ADR-072-a-place-is-not-its-viewport]] says a place is not its viewport,
-  and that still holds â but an application that REFLOWS is genuinely showing a different
+  and that still holds — but an application that REFLOWS is genuinely showing a different
   composition, and Marco is right not to recognise it. Recorded, not fixed.
 - **`director sight` answers from the newest finished session.** Three consecutive looks returned
   identical numbers including the visit count, which read as a stuck live view and is really the
   stale-evidence path doing exactly what it says. It is a poor probe for "what is in front now";
   `freshPlace` is the one with the freshness rule.
-- **A fullscreen game holds the Windows foreground lock**, and nothing â Marco included â can
+- **A fullscreen game holds the Windows foreground lock**, and nothing — Marco included — can
   activate over it. Three independent mechanisms failed before this was attributed.
 
 ## Follow-ons, recorded and NOT fixed
@@ -5135,79 +5135,79 @@ asks every scope that could answer.
    candidate, and titles are an address, never identity.
 3. A locally-run generated play still swallows its own failure in its `or?` arm and exits 0. The
    bridge path reports honestly; the local path does not.
-4. Learned-play names with punctuation or apostrophes do not round-trip slugâgoal and refuse with
-   `not_learned`. The durable `Origin.To â Goal.Subject` join fixes it and needs no protocol change.
+4. Learned-play names with punctuation or apostrophes do not round-trip slug→goal and refuse with
+   `not_learned`. The durable `Origin.To → Goal.Subject` join fixes it and needs no protocol change.
 5. `plugins/uia/uia.exe` is locked while the stack runs, so `setup.ps1` fails if run live.
 
 ## Decisions
 
-[[ADR-079-a-demonstration-the-audience-named-is-a-play-they-may-ask-for]] â the save/register wall
+[[ADR-079-a-demonstration-the-audience-named-is-a-play-they-may-ask-for]] — the save/register wall
 is about the mechanism, not about who crosses it.
-[[ADR-080-a-learned-play-is-asked-for-from-anywhere]] â focus, not context, and why a collision is
+[[ADR-080-a-learned-play-is-asked-for-from-anywhere]] — focus, not context, and why a collision is
 about a name rather than a file.
-[[ADR-078-a-learned-play-is-performed-by-the-director]] â corrected: `bringForward` preceding the
+[[ADR-078-a-learned-play-is-performed-by-the-director]] — corrected: `bringForward` preceding the
 Stage read IS now gated, contrary to what it previously claimed.
 
-# Roadmap 34F Phase 1 â the product noun is a Play (2026-08-20)
+# Roadmap 34F Phase 1 — the product noun is a Play (2026-08-20)
 
 Phase 0 made one runnable product. Phase 1 gave it a vocabulary, and a surface that shows the
-whole of what a person has â including the plays that are saved and cannot yet answer.
+whole of what a person has — including the plays that are saved and cannot yet answer.
 
 **No file moved and no directory was renamed.** `internal/routes` keeps its name, `routes/` keeps
 its name, `$MARCO_ROUTES` keeps its name, and `marco routes` keeps its name, its result set and
-its published JSON keys. Product vocabulary and implementation vocabulary are allowed to differ â
+its published JSON keys. Product vocabulary and implementation vocabulary are allowed to differ —
 the same divergence this repository already runs for Learn/`teach`.
 
 ## What landed
 
-- **`internal/plays`** â one package holding the product projection AND the product wording:
+- **`internal/plays`** — one package holding the product projection AND the product wording:
   `List` / `Registered` / `Staged` / `Find`, `ScopeOf`, `LifeOf`, `AfterLearn`, `KindWord`. Kinds
   present as **Authored / Recorded / Learned**; standing is one of `ready | edited | unverified |
   saved | stuck`, each with its badge and its sentence.
-- **An additive registry API** â `ListStaged`, `KindOf`, `KindOfStaged`, `HasRecording`,
+- **An additive registry API** — `ListStaged`, `KindOf`, `KindOfStaged`, `HasRecording`,
   `MoveOrigin`, `LearnedFocus`. `Registry.List` and `Registry.Resolve` were not touched: the
   Plays surface JOINS two enumerations rather than widening one, because `Resolve` walks `List`.
-- **One decider for provenance** â `orchestrator.Classify` now calls `reg.KindOf`, the same call
+- **One decider for provenance** — `orchestrator.Classify` now calls `reg.KindOf`, the same call
   the listing makes, so the authority door and the listing cannot disagree about a file.
-- **The control centre's Routes tab is the Plays surface** â registered and staged together,
+- **The control centre's Routes tab is the Plays surface** — registered and staged together,
   `GET /api/plays`, `POST /api/register`, delete via `Unregister`, and `/api/scope` carrying the
   `.origin.json` verbatim through `MoveOrigin`. The landing tab with no play named is Plays. The
   view identifiers (`routes`, `nav('routes')`, `marco ui routes`) deliberately did not move.
-- **`marco plays` and `marco register`** â the listing that shows a saved play, and the command
+- **`marco plays` and `marco register`** — the listing that shows a saved play, and the command
   that listing names. `marco routes` stayed narrow on purpose: it is what may be OFFERED to a
   front end, and a staged name would advertise something `marco do` cannot find.
-- **One unknown-command prefix** â `"no play matches "`, with `plugins/overlay`'s suppression
+- **One unknown-command prefix** — `"no play matches "`, with `plugins/overlay`'s suppression
   constant moved to match. The wire prefix `"[route] "` is protocol and did not change.
 
 ## The two defects this made visible
 
 1. **A scope change stripped a learned play's past.** `/api/scope` carried the `.marco` and the
-   `.rec.json` and left the `.origin.json` behind â so the moved play re-listed as *Authored*, and
+   `.rec.json` and left the `.origin.json` behind — so the moved play re-listed as *Authored*, and
    an orphaned sidecar sat under the old scope waiting for the next play saved there. Invisible
    while nothing displayed provenance.
 2. **Writing the sidecar at the destination would have been worse.** `SaveWithOrigin` recomputes
-   the digest, so a play the person had edited would come out of a move reading `ready` â Marco
+   the digest, so a play the person had edited would come out of a move reading `ready` — Marco
    silently re-vouching for an artifact it never verified. `MoveOrigin` copies the bytes instead.
 
 ## Decisions
 
-[[ADR-081-a-durable-behaviour-is-a-play]] â the product noun, the four alternatives that were
+[[ADR-081-a-durable-behaviour-is-a-play]] — the product noun, the four alternatives that were
 rejected (including renaming the package), and the costs of keeping two vocabularies.
-[[ADR-082-a-plays-past-travels-with-the-file]] â Rename and the scope change carry provenance
+[[ADR-082-a-plays-past-travels-with-the-file]] — Rename and the scope change carry provenance
 verbatim, so a move can neither lose a past nor re-verify an edited play.
 
 ## Where to read it
 
 [[Plays]] is the new subsystem note: the Play and the Binding, the three kinds, the three scopes,
 the five standings, and a table of which call decides each fact. [[Learned-Plays]] was corrected
-where it still said a learned play lands in `context/` â it lands in `focus/`, and has since
+where it still said a learned play lands in `context/` — it lands in `focus/`, and has since
 [[ADR-080-a-learned-play-is-asked-for-from-anywhere]]. README documents `marco plays` and
 `marco register`; E2E section **G** walks a staged play across the line and back.
 
-# Roadmap 34F Phase 2 â one invocation intake (2026-08-20)
+# Roadmap 34F Phase 2 — one invocation intake (2026-08-20)
 
 Phase 1 gave the product a noun. Phase 2 gave it one door. **Typing, speaking, a hotkey, a
-clicked Run and the CLI are entrances, not different Marcos** â and which one you used no longer
+clicked Run and the CLI are entrances, not different Marcos** — and which one you used no longer
 decides what your words mean.
 
 The rule, in one sentence: *if Marco already knows exactly what the Audience means, it uses the
@@ -5215,35 +5215,35 @@ durable thing it knows; otherwise Director works out what they mean from the liv
 
 ## What landed
 
-- **`internal/invoke`** â the one semantic decision, PURE. `Decide(plays, Request) Decision`,
-  five arms in a fixed order: control phrase â pending question â explicit identity â exact
-  durable match â Director. `Request.Source` is recorded and **never consulted**; lookup is exact
+- **`internal/invoke`** — the one semantic decision, PURE. `Decide(plays, Request) Decision`,
+  five arms in a fixed order: control phrase → pending question → explicit identity → exact
+  durable match → Director. `Request.Source` is recorded and **never consulted**; lookup is exact
   and never fuzzy.
-- **`cmd/marco/intake.go`** â `runInvocation`, the one process-side entry, and six outcomes
+- **`cmd/marco/intake.go`** — `runInvocation`, the one process-side entry, and six outcomes
   (`performed | clarify | refused | unavailable | cancelled | failed`) with distinct exit codes,
   announced on `[result] ` beside the unchanged `[route] `. `MARCO_TRACE_INTAKE=1` adds
-  `[intake] source=â¦ decision=â¦ play=â¦ why=â¦`, which is how the acceptance is *seen*.
+  `[intake] source=… decision=… play=… why=…`, which is how the acceptance is *seen*.
 - **Deleted: `dispatchDo` and `resolveTarget`.** The 0.75-score `internal/nlu` match and the
   `$MARCO_RESOLVER` external model no longer sit in front of the door on the product path. Both
   packages survive as a developer surface (`marco assistant`'s confirm loop, `args`, `simplify`,
   `bind`, `dispatch`).
-- **`plugins/overlay`** â the `RunVoice` â `marco director` branch is GONE. Typed and spoken build
+- **`plugins/overlay`** — the `RunVoice` → `marco director` branch is GONE. Typed and spoken build
   the same argv and differ in `--source` alone; both are asynchronous; control words are
   recognised locally for immediacy only, and `cancelRun` also spawns `marco director stop`.
   Six outcomes are read off the wire instead of guessed from an exit code.
-- **Explicit identity end to end** â a clicked Run posts `{slug, app, scope}` and spawns
+- **Explicit identity end to end** — a clicked Run posts `{slug, app, scope}` and spawns
   `--play=`; `marco hotkey` resolves its binding once. A Play a surface already holds is never
   turned back into words and guessed at again.
-- **Director: PERFORM is a registry command** â visible to `director status`, refusing a
+- **Director: PERFORM is a registry command** — visible to `director status`, refusing a
   concurrent mutating request, reachable by `CANCEL_ACTIVE`, and holding a real cancellable
   context. `cmd/director/perform.go` has zero `context.Background()` left.
-- **The subject is the identity** â `Origin.To â Goal.Subject`, matched before any name join.
-  `ProtocolVersion` 6 â 7; rebuild everything together or the version check refuses.
+- **The subject is the identity** — `Origin.To → Goal.Subject`, matched before any name join.
+  `ProtocolVersion` 6 → 7; rebuild everything together or the version check refuses.
 
 ## The four defects this made visible
 
 1. **A learned play could not be stopped.** `rehearse.Live.Perform` checks `ctx.Err()` before
-   every step and has a cancelled terminal and a cancelled refusal ready â all dead, because the
+   every step and has a cancelled terminal and a cancelled refusal ready — all dead, because the
    only context ever handed in was `context.Background()`.
 2. **PERFORM acted outside the command registry.** `director status` said nothing was running
    while a play typed and clicked, `director stop` answered "nothing is running", and a second
@@ -5252,16 +5252,16 @@ durable thing it knows; otherwise Director works out what they mean from the liv
    fell through the unknown-command path, and became the teach offer.
 4. **`marco do` was never the exact-match intake the audit assumed.** Two semantic layers ran in
    front of the registry, so with both "open settings" and "open the settings" registered, asking
-   for the second ran the first â silently, in front of the authority door.
+   for the second ran the first — silently, in front of the authority door.
 
 ## Decisions
 
-[[ADR-083-one-invocation-intake]] â one intake, transport does not decide meaning, and the three
+[[ADR-083-one-invocation-intake]] — one intake, transport does not decide meaning, and the three
 alternatives rejected (teach Director about Plays; make Play lookup fuzzy; keep two intakes and
 sync them).
-[[ADR-084-a-plays-identity-is-its-subject]] â the `Origin.To â Goal.Subject` join, and why the
+[[ADR-084-a-plays-identity-is-its-subject]] — the `Origin.To → Goal.Subject` join, and why the
 name is consulted for exactly one legacy case and never first.
-[[ADR-085-a-performance-is-a-registry-command]] â visible, refusable, stoppable; this is what
+[[ADR-085-a-performance-is-a-registry-command]] — visible, refusable, stoppable; this is what
 makes `stop` work on a running Play.
 
 ## Where to read it
@@ -5269,54 +5269,54 @@ makes `stop` work on a running Play.
 [[Invocation]] is the new subsystem note: the canonical rule, source invariance, explicit
 identity, all five arms with the reason each sits where it does, the cancellation exception, the
 six outcomes and the three wire lines, and a table of every entrance. [[34F-legacy-marco-product-audit]]
-Â§22 records Phase 2 as landed and what it found that the audit had not. README documents the one
+§22 records Phase 2 as landed and what it found that the audit had not. README documents the one
 intake in user terms; E2E section **H** proves cross-surface sameness with `MARCO_TRACE_INTAKE=1`,
-and needs a person at a microphone for the spoken half â a Final transcript cannot be scripted.
+and needs a person at a microphone for the spoken half — a Final transcript cannot be scripted.
 
 **Still owed:** Phase 3, one stop. A locally-run play still stops by the panic-stop hook and the
 overlay's child kill rather than through the same authority.
 
-# Roadmap 34F Phase 3 â one vocabulary: Learn, Teach, Do (2026-08-20)
+# Roadmap 34F Phase 3 — one vocabulary: Learn, Teach, Do (2026-08-20)
 
 Phase 2 gave the product one door. Phase 3 gave it one **vocabulary**, and the vocabulary is
-vertical â it means the same thing in a package name, a CLI verb, a wire field and a sentence a
+vertical — it means the same thing in a package name, a CLI verb, a wire field and a sentence a
 person reads:
 
-> **LEARN** â the person acts, Marco watches and acquires. *(built)*
-> **TEACH** â the person acts, Marco guides them through it. *(reserved, not built)*
-> **DO** â Marco acts, the person delegates. *(built)*
+> **LEARN** — the person acts, Marco watches and acquires. *(built)*
+> **TEACH** — the person acts, Marco guides them through it. *(reserved, not built)*
+> **DO** — Marco acts, the person delegates. *(built)*
 
 The old spelling had all three collapsed onto `teach`, so the one direction the product does not
 yet do was occupying the name of the one it does.
 
 ## What landed
 
-- **Packages** â `internal/director/teach` â **`internal/director/learn`**; `internal/voiceteach`
-  â **`internal/voicelearn`**. Files moved with them: `teachcmd.go` â `learncmd.go`,
-  `teachtail.go` â `learntail.go`, `teachwiring.go` â `learnsessionwiring.go`,
-  `teachgrounding.go` â `learngrounding.go`, and their tests.
+- **Packages** — `internal/director/teach` → **`internal/director/learn`**; `internal/voiceteach`
+  → **`internal/voicelearn`**. Files moved with them: `teachcmd.go` → `learncmd.go`,
+  `teachtail.go` → `learntail.go`, `teachwiring.go` → `learnsessionwiring.go`,
+  `teachgrounding.go` → `learngrounding.go`, and their tests.
 - **The two acquisition request types were MERGED.** `service.ObserveTeach` is gone. There is one
   `service.ObserveLearn` carrying both the control surface's verbs and the session's own
   configuration (`Target`, `Actor`, `Verb`, `Surface`, `Dry`, `Finish`, `Evidence`).
   `ObserveQuery.Teach` is gone; everything goes through `ObserveQuery.Learn`, and `Surface` says
   which surface is asking and therefore which account of the session comes back. Two shapes of one
   act at two altitudes had been two types, and the translation between them was a facade.
-- **`ProtocolVersion` 7 â 8.** Rebuild everything together and restart `overlay.cmd`, or the
-  version check refuses â which is the intended failure, not a bug to work around.
-- **Identifiers** â `Runtime.Teaching` â `Runtime.LearnSession`, `teachView` â `learnSessionView`,
-  `teaching` â `learnSession`, `teachTail` â `learnTail`, `IntentTeach` â `IntentLearn`,
-  `ReferentTeachStart/Destination` â `ReferentLearnStart/Destination`.
-- **CLI and command words** â `marco learn` and `director learn` are canonical; the overlay says
+- **`ProtocolVersion` 7 → 8.** Rebuild everything together and restart `overlay.cmd`, or the
+  version check refuses — which is the intended failure, not a bug to work around.
+- **Identifiers** — `Runtime.Teaching` → `Runtime.LearnSession`, `teachView` → `learnSessionView`,
+  `teaching` → `learnSession`, `teachTail` → `learnTail`, `IntentTeach` → `IntentLearn`,
+  `ReferentTeachStart/Destination` → `ReferentLearnStart/Destination`.
+- **CLI and command words** — `marco learn` and `director learn` are canonical; the overlay says
   `learn <name>` and `narrate learn <name>`. `teach` still answers everywhere it ever did
   (`case "learn", "teach":`) as an **undocumented compatibility alias**, because it is the muscle
   memory the product shipped with. It is documented exactly once, in README's command reference,
   and it is retiring.
-- **Not renamed, because it was never acquisition** â the overlay's interactive-prompt plumbing
+- **Not renamed, because it was never acquisition** — the overlay's interactive-prompt plumbing
   (any subcommand's prompts, not just a demonstration) became `promptPipe` / `promptAsk` /
   `setPrompt`. The `Learned*` family (`routes.KindLearned`, `director learned`, `LearnedPlay`)
   is a read over what Director wrote down, and `playbill.Learning` is derived from the passive
-  observation session â both were already the right word.
-- **A governance test** â `cmd/marco` `TestNoLiveAcquisitionCodeIsNamedTeach` refuses any
+  observation session — both were already the right word.
+- **A governance test** — `cmd/marco` `TestNoLiveAcquisitionCodeIsNamedTeach` refuses any
   Teach-spelled identifier in live acquisition code, and names the alias explicitly so it cannot
   grow silently.
 
@@ -5328,7 +5328,7 @@ A mechanical replace would have destroyed the record, so three classes were kept
    the word in its wrong sense **as evidence**; rewriting them makes the ADR incoherent.
 2. **Quoted transcripts** of live runs (ADR-079, ADR-080). Editing quoted evidence falsifies it.
 3. **The reservation itself.** Every sentence saying Teach means Marco guiding a person got
-   *more* correct and was left as written â including `plays.KindWord` returning **Recorded**,
+   *more* correct and was left as written — including `plays.KindWord` returning **Recorded**,
    which is the ADR-048 decision already in force.
 
 Ordinary English also stayed ordinary: a comment that says a thing "teaches the reader" is about
@@ -5336,26 +5336,26 @@ a human being instructed, not about Marco acquiring.
 
 ## Decisions
 
-[[ADR-086-one-acquisition-one-word-one-request]] â one acquisition, one word, one request: why
+[[ADR-086-one-acquisition-one-word-one-request]] — one acquisition, one word, one request: why
 Learn wins the name outright, why the alias is undocumented rather than blessed, and why the two
 request types were merged instead of kept in sync. It supersedes nothing in
-[[ADR-048-learn-teach-and-do-are-three-different-sentences]] â it finishes it, because ADR-048
+[[ADR-048-learn-teach-and-do-are-three-different-sentences]] — it finishes it, because ADR-048
 named the three sentences and the code kept only one of them.
 
 ## Where to read it
 
 CLAUDE.md now carries the three-word rule as a load-bearing invariant, with the governance test
 named. README documents the alias once. E2E section **A** gained step **6a**, which exercises the
-`teach` alias in the HUD â the only place the overlay's command-word alias can be proven, because
+`teach` alias in the HUD — the only place the overlay's command-word alias can be proven, because
 the Go suite cannot drive the command line.
 
-# Roadmap 34F Phases 3â5 â one stop, one account, and the record (2026-08-20)
+# Roadmap 34F Phases 3–5 — one stop, one account, and the record (2026-08-20)
 
-Phases 0â2 gave the product one runnable path, one noun and one door. This entry covers the rest of
+Phases 0–2 gave the product one runnable path, one noun and one door. This entry covers the rest of
 the 34F campaign in one go, because it landed in one commit (`ac8da6c`) plus the documentation pass
 that closed it.
 
-**A numbering note, so nobody loses an hour to it.** The HANDOFF entry above is headed *"Phase 3 â
+**A numbering note, so nobody loses an hour to it.** The HANDOFF entry above is headed *"Phase 3 —
 one vocabulary"*; the campaign plan calls that the second half of Phase 2, and calls **this**
 Phase 3. The commits are the truth: `fca45e0` is one intake + the acquisition rename, `ac8da6c` is
 one stop + one account.
@@ -5364,7 +5364,7 @@ one stop + one account.
 
 **One stop, and it crosses a process boundary** ([[ADR-087-one-stop-and-it-crosses-a-process-boundary]]).
 `stop` was already a control phrase from every entrance, and the Director's own performances were
-already registry commands â and neither was enough, because the thing a person is most often trying
+already registry commands — and neither was enough, because the thing a person is most often trying
 to stop is a Play running in a **different process** from the one they said it to. `marco do`
 performs an authored or recorded Play inside a short-lived child; the overlay starts one, so does
 the control centre, so does a hotkey, so does a terminal. `internal/stopsignal` is the one stop that
@@ -5372,20 +5372,20 @@ reaches them.
 
 **`finally` had never once run on a cancellation** ([[ADR-088-cleanup-runs-when-the-audience-stops]]).
 `spec/Core.md` is normative and says `finally` runs *including cancellation*, with a worked example
-of releasing a held key â which is precisely the work that must still happen when somebody presses
+of releasing a held key — which is precisely the work that must still happen when somebody presses
 stop, and the one case in which it never happened. The mechanism was a single `if`: `runBlock`
 bailed out on a cancelled frame and called `runFinallies`, which re-entered `runBlock` **on the same
 still-cancelled frame**, so the cleanup body's first ordinary edge hit the same guard and returned.
 The whole suite was green while a normative spec sentence was false.
 
 **The second invocation spine is gone.** `orchestrator.Deps.Do` / `.Resolve` / `.Run` was a
-complete resolve â authorize â run â learn-on-unknown path with **no production caller** â and
+complete resolve → authorize → run → learn-on-unknown path with **no production caller** — and
 worse than the live one: no context (so no panic-stop, no cancellation) and no `routes.ApplyArgs`.
 The authority test suite still entered through it, which is exactly how the last authority bypass
 hid. Deleted, with the tests moved onto the production entry.
 
 **A live rehearsal can now be stopped.** `learnTail.Rehearse` took a `context.Context` with no
-name â Go's way of saying *I am obliged to accept this and I intend to ignore it* â and
+name — Go's way of saying *I am obliged to accept this and I intend to ignore it* — and
 `rehearserun.go` then called the walker with `context.Background()`. Pressing **Try** in the Learn
 panel started real input that nothing in the product could stop: not the panel's Cancel (it
 cancelled a context that call had discarded), not `director stop` (no registry command existed for
@@ -5395,12 +5395,12 @@ third arm so a Learn episode is something the stop can find.
 **One live-walker composition root.** `perform.go` built the same object `rehearserun.go` built and
 differed from it in one line: it never called `WithForeground`. `Live.behind` returns false when
 `inFront` is nil, so the per-step "input would land somewhere else" refusal was **live for the
-rehearsal Marco asks permission for and dead for the play the Audience asks for** â exactly
+rehearsal Marco asks permission for and dead for the play the Audience asks for** — exactly
 backwards. There is one root now, and `TestEveryLiveWalkerChecksTheForeground` enumerates every
 function in `cmd/director` that builds a `rehearse.Live` rather than naming files.
 
 **Marco's Screen host asks the Director which place is showing** (protocol v9). It used to return
-`unavailable` unconditionally â a true statement about that process and a false one about the
+`unavailable` unconditionally — a true statement about that process and a false one about the
 system, since the eyes exist in a sibling process one dial away. This also closed a hole nobody had
 listed: an **edited** learned play loses `Resolved.Learned()`, so it takes the local runner, so it
 used to refuse at its own first `do Screen's Showing` line. Editing is invited, the authority door
@@ -5409,15 +5409,15 @@ deliberately blesses it, and the result was a Play that refused at its own first
 **One outcome vocabulary.** `internal/outcome` owns the six words
 (`performed`/`clarify`/`refused`/`unavailable`/`cancelled`/`failed`), the `"[result] "` and
 `"[route] "` wire literals and the exit codes; engine, HUD and control centre all import it. The
-control centre now reports **real** outcomes â it used to fire-and-forget a child and render
-`running:` forever â through a run id the page polls (`cmd/marco/runaccount.go`). Actor
+control centre now reports **real** outcomes — it used to fire-and-forget a child and render
+`running:` forever — through a run id the page polls (`cmd/marco/runaccount.go`). Actor
 availability asks its provider and carries a reason, empty always when it can act.
 
 ## What was found
 
 Nine read-only audits were written mid-campaign and are the source material for the three new
 notes. Their findings, re-verified against the closing tree, and several of the headlines had
-already been fixed by the time the record was written â which is itself the finding worth keeping.
+already been fixed by the time the record was written — which is itself the finding worth keeping.
 
 - **The dangerous defects were all invisible to a green suite.** A dead foreground guard, a
   `finally` that never ran, an uncancellable rehearsal, a second spine only tests could enter. Four
@@ -5431,11 +5431,11 @@ already been fixed by the time the record was written â which is itself the
   and `director op`. Four are defensible; the work is to **name them in the model** rather than to
   close them.
 - **`/api/bind` still writes a binding it never validates**, reintroducing the exact defect
-  `bindKey` was written to prevent â *a binding that reports success and can never fire is worse
+  `bindKey` was written to prevent — *a binding that reports success and can never fire is worse
   than one that refuses*.
 - **The Observe stack is far less Learn-welded than anybody expected.** Light Mode already runs a
   passive session with a **zero Episode**, and place recognition works inside it. Exactly one
-  production site sets `EstablishPlaces` true â and that one boolean grants at least four separate
+  production site sets `EstablishPlaces` true — and that one boolean grants at least four separate
   licences.
 - **The genuine 35A blocker is cold start, not Learn.** A durable relationship needs both endpoints
   already Established; on a fresh install nothing is, and places become durable only through Learn
@@ -5444,12 +5444,12 @@ already been fixed by the time the record was written â which is itself the
 
 ## What is owed
 
-- **`/api/bind` â `bindKey`.** The most concrete unclosed defect in the campaign. Small.
+- **`/api/bind` → `bindKey`.** The most concrete unclosed defect in the campaign. Small.
 - **One `Stage.Now()`** owning evidence selection in front of `PlaceNow`. Eight callers choose their
-  own evidence today, so there is no single answer to *what is Marco looking at* â the precondition
+  own evidence today, so there is no single answer to *what is Marco looking at* — the precondition
   for Observe.
 - **An enumerating one-intake test**, in the shape of the pump test.
-- **One `internal/marcopaths`** â `$MARCO_HOME`, `$MARCO_ROUTES` and the uia bridge are each derived
+- **One `internal/marcopaths`** — `$MARCO_HOME`, `$MARCO_ROUTES` and the uia bridge are each derived
   independently in two binaries. Break #3 is in remission, not cured.
 - **A shared overlay config struct.** `cmd/marco/oconfig.go` hand-mirrors the overlay's `Config` and
   does not preserve unknown keys, so the control centre can **delete a setting it does not know
@@ -5466,21 +5466,21 @@ already been fixed by the time the record was written â which is itself the
 
 ## Where to read it
 
-- [[34F-duplication-matrix]] â canonical owner, remaining duplicates, why each remains, and the
+- [[34F-duplication-matrix]] — canonical owner, remaining duplicates, why each remains, and the
   second-Marco question re-verified path by path.
-- [[34F-legacy-matrix]] â every major system with exactly one status, the compatibility table, and
+- [[34F-legacy-matrix]] — every major system with exactly one status, the compatibility table, and
   the exhaustive CLI verb surface of `cmd/marco` and `cmd/director`.
-- [[34F-observe-readiness]] â the perception dependency graph, the three gating questions answered
+- [[34F-observe-readiness]] — the perception dependency graph, the three gating questions answered
   with proof, the cold-start bootstrap problem, and the four-tier privacy seam.
 - [[34F-legacy-marco-product-audit]] now carries a dated banner recording what landed and which of
-  its own findings are stale. **Its body was deliberately not rewritten** â it is the record of
+  its own findings are stale. **Its body was deliberately not rewritten** — it is the record of
   what was true then.
 - [[Roadmap]] gained **35A Observe**, **35B Learn as explicit attention and admission over
   Observe**, and **35C Teach**. Observe is not implemented; nothing in the tree is called Observe.
 
 ---
 
-## Roadmap 35A + 35B â observation stops being a privilege of Learn, and Learn stops replaying you
+## Roadmap 35A + 35B — observation stops being a privilege of Learn, and Learn stops replaying you
 
 Three commits on `feat/host-ffi`: `90a0bce`, `f1fe7d3`, `a0d1ae5`.
 
@@ -5497,49 +5497,49 @@ one level up, inside `establishPlace`. The gate on the inference was a second ga
 privacy. It is gone; the shape filter that actually protects a person was always unconditional and
 now carries the whole weight.
 
-The remaining three are named permissions â `EstablishPlaces`, `AcquireRouteEvidence`,
-`NameActivatedTargets` â grantable one at a time, with `LearnLicence()` as the one place Learn's
+The remaining three are named permissions — `EstablishPlaces`, `AcquireRouteEvidence`,
+`NameActivatedTargets` — grantable one at a time, with `LearnLicence()` as the one place Learn's
 grant is written down. **Four mutations survived the first version of that split**, including
 hard-wiring the privacy-carrying permission to `true`; every test granted all three, so a swapped
 guard was invisible to all of them. Closed by tests that drive the production path with permissions
 that DIFFER. See [[ADR-076-a-place-may-say-what-it-appears-to-be-called]]'s amendment.
 
 **35B: Fast Learn.** Every required edge used to be REHEARSED before a route could be written down
-â "want me to try?", a yes, and Marco driving the real desktop, twice for a two-hop route, to learn
+— "want me to try?", a yes, and Marco driving the real desktop, twice for a two-hop route, to learn
 something the person had just finished showing it.
 
 The measurement that settles it: the rehearsal question was raised under **exactly** the conditions
 that already made the evidence sufficient (`CandidateConsistent`, nothing `Blocking()`), and
 anything less was refused upstream and never reached a rehearsal at all. There was no middle state.
-The question obtained no information â it obtained a permission, for an action nobody had asked
+The question obtained no information — it obtained a permission, for an action nobody had asked
 Marco to take.
 
 So a clean demonstration is admitted on the strength of what the person showed: `EdgeObserved`
 beside `EdgeVerified`, deliberately not folded into it, because they are claims about different
 actors. Rehearsal survives as a tool via `WithRehearsal(true)`. `verifiedEdges` became
-`plannableEdges` and accepts either kind of knowing â without which a Fast-Learned Play would have
+`plannableEdges` and accepts either kind of knowing — without which a Fast-Learned Play would have
 saved and then refused to run. Authority, foreground and per-edge verification are untouched and
 are the reason widening planning weakens nothing. See
 [[ADR-089-watching-is-how-marco-learns-performing-is-how-it-proves]].
 
 **Two governance findings, both about gates I had built.** The wiring-claim checker scans line by
-line, so a claim whose test name WRAPPED onto the next line was invisible â **119 claims in this
+line, so a claim whose test name WRAPPED onto the next line was invisible — **119 claims in this
 tree end a line with the phrase**, and it had been run, passed, and reported as closing the problem
 while never checking any of them. And it read `.go` only: the docs vault held 25 more phantom
 citations in ADR `Enforced by` sections, which CLAUDE.md names as a hard rule, while `docscheck`
 said "no problems" throughout. Both holes are closed and the scan is now testable directly.
 
-**Not done, and owed.** Live acceptance â `ACCEPTANCE.md` section E is the twenty-minute
-walkthrough, and steps 16â20 need a person demonstrating a real route in Windows Settings. Nothing
+**Not done, and owed.** Live acceptance — `ACCEPTANCE.md` section E is the twenty-minute
+walkthrough, and steps 16–20 need a person demonstrating a real route in Windows Settings. Nothing
 yet upgrades an observed edge to execution-proven when a later run succeeds; the seam is
 `RehearsalEvidence` and the write belongs with 35C. Automatic Place naming was verified against its
 existing regressions (nav-rail, loading/reflow) rather than re-derived from fresh accessibility
 dumps.
 
-**35C: fast verified execution â carry proof forward.** Marco proved the same unchanged fact four
+**35C: fast verified execution — carry proof forward.** Marco proved the same unchanged fact four
 times in a two-edge play: once to plan, once before edge one, once before edge two, and once to
 confirm arrival. Three of those four asked a question that had been positively answered moments
-earlier, twice by the very action that would have changed the answer. Not wrong â redundant, and
+earlier, twice by the very action that would have changed the answer. Not wrong — redundant, and
 "nothing had changed" is a claim that has to be justified rather than assumed, which is why it had
 never been removed.
 
@@ -5552,24 +5552,24 @@ deterministically: 10 screen readings where it used to be 15.
 
 **The first version of this was less safe than the code it replaced, and the measurement is the
 argument.** `Justifies` checks everything a stored fact can be checked against, and cannot see the
-one thing that actually happens â somebody clicked. Moving Settings from one screen to another
+one thing that actually happens — somebody clicked. Moving Settings from one screen to another
 changes no window, no process, no generation and no foreground. Establishing from scratch would
 have caught it. So a proof now buys a SHORTER question rather than no question: one reading, which
-must resolve to the same Place, and any disagreement â including an unreadable frame â falls
+must resolve to the same Place, and any disagreement — including an unreadable frame — falls
 through to the full establish. It must never refuse on one frame, because a single reading can
 catch a transition six readings and a settle would look past.
 
 Two things came out of tracing the path rather than optimising it. `freshPlace` left its
 observation session running for the remaining six of its eight seconds, **sampling the screen
-alongside the walk it existed to start** â bounded, so never a leak, and contending for the one
+alongside the walk it existed to start** — bounded, so never a leak, and contending for the one
 accessibility provider with every reading the route took. And 35B's open seam is closed: a
 successful performance now ADDS execution evidence beside what was demonstrated, so the history can
 say both that the human showed it and that Marco later performed and verified it. A failed run adds
 nothing and erases nothing.
 
 **Three mutations survived and each one changed the code rather than the test.** Sourcing the proof from
-the plan's expectation instead of perception is unreachable through any walk â a route completes
-only on a directly verified last step, which is DEFINED as those two agreeing â so the rule was
+the plan's expectation instead of perception is unreachable through any walk — a route completes
+only on a directly verified last step, which is DEFINED as those two agreeing — so the rule was
 extracted to `provedBy` and is held directly with a record no walker can produce. A guard screening
 the handoff on `step.Verified` sat above the check that already ends the walk, and was deleted
 rather than left as a claim nothing can test. And `StageEvidence.SameWindow` was written, used, and
@@ -5591,19 +5591,19 @@ the one part of this system that must have only one.
 [[ADR-090-a-verified-outcome-is-the-next-step-s-evidence]].
 
 **35D: a Place is not its presentation.** A real store had accumulated TWELVE durable Places for
-THREE Settings pages â Home, Bluetooth & devices and Mouse, each recorded three times at a
-different window size â plus two loading frames and a search state. Twelve relationships for what
+THREE Settings pages — Home, Bluetooth & devices and Mouse, each recorded three times at a
+different window size — plus two loading frames and a search state. Twelve relationships for what
 is two transitions. The consequence a person sees: a Play learned on a wide Settings Home stops
 recognising Settings Home when the window is narrow.
 
 Identity diverged in `ExplainStructure`, which compares a screen's role histogram count by count
 with an absolute tolerance of one. Measured across the recordings, the counts that moved were
-always the same ones â `group`, `pane`, `text`, `link` â and on Mouse the `link` role ARRIVED, so
+always the same ones — `group`, `pane`, `text`, `link` — and on Mouse the `link` role ARRIVED, so
 the role-set check called the third recording a different screen before a single count was
 compared. What never moved: `list_item`, `combo_box`, `slider`, `image`, `text_field`.
 
-So [[ADR-062-a-scroll-bar-is-not-a-screen]]'s own test â does this role's arrival tell a person
-they are somewhere else? â was applied to four more roles, and the tolerance above the floor
+So [[ADR-062-a-scroll-bar-is-not-a-screen]]'s own test — does this role's arrival tell a person
+they are somewhere else? — was applied to four more roles, and the tolerance above the floor
 became a SHARE of the count rather than a number. Below seven that share rounds to one, so every
 small composition is compared exactly as before, which is where the four-versus-six-item worry
 lives. Nine recordings of three pages now become three Places.
@@ -5612,12 +5612,12 @@ lives. Nine recordings of three pages now become three Places.
 reflow, but two existing fixtures told screens apart by button count alone and began merging.
 Dropping a role a person can PRESS is a real loss of discrimination, and this file's own bar is
 that a false merge is worse than a false miss. The tolerance moved instead. The margin between
-"moves with reflow" (three) and "is a different page" (five) is one detection â thin, and the
+"moves with reflow" (three) and "is a different page" (five) is one detection — thin, and the
 honest width of the gap the measurement found.
 
 **The fix would have made an existing store worse without one more change.** Under the new rule a
 fresh reading of Home matches all three Home records, and `Recall` answered `insufficient` for
-more than one match â refusing to recognise a page it had just correctly worked out it knows three
+more than one match — refusing to recognise a page it had just correctly worked out it knows three
 times over. Records that are the same Place as EACH OTHER are now one Place written down twice,
 answered with the lowest id; records that match the reading and not each other are still
 ambiguous. That distinction needed the non-transitivity of tolerant matching to be taken
@@ -5628,7 +5628,7 @@ resize does NOT mean the same live Stage evidence. A resize moves every control 
 and a carried proof exists precisely to act without looking again. Both answers are true at once,
 and 35C is untouched.
 
-**Not done, and owed.** The existing duplicates are ALIASED, not merged â the store keeps its
+**Not done, and owed.** The existing duplicates are ALIASED, not merged — the store keeps its
 twelve subjects and twelve relationships, and migration needs its own design because it has to
 carry edges, names, targets, provenance and Plays. And no semantic name was ever captured for any
 of the twenty-one subjects in that store: automatic naming exists and produced nothing, so
@@ -5639,7 +5639,7 @@ identity still rests on composition and terms alone. See
 running: three `director.exe` processes, TWO of them serving the same `$MARCO_HOME`. Two
 observation loops on one desktop, two writers to one semantic store, either able to cancel while
 the other kept acting, and each answering "where is the Audience standing" from its own private
-world. Nothing prevented it â the CLIENT had a startup lock so two clients would not spawn two
+world. Nothing prevented it — the CLIENT had a startup lock so two clients would not spawn two
 services, and `director serve` had none, so running it twice always made two Directors.
 
 Three ownerships, and collapsing any two would be wrong: home ownership says "I am the Director
@@ -5648,7 +5648,7 @@ authority says "Marco may perform this action". This roadmap adds the first two 
 third exactly as it was.
 
 **Home ownership cannot cover the desktop**, which is the part worth remembering. Two homes are two
-legitimate worlds â a sandbox beside the real store is how every harness here runs â and they
+legitimate worlds — a sandbox beside the real store is how every harness here runs — and they
 share one keyboard. A lease scoped by home would let them type at once, each holding something it
 genuinely owned. So the desktop lease is machine-wide and held around a PRODUCTION rather than for
 the life of a Director: held from startup it would stop every sandbox from ever acting; held
@@ -5656,63 +5656,63 @@ around the walk it stops only what conflicts, and observation needs no lease at 
 
 **A file cannot be the primitive.** It survives the process that wrote it, its PID can be reused,
 and a staleness timeout is a guess about how long a start takes. The claim is a named kernel
-object whose lifetime is the process's â released by Windows however the process ends, so a crash
+object whose lifetime is the process's — released by Windows however the process ends, so a crash
 cannot brick a home. The endpoint file stays as DISCOVERY, validated by connecting rather than
 believed.
 
 **Three normalisations survived deletion because the fixture used an existing directory.**
 `filepath.EvalSymlinks` resolves a real path and hands back the real spelling, so the test was
-testing EvalSymlinks. Against a home that does not exist â which is the ordinary case, since the
-first `director serve` for a sandbox claims before anything creates the directory â the case
+testing EvalSymlinks. Against a home that does not exist — which is the ordinary case, since the
+first `director serve` for a sandbox claims before anything creates the directory — the case
 folding is load-bearing and the explicit `Clean` is genuinely redundant, so it was deleted rather
 than left as a claim nothing can test.
 
 **Not done, and owed.** No live acceptance: whether two `director serve` invocations on one home
 refuse correctly on a real desktop is UNMEASURED. And `Connect`'s file-based startup lock is now a
-second, redundant mechanism â a losing child refuses at startup instead of racing â worth
+second, redundant mechanism — a losing child refuses at startup instead of racing — worth
 simplifying and not worth changing blind. See
 [[ADR-092-one-director-per-home-one-hand-on-the-keyboard]].
 
-**36A: `marco observe` â Marco pays attention.** The first ambient product lifecycle on the
+**36A: `marco observe` — Marco pays attention.** The first ambient product lifecycle on the
 observation substrate 35A built. Somebody types it and then uses their computer normally; Marco
 keeps up with which application and which screen they are on, and what just changed.
 
 Four things it deliberately is not, and each one is gated. Not a recording: nothing reaches disk,
 and what is held in memory carries no labels, titles, text or coordinates. Not a Learn: no
-questions, no naming. Not authority: watching grants no permission and takes no desktop lease â
+questions, no naming. Not authority: watching grants no permission and takes no desktop lease —
 observation is the one thing 35E deliberately left ungated. Not a second observer: the registry
 allows one session, and ambient watching is its LOWEST-priority consumer.
 
 **Storage growth tracks novelty, never time.** Ten thousand sightings of one screen are one entry
-with a count of ten thousand. Bounds are on distinct things â 256 places, 512 edges, a 64-move
-recent walk â and past them the least recently seen is forgotten, counted rather than silently.
+with a count of ten thousand. Bounds are on distinct things — 256 places, 512 edges, a 64-move
+recent walk — and past them the least recently seen is forgotten, counted rather than silently.
 That property is the whole reason an always-on observer is acceptable at all.
 
 **The default licence is none.** Sessions go through `Start`, which hands the runner
-`Episode{}` â so however long ambient watching runs it cannot make anything durable. Not a policy
+`Episode{}` — so however long ambient watching runs it cannot make anything durable. Not a policy
 check that could be forgotten: there is no licence in the object. A screen Marco does not know
 stays unknown and nobody is asked to name it.
 
 **Six mutations "survived" and all six were my verification lying.** `git diff` reports nothing for
-UNTRACKED files, and every file in this roadmap was new â so the check that confirmed the edit had
+UNTRACKED files, and every file in this roadmap was new — so the check that confirmed the edit had
 landed passed vacuously for all of them. Re-run with grep, five were real survivors and every one
 found a genuine gap: a second supervisor loop against the same object, backoff with no test at all,
-provenance unasserted at the supervisor level, an autostart flag the fixture could not see, and â
-the one that mattered â **an unknown screen breaking the walk through it**. Home â unknown frame â
+provenance unasserted at the supervisor level, an autostart flag the fixture could not see, and —
+the one that mattered — **an unknown screen breaking the walk through it**. Home → unknown frame →
 Bluetooth must still be one transition, and one line does that.
 
 **Yielding, not layering, and the cost is written down.** The prettier design is one continuous
 session whose licences change as consumers come and go; that is a rewrite of the session runner.
 Ambient waits instead, so a Learn interrupts it rather than borrowing it, and the ambient tally has
 a gap for its duration. The registry is what enforces one observer; the yield only buys quiet, and
-deleting it breaks nothing â measured.
+deleting it breaks nothing — measured.
 
 **Not done, and owed.** No ambient promotion: repeated evidence does not become durable knowledge,
 and that seam is left clean rather than taken. "Learn what I just did" would know where somebody
-went and not what they clicked. And every live number â CPU, memory, sample rate, Learn-over-Observe
-â is UNMEASURED. See [[ADR-093-observe-is-attention-not-recording]].
+went and not what they clicked. And every live number — CPU, memory, sample rate, Learn-over-Observe
+— is UNMEASURED. See [[ADR-093-observe-is-attention-not-recording]].
 
-## 36B: `marco learn "..." --recent` â the thing Marco just watched becomes useful
+## 36B: `marco learn "..." --recent` — the thing Marco just watched becomes useful
 
 36A ended with an honest gap written into its own ADR: the trail knew where somebody went and not
 what they pressed, so "learn what I just did" would have produced a route with no way to walk it.
@@ -5728,20 +5728,20 @@ done
 No repeat demonstration. No naming a screen. No naming a button. No rehearsal. No input from Marco
 at any point.
 
-**A demonstration is `Place â activated control â Place`, and none of it is a coordinate.** The
-press was already resolved against the accessibility tree at the moment it happened â that
-machinery predates this roadmap â so what enters the trail is a role and an admitted name. There
+**A demonstration is `Place → activated control → Place`, and none of it is a coordinate.** The
+press was already resolved against the accessibility tree at the moment it happened — that
+machinery predates this roadmap — so what enters the trail is a role and an admitted name. There
 is no position field for `button = (742, 318)` to live in.
 
 **The privacy boundary moved by exactly one thing, deliberately.** The name of the ONE control a
 person's own action landed on, plus what a screen appears to be called. Neither widens what Marco
 PERCEIVES: both already cross under the zero licence, through the canonical plaintext allowlist and
 the unconditional place-name rule. What ambient watching still cannot have is the WIDER label
-stage â the one that admits list items, links and icons, where somebody's documents and contacts
-live â because that is `NameActivatedTargets` and it holds no licences at all.
+stage — the one that admits list items, links and icons, where somebody's documents and contacts
+live — because that is `NameActivatedTargets` and it holds no licences at all.
 
 **The one correlation that had to be right.** An event is drained about a second after it happens,
-by which time the click has usually already changed the screen â so whatever is in front when the
+by which time the click has usually already changed the screen — so whatever is in front when the
 event is read is very often the DESTINATION rather than the source. Attributing to it produces "on
 the Bluetooth page, press Bluetooth", which is wrong in a way that reads as entirely reasonable.
 Every admitted event carries the session-local screen state it was banked against; the action is
@@ -5750,7 +5750,7 @@ filed against that.
 **The defect this landed on, and it was a real one.** ADR-089 says in as many words that "a Play
 can now be saved that Marco has never executed". It changed the Learn coordinator and it changed
 planning, and it did NOT change the lowering gate, which went on asking a field only a completed
-live rehearsal can set. So Fast Learn produced every durable thing except the artifact â places,
+live rehearsal can set. So Fast Learn produced every durable thing except the artifact — places,
 edges, candidates, the goal, and then `no route is ready to be written down`. Nothing caught it:
 every save test in `cmd/director` writes a rehearsal record into its fixture first, and the test
 that named the gate asserted the pre-089 rule and passed. Found here because the retrospective path
@@ -5759,32 +5759,32 @@ makes it unmissable. ADR-027 is amended.
 **An unreachable discriminator, written and then removed.** Widening the gate raised the question
 of what a FAILED attempt should do, and the honest answer turned out to be that the store cannot
 represent one: `rememberRehearsal` is called only for a completed live route. An `Attempted` field
-was written, measured to be unsettable, and deleted. What stands is `Rehearsed` â a rehearsal of
-this ROUTE is on record and has not verified â which is reachable and stops a second demonstration
+was written, measured to be unsettable, and deleted. What stands is `Rehearsed` — a rehearsal of
+this ROUTE is on record and has not verified — which is reachable and stops a second demonstration
 of a route quietly lowering instead of the one that failed.
 
 **Nothing on this path can act.** No input, no desktop lease, no authority, no second performer.
 Asserted through `beginPerformance`'s counter rather than through the absence of a symptom, because
-that slot is the one every actuating entrance funnels through â which is also how the observer now
+that slot is the one every actuating entrance funnels through — which is also how the observer now
 tells Marco's own work from the person's.
 
 **Not done, and owed.** Ambient promotion is still not built: repeated evidence does not become
 knowledge on its own, and the seam is now much better fed than it was. Text entry stays structural.
 A drag is refused rather than flattened into an activation. A multi-leg walk saves its terminal leg
-as the play and lets planning walk the rest. And the live acceptance is UNMEASURED â
+as the play and lets planning walk the rest. And the live acceptance is UNMEASURED —
 `acceptance-36b.ps1` is the harness, and the one step that would drive the desktop is deliberately
 handed to the person. See [[ADR-094-observe-gathers-evidence-learn-promotes-it]].
 
 **Fifty mutations, six survivors, and every one was about what the tests entered rather than what
-the code did.** The drain in `sample` was production code nothing invoked â the third uncalled
+the code did.** The drain in `sample` was production code nothing invoked — the third uncalled
 mechanism this repository has found. The licence test passed with the licence check deleted,
 because it asked only whether *an* error came back. `ambientLook` had no test at all. And the
-sentence 36A and 36B both rest on â *however long watching runs it cannot make anything durable* â
+sentence 36A and 36B both rest on — *however long watching runs it cannot make anything durable* —
 was enforced by nothing at all; the first fix for that drove the session runner instead of the
 passive door and the mutation survived a second time. Two pieces of code came out: a write-only
 state map that looked load-bearing, and a guard that restated a rule enforced elsewhere.
 
-## 36C: `marco observe learn` â repeated observation may become knowledge
+## 36C: `marco observe learn` — repeated observation may become knowledge
 
 36B ended with the gap written into its own ADR: repeated evidence did not become knowledge on its
 own. 36C closes it, and the sentence is:
@@ -5800,7 +5800,7 @@ Marco knows it
 Nobody typed Learn. Nobody was asked anything. Nothing was invented that they did not do.
 
 **Watching and remembering are two things to agree to, so they are two switches.** Learning is off
-by default and does not survive a restart â the same two rules watching itself follows, for a
+by default and does not survive a restart — the same two rules watching itself follows, for a
 sharper version of the same reason. `marco observe` and `director status` both report which,
 either way, because a status that folded them into one would let somebody read "watching" and not
 know whether their desktop was becoming permanent memory.
@@ -5811,7 +5811,7 @@ would make the first sighting of anything immediately plannable. Candidate evide
 same file (one atomic rename, one home, no second durability implementation) behind an interface
 that cannot write a subject, a relationship, a goal or a judgement.
 
-**The policy is pure and dull.** Two independent occasions â a minute apart, or in different
+**The policy is pure and dull.** Two independent occasions — a minute apart, or in different
 watching sessions. No contradiction, and a contradiction is `Never` rather than `Wait`, because
 more of the same evidence deepens it. Both endpoints describable, the control nameable, human work
 only. No score anywhere: a number between nought and one is a way of avoiding a decision, and the
@@ -5820,7 +5820,7 @@ failure mode here is permanent.
 **Identity is structure, and two bugs proved it.** Keying candidates on a content hash split the
 evidence for one screen read at two widths across two records that would each have waited forever;
 recomputing the handle on every fold did the same thing a second way. The handle is assigned once
-and kept, exactly as `RememberedSubject.ID` is, and matching goes through `CompareStructure` â the
+and kept, exactly as `RememberedSubject.ID` is, and matching goes through `CompareStructure` — the
 canonical test, with the tolerances that exist because two readings of one screen differ. A third
 bug gave both ends of a relationship the same transient name, so the admission boundary established
 one place and produced an edge from it to itself.
@@ -5828,18 +5828,18 @@ one place and produced an edge from it to itself.
 **One admission path.** `promotion` is 36B's object; ambient promotion builds one and hands it a
 one-step demonstration. No goal, no play, no name invented from anonymous behaviour, no rehearsal,
 no grant, no lease, no input. And `plannableEdges` now asks `CleanlyObserved` rather than restating
-it â it was a second copy of the rule the lowering gate grew in 36B, which is one rule with two
+it — it was a second copy of the rule the lowering gate grew in 36B, which is one rule with two
 futures.
 
 **Not in Activity, and that is a decision.** Every node in the action graph is a replayable desktop
 action with an intent and a binding; a memory operation is neither. Visibility is the two status
 surfaces and the ledger's own record of when each thing became knowledge.
 
-**Not done, and owed.** Ambient learning stays off by default â the architecture makes the two
+**Not done, and owed.** Ambient learning stays off by default — the architecture makes the two
 lifecycles separately controllable, which is what 36C was for, and whether the shipping product
 couples them is a consent decision rather than a default to drift into. `ByMarco` evidence is
 discarded rather than kept for execution confidence. There is no unlearning: contradictory evidence
-after promotion is recorded and does nothing. And the live acceptance is UNMEASURED â
+after promotion is recorded and does nothing. And the live acceptance is UNMEASURED —
 `acceptance-36c.ps1` is the harness, it drives nothing, and it insists you do the route twice. See
 [[ADR-095-repeated-observation-may-become-knowledge]].
 
@@ -5852,7 +5852,7 @@ window.
 **An ambient session pins the foreground at START and reads it for its whole twenty seconds.**
 Watching was switched on from a terminal; the person opened Settings a second later and walked the
 route; Marco read the terminal throughout. A mode whose promise is "use your computer normally"
-cannot be blind for a third of a minute after every window switch â and it had been, in all three
+cannot be blind for a third of a minute after every window switch — and it had been, in all three
 roadmaps, because nothing had ever run it against a desktop that moved.
 
 The session now ends AT the switch and the supervisor opens one on the new window immediately, with
@@ -5862,13 +5862,13 @@ gates.
 **And the harness could not say which of five things had happened.** `0 moves` covers: no session
 started, sessions took no readings, perception degraded, screens read but not recognised, and
 screens recognised that never changed. `acceptance-36c.ps1 -Round` printed five counts and none of
-the reasons â the same one-sentence-for-four-problems failure the Director itself was fixed for
+the reasons — the same one-sentence-for-four-problems failure the Director itself was fixed for
 twice, reproduced in the harness meant to catch it. It now explains, and `-Why` dumps everything
 the Director already knows.
 
 **And the fix was not enough, twice over.** Ending the session at a switch stopped Marco reading
 the wrong window; it did not make it start reading the right one promptly, because the supervisor's
-next move was the between-sessions ATTENTION wait â a backoff about how long to leave a desktop
+next move was the between-sessions ATTENTION wait — a backoff about how long to leave a desktop
 that has been sitting still, applied to somebody who had just switched program. The advice that
 came out of the first fix was "give it a couple of seconds", which is ceremony, and ambient
 watching exists to remove ceremony. It now continues immediately, and the wait between readings is
@@ -5877,20 +5877,20 @@ two-hundred-millisecond screen reading, three orders of magnitude apart, so aski
 nothing. Measured at ~120ms from switch to watching.
 
 **A third bug came out of looking.** A screen Marco cannot name is keyed on the session-local state
-it was read from, and those counters restart every twenty seconds â so two different unrecognised
+it was read from, and those counters restart every twenty seconds — so two different unrecognised
 screens either side of a boundary compared EQUAL, no transition was recorded, and the evidence
 vanished silently. Not a rare edge: one boundary every twenty seconds, all day. The name now
 carries the session.
 
 **There was no way to see any of this happening, and that was the real complaint.** Every mode in
 the harness was a snapshot taken afterwards; a number at the end cannot say when it went wrong or
-what Marco was looking at while it did. `acceptance-36c.ps1 -Tail` is a live view â which window is
-being read, whether the page is readable, whether the screen is known, and the counts â printing
+what Marco was looking at while it did. `acceptance-36c.ps1 -Tail` is a live view — which window is
+being read, whether the page is readable, whether the screen is known, and the counts — printing
 only on change. One line of it would have made the original diagnosis immediate: the application
 column would have read `powershell` the whole time.
 
 **And the harness silently changed what was being tested.** `Use-Sandbox` sets `$env:MARCO_HOME`
-at process scope, which PowerShell keeps for the whole terminal â so the second `-Setup` in one
+at process scope, which PowerShell keeps for the whole terminal — so the second `-Setup` in one
 window looked for the person's real memory at the sandbox path it had just deleted, said "starting
 cold", and ran the entire acceptance against an empty store. `-Report` then told them their real
 store was under TEMP, which is not true and would be alarming if believed. The real store is
@@ -5901,21 +5901,21 @@ and useless: one occasion short, an unnameable control, a button that leads two 
 nothing can establish are four situations with four different remedies, and the counts cannot tell
 them apart. `marco observe status --evidence` reports every relationship the ledger holds, across
 every application, with the policy's own verdict and its own sentence. `ambient.Describe` had those
-sentences since the day it was written and NOTHING CALLED IT â the third unreachable thing this
+sentences since the day it was written and NOTHING CALLED IT — the third unreachable thing this
 session, after an unreachable discriminator and an uncalled mechanism.
 
 It names the control and says whether the screens are known. That is a deliberate widening of the
 diagnostic surface: a person asking what Marco has recorded about them is entitled to the answer,
 and a privacy boundary that made Marco's own memory unreadable to its owner would be protecting the
-wrong party. It is a read â it judges, which is pure, and reports.
+wrong party. It is a read — it judges, which is pure, and reports.
 
-## 36C.1: the graph is the knowledge â one clean traversal, and the 60-second ceremony removed
+## 36C.1: the graph is the knowledge — one clean traversal, and the 60-second ceremony removed
 
 36C shipped with a threshold: two independent occasions, at least a minute apart or in different
 watching sessions, before ambient evidence became durable knowledge. The threshold was wrong, and
 the reason it was wrong is worth keeping rather than quietly editing out of the ADR.
 
-It came from thinking of the unit as a **demonstration** â something a person performs, which one
+It came from thinking of the unit as a **demonstration** — something a person performs, which one
 performance is too thin a sample of. The unit is not a demonstration. It is **one edge of a
 semantic graph of the computer.** A person pressing "Bluetooth & devices" on Settings Home and
 arriving at the Bluetooth page has not given Marco a sample of a habit; they have told it **what
@@ -5928,7 +5928,7 @@ exist. Marco could give back only what it had been shown as a whole. That is the
 workflow recorder, and the whole point of ambient observation is that Marco is not one.
 
 **What changed.** `DefaultOccasions = 2` became `DefaultTraversals = 1`. `IndependentGap` and
-`ambient.Independent` are gone â the sixty-second window existed only to stop somebody flicking
+`ambient.Independent` are gone — the sixty-second window existed only to stop somebody flicking
 between two pages from counting as several demonstrations, and with no threshold to protect there
 is nothing for it to do. `WatchedEdge.Occasions` became `WatchedEdge.Sessions` and is now
 **provenance**: it says how widely an edge has been evidenced, it is read by eviction and by the
@@ -5937,7 +5937,7 @@ before believing anything can still ask for it.
 
 **Repetition did not stop mattering; it moved.** It used to be a gate in front of the edge and it
 is now strength on the edge. A crossing of something Marco already knows folds into the existing
-relationship through the same admission path the first one took â `Runtime.strengthen` â so the
+relationship through the same admission path the first one took — `Runtime.strengthen` — so the
 count rises and nothing new is created. Without that, a way somebody takes every day and one they
 took once would look identical to everything downstream, forever.
 
@@ -5945,7 +5945,7 @@ took once would look identical to everything downstream, forever.
 immediate.**
 
 The first: a promoted edge grew a pending twin. The first traversal establishes both screens, so
-the *next* traversal reads them as durable subjects â and the candidate matcher compared ends
+the *next* traversal reads them as durable subjects — and the candidate matcher compared ends
 either as two ids or as two structures, with no arm for one of each. So it matched nothing, minted
 a second candidate, and the ledger would have carried an edge and a shadow of it growing in
 parallel forever. `sameEnd` now takes a `Recogniser` and resolves the mixed case by asking the
@@ -5953,7 +5953,7 @@ store whether the described end IS the recognised one. Held by
 `TestATraversedEdgeIsNotRelearnedOnceItsScreensAreKnown`.
 
 The second: contradiction was one-sided. A control that leads two different places marks the
-candidate it disagrees with â but the observation that CAUSED the disagreement went on to be judged
+candidate it disagrees with — but the observation that CAUSED the disagreement went on to be judged
 on its own and, with a threshold of one, promoted immediately. The graph would then have recorded
 that pressing X on A leads to C on the strength of an observation whose entire significance was
 that it disagreed with something. Both records are marked now.
@@ -5967,14 +5967,14 @@ the ambiguous case by taxing every other one.
 
 **The headline gate is a route nobody demonstrated.** `A --X--> B` watched on one occasion,
 `B --Y--> C` watched in a different session with nothing connecting them, and the planner asked for
-A â C returns a two-step plan. That is the test that would fail if any of this were quietly
+A → C returns a two-step plan. That is the test that would fail if any of this were quietly
 rebuilt as workflow capture, and it is where the claim now lives:
 `TestEdgesWatchedApartComposeIntoARouteNobodyDemonstrated`.
 
 **The tests that fell were the interesting part.** Five failed on the policy change and every one
 of them was encoding the workflow model: *seeing something once is not knowing it*, *flicking back
 and forth is one occasion*, *further sightings do not learn the same thing twice*. They were not
-wrong about the code â they were right about the code and wrong about the product, which is the
+wrong about the code — they were right about the code and wrong about the product, which is the
 only kind of test failure worth reading carefully. Each was rewritten to the corrected model or
 removed; `TestAskingWhatMarcoIsWaitingForSaysWhy` now gets its "waiting" row from a policy that was
 explicitly asked for corroboration, because the default no longer produces one.
@@ -5983,13 +5983,13 @@ explicitly asked for corroboration, because the default no longer produces one.
 twice with something else in between: round 1 is expected to produce knowledge on its own, and
 round 2 is for a DIFFERENT way out of a screen already seen, which is what shows edges composing.
 It also records a baseline of the store at `-Setup`, because that step copies a real semantic memory
-in â without one the harness would have credited ambient watching with everything the person had
+in — without one the harness would have credited ambient watching with everything the person had
 ever taught Marco.
 
 **The mutation gate found four things, and the pattern is the same one this repository keeps
 paying for.** Sixty-three attacks over three rounds. The first round killed 29 of 38 that applied.
 
-*A field written and never read.* `WatchedEdge.First` â when a relationship was first taken â has
+*A field written and never read.* `WatchedEdge.First` — when a relationship was first taken — has
 existed since 36C and nothing anywhere read it. Deleting the guard that keeps it stable survived,
 because there was nothing downstream to notice. It is now on the evidence read as a span: "traversed
 twelve times, over six days", silent when the span is under a day. That is the honest fix rather
@@ -5998,7 +5998,7 @@ week from one they clicked through a dozen times in a single confused afternoon,
 last-seen. Fourth unreachable thing in two roadmaps, after a dead discriminator, an uncalled drain
 and unreachable sentences.
 
-*A branch every existing test walked past.* `endKey` returning a recognised end's subject id â the
+*A branch every existing test walked past.* `endKey` returning a recognised end's subject id — the
 thing that stops the admission boundary establishing a SECOND copy of a screen it already has.
 Every test in the file handed the ledger transient keys at both ends, the way a cold Marco does, so
 none of them could reach it; and in life it is reached on the second edge out of every screen. The
@@ -6013,19 +6013,19 @@ that can attribute the answer.
 
 *And a guard whose reachability I nearly talked myself out of.* `stamp`'s zero-time check looked
 defensive: every edge goes through `Fold`, and `Fold` always sets `First`. But the ledger is a FILE
-â an older Marco, a hand edit, a future rename â and the loader reads what is on disk rather than
+— an older Marco, a hand edit, a future rename — and the loader reads what is on disk rather than
 what this version would have written. `TestASummaryWithNoTimesReportsNone` writes such a row and
 asks for the report, because a date in the year one is exactly the sort of value somebody quotes
 back as a fact about their own afternoon.
 
 Two survivors in round one were the harness lying rather than the code being untested: the attack
 list named the wrong packages for `WeakerThan`, whose tests live in `ambient` and not beside it.
-Three more were reported BROKEN by the verified-apply check â the attack file used `|` as its field
+Three more were reported BROKEN by the verified-apply check — the attack file used `|` as its field
 separator and the perl alternation in three expressions contained one. A gate that had silently
 called those three "survived" would have sent me looking for coverage that already existed; the
 verified apply is why it did not.
 
-## 36C.2: Learn teaches the graph â the boundary that was not there
+## 36C.2: Learn teaches the graph — the boundary that was not there
 
 36C.1 established the model on the ambient side: what watching learns is a semantic graph edge, and
 edges watched apart compose into routes nobody demonstrated. This roadmap went looking for the same
@@ -6034,11 +6034,11 @@ correction on the explicit Learn side, expecting to find a private route store a
 **It was not there.** The audit traced every Learn entrance to the same store, through the same
 identity test, into the same planner:
 
-- A live `marco learn "â¦"` is an ordinary observation session carrying `LearnLicence()`. The runner
+- A live `marco learn "…"` is an ordinary observation session carrying `LearnLicence()`. The runner
   writes places through `PlaceStore.EstablishPlace` and edges through
-  `Memory.RememberRelationships` â **one observation per transition**, endpoints resolved by
+  `Memory.RememberRelationships` — **one observation per transition**, endpoints resolved by
   `Recall`, which is `CompareStructure`.
-- `marco learn "â¦" --recent` builds a `promotion` â 36B's licence-gated admission object â and
+- `marco learn "…" --recent` builds a `promotion` — 36B's licence-gated admission object — and
   admits **one candidate per leg**.
 - Ambient promotion builds the identical object and admits one candidate per promoted edge.
 - An edge's identity is `(application, from-subject, to-subject)`. No name, no episode, no session,
@@ -6046,13 +6046,13 @@ identity test, into the same planner:
 - A goal has no start. It is a name bound to a destination subject, decided by ADR-056 in the
   goal-centric roadmap and already correct.
 
-So the deliverable is the proof, not the correction â and the proof is what was missing.
+So the deliverable is the proof, not the correction — and the proof is what was missing.
 
 **The seam had never been crossed by a test.** Every Learn test drove Learn; every Observe test
 drove Observe. Nothing in seventy-odd packages had ever taught one edge through one door, the next
 edge through the other, and asked the planner to walk both. That is the case a person reaches on
 their second afternoon, and it is exactly the case a second graph would break. The mutation that
-namespaces explicit Learn into `settings_learned` â the most literal possible "second graph" â
+namespaces explicit Learn into `settings_learned` — the most literal possible "second graph" —
 survived the whole suite before this roadmap, and dies now.
 
 `cmd/director/onegraph_test.go` is eighteen gates through the two production doors against one
@@ -6061,16 +6061,16 @@ later by watching alone, a shorter way found later that the demonstration does n
 over one route duplicating nothing, and the edges surviving both the episode and the process.
 
 **Two things were genuinely at risk and are now held.** Prospective Learn establishes places at a
-different call site from the promotion boundary â two call sites, one store â so a drift between
+different call site from the promotion boundary — two call sites, one store — so a drift between
 them would have produced a second copy of every screen somebody had both walked past and been
 shown, with every existing test still green. And the mutation that re-mints a place the other mode
 established now dies against a real licensed pass driven through the production registry.
 
 **The Play was audited rather than assumed, because it was the likeliest place to find private
 route knowledge.** A learned Play is a registered phrase plus a readable generated `.marco` file
-with an entry guard on one screen and a fixed sequence of presses â genuinely route-shaped. It is
-not the execution path. Asking for one by name goes: resolver â `performLearned`, which refuses to
-run the file locally â `PerformGoal`, which resolves the name to a destination, brings the
+with an entry guard on one screen and a fixed sequence of presses — genuinely route-shaped. It is
+not the execution path. Asking for one by name goes: resolver → `performLearned`, which refuses to
+run the file locally → `PerformGoal`, which resolves the name to a destination, brings the
 application forward, takes a **fresh look at where the person actually is**, and asks
 `observe.PlanToGoal` over the canonical topology. Measured: the same goal asked from Home and from
 Printers & scanners produces two different first steps.
@@ -6078,7 +6078,7 @@ Printers & scanners produces two different first steps.
 **The compatibility debt, recorded rather than hidden.** The saved `.marco` still describes one way
 in from one starting screen and is not regenerated as the graph improves, so somebody reading it
 reads the demonstration rather than what Marco would now do. That is a readability gap and not an
-ownership gap â deleting the entire routes tree leaves the graph, the goal and the plan intact, and
+ownership gap — deleting the entire routes tree leaves the graph, the goal and the plan intact, and
 there is a gate that does exactly that.
 
 **A structural finding worth naming:** the semantic store has no delete path at all. Forgetting a
@@ -6088,22 +6088,22 @@ a property that is currently structural. It is worth keeping precisely because t
 anybody adds is the moment it stops being.
 
 **And a false survivor the verified-apply check could not catch.** The first attempt at that gate's
-mutation established a place from a signature carrying only a member count. The edit applied â so
-the harness called it a survivor â but the store refused the under-described signature, so the
+mutation established a place from a signature carrying only a member count. The edit applied — so
+the harness called it a survivor — but the store refused the under-described signature, so the
 mutation did nothing at all. A no-op that changes bytes is not a no-op the byte comparison can see;
 only reading the survivor and asking "would this actually have done anything" catches it. Rerun
 with a signature the store accepts, it dies.
 
 **And one gate that could not see the arm it was aimed at.** Every fixture in the new file walks
-COLD ground â screens the observer can describe and not name â because that is what a first
+COLD ground — screens the observer can describe and not name — because that is what a first
 afternoon looks like. The admission boundary has a second arm for the other case: a key the
 observer already recognises IS the subject, and there is nothing to establish. Deleting that arm
 survived all seventeen one-graph gates, because none of them ever handed the trail a subject id.
-The store is idempotent by signature, so nothing would break today â which is precisely why no
+The store is idempotent by signature, so nothing would break today — which is precisely why no
 test could see it. `TestAnExplicitLearnOverFamiliarScreensEstablishesNothing` walks the second
 afternoon instead, and the mutation dies.
 
-## 36D: language names the outcome â three defects in the thinnest layer
+## 36D: language names the outcome — three defects in the thinnest layer
 
 36C.2 proved the two layers below this one: one canonical graph, taught through either door, with
 the route chosen at invocation from wherever somebody is standing. What sits above is the step
@@ -6114,7 +6114,7 @@ It found three, all in the same place, and all of them silent.
 
 **One phrase meaning two things resolved by sort order.** `PerformGoal` searched every application
 holding goals, sorted, and took the first match. Measured: two outcomes named "open settings", one
-in Windows Settings and one in a mail client, resolved to `mail` â because `m` sorts before `s`.
+in Windows Settings and one in a mail client, resolved to `mail` — because `m` sorts before `s`.
 The person who taught it in Settings would have had their mail client brought forward and a route
 walked in it, and nothing anywhere would have said so. Deterministic is not the same as right; a
 sort order is not evidence about which afternoon somebody is having. It is now
@@ -6122,7 +6122,7 @@ sort order is not evidence about which afternoon somebody is having. It is now
 flag that answers the question.
 
 **A name that stopped meaning what it meant said nothing.** The store REBINDS a reused name rather
-than refusing â deliberately, for a reason measured live on 2026-08-17: a goal left behind by a
+than refusing — deliberately, for a reason measured live on 2026-08-17: a goal left behind by a
 *failed* learn held its name hostage, so refusing punished the person for Marco's own earlier
 failure. That rule is right and none of this touched it. What was missing was the saying. Measured:
 teach "mouse settings" for one screen, teach it again for another, and Marco replies
@@ -6142,16 +6142,16 @@ been told the right place by a tool that could not see the defect. There is one 
 and `PerformGoal` and `Reach` both call it.
 
 **The mutation gate then found a fourth, in my own fix.** The shared-resolver claim in `reach`
-survived â because `reach` searched one application, and within one application a name means one
+survived — because `reach` searched one application, and within one application a name means one
 outcome, so the copy and the shared rule behaved identically. The claim was decorative. Fixing it
 properly also fixed a real limitation: `reach` derived its application from the last finished
-session and refused with "nothing has been observed yet" on a fresh Director â which is exactly
+session and refused with "nothing has been observed yet" on a fresh Director — which is exactly
 the state somebody asks in. It now searches every application holding outcomes when nobody names
 one, the same way `PerformGoal` always has, and the ambiguity refusal became reachable there.
 
 **And one guard nearly went unheld for the same reason as 36C.1's timestamp.** `resolveGoal`
 refuses an empty phrase. `RememberGoal` will not write a nameless goal, so nothing this Marco
-produces can match one â but the store is a file, and the loader drops only goals whose SUBJECT is
+produces can match one — but the store is a file, and the loader drops only goals whose SUBJECT is
 gone. A nameless goal survives a load, and then asking Marco for nothing would fold-compare equal
 to it and resolve to a real destination it would walk to. The test writes that file.
 
@@ -6161,7 +6161,7 @@ The representation was already there; what was missing was a gate saying both wo
 weakened by the other, and forgetting one leaves the other and everything they both point at.
 
 Twenty mutations, twenty killed. No new store, no new planner, no NLP, no LLM, and no
-foreground-preference disambiguation â reading which application is in front and quietly preferring
+foreground-preference disambiguation — reading which application is in front and quietly preferring
 its goal is tempting and is resolution context being smuggled into identity. Refusing with the
 choice named is the honest first behaviour, and the other is recorded as a follow-on.
 
@@ -6171,8 +6171,8 @@ The planner was breadth-first, shortest chain, ties on subject id. Every edge co
 only question asked of an edge was a boolean.
 
 **Two things it already knew and threw away.** `plannableEdges` computed which of two kinds of
-knowledge an edge had â a completed rehearsal still vouching for it, or a clean human
-demonstration â and collapsed both to `true`. So Marco knew which edges it had actually performed
+knowledge an edge had — a completed rehearsal still vouching for it, or a clean human
+demonstration — and collapsed both to `true`. So Marco knew which edges it had actually performed
 and planned as though it did not. And `WatchedEdge.Contradicted`, the record that one control had
 been seen leading two different places, was written by the observer, kept durably, and **read by
 nothing** once the edge was promoted: an edge Marco was demonstrably confused about planned exactly
@@ -6184,7 +6184,7 @@ edge cannot win by default. Routes compare lexicographically on contradictions, 
 class, actions, and finally the step ids.
 
 **Contradiction is first and is never traded away.** A route Marco does not understand is not
-something to weigh against a saved keystroke. It does not make the edge *ineligible* â the
+something to weigh against a saved keystroke. It does not make the edge *ineligible* — the
 disagreement is about which of two destinations a control reaches and either might be right, so
 when it is the only way it is still a way, and the plan says it goes through one. Turning a
 preference into a safety boundary would let a single confused reading take a destination away.
@@ -6193,11 +6193,11 @@ preference into a safety boundary would let a single confused reading take a des
 only evidence Marco has about its own ability, and letting it win outright makes Marco open four
 windows rather than one to save a hypothetical. One action is the smallest bounded answer that says
 *I would rather use the way I have actually done, if it is not much further*. It is a policy, it is
-written down, and it is the thing to change if it is wrong â not the shape of the comparison.
+written down, and it is the thing to change if it is wrong — not the shape of the comparison.
 
 **Repetition saturates at two, immediately.** The second sighting is the whole of what repetition
 tells the planner: more evidence that the fact is real. It is not evidence that the person prefers
-this way, and a class that kept counting would let a habit outvote a contradiction by volume â
+this way, and a class that kept counting would let a habit outvote a contradiction by volume —
 Marco would be modelling somebody's routine rather than their computer. Fourteen mornings on the
 long way still lose to one clean traversal of the short one.
 
@@ -6209,8 +6209,8 @@ it has more of them.
 **The search is Dijkstra over `(subject, weakest class so far)`.** The class is in the state and
 not just the cost because the not-fully-verified penalty is a *path* property, so the cheapest way
 to a subject is not necessarily the cheapest way that is still fully verified. Four states per
-subject over a bounded topology. Cycles cannot improve a route structurally â actions only increase
-and the weakest class only falls â which is also why it terminates.
+subject over a bounded topology. Cycles cannot improve a route structurally — actions only increase
+and the weakest class only falls — which is also why it terminates.
 
 **Freshness was left out, deliberately.** A durable relationship carries no timestamp; ranking on
 one would mean inventing it, and decay that made known graph facts evaporate is worse than none.
@@ -6221,24 +6221,24 @@ changed nothing any test could see, so the whole saturating-strength dimension w
 policy and dead in production. The pure tests proved what `ClassObservedOften` MEANS; nothing
 proved the real Director ever produced one.
 `TestTheProductionGradeReportsHowOftenAnEdgeWasWatched` now does, and the same shape of gate holds
-the verified class â a `plannableEdges` returning a flat "everything is watched once" would have
+the verified class — a `plannableEdges` returning a flat "everything is watched once" would have
 satisfied every pure test and ranked nothing at all.
 
 **And `reach` gained `--from`.** The question somebody debugging a route actually has is usually
 about a place they are *not*: would it still take the long way from the Home page? Until now the
 only answerable question was about the one screen a session happened to end on, and on a fresh
-Director there is no such screen â so the explanation surface could not be reached in the state it
+Director there is no such screen — so the explanation surface could not be reached in the state it
 is most wanted. It drives nothing and the answer says which source it used.
 
 `director reach` now prints the planner's own reasons rather than a number:
 
-    step 1: Home â Bluetooth & devices
-    step 2: Bluetooth & devices â Mouse
+    step 1: Home → Bluetooth & devices
+    step 2: Bluetooth & devices → Mouse
 
     chosen because: 2 actions, every step is one Marco has done and checked
 
 **The largest remaining gap is failure.** `rememberRehearsal` records only completed routes, so a
-failed attempt leaves the graph untouched â the right default, since a target that moved is not a
+failed attempt leaves the graph untouched — the right default, since a target that moved is not a
 semantic contradiction, but it means a repeatedly-failing edge currently ranks like any other
 observed one. That is the next roadmap and it pairs with replanning, which 36E deliberately did not
 touch: the route is chosen before execution, and if edge two fails the existing behaviour is
@@ -6250,14 +6250,14 @@ unchanged.
 while Marco knew one way to anywhere. 36E made it wrong: Marco usually knows several now, and a
 control that has moved since yesterday is a reason to take the other one rather than to give up.
 
-**Two things the walker computed and dropped.** Every step is classified â `target_moved`,
-`target_unavailable`, `wrong_state`, `unobservable` â and whatever perception resolved *after* the
+**Two things the walker computed and dropped.** Every step is classified — `target_moved`,
+`target_unavailable`, `wrong_state`, `unobservable` — and whatever perception resolved *after* the
 action is recorded as `StepRecord.Observed`. Neither reached the view, so recovery would have had a
 word like `ended_unverified` and nothing else: unable to tell a stale handle from a screen that led
 somewhere else, and unable to say where Marco was standing.
 
 **Nothing new was invented.** `rehearse` already names every way a step can end; what was missing
-was the READING â which of those words describe a world that moved, and which describe a boundary
+was the READING — which of those words describe a world that moved, and which describe a boundary
 Marco must not work around. Cancellation, a revoked grant, a spent bound and an unreadable screen
 stop. `target_moved` earns the same edge again. Everything else about the interface may replan.
 **And everything unrecognised stops**, because a word nobody has decided about is not a word to
@@ -6265,18 +6265,18 @@ guess is safe.
 
 **Where Marco actually is** is the half that only shows up in life. A failed step may still have
 moved the interface: the action ran, the destination did not appear, and something else did.
-Planning from where the edge *began* would be planning from a screen Marco is not on â and the next
+Planning from where the edge *began* would be planning from a screen Marco is not on — and the next
 edge's source guard would refuse it, which looks like a second failure and is really the first one
 repeated.
 
 **Attempt-scoped, layered over durable rank.** The attempt's failures refuse ELIGIBILITY rather
-than lowering a rank, so a failed edge cannot creep back in by being the best of a bad set â and
+than lowering a rank, so a failed edge cannot creep back in by being the best of a bad set — and
 everything else about the alternate route is ranked by exactly the rules the first one was. There
 is no weaker fallback mode. When `PerformGoal` returns, the memory is gone: a verified edge that
 broke today ranks unchanged tomorrow.
 
 Bounded at three replans, twelve total actions and two attempts per edge, plus loop detection that
-reads a revisited Place alongside the replan count â walking back to try another way out of a
+reads a revisited Place alongside the replan count — walking back to try another way out of a
 screen is exactly what recovery is *for*, so a repeated Place is not wrong on its own.
 
 **The mutation gate was the worst result of the session, and every survivor was mine.** Seven of
@@ -6285,14 +6285,14 @@ twenty-one survived, all because the fixtures were too clean:
 *Three boundary arms were invisible.* My `classify` fixtures set only a `Refusal`, so every unset
 field fell to the stop-by-default arm and deleting the cancellation, authority and bounds cases
 entirely left the test green. In production a step carries a refusal AND the walker's last
-classification â a cancelled attempt really does arrive with `target_unavailable` on it â and then
+classification — a cancelled attempt really does arrive with `target_unavailable` on it — and then
 the ORDER is the whole policy. The fixtures now carry both.
 
 *Two guards said the same thing to the test.* The unreadable-source and unknown-place branches have
 different sentences and my test checked only that *something* was said, so deleting either survived.
 
 *And two claims were never exercised at all.* Every `carryOn` gate handed it a recoverable failure,
-so a `carryOn` that ignored the classification entirely would have satisfied all of them â the
+so a `carryOn` that ignored the classification entirely would have satisfied all of them — the
 measurement that catches it is a boundary with a perfectly good alternate route sitting unused. And
 every bound was checked by pre-loading the attempt and asking once, which proves the bounds are
 READ and not that they are FED: a recovery that never incremented anything would recover forever.
@@ -6307,17 +6307,17 @@ failure that deserves the same edge again after a fresh target resolution; the l
 replans for it like any other recoverable failure. The classification was the part that had to be
 right first, and the bound it needs already exists.
 
-## 37A: Marco sees through evidence â the audit, and the one seam that was a coin toss
+## 37A: Marco sees through evidence — the audit, and the one seam that was a coin toss
 
 The roadmap's first deliverable was to establish the perception pipeline rather than infer it from
 package names. It is:
 
-    window (validated, pinned) â providers.Collector.Collect â observation.Cycle
-      â fusion.Engine.Fuse â directorapi.WorldState â buildSample â observe.Sample
-      â session â PlaceNow / target resolution / ReachOfState
+    window (validated, pinned) → providers.Collector.Collect → observation.Cycle
+      → fusion.Engine.Fuse → directorapi.WorldState → buildSample → observe.Sample
+      → session → PlaceNow / target resolution / ReachOfState
 
-**There is one door.** `Engine.Fuse` is called from exactly four places â the session sampler, the
-foreground pipeline, the one-shot inspect reading, and the text path â and each serves a different
+**There is one door.** `Engine.Fuse` is called from exactly four places — the session sampler, the
+foreground pipeline, the one-shot inspect reading, and the text path — and each serves a different
 surface rather than a different interpretation. **Every semantic consumer is a session**: ambient
 Observe runs a long unlicensed one, Learn a licensed one, execution takes a short look, and 36F's
 recovery takes another after a failure. All four go through `liveSampler.Sample`, so all four
@@ -6327,31 +6327,31 @@ consume the same fused reading. They have four sensor budgets, not four percepti
 a provider, a capture surface or the fusion engine. That is structural: no amount of editing inside
 them can grow a second reading of the screen.
 
-**What is not admissible, stated plainly.** The ScreenParser ONNX detector is `ShadowOnly` â the
+**What is not admissible, stated plainly.** The ScreenParser ONNX detector is `ShadowOnly` — the
 collector routes its evidence to `Cycle.Shadow` and fusion never sees it. So the honest answer to
 "can visual parsing repair a degraded accessibility reading today" is: the *authoritative* visual
 provider can, and the ScreenParser experiment cannot, because its evidence has no authority.
 Promoting it is a decision with its own evidence to gather, not a wiring change.
 
-**The one thing that was wrong was a coin toss.** `pushActionables` iterated `world.Elements` â a
-map â and truncated at `MaxActionables`. On a screen offering more clickable controls than the
+**The one thing that was wrong was a coin toss.** `pushActionables` iterated `world.Elements` — a
+map — and truncated at `MaxActionables`. On a screen offering more clickable controls than the
 bound, *which* of them reached the navigation producer depended on Go's map iteration, which Go
 randomises per range. That set is what a human click is attributed against, so the same press could
-resolve to a Target on one reading and to nothing on the next â and from outside, "Marco didn't see
+resolve to a Target on one reading and to nothing on the next — and from outside, "Marco didn't see
 what you clicked" is indistinguishable from a perception failure. A bound is fine; which half of a
 screen it keeps must not be arbitrary. The offering is now sorted into reading order before the
 bound.
 
 The neighbouring paths were checked and left alone: `buildSample` already sorted its ids, and
-`AdmittedPlaceName` is order-independent by construction â it returns nothing when two entries
+`AdmittedPlaceName` is order-independent by construction — it returns nothing when two entries
 disagree, so there is no first to pick.
 
 **The mutation gate found four more, two of them mine.** Reading the actionables back handed the
 caller the live slice the classifier resolves presses against, and my own test could not see it
 because a later push had already replaced the list before the check. The `buildSample` id sort had
 a comment explaining that it exists so a recorded fixture replays byte-for-byte, and nothing held
-it. The window-coherence guard â which stops a neighbour's controls being folded into this Place's
-structure â had no test at all.
+it. The window-coherence guard — which stops a neighbour's controls being folded into this Place's
+structure — had no test at all.
 
 **And one equivalent mutation, recorded rather than papered over.** `earlierOnScreen`'s final
 tie-break on element id makes the comparator total, which the sort contract requires. It cannot
@@ -6360,28 +6360,28 @@ change the offering: two elements that tie on geometry, role and label produce b
 line stays because a non-total comparator is undefined behaviour, and the mutation is equivalent
 because it is.
 
-## 37B: visual presence is not legal actionability â and ScreenParser stays in the shadows
+## 37B: visual presence is not legal actionability — and ScreenParser stays in the shadows
 
 The roadmap asked whether ScreenParser's evidence has earned a seat at fusion. The audit found
 two things, and the second changed what the roadmap was for.
 
 **The measurement cannot be taken here.** ScreenParser is opt-in behind three environment
-variables and is nil on an ordinary Director. The model is now on disk â
+variables and is nil on an ordinary Director. The model is now on disk —
 `tools/vision-export/weights/screenparser-1280.onnx`, 97.4 MB, which was missing when
-Experiment-010 last looked â but **no ONNX Runtime shared library is installed**, so the detector
-refuses before it starts. Every number the roadmap asks for â match rate, conflict rate,
-stability, per-class calibration, cost â has no way to be produced. Fabricating them was the one
+Experiment-010 last looked — but **no ONNX Runtime shared library is installed**, so the detector
+refuses before it starts. Every number the roadmap asks for — match rate, conflict rate,
+stability, per-class calibration, cost — has no way to be produced. Fabricating them was the one
 thing forbidden above all, so they are reported UNMEASURED and the decision follows from that.
 
 **The firewall admission would have needed did not exist.** `Element.Actions()` derives capability
-from ROLE â a thing whose role is `button` is `Invokable` â and `Targetable()` asked only
+from ROLE — a thing whose role is `button` is `Invokable` — and `Targetable()` asked only
 `Enabled && ClickableByBounds && Any()`. So an element whose entire evidence was a detector
 classifying a rectangle as `button` read as **legally targetable**, with nothing anywhere having
 claimed a mechanism to press it. Unreported state defaults to usable and any visible box is
 clickable-by-bounds, so a detection needed nothing else.
 
 It was safe only because ScreenParser is shadow-only. **A safety property that depends on an
-experiment's configuration is not a safety property** â it would have evaporated silently the
+experiment's configuration is not a safety property** — it would have evaporated silently the
 moment anyone did what this roadmap was asking about, and no existing test could have seen it.
 
 Affordance and capability are now separate questions. `Actuable` is decided from provenance:
@@ -6389,17 +6389,17 @@ accessibility, native, DOM and plugin sources can say how to operate a control; 
 and an OCR reader describe pixels. The list is explicit and short rather than a rank comparison,
 because a threshold would silently admit whatever source is added next.
 
-**And it denies on evidence, never on absence â which was measured rather than reasoned.** The
+**And it denies on evidence, never on absence — which was measured rather than reasoned.** The
 first attempt required a positive actuating source and broke five tests across three packages:
 hand-built queries, capability-pack enrichment, fixtures. "Nobody recorded where this came from"
 and "only a camera saw it" are different claims. So the rule denies only when every source
 positively is a pixel source.
 
 **The refusal also learned to say which.** Two very different windows answered `Blind()`
-identically â one with nothing in it, one full of controls only a camera saw. Told "nothing in
+identically — one with nothing in it, one full of controls only a camera saw. Told "nothing in
 this window can be operated", a person looking at a screen full of buttons would reasonably
 conclude their application was broken. It now says the window was described by the screen alone,
-with no accessibility information â the diagnostic that would matter most on the day a detector
+with no accessibility information — the diagnostic that would matter most on the day a detector
 IS admitted.
 
 **What it would take to reconsider** is written down in the ADR rather than left as a mood: a
@@ -6407,7 +6407,7 @@ runtime, a bounded corpus of coherent readings, match and conflict rates against
 accessibility, stability across repeated inference, evidence from a naturally degraded reading,
 per-class calibration, and cost against the ambient cadence. The provider's own documentation
 records ~0.9s per frame and 1.25 GB resident, which is why it already runs on a separate cadence
-with skip-never-queue â against Observe's 1s active cadence that is the whole budget, and it is
+with skip-never-queue — against Observe's 1s active cadence that is the whole budget, and it is
 the single most likely reason the answer stays no.
 
 Even with all seven, admission should be constrained: geometry and presence before role, role
@@ -6418,47 +6418,47 @@ than a matter of care.
 
 The paragraph above says the measurement could not be taken because no ONNX Runtime was
 installed. **That was wrong, and it was wrong in the way worth recording.** The runtime is in the
-repository â `tools/onnxruntime/onnxruntime-win-x64-1.28.0/lib/onnxruntime.dll`, with an older
+repository — `tools/onnxruntime/onnxruntime-win-x64-1.28.0/lib/onnxruntime.dll`, with an older
 1.26 copy beside the plugin. My search looked in `$LOCALAPPDATA`, `$ProgramFiles`, `C:\onnxruntime`
 and three levels of `D:\`, and never looked in the repository I was standing in. A background
 search I had started and forgotten finished afterwards and contradicted the conclusion I had
 already committed.
 
 Three things were needed and all three were present: the model, the runtime, and
-`go build -tags onnxvision`. The 1.26 copy fails honestly â *"The requested API version [28] is
-not available"* â so even the wrong runtime names the mismatch.
+`go build -tags onnxvision`. The 1.26 copy fails honestly — *"The requested API version [28] is
+not available"* — so even the wrong runtime names the mismatch.
 
 **Measured over the frozen v2 corpus**, 39 frames and 120 annotated regions:
 
     structural   P 90%  R 63%
     nameable     P 81%  R 88%
-    latency      median 895â932ms   p95 ~1.0s
+    latency      median 895–932ms   p95 ~1.0s
     ScoreV2      66.8   (classical CV 5.0, Grounding DINO P 77% / R 17%)
 
-By sequence it reads menus well and gameplay HUD barely at all â 100%/83% on a static pause menu,
+By sequence it reads menus well and gameplay HUD barely at all — 100%/83% on a static pause menu,
 0% recall on freeplay. That is what a UI-trained detector should do, and nameable precision and
 recall had been **0% for four milestones**.
 
 **And the benchmark was comparing one model against itself.** `current` and `screenparser` came
 back byte-identical: the challenger's backend configured the plugin with process-wide
-`os.Setenv`, and a bridge host launches its child on first USE â during the run, after every
+`os.Setenv`, and a bridge host launches its child on first USE — during the run, after every
 backend is constructed. The baseline's plugin spawned inheriting ScreenParser. This is the same
 defect `newShadowVision` records having been caught in the first live start, fixed there and not
 here: the shape a fix takes when it is applied to where the symptom appeared rather than to every
 caller of the pattern. With per-child environment, `current` correctly reports UNAVAILABLE.
 
 **The decision does not change, but its reason does.** REMAIN_SHADOW_ONLY on measured cost and an
-unmeasured workload â 895ms against Observe's 1-second cadence is the whole budget on one sensor,
+unmeasured workload — 895ms against Observe's 1-second cadence is the whole budget on one sensor,
 and the corpus is a game while the loop that matters runs against desktop applications. Settings
 is menu-shaped, so the result is encouraging; encouraging is not measured.
 
 The firewall half of 37B stands unchanged and was always the more important half.
 
 
-## 37C â the desktop perception corpus, and what a detector is actually for
+## 37C — the desktop perception corpus, and what a detector is actually for
 
 37B left one sentence hanging: *"the corpus is a game while the loop that matters runs against
-desktop applications."* 37C built that corpus and asked the question admission turns on â not
+desktop applications."* 37C built that corpus and asked the question admission turns on — not
 "is ScreenParser good?" but **what does it add to perception that already works?**
 
 Six coherent desktop moments, each a screenshot plus the production fused world for that same
@@ -6470,8 +6470,8 @@ recorded rather than assumed away. Three families, two reflow pairs. Plus a synt
 **The answer is nothing measurable.** 537 production elements against 473 detections: 64% of
 detections have no production element under them at IoU, which looks generous until it is read.
 **All 302 of those have their centre inside an element production already perceived.** Narrowing
-to the fairest possible reading â a detection whose only container is an unlabelled,
-non-actionable region â leaves 35 (12%), topping out at 0.49 confidence, and they are boxes
+to the fairest possible reading — a detection whose only container is an unlabelled,
+non-actionable region — leaves 35 (12%), topping out at 0.49 confidence, and they are boxes
 without meanings: the detector says `text`, not what the text says.
 
 **Its most confident unique finding in the whole corpus is the trap.** `#looks-like-a-button`,
@@ -6480,22 +6480,22 @@ Production also reads the disabled button as disabled, which no detector class e
 one item where visual and semantic truth disagree, the detector is confidently wrong. That is
 ADR-101's firewall measured rather than reasoned about.
 
-**The performance gate, skipped in 37A and 37B, was finally taken.** Fusion costs **0â1ms**. The
-entire cost of production perception is the accessibility walk â 104â120ms on Settings, and
-**~1.5s on an Explorer tree**. A ScreenParser pass is 645â1379ms. So the real performance problem
+**The performance gate, skipped in 37A and 37B, was finally taken.** Fusion costs **0–1ms**. The
+entire cost of production perception is the accessibility walk — 104–120ms on Settings, and
+**~1.5s on an Explorer tree**. A ScreenParser pass is 645–1379ms. So the real performance problem
 in the stack is the accessibility walk, it is not fusion, and it is not the detector. Both layers
 show zero jitter across three unchanged readings.
 
 `37C_DECISION = SCREENPARSER_STRONG_DEGRADED_REPAIR_CANDIDATE`. Both halves are needed:
 NOT_USEFUL_ENOUGH where accessibility is healthy, and Experiment 015's result stands where it is
-absent. Those are one finding seen from two sides â ADR-102: **a detector is admitted by the
+absent. Those are one finding seen from two sides — ADR-102: **a detector is admitted by the
 absence of better evidence, never by its own quality.** The next question is degradation
 detection, not admission.
 
 **Two things were caught on the way, both of the same shape as the session's running theme.**
 The `valued` reordering table swallowed `--dir`, which is the sixth time a value-taking flag has
 been silently reordered; the gate that exists to prevent it was blind to `fs.Var`, whose name is
-its *second* argument. Closed, and the closure is mutation-proven â `--redact` is the one Var
+its *second* argument. Closed, and the closure is mutation-proven — `--redact` is the one Var
 flag no String flag shares a name with, so deleting the fix now fails a test. And the corpus was
 captured from a real desktop, so it carried the person's name, email and home-folder tree.
 Redaction is a command with a recorded result rather than a manual pass, it is **geometric**
@@ -6506,7 +6506,7 @@ Also corrected: `docs/subsystems/Vision.md` still said no ONNX Runtime was insta
 was retracted in 37B's ADR and HANDOFF and not in the subsystem note.
 
 
-## 37D â knowing when the primary sensor has not actually shown you the interface
+## 37D — knowing when the primary sensor has not actually shown you the interface
 
 37C ended pointing here: a detector is admitted by the ABSENCE of better evidence, so the next
 question is detecting that absence. 37D's audit found the answer already largely built, which
@@ -6514,7 +6514,7 @@ changed the work from "write a classifier" to "name what one already decides, an
 right about real applications rather than about its own fixtures".
 
 `observe.ReachOfState` has judged this since 35C, and it was built carefully: it decides on
-ARRANGEMENT rather than richness â find the largest space any structure claims, and if it
+ARRANGEMENT rather than richness — find the largest space any structure claims, and if it
 covers a serious share of the window with almost nothing inside it and nowhere else is
 populated, the page is present and unread. It names no application, consults no clock, and
 depends on no optional sensor. `PlaceNow` asks it BEFORE consulting memory, so a shell-only
@@ -6523,8 +6523,8 @@ input, no app-specific branch and no sensor dependency anywhere in the quality p
 
 **What was missing was proof and a name.** Every fixture in the package was written by the same
 hand as the rule, so a rule subtly wrong about real applications would pass all of them. 37C's
-committed corpus fixed that: the seven real desktop readings â Settings at two widths, a second
-Settings Place, Explorer, a browser at two widths, and Paint â all classify as content reached,
+committed corpus fixed that: the seven real desktop readings — Settings at two widths, a second
+Settings Place, Explorer, a browser at two widths, and Paint — all classify as content reached,
 which is what they were.
 
 Paint is the interesting one. Its canvas is 68% of the window and empty, and it is sufficient
@@ -6532,7 +6532,7 @@ because its ribbon sits INSIDE the same top-level pane, so somewhere in the wind
 it. Not a special case for drawing applications: the populated-panel rule, doing exactly what it
 was written for. Captured live at 106 elements and committed.
 
-`observe.Sufficiency{State, Reason, Vacancy}` is the new name and the seam 37E consumes â three
+`observe.Sufficiency{State, Reason, Vacancy}` is the new name and the seam 37E consumes — three
 states that must not collapse, five bounded reasons, and NO sensor named. It says "the primary
 reading did not represent the interface", never "run ScreenParser", because that decision has to
 weigh cost against what is missing and belongs to whatever schedules perception.
@@ -6545,7 +6545,7 @@ game surface is precisely where extra perception is worth spending. A classifier
 sufficient would close the door on the case that motivated the whole line of work.
 
 **History is deliberately not consulted.** It could corroborate a collapse, and the structural
-evidence already detects the original live failure without it â so adding it would be
+evidence already detects the original live failure without it — so adding it would be
 unfalsifiable complexity carrying a real hazard, an expectation that fabricates current
 elements. The seam is named if a future case ever earns it.
 
@@ -6556,7 +6556,7 @@ disagree; nothing had two vacancies to choose between; nothing sat between 0.40 
 the sufficiency tests only asserted the two reasons the headline cases produce. Four new
 fixtures, each sitting on the far side of exactly one boundary, and 14 of 14 now die.
 
-Cost, measured: judging a reading is p95 514Âµs against 104msâ1.6s to acquire it. **The
+Cost, measured: judging a reading is p95 514µs against 104ms–1.6s to acquire it. **The
 performance problem in perception is the accessibility walk and it is not this.**
 
 Live: two healthy Settings Places sufficient; the same Place at 111 elements wide and 57 narrow
@@ -6565,23 +6565,23 @@ occurred, so no live degraded case is claimed.
 
 **35D's resize acceptance is still unmeasured, and the reason is worth recording.** Sufficiency
 at both widths is half the claim; the other half is that both are the same Place, and the
-capture-to-totals adapter cannot produce a StructureSignature â every sample signs as empty and
+capture-to-totals adapter cannot produce a StructureSignature — every sample signs as empty and
 `CompareStructure` then answers "candidate" for any pair, including two obviously different
 Settings pages. Checked rather than assumed, and the limitation is written into
 `assessdesktop.go` so the next person does not claim it either.
 
 
-## 37E â perception is a budget, not a habit
+## 37E — perception is a budget, not a habit
 
 Two questions, both answered by counting rather than reasoning. `director walk-audit` runs a
 window's reading repeatedly through the production collector and fusion engine and reports what
 each walk cost.
 
 **The bridge is not the problem.** One Snapshot is a single bulk CacheRequest over the whole
-subtree â every property of every node in one cross-process call, which is the right shape.
+subtree — every property of every node in one cross-process call, which is the right shape.
 It keeps no state between calls, subscribes to NO UI Automation events, and has no cheap
 targeted read: `Locate` exists for actuation and searches the same tree. Exactly one walk per
-Collect, so there was no duplicate to eliminate â Level 0 and Level 1 on the roadmap's ladder
+Collect, so there was no duplicate to eliminate — Level 0 and Level 1 on the roadmap's ladder
 had nothing to take. Polling costs nothing either; `placeHereIn` reads a session's accumulated
 evidence and starts no walk. The sampler already refuses to queue a backlog.
 
@@ -6590,31 +6590,31 @@ evidence and starts no walk. The sampler already refuses to queue a backlog.
 
 **What was wrong was how often, and the answer was already in the tree.** Ambient watching's
 `attention` grows from one second to eight while nothing changes and snaps back the moment
-something does â governing the gap BETWEEN twenty-second sessions, while each session it opened
+something does — governing the gap BETWEEN twenty-second sessions, while each session it opened
 sampled at a flat second regardless. About seven full walks of an unchanged Explorer tree per
 session, roughly 42% of wall-clock rebuilding it. Passing the same attention through as the
 session's interval is the whole change: 7 walks a session to 2, ~42% to ~12%. Settings, 18 to 2.
 
 It retains NO state. Every sample is still a complete fresh walk taken at the moment it is
 reported; there are fewer of them when nothing is happening. Nothing is cached, so nothing can
-go stale â it is not on the caching ladder at all. And it reaches ambient only: `freshLookInterval`
+go stale — it is not on the caching ladder at all. And it reaches ambient only: `freshLookInterval`
 is 400ms and is not the supervisor's, so execution does not slow because the desktop is quiet.
 
 **And nothing consulted sufficiency to decide sensors.** ScreenParser is opt-in at process
-level and already cadence-gated, so it was never unbounded â but when enabled it inferred
+level and already cadence-gated, so it was never unbounded — but when enabled it inferred
 against healthy readings 37C had already proved it adds nothing to. `observe.EscalationOf` is
 now the one place that decides whether more perception is worth paying for, and the shadow
 provider is its first consumer. It names no sensor: `SpendMore` says more evidence is worth
 buying, and which evidence belongs to whoever holds one and knows its cost.
 
-Three rules carry it. A sufficient reading buys nothing â 37C measured that directly. A fresh
+Three rules carry it. A sufficient reading buys nothing — 37C measured that directly. A fresh
 incomplete reading settles first, because a page mid-navigation is briefly indistinguishable
 from one that failed to arrive and waiting is free. And nobody waiting is not worth spending
 on: a game viewport is incomplete for as long as it is in front, which is a standing condition
 rather than an event.
 
 The gate declines only on a positive answer. No session, no memory, nothing settled yet are all
-Marco not knowing â and a gate reading those as "no need" would silently end the experiment it
+Marco not knowing — and a gate reading those as "no need" would silently end the experiment it
 gates while looking like an optimisation. Deny on evidence, never on absence, the same rule as
 `Provenance.OnlyDescribesPixels`.
 
@@ -6625,10 +6625,10 @@ left them green. The rules were tested; nobody had tested that production asks t
 die now.
 
 Nothing about the firewall moved. No cache, no event subsystem, no targeted refresh, no
-persistent scene graph â the last is documented as a follow-on rather than quietly begun.
+persistent scene graph — the last is documented as a follow-on rather than quietly begun.
 
 
-## 37F â the loop was not open, it was stuck open
+## 37F — the loop was not open, it was stuck open
 
 37E left one thing outstanding: EscalationOf could decline an expensive sensor and nothing ever
 acquired one because it said yes. The expectation was a missing acquisition path.
@@ -6636,25 +6636,25 @@ acquired one because it said yes. The expectation was a missing acquisition path
 **There was no missing path.** `observation.Request.Include` already opts extra sensors into an
 ordinary cycle. `WithVision` and `WithPixels` already exist, and WithPixels is documented as
 "what an application exposing no accessibility tree needs". `rt.vision` and `rt.ocr` are
-AUTHORITATIVE providers in the production collector â no ShadowOnly marker, so their evidence
+AUTHORITATIVE providers in the production collector — no ShadowOnly marker, so their evidence
 reaches fusion and therefore reaches SufficiencyOf. And the session sampler already asked for
 vision.
 
 It asked on EVERY sample. 37E's gate reached shadow.Provider, which by construction can never
 reach belief; the authoritative detector beside it was ungated. Measured, detector configured:
 
-	Settings    66ms / 155 elements  â   940ms / 176 elements   sufficient either way
-	Explorer  1567ms / 298 elements  â  2460ms / 307 elements   sufficient either way
+	Settings    66ms / 155 elements  →   940ms / 176 elements   sufficient either way
+	Explorer  1567ms / 298 elements  →  2460ms / 307 elements   sufficient either way
 
-Fourteen times the cost on Settings for the same answer â 37C's finding arriving from the other
+Fourteen times the cost on Settings for the same answer — 37C's finding arriving from the other
 direction. So the change is one condition: the sampler asks the same wiring that already gated
 the shadow provider, and declines only on a positive statement that the reading suffices.
 ~875ms saved per sufficient sample on Settings, ~890ms on Explorer, verdict unchanged on both.
 
 **And the firewall became a standing gate rather than an argument.** The browser fixture carries
-two controls planted in 37C for exactly this. `#looks-like-a-button` â a span styled like the
+two controls planted in 37C for exactly this. `#looks-like-a-button` — a span styled like the
 buttons beside it, wired to nothing, which ScreenParser called a `button` at 0.63, its highest
-confidence unique detection in the whole desktop corpus â stays `text` and stays untargetable
+confidence unique detection in the whole desktop corpus — stays `text` and stays untargetable
 after visual evidence is admitted, with the visual account recorded rather than discarded so the
 disagreement remains reviewable. `#disabled-action` stays disabled. And a detection with nothing
 beside it is readable and not operable, which is the case repair exists FOR and where the
@@ -6663,18 +6663,18 @@ firewall matters most.
 "I now know where I am" while still saying "I cannot safely act on that control" is a successful
 repair, not a partial failure.
 
-11 mutations, 11 killed â including the four that would quietly restore the old behaviour and
+11 mutations, 11 killed — including the four that would quietly restore the old behaviour and
 the five that would let pixels become permission.
 
 **One honest cost.** On a machine with $MARCO_VISION_MODEL configured, sessions previously fused
 visual evidence into every reading, so a Place learned there has a signature built from richer
-evidence â 176 elements against 155. Recognising it now compares a smaller signature against a
+evidence — 176 elements against 155. Recognising it now compares a smaller signature against a
 larger remembered one. Stated rather than measured: the capture-to-totals adapter still cannot
 build a StructureSignature (37D), so it cannot be checked offline, and it needs the same
 live-store session 35D is waiting on. It is confined to configured machines; with no model the
 detector reported unavailable and contributed nothing.
 
-## 37G â ask the actual graph what place Marco thinks it is in
+## 37G — ask the actual graph what place Marco thinks it is in
 
 Three phases had left the same measurement outstanding and none of them could take it offline:
 35D's resize acceptance, 37D's finding that the capture-to-totals adapter cannot build a
@@ -6682,8 +6682,8 @@ Three phases had left the same measurement outstanding and none of them could ta
 richer signature than the same page read by accessibility alone.
 
 So this one asked the running system: an isolated `$MARCO_HOME`, a real `semanticmemory.Store`,
-`director learn` to establish and passive sessions to resolve, with `ObserveShowing` â the one
-"where am I standing" door â printing the durable subject. `acceptance-37g.ps1` runs it. Marco
+`director learn` to establish and passive sessions to resolve, with `ObserveShowing` — the one
+"where am I standing" door — printing the durable subject. `acceptance-37g.ps1` runs it. Marco
 emitted no desktop input: navigation is `ms-settings:` shell activation, resizing is
 `SetWindowPos`.
 
@@ -6698,7 +6698,7 @@ the whole collect-and-fuse, 37F put the escalation gate inside that section, and
 	HEAD, gate bypassed     14 samples / 12s
 	HEAD                     1 sample, then silence
 
-The FIRST sample survived â nothing had settled, so the gate returned before reaching the lock â
+The FIRST sample survived — nothing had settled, so the gate returned before reaching the lock —
 which is why a hang looked like a slow start. Learn, Light Mode, ambient watching and the fresh
 look a performance takes were all dead on the branch. Every existing test of that gate calls it
 directly, holding nothing.
@@ -6713,38 +6713,38 @@ structure ever seen in the state, which grows with the session.
 	183 samples   1024 ever-seen     88 present    UNREADABLE
 
 Eighty-seven structures sat inside the content region throughout. Recognition stopped working
-part way through every long look and reported it as a fact about the page â the one diagnosis
+part way through every long look and reported it as a fact about the page — the one diagnosis
 that classifier exists to route correctly.
 
 **Then the measurement.** One Settings page is one Place from 1500px down to 850px, a 43% width
 reduction, with a signature that is not merely inside tolerance but IDENTICAL, while the fused
-element count moves 115 â 84. Both directions. Two clean restarts change nothing. Mouse and
+element count moves 115 → 84. Both directions. Two clean restarts change nothing. Mouse and
 Bluetooth stay distinct at every width pair including narrow against narrow, and the store held
 exactly two subjects for two pages.
 
-Below about 850px Windows Settings removes its navigation pane â thirteen images and twelve of
-fifteen list items â and adds a search term. The matcher says `different` and Marco mints
+Below about 850px Windows Settings removes its navigation pane — thirteen images and twelve of
+fifteen list items — and adds a search term. The matcher says `different` and Marco mints
 nothing. Recorded, not fixed: making it match means dropping `image`, `list_item` and
 `text_field` from identity, which is what tells Settings pages apart, so the reflow case would be
 bought with the false-merge case. A false miss is preferred to a false merge.
 
 **Sensor richness: recognition survives it, establishment does not.** A Place remembered from
 accessibility alone resolves to the same subject with the detector contributing, and the
-signature is byte-identical even though the fused world grows 115 â 135 elements. But one cold
+signature is byte-identical even though the fused world grows 115 → 135 elements. But one cold
 `director learn` with the detector configured left TWO Mouse Places: the gate is ignorant early
 in the pass so it buys the visual pass, a Place is established carrying nine `icon` structures,
 the reading is then placed and sufficient so the gate declines, the composition changes, and the
 open licence makes that durable too. Every later reading resolves to the second one; the first is
-an orphan. Bounded to machines with `$MARCO_VISION_MODEL` set, and recorded rather than fixed â
+an orphan. Bounded to machines with `$MARCO_VISION_MODEL` set, and recorded rather than fixed —
 holding the sensor set for a session would make a game viewport buy an inference every sample,
 which is the expense ADR-104 exists to refuse.
 
 12 mutations, 12 killed. Two survived first: one because the drift fixture put its churn inside
 the region it was meant to dilute, and one because a second filter written for the principle
-turned out unreachable against the live population â deleted rather than kept as a guard nobody
+turned out unreachable against the live population — deleted rather than kept as a guard nobody
 can hold.
 
-## 37H â a sensor appearing is not the screen changing
+## 37H — a sensor appearing is not the screen changing
 
 37G ended with one defect diagnosed and left alone: with `$MARCO_VISION_MODEL` configured, one
 cold `director learn` on one Windows Settings page nobody touched left TWO durable Places. 37H
@@ -6754,29 +6754,29 @@ the orphan.
 **The chain, and every link of it is correct on its own.** The pass begins with nothing settled,
 so `EscalationOf` does not know whether the reading suffices and keeps the visual pass (ADR-104:
 ignorance is not a decline). Twenty-one detections nothing structural reported join the
-composition as `icon`, and one element accessibility DID report â as `unknown`, which fusion
-rightly treats as no claim â is named `icon` by the detector. That settles. The reading is now
+composition as `icon`, and one element accessibility DID report — as `unknown`, which fusion
+rightly treats as no claim — is named `icon` by the detector. That settles. The reading is now
 placed and sufficient, so the gate stops buying (ADR-105). The composition changes back. The
 segmenter sees a coherent part of the surface replaced and calls it a different state of the same
-surface, which is what that branch is for. And the licence, still open, makes both durable â
+surface, which is what that branch is for. And the licence, still open, makes both durable —
 because `PlacesToEstablish` walks every settled state, since a demonstration walks THROUGH places.
 
-	state_1   inferences 2    settled   â¦ icon 22 â¦
-	state_2   inferences 9    settled   â¦ unknown 1 â¦   local_from=state_1  surface=state_1
+	state_1   inferences 2    settled   … icon 22 …
+	state_2   inferences 9    settled   … unknown 1 …   local_from=state_1  surface=state_1
 	transitions   state_1 -> state_2   count 1   unattributed 1
 
 Marco concluded that the world had changed when only its evidence had.
 
 **The suspected heart was not the heart.** The roadmap's hypothesis was `unmatched + licence =
 establish`. Measured, no: the licence acts on settled screen STATES, and establishing every state
-a pass settled on is right â an intermediate place that never becomes durable leaves the edges
+a pass settled on is right — an intermediate place that never becomes durable leaves the edges
 either side of it unresolvable. The establishment layer asked the segmenter which screens it had
 seen and was told two. It was told correctly, from evidence that was wrong. Licence semantics are
 unchanged.
 
 **What the composition is made of, measured on the same window seconds apart:**
 
-	vision=false â 115 elements       vision=true â 136 elements
+	vision=false — 115 elements       vision=true — 136 elements
 	  button   accessibility x17        button  accessibility x14 + accessibility+vision x3
 	  unknown  accessibility x1         icon    accessibility+vision x1
 	                                    icon    vision x21
@@ -6787,12 +6787,12 @@ the identity, and dropping anything a structural source did not NAME removed `te
 `unknown x1` from a real page. Accessibility described those text nodes and said they were text; a
 poorer claim than `button` is not the same as no account at all.
 
-So `directorapi.KindEvidence` says who accounted for what a thing IS â described / pixel-named /
-pixel-only â which is a different question from `OnlyDescribesPixels`, which asks whether anything
+So `directorapi.KindEvidence` says who accounted for what a thing IS — described / pixel-named /
+pixel-only — which is a different question from `OnlyDescribesPixels`, which asks whether anything
 but a camera reported that the thing is THERE. Pixel-named counts as `unknown`: the object is
 real, its kind is a detector's word. Pixel-only is not counted, unless pixels are the whole
 reading, which is the case the detector exists for. Classified in `buildSample` beside the chrome
-classifier â the last point where evidence and provenance are both in scope â and read at
+classifier — the last point where evidence and provenance are both in scope — and read at
 `NewScreenSignature`, the one choke point the segmenter and the durable fingerprint share. A
 label, not a removal.
 
@@ -6802,7 +6802,7 @@ label, not a removal.
 	samples / elapsed    12/6.3s   12/6.1s
 	providers proven      a11y+vision  a11y+vision
 
-The surviving subject is `subj_71727a02470f` â byte-identical to the Place a Director with no
+The surviving subject is `subj_71727a02470f` — byte-identical to the Place a Director with no
 detector at all establishes for the same page. A configured machine and an unconfigured one now
 learn the same Place, which also closes the compatibility cost ADR-105 recorded. The whole 37G
 matrix re-run with the detector on is unchanged: same Mouse, Bluetooth distinct, two restarts
@@ -6813,11 +6813,11 @@ cleaner, no migration, no matcher loosening, and the rule names no sensor.
 
 10 mutations, 10 killed.
 
-## 37J â what a reflow removes cannot always be told from where you are
+## 37J — what a reflow removes cannot always be told from where you are
 
 37G left one false miss on purpose: below about 800px Windows Settings removes its navigation
 pane and the same destination stops being recognised. 37H then supplied a vocabulary that looked
-like it might generalise â evidence ABOUT a screen is not evidence a screen is identified BY â
+like it might generalise — evidence ABOUT a screen is not evidence a screen is identified BY —
 so 37J asked the same question of responsive layout.
 
 **Measured first.** Three destinations (Mouse, Bluetooth & devices, Printers & scanners), six
@@ -6826,18 +6826,18 @@ and 800px and is identical on all three, verified SEMANTICALLY rather than by wi
 `button "Open Navigation"` and a `button "Expand search box"` appear and the navigation list goes.
 
 Lost on every page: 13 `image`, 1 `text_field`, the navigation's `list_item`s, and the selected
-navigation entry â which is where `AdmittedPlaceName` reads the page's name, so a collapsed
+navigation entry — which is where `AdmittedPlaceName` reads the page's name, so a collapsed
 reading does not know what it is called. Gained: the `search` term. The decisive field is the
 role set, on all three.
 
 **Nothing shipped, and two independent reasons why.**
 
 The same interface event is a CONTRADICTION on one page and a SILENCE on another. Mouse has
-three list items of its own, so the navigation's twelve leaving takes `list_item` 15 â 3 â a
+three list items of its own, so the navigation's twelve leaving takes `list_item` 15 → 3 — a
 positive count disagreement on a shared role. Bluetooth and Printers have no content list items,
 so the identical event removes the role entirely. The durable signature is a flat role histogram;
 `ScreenSignature` has cells and `StructureSignature` deliberately does not, so nothing can tell
-those apart. "Absence is not contradiction" is a real seam in `sameRoleSet` â and it does not
+those apart. "Absence is not contradiction" is a real seam in `sameRoleSet` — and it does not
 reach the page this phase was written for.
 
 And the rule that would work is a measured false merge. Over every pair:
@@ -6849,30 +6849,30 @@ And the rule that would work is a measured false merge. Over every pair:
 
 All fifteen are Mouse against Printers: `back settings` is a subset of `back controls settings`.
 Requiring a shared distinctive term removes them, but `settings` is generic in an operating
-system and destination-bearing in a game's settings menu â which is what the term vocabulary was
-built for â so distinctiveness cannot be declared statically.
+system and destination-bearing in a game's settings menu — which is what the term vocabulary was
+built for — so distinctiveness cannot be declared statically.
 
 Printers collapsed settles it: its whole account is `back search settings` plus button, list,
-menu, menu_item, window â the furniture of every page of that application. UNKNOWN is the only
+menu, menu_item, window — the furniture of every page of that application. UNKNOWN is the only
 honest answer there, and any rule lenient enough to change it would recognise anything.
 
 **What survives, and is not being read.** The collapsed reading contains `button "Mouse"` and
-`text "Mouse"` in a breadcrumb â the page names itself at BOTH presentations, and
+`text "Mouse"` in a breadcrumb — the page names itself at BOTH presentations, and
 `AdmittedPlaceName` reads the selected navigation item, which is exactly what disappears. That is
 the route to closing this, and it is a perception change rather than a matcher change. It is not
 free: the same run caught Printers naming itself "Printers & scanners" at 1500 and 1000 and
-"Bluetooth & devices" â its section â at 850. A name that moves between presentations would move
+"Bluetooth & devices" — its section — at 850. A name that moves between presentations would move
 identity with it.
 
 So `responsive_test.go` is a firewall rather than a fix: the measured signatures as fixtures, the
 current answer stated with the field that decides it, and a mutation gate that kills the three
 loosenings this experiment rejected. `identityprobe` now asks `ExplainStructure` instead of
-re-deriving a comparison â it had been reporting layout roles as decisive that the matcher had
-already dropped â and reports terms as lost and gained rather than as two lists.
+re-deriving a comparison — it had been reporting layout roles as decisive that the matcher had
+already dropped — and reports terms as lost and gained rather than as two lists.
 
 3 mutations, 3 killed. 35D responsive acceptance: PASSED to 850px, CONSERVATIVE_UNKNOWN below.
 
-## 37K â a screen carries several true names at once
+## 37K — a screen carries several true names at once
 
 37J ended by pointing at naming: the collapsed page still contains its own name in a breadcrumb,
 and `AdmittedPlaceName` reads the selected navigation item, which is what the collapse removes. It
@@ -6886,18 +6886,18 @@ reaches `ScreenState.PlaceNames`, `settledPlaceName`, `PlaceNamesToRecord` and
 `Store.ObserveSemanticName`, with `promotion.establish` covering the retrospective path. Everything
 is gated on selection, which is why a collapsed layout produces no name at all.
 
-`AdmittedPlaceName` became `ExplainPlaceName` with the verdict discarded â the
-`ExplainStructure`/`CompareStructure` shape â so the reasoning could be read without a second
+`AdmittedPlaceName` became `ExplainPlaceName` with the verdict discarded — the
+`ExplainStructure`/`CompareStructure` shape — so the reasoning could be read without a second
 implementation existing to disagree with it. Suite green before any behaviour question was asked.
 Then `director name-probe`, which calls the production producer and the production rule and prints
 every claim, its semantic level, the trail evidence it came from, and why. It reports the
-presentation as whether anything claims to be the selected destination â not from a window width,
+presentation as whether anything claims to be the selected destination — not from a window width,
 which describes one machine's DPI, and not from a label like `Open Navigation`, which describes one
 operating system in one language.
 
 **A screen carries several true names at once.** On Printers at 1500px: `Settings` is the shell,
 `Bluetooth & devices` is the section AND the selected rail item, `Printers & scanners` is where you
-are. The existing rule separates them with the TRAIL â the group of sibling buttons containing the
+are. The existing rule separates them with the TRAIL — the group of sibling buttons containing the
 selected word is the path, and the entry that is not the selected word is the leaf.
 
 **The Printers trap, in the rule's own account:**
@@ -6908,39 +6908,39 @@ selected word is the path, and the entry that is not the selected word is the le
 
 At 850 the breadcrumb's ancestor has collapsed into an overflow control, so no group holds the
 selected word, the trail lookup finds nothing, and the section is admitted by default. At 750 the
-breadcrumb is back and complete â and nothing is selected, so the rule never sees it.
+breadcrumb is back and complete — and nothing is selected, so the rule never sees it.
 
 **The obvious fix was implemented, measured, and rejected.** Requiring a trail to corroborate a
 selected item fixes Printers at 850 and fixes Visual Studio Code, which today names itself
-`Terminal (Ctrl+`)` â a keyboard hint, the exact failure ADR-076's own comment warned about. And it
+`Terminal (Ctrl+`)` — a keyboard hint, the exact failure ADR-076's own comment warned about. And it
 breaks Settings HOME, which has no trail either: measured, the sibling groups are `[Add device, View
-all devices]`, `[Close Settings, â¦]`, `[Ethernet 2 Connected, â¦]`, `[Get more storage, â¦]` and none
+all devices]`, `[Close Settings, …]`, `[Ethernet 2 Connected, …]`, `[Get more storage, …]` and none
 holds `Home`. ADR-076 recorded a one-entry trail there; this Windows build no longer produces one,
 and Home is named correctly today by the same path that gets Printers wrong.
 
-So `Home` and `Printers at 850` arrive as the identical shape â one selected navigable item, no
-trail â with opposite correct answers. Nothing in the evidence the rule receives separates them.
+So `Home` and `Printers at 850` arrive as the identical shape — one selected navigable item, no
+trail — with opposite correct answers. Nothing in the evidence the rule receives separates them.
 
 Stage A is PARTIAL: ownership unified, the rule explains itself, destination-versus-section
-explicit and mutation-proven where a trail exists, ambiguity honest â and naming does not survive
+explicit and mutation-proven where a trail exists, ambiguity honest — and naming does not survive
 the breakpoint. Stage B was NOT ATTEMPTED on the roadmap's own condition. Confirmed live, two cold Learns on the same page:
 
 	at 1500px   one Place, subj_71727a02470f, semantic=[Mouse]
 	at  750px   one Place, subj_421b923d9093, semantic=[]
 
-so the unnamed-Place debt is unchanged and now has a measured cause â and the two subjects differ,
+so the unnamed-Place debt is unchanged and now has a measured cause — and the two subjects differ,
 which is 37J-s false miss showing up in the same run.
 
-Place identity is byte-identical â `recall.go` and `screenstate.go` untouched â and the 37J
+Place identity is byte-identical — `recall.go` and `screenstate.go` untouched — and the 37J
 firewall passes unchanged.
 
 8 mutations, 8 killed.
 
-## 37L â a navigation rail is a list of places you could go
+## 37L — a navigation rail is a list of places you could go
 
 37K reduced destination naming to one ambiguity: a selected navigable item with no trail means
-opposite things on two real screens. Settings Home â selected `Home`, and Home IS the destination.
-Printers at 850px â selected `Bluetooth & devices`, and the destination is its child, whose
+opposite things on two real screens. Settings Home — selected `Home`, and Home IS the destination.
+Printers at 850px — selected `Bluetooth & devices`, and the destination is its child, whose
 breadcrumb ancestor has collapsed into an overflow. 37L asked whether anything else Marco has
 could separate them. Two routes, both measured, both closed.
 
@@ -6950,54 +6950,54 @@ what contains every claim:
 	Home @1500     selected list_item "Home"                in [group pane window unknown window window]
 	Printers @850  selected list_item "Bluetooth & devices" in [group pane window unknown window window]
 
-There IS a structural difference elsewhere â the breadcrumb's buttons sit outside the content pane
+There IS a structural difference elsewhere — the breadcrumb's buttons sit outside the content pane
 at depth 4, every content button passes through a `pane`, and Home has no such group at all, which
 is coherent for a root. It was not used: identifying a group by the roles above it is the shape
 37D measured into the ground, it rests on one application, and it does not finish the job. At 850
-the group is `[More, Printers & scanners]` â two unordered entries, the selected word in neither,
+the group is `[More, Printers & scanners]` — two unordered entries, the selected word in neither,
 and `PlaceNameEvidence` carries no rectangle on purpose, so "the last one" is not a question Marco
 may ask.
 
 **The graph cannot referee it, and the reason is the rail.** The hypothesis was: if the selected
 Place has a remembered edge to a currently visible label, that label is the destination and the
-selection is only the section. Settings Home kills it â measured, the rail publishes every one of
+selection is only the section. Settings Home kills it — measured, the rail publishes every one of
 its children:
 
 	Home, System, Bluetooth & devices, Network & internet, Personalization, Apps, Accounts,
-	Time & language, Gaming, Accessibility, Privacy & security, Windows Update, Sound, Displayâ¦
+	Time & language, Gaming, Accessibility, Privacy & security, Windows Update, Sound, Display…
 
 A rail is a list of places you COULD go, and it is on every wide page. So "an edge to a visible
 label" is satisfied everywhere and the rule would demote every parent, starting with the one
 screen whose name is currently right. Constraining it to the breadcrumb group needs the Stage A
 signal that is not available. A second objection never had to be reached: the graph's
 `Printers & scanners` was named by this same rule at the widths where the trail exists, so
-refereeing the rule with it is circular unless name provenance is persisted â and building that to
+refereeing the rule with it is circular unless name provenance is persisted — and building that to
 rescue an already-unsafe idea would be the wrong order.
 
-So: `CONSERVATIVE_UNKNOWN`, nothing changed, and one boundary now enforced rather than intended â
+So: `CONSERVATIVE_UNKNOWN`, nothing changed, and one boundary now enforced rather than intended —
 `placeNameEvidence` reads one fused world and nothing else. Memory may help interpret current
 evidence; memory may never become current evidence.
 
 Known wrong and staying wrong: Printers at its overflow width takes its section's name; VS Code
-names itself `Terminal (Ctrl+`)` (its ancestry does differ â a `tab_list` â so a local rule is
+names itself `Terminal (Ctrl+`)` (its ancestry does differ — a `tab_list` — so a local rule is
 imaginable there, on one data point, not built); and a Learn while collapsed produces an unnamed
 Place.
 
 Place identity untouched, 37J firewall unchanged. 4 mutations, 4 killed.
 
 **This closes the naming and identity investigations.** The two screens are indistinguishable to
-everything Marco can currently read, and the fact that separates them â a breadcrumb is a path, a
-rail is a menu â is not exposed by UI Automation on this application. The next question is not
+everything Marco can currently read, and the fact that separates them — a breadcrumb is a path, a
+rail is a menu — is not exposed by UI Automation on this application. The next question is not
 architectural. It is how much any of this costs in use.
 
-## 38A â dogfood 1: watch me, tell me what you learned
+## 38A — dogfood 1: watch me, tell me what you learned
 
 The 37-series closed as READY_FOR_DOGFOOD. This is the first phase whose question is not "does
 this subsystem hold" but "what happens when somebody uses it". Two things came out of turning
 Marco on.
 
 **A surface that did not exist.** Nothing told a person when durable knowledge changed, so
-`marco observe --follow` now prints a line per COMMITTED change â a Place established, a way
+`marco observe --follow` now prints a line per COMMITTED change — a Place established, a way
 remembered, a name settled, a destination bound to a word:
 
 	+ learned place       Mouse
@@ -7005,8 +7005,8 @@ remembered, a name settled, a destination bound to a word:
 
 The events come from `semanticmemory.Store` after its own write succeeded. Nothing upstream
 announces, nothing predicts: a Place refused at a bound, a signature matching a record already
-held, a file that could not be written all arrive as silence. Four words rather than one â
-learned, strengthened, named, rebound â because a feed that said "learned" every time somebody
+held, a file that could not be written all arrive as silence. Four words rather than one —
+learned, strengthened, named, rebound — because a feed that said "learned" every time somebody
 walked a familiar route would train them to stop reading it. Names resolve when somebody looks,
 not when the write happened, since a Place is established on one pass and named on a later one.
 Across the whole session it produced ZERO false events.
@@ -7014,25 +7014,25 @@ Across the whole session it produced ZERO false events.
 **A defect that stopped the headline loop dead.** From a cold home, doing exactly what the product
 invites:
 
-	marco observe learn   â Marco is watching, learning from what it sees
-	marco learn "â¦"       â phase: refused
+	marco observe learn   → Marco is watching, learning from what it sees
+	marco learn "…"       → phase: refused
 	                        refused: no_observation
-	                        "I couldn't watch â I lost sight of that window."
+	                        "I couldn't watch — I lost sight of that window."
 
 Every time. With watching OFF the identical command reached `ready_for_demo` and established a
-Place â so it is a slot conflict, and the message points at the window, which sends somebody to
+Place — so it is a slot conflict, and the message points at the window, which sends somebody to
 look for a fault that is not there. One observation runs at a time by design; ambient watching held
 it and Learn was refused. Watch me, then teach me could not be walked from a command line at all.
 
 Fixed as a blocker: background attention yields to a demonstration, which is the rule Light Mode
 already followed, and only ever the session ambient itself started. **The first attempt at the fix
-did not work** â it went into `Runtime.Learn`, which only the control surface reaches, so
+did not work** — it went into `Runtime.Learn`, which only the control surface reaches, so
 `marco learn` went on being refused exactly as before. The rule was right and nothing on the path a
 person types called it. Fourth time in this series. After the fix: `ready_for_demo`, one Place
 committed, the feed said so, and watching came back.
 
 **And the observation half needs a hand on the mouse.** Seven Settings pages, 180 samples, 10
-transitions recorded â and zero candidate edges. `noticed` requires exactly one attributed human
+transitions recorded — and zero candidate edges. `noticed` requires exactly one attributed human
 ACTION per transition, and actions come from real input. Navigation driven by `ms-settings:` URIs
 presses nothing, so from Marco's point of view the screen changed on its own and it correctly
 learned nothing. That is the mechanism working; this method cannot exercise it. Edges, goals,
@@ -7040,8 +7040,8 @@ execution, composition, different starting places, midway entry and recovery all
 were not reached.
 
 Also found: `marco observe status` says "0 screens and 8 moves" while `--evidence` says "hasn't
-watched you go anywhere yet". Both true under their own meanings â the transient buffer versus the
-candidate ledger â and together they read as a contradiction that names neither cause.
+watched you go anywhere yet". Both true under their own meanings — the transient buffer versus the
+candidate ledger — and together they read as a contradiction that names neither cause.
 
 Verified: feed reports committed knowledge, 0 false events, Place established from cold, survives
 restart, recognised after restart, watching resumes after a demonstration. Not reached: everything
@@ -7050,13 +7050,13 @@ that needs a click.
 DEMO_READINESS: ENGINEERING_DEMO. The next session needs a human hand: `marco observe learn
 --follow`, then navigate Settings by CLICKING, and watch for `+ learned way`.
 
-## 38B â a window that records has to leave itself out of the recording
+## 38B — a window that records has to leave itself out of the recording
 
 Studio can now record the ordinary way: press **Record**, go and do the thing, come back and press
 **Stop recording**, look at what it got, then **Save** it where you say or **Cancel** it. Four
 buttons, four backend calls, and nothing on disk until Save.
 
-This is the recorder-first path â `internal/recorder` â `internal/simplify` â `internal/codegen`,
+This is the recorder-first path — `internal/recorder` → `internal/simplify` → `internal/codegen`,
 the widget recorder Marco shipped with, reached from a window for the first time. It is not the
 visual recorder in `learn.go`, which is unchanged and still answers the other question (*can Marco
 recognise this control again*). The owner asked for it in one sentence: "We need a cleaner way to
@@ -7064,14 +7064,14 @@ end basic recordings like this than f7, I prefer a button to end recording."
 
 **The button is the whole difficulty.** A stop KEY is pressed wherever the person already is. A
 stop BUTTON means bringing a window forward and clicking in it, and the hooks record that like any
-other click â so every replay would raise Studio and press Stop, and the switch that brought
+other click — so every replay would raise Studio and press Stop, and the switch that brought
 Studio forward would decide which application the routine was filed under. It took five
 corrections to get the exclusion right, each one the same shape: *the fixture was easier than
 production.*
 
 1. The "too fast for the poller" fallback consulted **that same poller's last sample**. Event-time
    process id instead, read in the hook from two window-data reads.
-2. The builder stamped the process on button-down only â and a button is activated on RELEASE, so
+2. The builder stamped the process on button-down only — and a button is activated on RELEASE, so
    a strip walking back from the end met an unattributed release and stopped there.
 3. The name rule ran after the process rule and could still delete a click the process rule had
    just spared. Known ownership outranks a sampled name in **both** directions.
@@ -7079,23 +7079,23 @@ production.*
    `simplify.foldActivates` reads the step before a switch as the gesture that performed it. So the
    owner's window comes out wherever it appears.
 5. And removing that switch leaves its sampled **return**, naming the window that never left the
-   front â which `foldActivates` collapses one step too late to save the click beside it. The
+   front — which `foldActivates` collapses one step too late to save the click beside it. The
    draft path collapses it first.
 
 Number 5 is the ordinary case, not the exotic one, and it hid because the fixture omitted the
-return and emitted the owner's app twice with nothing between â a stream the poller cannot
+return and emitted the owner's app twice with nothing between — a stream the poller cannot
 produce, since it emits only on change. Mutation testing found four of the five; reading found
 none.
 
 **And the recorder runs in Studio's own process**, which every other child does not.
 `orchestrator.Record` writes nothing, and a draft across a process boundary would have to be
-written somewhere for the parent to review it â the thing it exists not to do. So the hooks are in
+written somewhere for the parent to review it — the thing it exists not to do. So the hooks are in
 the window: shutdown must end a live capture and wait for the pump, and the one predicate that
 answers "is something being recorded" now answers for both recorders, because a run started under
 these hooks would press its own clicks into somebody's draft with no process boundary to notice.
 
 Also: `Begin`/`Finish` split out of `Record`, so a recorder that will not start is refused at the
-button rather than discovered at Stop. And `TestEveryMethodThePageCallsIsOnTheBackend` â there is
+button rather than discovered at Stop. And `TestEveryMethodThePageCallsIsOnTheBackend` — there is
 no compiler between the page and `*Acts`, so a misspelled binding was
 `undefined is not a function` inside a `.then` chain nobody watches.
 
@@ -7103,11 +7103,11 @@ See [[ADR-249-ending-a-recording-is-not-part-of-the-recording]] and
 [[ADR-250-the-recorder-runs-in-the-window]].
 
 **Not done, and next:** the owner has not trialled this. Line A and B (outer window size, window
-DPI as its own term, process image, carried through `macroir.Step` â `codegen`) and line C (the
+DPI as its own term, process image, carried through `macroir.Step` → `codegen`) and line C (the
 press-moment guard on the guarded path) are the planned work after it. The trial journal does not
 yet say which recorder a note came from.
 
-## 38C â a coordinate is a claim about a place, and the place can change
+## 38C — a coordinate is a claim about a place, and the place can change
 
 Lines A, B and C. A press now records what was true at the instant somebody made it, carries it
 into saved legal Marco, and a run checks it again immediately before pressing.
@@ -7117,16 +7117,16 @@ the p1 is a Point with X 842, Y 274, RelX 722, RelY 210,
   RelTo "window", WinW 1920, WinH 1080, Dpi 144, Process "arkascended.exe".
 ```
 
-**What each term is for.** `RelTo` says which rectangle the offset is measured from â one value
+**What each term is for.** `RelTo` says which rectangle the offset is measured from — one value
 today, recorded anyway, because without it the day a recorder measures from the client area is
 the day every saved route is silently reinterpreted. `WinW`/`WinH` are the OUTER dimensions,
 matching the origin they are measured from. `Dpi` is its own term because an app that handles
-`WM_DPICHANGED` relayouts inside a rectangle that never moved â same size, everything somewhere
+`WM_DPICHANGED` relayouts inside a rectangle that never moved — same size, everything somewhere
 else. `Process` is the file name, not the path: the path answers "same installation", which is a
 different question and makes a routine useless on another machine.
 
 **Where each is read.** The basis, size, DPI and origin in the hook at the press, from the window
-the attribution ALREADY identified â one `GetForegroundWindow` per click, because two reads are
+the attribution ALREADY identified — one `GetForegroundWindow` per click, because two reads are
 two instants and the second could describe a window the first did not attribute. The process
 image cannot be read there (it opens a handle, which is what makes Windows drop the hooks), so it
 is resolved once the hooks are down, from the process id read at the press.
@@ -7139,11 +7139,11 @@ nothing is written without the basis.
 point without them is pressed by exactly the rule it was saved with, so every route already on
 the owner's machine runs as it did.
 
-**The guard.** `Activate` hands back the window it settled on and the host keeps the handle â
+**The guard.** `Activate` hands back the window it settled on and the host keeps the handle —
 "activate, then press" is two instants and the desktop belongs to somebody else in between.
 Before every press that handle is re-read: still a window, still in front, origin, outer size,
 DPI, and who owns it NOW, because handles are reused. Every comparison is exact; any disagreement
-refuses and names the term. It does NOT fall back to the recorded coordinate â that is pressing a
+refuses and names the term. It does NOT fall back to the recorded coordinate — that is pressing a
 remembered pixel on a desktop just shown not to match.
 
 **The cache question, answered.** The origin snapshot stays for the legacy path and is unused by
@@ -7152,14 +7152,14 @@ path detects one directly through `Front`, and the cache is actively wrong there
 answers about the FIRST press of a route and is kept for the rest of it.
 
 **One resolver, three ways in.** A click, a `Move` and the recorded point a vision-free `Find`
-hands back. `Move` because codegen emits `Move` then `Click "right"` â guarding only the click
+hands back. `Move` because codegen emits `Move` then `Click "right"` — guarding only the click
 would leave every press that is not left-handed unchecked. `Find` because with vision off it
 short-circuits to the demonstrated point and the route then clicks what it got back; left alone,
 the early return handed back a bare X,Y and that was the one bypass.
 
 **Found while doing it:** the click point was the RELEASE coordinate while `RelX,RelY` came from
 the press, so a hand that drifted a pixel left a step whose absolute fallback and
-window-relative offset named different pixels â the fallback being the less accurate one.
+window-relative offset named different pixels — the fallback being the less accurate one.
 Nothing tested it either way.
 
 Seventeen mutations killed. Two suite guards caught misses no test of mine would have:
@@ -7171,13 +7171,13 @@ See [[ADR-251-a-press-checks-the-window-it-was-recorded-in]].
 **Outstanding, and separate:** the owner's Stop-button trial (recording and the window), and a
 live acceptance run of guarded coordinate replay. Everything above is automated evidence only.
 
-## 38D â a check that is written and does not run
+## 38D — a check that is written and does not run
 
 Source review of 38C found three gaps, all of them the same shape. Not a missing comparison: a
 comparison whose condition was the thing it was meant to be comparing.
 
 **Every term was checked "if both sides know it".** Which reads as careful and means the guard's
-strength depends on how much the recording happened to capture â with nothing in the route, the
+strength depends on how much the recording happened to capture — with nothing in the route, the
 log or the review saying which checks did not happen. A press with no recorded DPI passed on a
 desktop redrawn at another scale. A press with no recorded program passed in a window belonging
 to something else. The log line said `click: guarded` for both. The entry condition had the same
@@ -7186,23 +7186,23 @@ window with no offset inside it missed the guard entirely and was pressed at its
 coordinate.
 
 So the terms go all of them or none, and the two sides carry it differently. The recording side
-DEGRADES â a window that will not report its size, a Windows with no `GetDpiForWindow`, a press
+DEGRADES — a window that will not report its size, a Windows with no `GetDpiForWindow`, a press
 whose offset falls outside the window it was attributed to, a program that had exited by the time
 the hooks came down: each records an ordinary point and is pressed by the rule every route before
-this was saved with. The replay side REFUSES â missing, malformed, out of range, an unsupported
+this was saved with. The replay side REFUSES — missing, malformed, out of range, an unsupported
 basis, and anything the desktop will not report, each named in the sentence. Studio's review
 writes `(window not measured)` beside such a press, so the difference in what the routine will do
 is visible before the routine is kept.
 
 **A handle is not an identity.** Preparation kept the handle and the app string, and two copies
-of one program share an executable name â so a handle inherited by a second instance of the game
+of one program share an executable name — so a handle inherited by a second instance of the game
 answered the image-name check correctly, reported a window of the recorded size and scale, and
 was a window the route never brought to the front. The process id is now read at `Activate` and
 compared before the press. It has to be read there: asked at the press it would be the identity
 of whatever holds the handle by then, compared against itself.
 
 **And the press has to land in the window.** Origin plus an offset is a point on the desktop. Same
-program, same process, same size, same scale, in front, alive â and the arithmetic could still
+program, same process, same size, same scale, in front, alive — and the arithmetic could still
 send the cursor out of the window into whatever sits beside it, under a guard that had just
 confirmed the target was exactly as demonstrated. The offset is now required to lie inside the
 recorded rectangle, far edges exclusive, so a press on a maximised window's own edge is still
@@ -7216,7 +7216,7 @@ See [[ADR-251-a-press-checks-the-window-it-was-recorded-in]].
 **Still outstanding, and still separate:** the owner's Stop-button trial, and a live acceptance
 run of guarded coordinate replay.
 
-## 38E â a failed measurement is not permission to skip the check
+## 38E — a failed measurement is not permission to skip the check
 
 The recording-side half of 38D was rejected, and rightly. Making the RECORDER give up its basis
 when a measurement failed is the same hole one layer earlier: a press with no basis is an ordinary
@@ -7237,19 +7237,19 @@ in does not depend on a measurement having succeeded.
 press that declared the window and could not be measured in it came out byte-identical to a legacy
 point. It branches on the basis now.
 
-**Review says it before the routine is kept** â beside the step, once for the draft, and with the
+**Review says it before the routine is kept** — beside the step, once for the draft, and with the
 one thing somebody actually needs: whether recording it again would help. A window that would not
 describe itself this time is a moment that passed; a Windows that cannot report a scale is not, so
 that recording cannot be made on that machine at all and saying "try again" would be the worse
-mistake. Saving stays allowed â the draft is a true record of what somebody did â and is not
+mistake. Saving stays allowed — the draft is a true record of what somebody did — and is not
 quiet: the Save message and the trial journal both say it will refuse.
 
-Fourteen mutations killed. Twelve of the thirty-three mutations across 38CâE are a check that was
-WRITTEN and does not run, at three different layers â the guard asking "if both sides know it",
+Fourteen mutations killed. Twelve of the thirty-three mutations across 38C–E are a check that was
+WRITTEN and does not run, at three different layers — the guard asking "if both sides know it",
 the recorder asking "if every term arrived", the generator asking "if there is an offset".
 
-**And a gap found while wiring the chain, not caused by it:** a context-scoped recording â Studio's
-default â cannot run a guarded press at all. That scope strips the Activate and passes no
+**And a gap found while wiring the chain, not caused by it:** a context-scoped recording — Studio's
+default — cannot run a guarded press at all. That scope strips the Activate and passes no
 application to `codegen`, because switching nothing is its whole promise, so nothing binds a
 window and every press refuses. `everywhere` is the same; only `app-anywhere` works. Pinned by a
 test and left for a decision, because what PREPARATION means for a scope with no preparation step
@@ -7257,10 +7257,10 @@ is a change to the guarded contract.
 
 See [[ADR-251-a-press-checks-the-window-it-was-recorded-in]].
 
-**Still outstanding:** the owner's Stop-button trial, and a live acceptance run of guarded replay â
+**Still outstanding:** the owner's Stop-button trial, and a live acceptance run of guarded replay —
 which the context-scope gap blocks until it is decided.
 
-## 38F â a refusal stops the routine, and a guarded recording is saved to bring its window forward
+## 38F — a refusal stops the routine, and a guarded recording is saved to bring its window forward
 
 Two settled decisions, and one of them found that the obvious way to write failure propagation in
 Marco silently does not work.
@@ -7274,8 +7274,8 @@ verbatim, so a refusal three presses along comes back out of `Run` as the refusa
 The reason it is a chain rather than a flat body with early returns is worth keeping: **a terminal
 return inside a non-exhaustive `when` arm does not return.** The arm fires, the ending is ignored,
 execution falls through, and the caller is told ok. Measured on a three-line program. It is why
-every fixture in the repository pairs its arms, and it is not changed here â Marco's own semantics
-are nothing to do with this contract â but it is the reason the shape is the shape. Written flat,
+every fixture in the repository pairs its arms, and it is not changed here — Marco's own semantics
+are nothing to do with this contract — but it is the reason the shape is the shape. Written flat,
 the working shape is one indent level per press, which at thirty presses is unreadable; hence a
 capability each.
 
@@ -7283,7 +7283,7 @@ A guarded press is also never folded into a `repeat` now, because a repeat has n
 if that one did not happen".
 
 **And the run's answer is data.** A refused routine still ends tidily: a root handler is
-compulsory in Marco, so the failure is caught, logged, and the script finishes â and `marco do`
+compulsory in Marco, so the failure is caught, logged, and the script finishes — and `marco do`
 would have exited successfully about a routine that pressed nothing. The host keeps its own
 refusals and the command fails on them. Which contract a route carries is read from the route, so
 a legacy route reports exactly what it always did. On the Act path the answer already existed:
@@ -7293,7 +7293,7 @@ a legacy route reports exactly what it always did. On the Act path the answer al
 closed by withdrawing the choice rather than defaulting it: Studio says "Runs in Ark. Marco brings
 it forward before playback." and hides the three-way select, an impossible scope is refused at Save
 with the reason, and a routine already saved in that state is listed and saved again from its own
-stored demonstration â re-simplified, not rewritten, with the old file removed only once the new
+stored demonstration — re-simplified, not rewritten, with the old file removed only once the new
 one is written.
 
 Sixteen mutations killed. Two of them survived first and the TESTS were wrong, not the code: "every
@@ -7308,13 +7308,13 @@ See [[ADR-251-a-press-checks-the-window-it-was-recorded-in]].
 
 **Still outstanding:** the owner's Stop-button trial, and a live acceptance run of guarded replay.
 
-## 38G â a press that did not happen, by either route
+## 38G — a press that did not happen, by either route
 
 Two result gaps, and both were the same mistake in different places: a list named for one kind of
 failure, used as though it held every kind.
 
-**A press the machine will not deliver.** The host's account held refusals â a press it could not
-check, an application that never came forward â and not a backend that rejected the input after
+**A press the machine will not deliver.** The host's account held refusals — a press it could not
+check, an application that never came forward — and not a backend that rejected the input after
 the guard passed. From where a person is standing those are the same outcome: the press did not
 happen. The chain stopped correctly, the root handler caught the failure correctly, the program
 ended tidily, and the command reported success. `SendInput` really does get blocked: an elevated
@@ -7323,17 +7323,17 @@ account is now of everything the run did not do, the delivery error is kept verb
 `runRoute` fails on any of the three.
 
 The command-level case needed a seam: `runRoute` asserted the concrete `*oshost.Host`, which only
-the real host satisfies, and the real host sends real input â so the only command test that could
+the real host satisfies, and the real host sends real input — so the only command test that could
 be written was an absent application, the cheapest failure and the furthest from the press. It
 now asserts an interface, and a host that takes everything but the input poses the case.
 
 **A right-click guarded the aim and not the press.** `do OS's Move with p1` wrapped, then
-`do OS's Click with "right".` with its result ignored â so a press the machine refused was
+`do OS's Click with "right".` with its result ignored — so a press the machine refused was
 followed by the next step anyway, and the press itself carried none of the point's checks.
 Rejected for this milestone rather than supported: doing it properly means one guarded operation
 with a button beside the point, which is a permanent word in the language for a case no recording
 has needed yet. Drags, anchored presses and repeated blocks are refused with it, for the same
-reason â the chain wraps one `do` sentence and none of those is one.
+reason — the chain wraps one `do` sentence and none of those is one.
 
 **And my own gate had the same shape of hole.** "Does a press ask to be checked" and "can this
 version wrap it" came out as one question, so a recording whose only press was a right-click had
@@ -7348,45 +7348,45 @@ See [[ADR-251-a-press-checks-the-window-it-was-recorded-in]].
 
 **Still outstanding:** the owner's Stop-button trial, and a live acceptance run of guarded replay.
 
-## 38H â a library is a place, and saving was not the end of the flow
+## 38H — a library is a place, and saving was not the end of the flow
 
 Two gaps between a working mechanism and something a person can use, both found by reading the
-handover rather than the code: Â§62 of `E2E.md` called itself "Record â Stop â Review â Save â
-reload â Play" and then sent the owner to a terminal. That proves a Studio-recording-to-CLI path.
+handover rather than the code: §62 of `E2E.md` called itself "Record → Stop → Review → Save →
+reload → Play" and then sent the owner to a terminal. That proves a Studio-recording-to-CLI path.
 It is not Studio acceptance.
 
 **The library was wherever you were standing.** `marco`, `director` and Studio each resolved the
-route store in their own words, and the words agreed â `$MARCO_ROUTES, else "routes"`. The defect
+route store in their own words, and the words agreed — `$MARCO_ROUTES, else "routes"`. The defect
 is not the duplication. It is that the sentence is RELATIVE: the answer was whichever directory
 each process happened to be started from, so the product had as many libraries as it had launch
 locations. A Studio double-clicked in `plugins\studio` kept its routines in
 `plugins\studio\routes`; `marco do "ark graphics"` run from the repo root looked in `marco\routes`
 and said there was no such routine. Both behaved exactly as written, and the walkthrough carried
-the remedy as an instruction â *launch both from the repo root* â which is a developer working
+the remedy as an instruction — *launch both from the repo root* — which is a developer working
 around their own tooling.
 
 So there is one resolver, `internal/marcopaths`, the answer is absolute including a relative
 `$MARCO_ROUTES`, and the default is `routes` inside the store every part of Marco already shares.
 The store rule went the same way for a sharper reason than tidiness: it was written out four times
 as well, once with a comment saying it *"has to stay the same rule"*, and the library is now
-INSIDE the store â so two binaries disagreeing about the store is two binaries with two libraries.
+INSIDE the store — so two binaries disagreeing about the store is two binaries with two libraries.
 
 **Moving a default makes the old one go quiet rather than disappear**, which is the worse of the
 two: the routines are still there, nothing says so, and a person reads an empty list and concludes
 their work is gone. So the window reports which library it reads, and names any library-shaped
 directory beside its launch location that holds routines, with the count and what to do about it.
-Nothing is adopted and nothing is moved â deciding which of two libraries is somebody's is not a
+Nothing is adopted and nothing is moved — deciding which of two libraries is somebody's is not a
 decision code gets to make for them.
 
 **And the library is now a list with a Play button.** A saved routine is selected and performed
 without leaving the window: the window finds it, refuses NOW if it would not run, brings its
-application forward itself â only the foreground process may, which is the same split `Play`
-already draws for an Act â and spawns `marco do --play` with the route's whole identity and the
+application forward itself — only the foreground process may, which is the same split `Play`
+already draws for an Act — and spawns `marco do --play` with the route's whole identity and the
 library named explicitly. Studio acquires no execution loop; the answer is the published outcome
 word read through `internal/outcome`, which both ends import, so it is protocol rather than
 transcript-parsing. One run slot is shared with Acts and with recording, because there is one
-screen. And a routine's run is rendered and journalled as what it is â no canonical reference, no
-phase, no question â because a view expecting a supervised performance reports a perfect routine
+screen. And a routine's run is rendered and journalled as what it is — no canonical reference, no
+phase, no question — because a view expecting a supervised performance reports a perfect routine
 as a run that cited nothing.
 
 Each routine is listed with the contract it was saved under, read off the saved Marco by one
@@ -7396,7 +7396,7 @@ names what it lacks before anybody presses Play and watches it refuse.
 
 **Six of forty mutations survived, and five were a weak test of mine rather than weak
 code.** The child's environment was asserted to CONTAIN the library, which `os.Environ()` already
-satisfied whenever the two agreed â and in a test they agree by construction, so deleting the
+satisfied whenever the two agreed — and in a test they agree by construction, so deleting the
 explicit setting passed. The module filter was tested with `os.marco`, which `routes.routeSlug`
 already excludes by name everywhere, so the fixture asked nothing. Nothing tested that the window
 brings the application forward, which is the behaviour the foreground lock makes load-bearing.
@@ -7406,33 +7406,33 @@ sentence from the last.
 
 The sixth was a real defect in the page: **two places decided whether Play was live**, and the
 poll's copy overwrote the click's four hundred milliseconds after every click. So the click's half
-could be made always-enabled and nothing changed â a duplicate whose later writer silently wins,
+could be made always-enabled and nothing changed — a duplicate whose later writer silently wins,
 which is the arrangement that makes the other five possible. One function decides now, asked from
 both. One deliberate no-op control survived.
 
-Â§62 is relabelled as the engineering diagnostic it is, and Â§63 is the product trial: Record â Stop
-â Review â Save â select â Play, all in Studio, opened by double-clicking the binary on purpose.
+§62 is relabelled as the engineering diagnostic it is, and §63 is the product trial: Record → Stop
+→ Review → Save → select → Play, all in Studio, opened by double-clicking the binary on purpose.
 
 See [[ADR-252-a-library-is-a-place-and-a-routine-is-played-where-it-was-made]].
 
-**Still outstanding:** the owner's trial of Â§63. None of this has been done on a real desktop.
+**Still outstanding:** the owner's trial of §63. None of this has been done on a real desktop.
 
-## 38I â a name is not an identity
+## 38I — a name is not an identity
 
 Review found the selection half of 38H wrong, and it is the shape this project keeps finding: a
 check that is correct about the wrong subject.
 
 A route IS its scope and its slug. `settings` saved for two applications is two routines, and so
-is `settings` saved twice for one application under two scopes â which is why `doCommand` hands
+is `settings` saved twice for one application under two scopes — which is why `doCommand` hands
 the child all three. But everything ABOVE that travelled by NAME: the page kept `r.name`, looking
 a routine up returned the first row that matched, and `PlayRoutine` matched a name or a slug and
 took the first of those. So clicking the second `settings` card displayed the first one's saved
-Marco, the first one's sentence about its presses and the first one's Play button â and pressing
+Marco, the first one's sentence about its presses and the first one's Play button — and pressing
 it performed the first one's route. **Handing the child the full identity was already right, and
 it was happening after the wrong routine had been chosen.**
 
 The listing had it a second time with a worse result. "Cannot press anything" was keyed by SLUG,
-and a slug is shared by every scope it was ever saved under â so `<app>/context/settings` being
+and a slug is shared by every scope it was ever saved under — so `<app>/context/settings` being
 unable to press anything marked `<app>/focus/settings` unable to press anything too: a valid
 routine disabled by an invalid namesake, with the namesake's sentence beside it explaining a scope
 it is not in. And the repair card had it a third time, in the same file: `Resave` matched a name
@@ -7440,7 +7440,7 @@ and took the first that answered, so the button beside one row saved the other r
 reported the first one's name while doing it.
 
 So every one of them carries `<app>/<scope>/<slug>`, which is the route's place in the library and
-therefore what its identity is â not the file path, which `Registry.Path` resolves to wherever a
+therefore what its identity is — not the file path, which `Registry.Path` resolves to wherever a
 legacy route actually sits, making it an answer about the filesystem rather than about the route.
 The page keeps it through selection, preview and Play; the backend requires an exact match and
 refuses a bare name rather than resolving it, because a term that identifies two routines must not
@@ -7448,7 +7448,7 @@ pick one of them; and both listings are keyed by it.
 
 Eight mutations, one survivor: `Resave` was made to accept a name as well as an identity and
 nothing failed, because the test handed it an identity and never asked what a name would do. One
-is recorded as unfalsifiable rather than killed â the listing's sort has a tiebreak on identity
+is recorded as unfalsifiable rather than killed — the listing's sort has a tiebreak on identity
 and `Registry.List` already returns a total order, so the sort never sees equal keys and removing
 the tiebreak changes nothing observable. It stays because the order must not depend on an upstream
 sort being total, and the comment on it says that instead of claiming a defect somebody saw.
@@ -7459,13 +7459,13 @@ not have failed.
 
 See [[ADR-252-a-library-is-a-place-and-a-routine-is-played-where-it-was-made]].
 
-**Still outstanding:** the owner's trial of E2E.md Â§63. None of this has been done on a real
+**Still outstanding:** the owner's trial of E2E.md §63. None of this has been done on a real
 desktop.
 
-## 38J â a click's two edges can belong to two processes
+## 38J — a click's two edges can belong to two processes
 
 The first mouse-driven trial of the Studio flow. The guarded half passed on a real desktop: a
-routine recorded in the window, selected in the window, played from the window â Escape then a
+routine recorded in the window, selected in the window, played from the window — Escape then a
 guarded click landing on the right control; the window **moved** and it still pressed the right
 places; the window **resized** and it refused, pressed nothing, and said why in the banner; Stop
 mid-run ended as cancelled.
@@ -7482,24 +7482,24 @@ They had performed no drag.
 window is what causes the activation, so at the instant of the press the foreground is the old
 one. `internal/recorder` already knows this and says so where it computes a window offset, and
 refuses to compute one in that case. The EXCLUSION did not know it. Working edge by edge, it kept
-half of every click that crossed the boundary â the press of the click onto Studio, whose release
+half of every click that crossed the boundary — the press of the click onto Studio, whose release
 was Studio's, and the release of the click back, whose press was Studio's. The one rule that
 existed for this took the release of an owner's press only when that release was unattributed and
 at the identical point, so neither real direction matched.
 
 What was left was a press on Studio's window and a release in the application with no press
-between them. `internal/simplify` read that as a drag, correctly by every rule it has â and a drag
+between them. `internal/simplify` read that as a drag, correctly by every rule it has — and a drag
 cannot be saved in a routine whose presses are checked, so the whole recording was refused. The
 phantom's two coordinates are the two clicks' surviving halves.
 
 **So clicks are paired before anything is excluded, and the pair decides together.** Per button,
 because buttons interleave; in order and never across a second press of the same button, because a
-button cannot be released twice without being pressed again â so the release after a press is that
+button cannot be released twice without being pressed again — so the release after a press is that
 press's own, and reaching past a later press would invent a gesture out of two different clicks. A
 click either of whose edges is the owner's is the owner's, which is right about intent too: a press
 in the application whose release is in Studio IS the click that raised Studio, and a press in
 Studio whose release is in the application IS the click that went back. Deliberately not "the
-edges disagree, so exclude it" â a click in the game whose release lands in a window the game
+edges disagree, so exclude it" — a click in the game whose release lands in a window the game
 itself raised has disagreeing edges and neither is Studio's, and it is a demonstrated press.
 
 One existing case changed and it was the old rule's own encoding: a release of the owner's press
@@ -7507,40 +7507,40 @@ that had MOVED used to be kept. It is that press's release, because nothing pres
 between, and keeping it is leaving half a click in the stream.
 
 **Why every test passed through all of this.** Every click fixture in the tree gives both edges of
-a click one process id, and a real desktop does not. The acceptance case this ADR is proudest of â
-a demonstration surviving a mid-recording glance â was passing for that reason. ADR-249's own
+a click one process id, and a real desktop does not. The acceptance case this ADR is proudest of —
+a demonstration surviving a mid-recording glance — was passing for that reason. ADR-249's own
 mutation note had said the release-match clause "could have been `true` and the acceptance tests
 would still have passed"; it was not `true`, it was too narrow, and the gap was the same gap.
 
 The Studio-level regression test was run with the pairing removed before it was trusted, and it
-reproduced the owner's review character for character â the same phantom, the same step list, the
+reproduced the owner's review character for character — the same phantom, the same step list, the
 same refusal sentence. Four mutations on the pairing, all killed.
 
 See [[ADR-249-ending-a-recording-is-not-part-of-the-recording]].
 
-**Trial status: the whole of Â§63 is now shown live.** Guarded replay, the library, selection by
-identity, the run's own answer â and, on retest, mid-recording preservation: the owner clicked onto
+**Trial status: the whole of §63 is now shown live.** Guarded replay, the library, selection by
+identity, the run's own answer — and, on retest, mid-recording preservation: the owner clicked onto
 Studio in the middle of a recording, clicked back, pressed another control, and the recording kept
 both presses, invented no gesture, and saved.
 
 **The retest failed once more before it passed, and that failure was a stale binary.** The first
-attempt after the fix still reported the drag â from a Studio window that had been open since
+attempt after the fix still reported the drag — from a Studio window that had been open since
 before the build. Studio installs the hooks and makes the draft IN ITS OWN PROCESS: `recorder.New`
 and `withoutOwner` both run there, not in the director it spawns. So a window left open across a
 build runs the old recorder however fresh the binaries beside it are. It is the stale-sibling trap
-one step further in â there the wrong copy was on disk, here the right copy was on disk and the
-wrong one was already running, which no check of the files can see. Â§63 now says to close Studio
+one step further in — there the wrong copy was on disk, here the right copy was on disk and the
+wrong one was already running, which no check of the files can see. §63 now says to close Studio
 before building and to open the one that was just built.
 
-## 38K â a key beside a press that is checked
+## 38K — a key beside a press that is checked
 
 A test-only increment, and a finding that came out of it.
 
 The owner's first live routine was a keystroke and then a press: Escape to close a menu, then a
 click on what was behind it. Nothing in the tree combined the two. Every test of the chain used
 presses alone, and every test of a key used a route with nothing guarded in it, so the one thing
-the chain does with an ordinary step â put it in the capability of the press that FOLLOWS it, so
-it runs inside the previous press's success â was carried by a comment and by one live run.
+the chain does with an ordinary step — put it in the capability of the press that FOLLOWS it, so
+it runs inside the previous press's success — was carried by a comment and by one live run.
 
 `internal/codegen/keyandpress_test.go` holds it as behaviour rather than as text: the real
 generator, the real runtime, and an OS host that writes down what it was asked to do in order and
@@ -7552,15 +7552,15 @@ cannot be typed into whatever was in front; and the tail, which has no further p
 its own passed every test in the file, so the question was what production does when the KEY is
 the thing that cannot be performed. It carries on: the press after it goes ahead and the routine
 reports that it performed. Nothing notices, because the guard reads the window and the window is
-the same window â while the menu the Escape was meant to close is still open. That is the shape
+the same window — while the menu the Escape was meant to close is still open. That is the shape
 the owner's own routine has. It is recorded as a known gap in
 [[ADR-251-a-press-checks-the-window-it-was-recorded-in]] and pinned by
 a test which recorded what it did then and was meant to be the one that failed when somebody
-decided it. Making a key propagate is a change to that contract â keys would go in
-`Unpropagatable` and every key would become a link â so it was scoped separately and not taken
+decided it. Making a key propagate is a change to that contract — keys would go in
+`Unpropagatable` and every key would become a link — so it was scoped separately and not taken
 here.
 
-**It was decided immediately, and Â§38L below is the correction.** That test is gone, replaced by
+**It was decided immediately, and §38L below is the correction.** That test is gone, replaced by
 the cases that assert a keystroke stops everything after it; this section is kept as the record of
 how the gap was found, which was a mutation and not a live run.
 
@@ -7570,40 +7570,40 @@ instant, so a test telling them apart would hold a shape with no consequence. Th
 this file had exactly that test, with a comment claiming the refusing path would distinguish them.
 It does not, and the test was removed rather than kept as a passing assertion about nothing.
 
-## 38L â a keystroke that did not happen
+## 38L — a keystroke that did not happen
 
-The gap Â§38K found, closed as a bounded correction: the accepted Escape â guarded-click sequence
+The gap §38K found, closed as a bounded correction: the accepted Escape → guarded-click sequence
 now stops if Escape cannot be delivered. Two lines of production code and a fixture's worth of
 tests at three levels.
 
-**A keystroke is a link.** Not because anything checks it â nothing measures a window for a key â
+**A keystroke is a link.** Not because anything checks it — nothing measures a window for a key —
 but because it can fail to be DELIVERED, and what follows it then acts on a screen the key never
 changed. `propagating` now returns a guard for a key as well as for a press and the preparation,
 so each one gets its own capability and calls the next only inside its own success.
 
 **A repeated key is each of its presses.** `simplify` folds a run of the same key into one step
 with a count, before anything knows what the recording is for, and the generator wrote that as a
-`repeat` block â which cannot stop a routine, since its body runs again after the thing that did
+`repeat` block — which cannot stop a routine, since its body runs again after the thing that did
 not happen. `keyByKey` expands the count back into one link per keystroke, for a chain only; a
 legacy route keeps its `repeat`. Refusing it at generation instead would have stopped a recording
 with a double-tap in it from saving at all, which nobody asked for.
 
 **And the failure is kept in the account.** `doKey` returned `ok(err)`: the status said failed and
-nothing was recorded, so the chain had no reason to stop and `Unperformed` â the list `marco do`
-turns into a failed command and Studio reads back as the reason â was empty. It is now wrapped in
+nothing was recorded, so the chain had no reason to stop and `Unperformed` — the list `marco do`
+turns into a failed command and Studio reads back as the reason — was empty. It is now wrapped in
 `delivered`, like every other input send, and says *the escape key did not happen: <what the
 machine said>*.
 
 **Three levels, because no one of them establishes it.** `internal/codegen` holds what the
 generator writes and what the runtime does with it, through a host that writes down what it was
 asked to do and refuses one nominated thing: a key that did not happen stops everything after it,
-whether it sits before the first press, between two, or after the last â with controls around it
+whether it sits before the first press, between two, or after the last — with controls around it
 the machine takes, so what stopped the routine is the keystroke and not the arrangement.
 `internal/oshost` takes the owner's own shape through the production recorder, simplifier,
 generator, registry, compiler and the real `Host` with the backend rejecting the keystroke, and
 asserts the account keeps the machine's words. `cmd/marco` holds the command's answer, which is
 the wire Studio reads, and its legacy counterpart asserts the press after the key was still
-attempted â preserved behaviour, not merely the absence of an error.
+attempted — preserved behaviour, not merely the absence of an error.
 
 The gate is what separates those levels: not keeping the failure in the account is invisible to the
 generator's tests and fatal to the host's; the command no longer reading the account is invisible
@@ -7613,14 +7613,14 @@ to both and fatal only at the command. Seven mutations, all killed, plus a no-op
 can emit several sentences, so it is not one `do` to wrap, and what a partly typed line means is
 its own question; a hold is a pair, and making it propagate means deciding what the release owes a
 press that did not happen. Their failures stop nothing and are not in the account either, so a
-guarded routine whose typing was dropped carries on and reports that it performed â which is
+guarded routine whose typing was dropped carries on and reports that it performed — which is
 exactly what a keystroke did until this increment.
 
 The live trial stands for what it showed. It does not establish this: staging it means making the
 machine refuse one keystroke and take everything else.
 
 **And it reaches a routine when that routine is written.** The rule is the generator's, so a
-routine already on disk keeps the shape it was generated with â the owner's own first routine among
+routine already on disk keeps the shape it was generated with — the owner's own first routine among
 them, which will go on pressing past a keystroke that did not arrive until it is recorded again or
 saved again. Nothing rewrites saved Marco, and nothing should. The way out exists already (the
 demonstration is stored beside the routine and Studio saves it again from that), but Studio offers
@@ -7633,7 +7633,7 @@ not establish that a routine needs updating. Studio would identify an affected c
 the difference, and offer an explicit re-save from the stored demonstration, with the review shown
 first. Nothing rewritten automatically.
 
-## 38M â what is left of the coordinate MVP (assessment, not work)
+## 38M — what is left of the coordinate MVP (assessment, not work)
 
 A design-and-estimation pass, asked for because the brief that prompted it commissioned a bridge
 that already exists: Studio reuses the widget recorder through the orchestrator draft path, saves
@@ -7652,19 +7652,19 @@ already importable and already holds the citation scheme and the word `started`;
 creates the record with `O_CREATE|O_EXCL` and writes a started record at once, and `saveRun`
 finalises with no `O_CREATE`, so it cannot touch another attempt. Exclusive reservation, an
 interruption leaving an unfinished attempt, and a safe finalisation are already solved there. The
-work is to make `marco do` â the EXECUTOR â reserve, cite and finalise its own record, with only
+work is to make `marco do` — the EXECUTOR — reserve, cite and finalise its own record, with only
 the shared machinery extracted; Director's record implementation stays where it is. That is the
 spine at 9 to 15 hours, with everything else 8 to 12 more.
 
 **And the two paths do not share a vocabulary.** `runref` says `verified`, `unconfirmed`,
 `contradicted`; `internal/outcome` says `performed`, `unverified`, `unavailable`, `clarify`. Three
-words overlap. Nothing may convert `performed` into `verified` â a routine presses and looks at
-nothing afterwards â so the record carries an explicit KIND, each kind keeps its own words, and a
+words overlap. Nothing may convert `performed` into `verified` — a routine presses and looks at
+nothing afterwards — so the record carries an explicit KIND, each kind keeps its own words, and a
 routine's record OMITS the verification counts rather than writing three zeroes, because three
 zeroes are a claim and omission is the truth.
 
 **`MARCO_CV`/`MARCO_ANCHORS` are read into package variables at process start**, so Studio
-inherits whatever launched it for the life of the window â and with anchors on, a press whose
+inherits whatever launched it for the life of the window — and with anchors on, a press whose
 cropped region is distinctive carries a template, which makes the whole guarded recording
 unsaveable at Save. The same demonstration therefore saves or is refused depending on an inherited
 setting and the pixels under the pointer. That is the gap between an engineering switch and an
@@ -7677,21 +7677,21 @@ tracks them, so a partly delivered `ctrl+shift+esc` can leave Ctrl held with the
 unwind unable to help. And cancellation does not stop the tap: the settling `sleepCtx` returns the
 instant the context is cancelled and execution falls straight into the final key-down, so input
 goes out after the person asked for it to stop. The first version of the assessment called that
-path correct, which was wrong â cleanup is attempted there, which is not the same claim. Forced
+path correct, which was wrong — cleanup is attempted there, which is not the same claim. Forced
 termination cannot be cleaned up at all and is not pretended otherwise.
 
 Also recorded there, because it is where existing data can be lost: `Registry.Save` is a plain
-`os.WriteFile`, so re-recording a routine under a name silently replaces the one saved under it â
+`os.WriteFile`, so re-recording a routine under a name silently replaces the one saved under it —
 and re-recording is the action a repeatable MVP encourages.
 
-## 38N â saving does not replace a routine unless somebody says so
+## 38N — saving does not replace a routine unless somebody says so
 
 The first piece of the coordinate MVP to be authorized, taken before the run record because it is
 the only remaining item that protects something you cannot get back. Capped at the safeguard: no
 version history, no automatic renaming, nothing of generation-contract versioning.
 
 `Registry.Save` is a plain file write, so recording under a name already in the library replaced
-what was there â the source, and a moment later the `.rec.json` beside it, which is the copy a
+what was there — the source, and a moment later the `.rec.json` beside it, which is the copy a
 routine is ever saved again from. The person most exposed is the one re-recording all afternoon to
 compare attempts, which makes the likeliest casualty the routine they were comparing against.
 
@@ -7707,7 +7707,7 @@ now a delegation to the one writer.
 
 **The identity is the generator's own.** `orchestrator.Deps.Target` is the route a draft would be
 saved as; `Save` calls it and so does the collision check. The mutation that drops the scope from
-that derivation kills five tests â a collision looked for in the wrong place is no protection.
+that derivation kills five tests — a collision looked for in the wrong place is no protection.
 
 **And the save asks again.** `Collision` is for the page, so it can offer the choice; it is not
 what protects the library. Between the question and the answer somebody can save that name from a
@@ -7717,15 +7717,15 @@ terminal. Replace also checks that the identity it would write is the one it was
 (`TestOrdinarySaveNeverReplacesAndTheChoiceIsPressed`): a page that looked first and replaced for
 somebody would pass every backend test while doing the one thing they exist to prevent.
 
-Seven mutations, all killed, plus a no-op control. R1âR3 remain paused.
+Seven mutations, all killed, plus a no-op control. R1–R3 remain paused.
 
-## 38O â one claim per attempt, and two vocabularies in one directory
+## 38O — one claim per attempt, and two vocabularies in one directory
 
 R1 of the first milestone, and an extraction with no behaviour change: the discipline of recording
 an attempt is now `internal/runs`, and the record in it is still each caller's own.
 
 **What is shared is narrow and all of it is about a namespace.** The place
-(`marcopaths.Runs`, `marcopaths.RunsDir` â one spelling for a directory two binaries write and a
+(`marcopaths.Runs`, `marcopaths.RunsDir` — one spelling for a directory two binaries write and a
 third reads); the claim on a reference, made exclusively before anything is sent; the provisional
 record left in that claim at once, so an attempt that dies retrieves as an attempt that did not
 finish rather than retrieving nothing; and the finalisation with no `O_CREATE`, so a record can
@@ -7744,24 +7744,24 @@ own `buildid` stamp. The whole 150-second director suite passing unchanged is th
 the extraction changed nothing about that command.
 
 **The gate found a real gap rather than confirming the work.** A mutation deriving the place from
-`$MARCO_HOME` alone passed every test, because every test sets it â and Studio sets it, while
+`$MARCO_HOME` alone passed every test, because every test sets it — and Studio sets it, while
 `marco do` typed into a terminal does not. `filepath.Join("", "runs")` is a RELATIVE directory,
 which is the defect `marcopaths` exists because of, about to repeat itself one layer up with a
 bug report's reference pointing at nothing. `TestTheStoresPlaceIsAnswerableWithNothingInTheEnvironment`
 exists because of that measurement. A second mutation, deriving the place without `marcopaths` at
-all, did not compile â recorded as redone, not as a kill.
+all, did not compile — recorded as redone, not as a kill.
 
 Seven mutations killed, one no-op control surviving. R2 and R3 next.
 
-## 38P â a routine's run is something you can cite
+## 38P — a routine's run is something you can cite
 
 R2 of the first milestone. `marco do` claims its own reference before the first input, prints the
 citation, and finalises a record of its own kind.
 
 **The executor owns the reference.** Not the surface that pressed Play: Studio spawns `marco do`
 and so does the overlay, so a reference minted by whichever one asked would differ by who asked,
-and a run started from a terminal would have none. Claimed after the authority door â a run the
-door declined pressed nothing â and before the first input, which is held by MEASUREMENT: a host
+and a run started from a terminal would have none. Claimed after the authority door — a run the
+door declined pressed nothing — and before the first input, which is held by MEASUREMENT: a host
 counts the records in the store on the first action it is asked for and finds its own already
 there. `TestTheReferenceIsClaimedBeforeTheFirstInput`, and the mutation that moves the claim to
 the end is killed by that test and by nothing else.
@@ -7773,19 +7773,19 @@ clothes. `[result] <word>` already carries it.
 
 **The digest is of the saved file, not of the substituted text.** A digest of the substituted text
 cites source that is nowhere on disk, and the substituted text holds whatever the person passed on
-the command line â which would make a durable file out of their arguments.
+the command line — which would make a durable file out of their arguments.
 `TestTheDigestIsOfTheFileAndNotOfWhatWasTypedIntoIt` checks both halves.
 
 **The contract is read once, by the reader that already existed.** `orchestrator.ContractOf` knows
 all three of ADR-251's contracts and has its required terms held against the guard by test. The
-first version of this read the source itself with `strings.Contains(src, "RelTo \"")` â a second,
+first version of this read the source itself with `strings.Contains(src, "RelTo \"")` — a second,
 weaker answer that cannot see `incomplete` at all. And the rule is `legacy` LEAVES, not `anything
 but guarded` leaves: an incomplete route states a window and refuses, so the second form would let
 that refusal pass as success. Nothing covered an incomplete route at the command, so that mutation
-survived the first gate â `TestAnIncompleteRoutinesRefusalStillFailsTheCommand` closes it.
+survived the first gate — `TestAnIncompleteRoutinesRefusalStillFailsTheCommand` closes it.
 
 **A correction to the assessment.** It says `oshost` "already wraps every send in `delivered`". It
-does not â four call sites against eleven sending actions â so a count taken there read zero for a
+does not — four call sites against eleven sending actions — so a count taken there read zero for a
 routine that typed its password or dragged something. The count is now taken in `Invoke` against a
 closed classification, with a test that reads the switch and fails for an action nobody
 classified. ACTIONS asked for, not primitives delivered: one smoothed Move is one action, a press
@@ -7793,7 +7793,7 @@ refused by its guard still asked, and the count is ABSENT rather than zero when 
 
 Nine record mutations plus two on the count and two on Studio's reader, all killed; the record
 version bumped as a surviving no-op control; and one structural choice recorded as unfalsifiable
-rather than claimed as a kill. ADR-253 Â§R2, Demonstrations, HANDOFF 38P.
+rather than claimed as a kill. ADR-253 §R2, Demonstrations, HANDOFF 38P.
 
 **And writing records from a second command leaked into the owner's store.** `cmd/director` has
 had a `TestMain` isolating `$MARCO_HOME` since its own records leaked out of a suite, and its
@@ -7801,7 +7801,7 @@ comment ends *the next thing to leak that way might not be a record.* It was a r
 `cmd/marco`: several tests there drive `runInvocation` with a registry in a `t.TempDir()` and no
 `MARCO_HOME`, so `go test ./cmd/marco/` wrote three records into the directory the owner keeps
 their work in, every run. Six were sitting in it by the time it was looked at, and were removed.
-Found by looking rather than by a failing test â nothing in the suite was red.
+Found by looking rather than by a failing test — nothing in the suite was red.
 
 `cmd/marco` now has the same isolation, asserted the same way, and the comparison both guards use
 is one function (`marcopaths.SameStore`) because three things ask "is this the real store" and one
@@ -7809,11 +7809,11 @@ of them is destructive. The weakest implementation was already in `marcopaths`: 
 case-fold with no `Abs`.
 
 **One consequence stated and parked.** Every `marco do` of a non-learned route writes a record now,
-including an overlay hotkey â a key held down in a game is one record per press. Nothing is at
+including an overlay hotkey — a key held down in a game is one record per press. Nothing is at
 risk and `Forget` removes them, but the directory is bounded only by use and `History` reads all of
 it to show twenty-five. Retention is a product decision and is not this increment's to invent.
 
-## 38Q â a routine you can report on
+## 38Q — a routine you can report on
 
 R3, and the milestone's last increment. Writing the record was half of it; the other half is what
 somebody is SHOWN, and that half was wrong in a way no test noticed because the reader predates
@@ -7821,38 +7821,38 @@ there being two kinds.
 
 **Studio's history read every record in the supervised vocabulary.** `saidOf` and `nextOf` are the
 seven words of EVIDENCE, so a routine's `performed` fell to their default and a run was described
-â and offered a remedy â in the language of something it never did: *demonstrate it again, resting
+— and offered a remedy — in the language of something it never did: *demonstrate it again, resting
 after the click so the result is read.* Not a conversion into `verified`, the same mistake one step
 quieter. The record's `kind` is now asked and nowhere else is; guessing from which fields are
 filled in would be this window deciding what kind of run somebody had.
 
-**`nextOfRoutine`** offers the remedies a routine has â put the window back, record it again, read
-what it said â and gives `performed` NOTHING, because there is nothing to do about a run where
+**`nextOfRoutine`** offers the remedies a routine has — put the window back, record it again, read
+what it said — and gives `performed` NOTHING, because there is nothing to do about a run where
 every press happened.
 
 **The kind word is one constant.** `runs.KindRoutine`, imported by `cmd/marco` and by Studio. A
 misspelling on either side is not a compile error, it is a record silently read in the wrong
 vocabulary.
 
-**And a row no longer says `0 checked` about a routine.** Not a count â the claim that it checked
+**And a row no longer says `0 checked` about a routine.** Not a count — the claim that it checked
 and found nothing, sitting beside an Act that really did check two things. Held in a BROWSER, both
 rows, both directions, because it is the one place this rule could break on screen while every
 backend test passed.
 
 **Report works from a routine's reference** and carries its SOURCE as it stands, found by the
 identity in the record rather than by what the window has selected. And it says when that source
-is **no longer the source that ran**, by comparing the record's digest to the file's â the one
+is **no longer the source that ran**, by comparing the record's digest to the file's — the one
 thing a routine's problem report can say that nothing else can, and the likely case rather than
 the unlikely one, because re-recording is what somebody does between a failure and reporting it.
 
 Nine mutations killed and a no-op control surviving; one of the kills is a test that exists only
-because the gate found its absence â an unfinished ROUTINE record, which is acceptance check 9.
+because the gate found its absence — an unfinished ROUTINE record, which is acceptance check 9.
 One rewording recorded as a kill rather than claimed as a control.
 
-## 38R â changes requested on R1âR3, and what they had in common
+## 38R — changes requested on R1–R3, and what they had in common
 
-R1âR3 were reviewed and three gaps came back. One mistake in three places: a value that was
-ABSENT was read as a value that was zero, or false, or somebody else's â and in every one of them
+R1–R3 were reviewed and three gaps came back. One mistake in three places: a value that was
+ABSENT was read as a value that was zero, or false, or somebody else's — and in every one of them
 the result on screen or in a file was not a blank but a confident false claim, offered to the
 person at the moment they had least ability to check it.
 
@@ -7860,7 +7860,7 @@ person at the moment they had least ability to check it.
 without asking which run it belonged to, and the transcript is this window's memory of ONE child,
 cleared and refilled every time anything runs. Play B, report A, and the file carried A's
 reference and A's record with B's output underneath, headed *WHAT IT SAID AS IT RAN*. A wrong
-transcript is worse than none â it is evidence about the wrong run, in the one file somebody sends
+transcript is worse than none — it is evidence about the wrong run, in the one file somebody sends
 precisely because they cannot explain what happened. The lines have an owner now, read under the
 same lock as the lines themselves, and a run that does not own them is told the section is
 unavailable rather than being handed somebody else's. The ACT section had the identical shape,
@@ -7873,14 +7873,14 @@ states no liveness, because `marco do` has no *write it down instead* mode to di
 into a plain `bool` it was `false`, and the page printed those words beside a run that had just
 typed somebody's password. The count had the mirror defect: `input_actions` is absent in the
 provisional record a killed `marco.exe` leaves, and **that attempt may already have sent input**,
-so an `int` rendered `0 input actions asked for` â the three-zeroes claim, on screen, about the run
+so an `int` rendered `0 input actions asked for` — the three-zeroes claim, on screen, about the run
 a person is most likely to be asking somebody else about. Both are pointers through the record,
 `PastRun`, the JSON and the page; a routine says which KIND of run it was where the badge would be;
 and an Act that genuinely had input disabled still says so, which is the direction that proves the
 claim was made absent rather than false.
 
 **And an interrupted record identified the hour and not the program.** `build`, `source_digest` and
-`contract` were derived from what the performance returned and written at the end â the half of a
+`contract` were derived from what the performance returned and written at the end — the half of a
 run that may never happen. The saved source is read ONCE now, into a `snapshot` taken before the
 reference is claimed, and the provisional record carries all three. The same snapshot executes, so
 no second read can make the record cite source the run never performed. Held by saving the routine
@@ -7888,41 +7888,41 @@ OVER ITSELF from inside the first host action and requiring the two writes to ag
 
 **And the director suite's intermittent failure has a cause now.** `cmd/director`'s
 `TestAnUnsettledNameIsNotWrittenDownByWatching` fails under full-suite load and passes in
-isolation, and this corrects what Â§38Q said about it. It is **not** production deciding a tie by map order: `observe.settledPlaceName`
+isolation, and this corrects what §38Q said about it. It is **not** production deciding a tie by map order: `observe.settledPlaceName`
 refuses a tie and returns the same answer for every map iteration order, which was checked by hand
 over the cases. It is the TEST. Its wait loop breaks the instant both words have been SEEN, then
 asserts about what the ambient sampler decides from a session that is still running and still
-counting â and the precondition is measured on a shadow snapshot that is not the tally the decision
+counting — and the precondition is measured on a shadow snapshot that is not the tally the decision
 reads. Inserting a 600ms sleep in that gap fails it **6 of 6 times**, which is the cause
 established rather than inferred: under load the scheduler supplies the same gap. The fix is the
-test's â stop the session before sampling, or wait on the tally the rule actually reads â and it is
-not applied here, because R1âR3 is what was under review. **See Â§38V: fixing it found that the gap
+test's — stop the session before sampling, or wait on the tally the rule actually reads — and it is
+not applied here, because R1–R3 is what was under review. **See §38V: fixing it found that the gap
 was the smaller half of the story.**
 
 Eight mutations killed and a no-op control surviving. Two are worth the record: one was
 **unfalsifiable** on its first attempt (it guessed a route path by hand, the read failed and
 nothing changed) and was redone through the registry with a panic on a failed read; and the page's
 absent count renders as the literal word `undefined` rather than as `0`, so the negative assertion
-alone does not catch it â the test asserts what the row MUST say, not only what it must not.
+alone does not catch it — the test asserts what the row MUST say, not only what it must not.
 
-## 38S â what a recording captures is stated, and not inherited from a shell
+## 38S — what a recording captures is stated, and not inherited from a shell
 
 The first piece of the next authorized slice: **explicit coordinate recording**. Readiness and
 Record again are the other two and are separate commits.
 
 Nothing here was coded wrong. `captureAnchors` and `cvKitchenSink` are package variables read ONCE,
-from `$MARCO_CV` / `$MARCO_ANCHORS`, when a process starts â the right shape for a command you set
+from `$MARCO_CV` / `$MARCO_ANCHORS`, when a process starts — the right shape for a command you set
 a switch and run, and the wrong one for a window that stays open all afternoon holding the
 environment of whichever shell launched it. And the setting is not cosmetic. With anchors inherited
 on, a click whose cropped region happened to be *distinctive* carried a template; a press found by
 matching a picture cannot be stopped at, so `codegen.Unpropagatable` refuses the WHOLE guarded
 recording at Save. **Record the same menu twice and you can get two different answers, with nothing
-on screen to explain either** â a variable nobody in the window can see, and the pixels that
+on screen to explain either** — a variable nobody in the window can see, and the pixels that
 happened to be under the pointer.
 
 The quieter half was worse. `learnOptions` caps every recorded gap to 50ms when CV is on, because
 the anchor poll was supposed to do the real waiting. So a Studio launched with `$MARCO_CV=on`
-against a flat menu captured **no anchor to wait on and took the pauses out as well** â a routine
+against a flat menu captured **no anchor to wait on and took the pauses out as well** — a routine
 with its timings removed and nothing put in their place, which presses a menu before it has drawn
 and looks perfectly correct in review.
 
@@ -7930,13 +7930,13 @@ So `recorder.Mode` is a statement about ONE recording, handed to the recorder BE
 because the hooks read it and the first press can already have been seen. `Inherited` is the zero
 value and is every caller there was. `Coordinates` is the coordinate and the clock and nothing
 else, and it beats the environment at every point that would capture, crop, colour-sample or listen
-for the anchor key â all of which ask one function, `anchoring()`. `Start` also clears any
+for the anchor key — all of which ask one function, `anchoring()`. `Start` also clears any
 unconsumed arm, because the anchor key's arm is a one-shot that outlives the recording it was
 tapped in. Studio states it once, to the thing that acts on it, and the word travels on the draft,
 into the saved source as `// Recorded as: coordinates.`, and from there into the run record through
 `orchestrator.ModeOf` off the same single read as the digest and the contract.
 
-**Absence survives all of it**, which is Â§38R's lesson one layer up: no line when nothing was
+**Absence survives all of it**, which is §38R's lesson one layer up: no line when nothing was
 stated, `unstated` read back from a file with no line, `unstated` for a word this build does not
 recognise rather than echoing it into a record as something verified, and a blank rendered as a
 blank rather than as `undefined` or as the likeliest answer. Every routine already in a library
@@ -7949,18 +7949,18 @@ behaviour), and a no-op control surviving. **Two of them changed the code rather
 which is the whole point of running them:
 
 - The arm gate had been written as `anchoring() && anchorArmed.Load()`. `anchoring()` is the
-  conjunction, so that made an armed press do nothing whenever the global switch was off â taking
+  conjunction, so that made an armed press do nothing whenever the global switch was off — taking
   the tap-then-click anchor away from EVERY caller instead of from this recording. It is
   `!plainCoordinates.Load()` now, and the test was rebuilt around a **right-click**, which is the
   one press the arm alone decides. The first version of that test evaluated the conjunction in its
   own body and was therefore unfalsifiable; it drives `recordClickDown` now.
-- Studio stated the mode at two sites â once to the backend and once to the capture the page reads.
+- Studio stated the mode at two sites — once to the backend and once to the capture the page reads.
   Deleting the backend's left the window still promising coordinates over a recording that had gone
   back to inheriting them. The page's word is a COPY of what the recorder was told.
 
 See [[ADR-254-what-a-recording-captures-is-stated]]. Readiness and Record again are not started.
 
-## 38T â readiness is what has been checked, and it says what it has not
+## 38T — readiness is what has been checked, and it says what it has not
 
 The second of the three authorized Studio pieces. Record again is not started.
 
@@ -7972,11 +7972,11 @@ found by comparing file timestamps.
 
 The fifth was never found at all. `marcoBin` and `directorBin` fall back to the bare name when the
 sibling is missing, `exec.Command` resolves it on PATH, and playback runs whichever binary that
-finds â a different build of a different age, performing somebody's routine, successfully. It is
+finds — a different build of a different age, performing somebody's routine, successfully. It is
 the trap `internal/buildid` exists because of, and it cost a day of recordings.
 
 So `Acts.Ready` answers each by DOING something: the recorder is a platform fact
-(`recorder.Available`, which explicitly does not claim the hooks will install â that can only be
+(`recorder.Available`, which explicitly does not claim the hooks will install — that can only be
 known by installing them and taking the whole desktop's keyboard); each executable is an `os.Stat`
 beside this binary and then the `exec.LookPath` the spawn itself performs, giving THREE answers
 rather than two, of which "on PATH but not beside" is the silent one; the library is a file created
@@ -7984,7 +7984,7 @@ and removed in it, because a directory that exists is not a directory that can b
 the build is this binary's stamp or the honest word `unknown`.
 
 Each problem carries what is wrong, what it **stops**, and what to **do**, because every one of
-them has exactly one answer. And `Limits` is UNCONDITIONAL â the hooks installing, the application
+them has exactly one answer. And `Limits` is UNCONDITIONAL — the hooks installing, the application
 running, a press landing, a screen being looked at are all named as things NOT established, on a
 clean machine as much as a broken one, because a clean machine is when a readiness panel is
 believed.
@@ -7996,26 +7996,26 @@ a recording is watching the keyboard in this same process.
 Seven mutations, all killed, plus a surviving control. **One changed the tests rather than the
 code**: replacing the library write-probe with `os.Stat` SURVIVED, because the only library test
 then in place was caught by `MkdirAll` failing and never exercised the write. A second test was
-written â a real directory with an `icacls` deny, so `MkdirAll` succeeds and only putting a file in
-it finds out â and the mutation is killed by that.
+written — a real directory with an `icacls` deny, so `MkdirAll` succeeds and only putting a file in
+it finds out — and the mutation is killed by that.
 
 **And the browser test found a defect no mutation would have.** Starting the readiness poll inside
 the bindings callback threw a `ReferenceError`: that callback runs SYNCHRONOUSLY part-way down a
 script whose later `let` declarations are still in their temporal dead zone, and the poll reads
-`runActive` first thing. It took the WHOLE bootstrap with it â every other poll included â and
+`runActive` first thing. It took the WHOLE bootstrap with it — every other poll included — and
 silently, because a `-H windowsgui` binary has no console to print it to. The other five polls
 survive that ordering only because everything they touch sits inside a `.then`. The readiness poll
 starts on the next tick now, with the reason written beside it.
 
 No button was disabled: the ask was to show actionable problems, and a control greyed out with its
 explanation somewhere else is worse than one that refuses and says why. Nothing runs a child to ask
-its build either â `marco.exe` and `director.exe` have no version flag, and a panel polled all
+its build either — `marco.exe` and `director.exe` have no version flag, and a panel polled all
 session must not start a process that performs real input, so the panel names their LOCATIONS and a
 run record names the `marco` that performed it.
 
 See [[ADR-255-readiness-is-what-has-been-checked]].
 
-## 38U â recording a routine again, and the offer that replaces nothing
+## 38U — recording a routine again, and the offer that replaces nothing
 
 The third and last of the authorized Studio pieces.
 
@@ -8024,9 +8024,9 @@ the name off the card, typing it back into the box at the top of the page exactl
 which application the first one was saved for, and picking the same scope. Get the name wrong by a
 space and you have two routines instead of a new version of one.
 
-So the routine offers it. `RecordAgain` takes the route's whole IDENTITY and not its name â
+So the routine offers it. `RecordAgain` takes the route's whole IDENTITY and not its name —
 `settings` can be saved for two applications under two scopes, and a window holding the word would
-start a recording of whichever it found first and then offer to replace THAT â and it looks the
+start a recording of whichever it found first and then offer to replace THAT — and it looks the
 identity up again at the moment the button is pressed, because a card can be on screen for a
 routine somebody has just deleted from a terminal. Both entrances go through one
 `beginRecording`, so the five refusals live in one place: a second door that skipped them would let
@@ -8035,9 +8035,9 @@ records Marco's own presses as the person's.
 
 **`again` is a label and not a licence, and that is the whole design.** There is no new save path.
 Save goes through the same `keep` every recording goes through: it asks what is at the target,
-refuses a collision, and offers *Save as* or *Replace that routine by name*. Â§38N exists because
+refuses a collision, and offers *Save as* or *Replace that routine by name*. §38N exists because
 `Registry.Save` is a plain file write, so keeping a recording under a name already in the library
-replaced the source and the `.rec.json` beside it with nothing asked and nothing said â and the
+replaced the source and the `.rec.json` beside it with nothing asked and nothing said — and the
 likeliest casualty was the routine somebody was comparing against. A Record-again button that then
 replaced on an ordinary Save would have reintroduced exactly that, through a door marked
 convenience, and the person pressing it would have had more reason than anybody to expect it.
@@ -8046,11 +8046,11 @@ What the label buys is three notices: which routine this is a second recording o
 recording as well as at review because the expectation forms before Save is in front of anybody;
 the routine's own scope preselected, so a replacement is not silently rescoped; and a warning when
 the demonstration was made in a DIFFERENT application. That last is the one case where Save
-succeeds and does the wrong thing â the identity a save writes is decided by the application that
+succeeds and does the wrong thing — the identity a save writes is decided by the application that
 was OBSERVED, so a re-recording made elsewhere is a different route, with no collision to refuse
 and a second routine quietly kept beside the one somebody set out to replace.
 
-Eight mutations, all killed, plus a surviving control. **One changed the tests** â the third time
+Eight mutations, all killed, plus a surviving control. **One changed the tests** — the third time
 in these three commits. Showing the *recorded elsewhere* warning unconditionally SURVIVED, because
 a claim-level assertion cannot tell an empty shown box from an absent one; an empty box is
 invisible today only because `.no` and `.muted` are colour-only classes, which is a property of
@@ -8058,7 +8058,7 @@ this page's CSS and not of its logic. The rendered tests assert the box's presen
 text now, with that reason written beside the helper.
 
 **And review found a ninth, in the lookup.** The loop matched the identity against one
-`a.Routines()` and then took `a.Routines()[i]` â a SECOND reading of the library, indexed by a
+`a.Routines()` and then took `a.Routines()[i]` — a SECOND reading of the library, indexed by a
 position established in the first. They agree only while nothing changes, and a library changes: a
 routine that goes from the front of the listing moves everything behind it, so the index that had
 identified the right route identifies a namesake one position along, or runs off the end of a
@@ -8074,32 +8074,32 @@ coordinate mode is the mode STATEMENT only: there is no second mode to choose be
 control that offers one, because the other mode is the anchor stack and that is the open question
 `cvOff()` names, which needs an experiment rather than a dropdown.
 
-## 38V â the director flake, and a fixture that named one branch and exercised another
+## 38V — the director flake, and a fixture that named one branch and exercised another
 
 `cmd/director`'s `TestAnUnsettledNameIsNotWrittenDownByWatching` has failed intermittently under
-full-suite load for three sessions. Â§38R established the gap it fails in: the precondition loop
+full-suite load for three sessions. §38R established the gap it fails in: the precondition loop
 broke the instant both words had been SEEN, and the assertion was then made about what the ambient
 sampler decides from a session still running and still counting. That was right as far as it went.
 
 Fixing it found the rest. **The fixture could not produce the tie it was named for.** It said
 `Mouse` and `Trackpad` on alternating frames and called that two words said equally often; the
 tally never tied. Printing the shadow shows why: one screen's sightings split across two screen
-states â `state_1` holding `Mouse:4, Trackpad:1` and `state_2` holding `Trackpad:2`, with the
-eighth sighting dropped as a transition frame â and `settledPlaceName` settles a lead of ONE as
+states — `state_1` holding `Mouse:4, Trackpad:1` and `state_2` holding `Trackpad:2`, with the
+eighth sighting dropped as a transition frame — and `settledPlaceName` settles a lead of ONE as
 soon as the leader reaches `StatePromotionCount`, which is two. So the test was green only while
 every count was still below the threshold: **it was passing on the too-thin branch while claiming
 to hold the tie**, and it failed whenever the session had got far enough for a lead to clear it.
-Waiting for a tie instead of for both words â the obvious fix â hangs for the full sixty-second
+Waiting for a tie instead of for both words — the obvious fix — hangs for the full sixty-second
 deadline and then reports `map[Mouse:4 Trackpad:3]`, which is the finding stated as a failure.
 
 So the fixture says what it means. Each word is said ONCE, with unnamed frames between them and
 either side, and then the names stop: `creditTerms` credits only a name that is there and
 `sameSampler` repeats its last frame for as long as the session runs, so **no name can ever reach
 the promotion threshold in any state, whenever the sample is taken and however the sightings
-land** â losing one leaves the other, still unsettled. There is no gap left to race. The
+land** — losing one leaves the other, still unsettled. There is no gap left to race. The
 precondition QUOTES the rule through `observe.SettledPlaceNameFor` rather than counting sightings
 itself, because a precondition that re-derived the rule would be the test agreeing with itself, and
-it now also requires that a word was read at all â a name not written down is not evidence of
+it now also requires that a word was read at all — a name not written down is not evidence of
 anything if perception read nothing. The assertion asks the whole store rather than the one subject
 the session happened to establish first, since an unsettled word landing on a second state would be
 written against a second subject the old line could not see.
@@ -8115,14 +8115,14 @@ Four consecutive runs green, about 1.8s each. See [[ADR-113-learning-is-inside-w
 `state_2` with a sighting dropped between them, which may be ordinary flapping before a state
 settles or may not; it is written down here because it is how the fixture was understood, and it is
 explicitly not a reason to reopen perception work or to hold up the coordinate MVP. And this closes
-the one identified test defect â it is not a claim that the suite cannot flake.
+the one identified test defect — it is not a claim that the suite cannot flake.
 
-## 38W â a desktop harness, and the one thing it prints on every green run
+## 38W — a desktop harness, and the one thing it prints on every green run
 
 Studio's flow was testable in two places and provable in neither. The browser tests render the
 real page with the Go bindings STUBBED; the backend tests drive the real backend with the recorder
-and the desktop REPLACED. Between them sat the whole product path â page, binding, backend,
-library, generated Marco, child executor, native input, window guard, run record â and the only
+and the desktop REPLACED. Between them sat the whole product path — page, binding, backend,
+library, generated Marco, child executor, native input, window guard, run record — and the only
 thing that had ever exercised it was the owner working through E2E.md by hand, eighteen bullets at
 a time, after every change.
 
@@ -8132,12 +8132,12 @@ something anybody can start by accident, and an environment gate is a thing to r
 separate module is a fact about the tree.
 
 **The investigation came first, and two of its three findings changed the brief.** The controlled
-application already existed â `plugins/fixture`, fixed title, fixed layout, fixed control names,
-an oracle Marco may never read â so it was extended rather than replaced (Â§38V's commit before
+application already existed — `plugins/fixture`, fixed title, fixed layout, fixed control names,
+an oracle Marco may never read — so it was extended rather than replaced (§38V's commit before
 this one: an input witness, keyboard observation, and a geometry/DPI channel). Studio's controls
 turned out to be pressable through the OS: `go-webview2` deliberately clears
 `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` so no debug port can be opened, but Chromium publishes the
-page to UI Automation, `plugins/uia` already reads that, and **AutomationId is the DOM id** â so
+page to UI Automation, `plugins/uia` already reads that, and **AutomationId is the DOM id** — so
 `rail-scenes` and `routinePlayBtn` are addressable, `Invoke` runs the page's own handler, and a
 snapshot is the operating system's account of the window rather than the backend being asked what
 it would have rendered.
@@ -8145,14 +8145,14 @@ it would have rendered.
 **And the third finding is a wall.** Both recorder hooks test the injected flag and discard what
 they find, by design, because attributing Marco's own presses to a person would let a replay be
 learned as a demonstration. There is no switch and there must not be one, so no unattended run can
-demonstrate anything. Three options went to the Architect â operator-assisted recording, a USB HID
-device, or a gated door in the recorder â and the answer was none of them: build the unattended
+demonstrate anything. Three options went to the Architect — operator-assisted recording, a USB HID
+device, or a gated door in the recorder — and the answer was none of them: build the unattended
 harness, put native recording outside its first coverage boundary, and SAY SO. A VM with
 host-controlled virtual input is parked as a later investigation, to be measured before it is
 claimed.
 
 So routines are SEEDED through the production generator and labelled seeded. `Deps.DraftOf` is new
-and shared with `Resave`: events, `simplify`, `codegen`, `routes.Registry` â the same four steps
+and shared with `Resave`: events, `simplify`, `codegen`, `routes.Registry` — the same four steps
 through the same functions, so a seeded routine is the routine the product would have written from
 the same demonstration. The events are measured rather than invented: the press point comes from
 the fixture's own account of where its control is, and the window on the press from
@@ -8161,17 +8161,17 @@ the fixture's own account of where its control is, and the window on the press f
 **The spine runs in 3.6 seconds, unattended.** A bundle built fresh into its own directory, an
 isolated store, the fixture up, a guarded routine seeded at a measured coordinate, the real Studio
 launched and its page reporting that it rendered, `rail-scenes` pressed, the card chosen by
-identity, Play pressed â and then the two accounts: the fixture received `left_down on "Save"` at
+identity, Play pressed — and then the two accounts: the fixture received `left_down on "Save"` at
 45,14 into the control, and Marco wrote `outcome="performed" mode=coordinates contract=guarded
 input_actions=1 build=<rev>`. Both agree, which is the only ending this calls passed.
 
 Every report carries three lines, and the third is a limit rather than a score: passed desktop
 scenarios, passed recording-integration scenarios, and `physical recording capture: NOT
 EXERCISED`. Printed on a green run in the same words, because a limit mentioned only beside a
-failure is a limit nobody reads â and a single total over the two layers would read as "the
+failure is a limit nobody reads — and a single total over the two layers would read as "the
 recording path works on Windows", which is the one thing nothing here establishes.
 
-Two smaller things came with it. The routine cards were bare `div`s with an `onclick` â no name,
+Two smaller things came with it. The routine cards were bare `div`s with an `onclick` — no name,
 no role, no keyboard path, nothing for assistive technology to announce or activate, so a person
 who cannot use a mouse could record a routine and then be unable to select it; they are controls
 now, with ids built from the route's whole identity. And `internal/acceptance`'s oracle boundary
@@ -8192,60 +8192,60 @@ The recording path is the second layer: 24 named scripted-recorder tests, run ex
 a `-run` pattern that matches nothing is the quietest possible green and a skip is not a pass.
 
 Two observations came out of it, neither changed. **A guarded press refused because the window
-changed size is recorded as `failed`, not `refused`** â and `activityOutcome` writes the
+changed size is recorded as `failed`, not `refused`** — and `activityOutcome` writes the
 distinction down itself: *a door saying no is not a thing going wrong, and the whole reason the
 vocabulary separates refused from failed is so a person can tell them apart.* A window of another
 size is a door saying no, and what the person is told is that their routine stopped at something
 that did not happen. The scenario accepts either word for "nothing was pressed" and reports which
 it got; which word is right is a product decision. **And the stale-binary trap is live on this
-machine**: with the sibling moved aside the panel answered with its third case, not its second â
+machine**: with the sibling moved aside the panel answered with its third case, not its second —
 `D:\Macros\marco\marco.exe is on PATH, so Play would run whichever marco.exe is on PATH, which may
 be a different build of a different age`. The repo root is on PATH here, so the readiness case that
 never fails loudly is not hypothetical.
 
 One defect in the harness, found by the harness. Four scenarios refused in a row with *the fixture
-says its window is 716x529 and Marco reads it as 626x469* â because a `world` built fresh per
+says its window is 716x529 and Marco reads it as 626x469* — because a `world` built fresh per
 scenario reset the counter that keeps their stores apart, so every scenario used store 1 AND the
 same artifact paths. The second scenario's wait for *the fixture wrote its oracle* was satisfied
 instantly by the first scenario's file, and everything it then read described a window that had
 already closed. One world, a number per scenario, and a scope per scenario's artifacts.
 
-## Â§38X â two false-green paths in the harness, closed
+## §38X — two false-green paths in the harness, closed
 
 The Architect reviewed the harness and approved its shape, with two corrections. Both were ways
 the harness could report success without having established anything, which is the one defect
 class a harness must not have.
 
 **A partially skipped run exited 0.** The verdict was *something passed and nothing failed*, so a
-run in which a scenario declined â the window would not resize, the fixture would not start, the
-foreground was not ours â reported success with that scenario's question never asked. The one most
+run in which a scenario declined — the window would not resize, the fixture would not start, the
+foreground was not ours — reported success with that scenario's question never asked. The one most
 able to decline is the resized-window refusal, which is also the one that establishes the guard
 refuses at all. A skip is now an ending of its own: `verdictOf` names every case, including a
 selection that matched nothing (which establishes nothing while having failed nothing) and a
 failure beside a skip (where the failure wins, because a finding outranks a gap). A partial run
 says `INCOMPLETE` in words above the counts, and `TestASkippedScenarioIsNotASuccess` asserts four
 shapes of partial run separately not to exit 0. `run.cmd` now builds and runs the binary instead of
-`go run`, which reports a child's code as a sentence on stderr and exits 1 itself â flattening 2
+`go run`, which reports a child's code as a sentence on stderr and exits 1 itself — flattening 2
 and 3 into "a scenario failed" for whatever reads it.
 
 **A run finishing did not establish that the fixture had seen what it was already sent.** The
 refusal scenarios took the run record's `ended` as the moment that made "the log is empty" a fact.
 It is half of it: `ended` says nothing more will be SENT, and the log is written when the
 fixture's message loop DISPATCHES a message. A fixture that is behind can hold a press in its
-queue while the harness reads the log and reports that the guard refused â a press that happened,
+queue while the harness reads the log and reports that the guard refused — a press that happened,
 reported as a press that did not. A longer wait is the same sentence with a bigger number in it.
 
 So the fixture answers for itself: the harness writes a token and the fixture writes it back once
 its pump has gone **idle after reading the request**, an idle meaning the queue held nothing at
 all. An idle rather than an acknowledged message, because a posted message is retrieved *ahead* of
-queued input â a sentinel would come back with the presses still behind it, which is worse than no
+queued input — a sentinel would come back with the presses still behind it, which is worse than no
 barrier because it would look like proof. Five scenarios cross it, and
 `TestEveryCountOfWhatArrivedIsTakenAfterTheBarrier` reads the rule off the syntax, because the
 mistake is an omission and nobody catches those by reading.
 
 It is proved before the first scenario rather than assumed. `--selftest` makes the fixture queue a
 press in its own message queue and stop its loop until released; the harness reads the log there
-and must find nothing â **that read is the false green, reproduced on purpose** â asks for the
+and must find nothing — **that read is the false green, reproduced on purpose** — asks for the
 barrier while the loop is still stopped, and reads again afterwards, where the press must be. The
 sentence it produces is printed in every report. The mode is confined to the self-check by
 `TestOnlyTheBarrierSelfCheckStagesAPress`, because it is the one thing here that produces a press
@@ -8256,8 +8256,8 @@ orders against.
 **And the transcript is retained, by the window that gathers it.** `studio-screen.txt` is every
 word UI Automation can read off the page, which is not the child's output: that lives in a `<pre>`
 behind a collapsed `<details>`, correctly absent from the accessibility tree. The product already
-gathers it â **Report a problem** writes the record, what the run said as it ran, and the routine
-as it stands, into one file and sends it nowhere â so the spine presses that button and keeps what
+gathers it — **Report a problem** writes the record, what the run said as it ran, and the routine
+as it stands, into one file and sends it nowhere — so the spine presses that button and keeps what
 the window wrote. A product path with no automated coverage at all is now exercised, the window
 says where the file went and the harness reads it from there, and an unavailable transcript is
 labelled by the product rather than silently absent.
@@ -8267,7 +8267,7 @@ present after), `-only` with a name that matches nothing exits 2 through `run.cm
 retained report holds eight lines of the child's own output. The outcome-word observation stays
 parked, as asked.
 
-## Â§38Y â the barrier's self-check was checking the wrong instant
+## §38Y — the barrier's self-check was checking the wrong instant
 
 The Architect closed the exit-code and transcript corrections and found one more, in the thing I
 had claimed was the proof: **the self-check could not have caught a barrier that acknowledged on
@@ -8279,13 +8279,13 @@ dispatches the press and writes it down**, and only then does a tick reach `Drai
 implementation answering the moment it read the request would have answered after the press was
 already in the log, and the check would have passed. My report to the owner asserted the opposite.
 
-Measured rather than argued. With `drainAt = idles + 1` mutated to `drainAt = idles` â the idle
-requirement removed â the previous self-check printed `drain barrier: checked against a fixture
+Measured rather than argued. With `drainAt = idles + 1` mutated to `drainAt = idles` — the idle
+requirement removed — the previous self-check printed `drain barrier: checked against a fixture
 holding a queued press` in its usual words and the run exited 0.
 
 The fix is that the holding loop calls `Drain` itself, so the request is read with the press still
 pending and nothing being dispatched. No idle can occur there, so a correct barrier is SILENT, and
-the silence is what is asserted â at one instant, on three things somebody else wrote: the request
+the silence is what is asserted — at one instant, on three things somebody else wrote: the request
 file is gone (the question was taken), the fixture's blocked marker is still there (it is still
 behind), and the log still holds no press. The same mutation now ends the run at exit 3 with *the
 fixture acknowledged the barrier while a press was still pending in its own queue*. A fixture that
@@ -8297,28 +8297,28 @@ harness waits for the request to be taken while the fixture is behind, so a fixt
 take it there reports NOT RUN and the whole run exits 2. That is enforced by the behaviour of every
 single invocation rather than by a source scan.
 
-## Â§38Z â and the silence was read one pass before the answer was decided
+## §38Z — and the silence was read one pass before the answer was decided
 
 The Architect accepted the fixture's new state and found the race still open: **`Drain` evaluates
 whether to acknowledge on a LATER call than the one that reads the request, and the harness waited
-only for the deletion.** With the idle requirement mutated out, this schedule still passed â the
+only for the deletion.** With the idle requirement mutated out, this schedule still passed — the
 fixture consumes the request and returns without answering; the harness sees the deletion, finds no
 answer, releases the loop; the press is dispatched; a later `Drain` answers; the final log check
-passes. The exit 3 in Â§38Y demonstrated detection on those runs without eliminating the schedule.
+passes. The exit 3 in §38Y demonstrated detection on those runs without eliminating the schedule.
 
-They were right, and the Â§38Y report was one pass too optimistic in the same way the Â§38X report
+They were right, and the §38Y report was one pass too optimistic in the same way the §38X report
 had been.
 
 **Why it passed anyway, and what that was worth.** Two arbitrary constants: the holding loop called
 `Drain` every 25ms and `until` polls files every 100ms, so the harness usually noticed the deletion
-only after the reply had been written. Caught 3 runs out of 3 â on the strength of a poll interval.
+only after the reply had been written. Caught 3 runs out of 3 — on the strength of a poll interval.
 Slow the fixture's reply evaluation to 400ms, which is exactly the deliberately delayed processing
 this kind of check is meant to survive, and the previous self-check printed `drain barrier: checked
 against a fixture holding a queued press` in its usual words and exited 0, with an
 acknowledge-on-receipt barrier standing in front of it. 2 runs out of 2.
 
 The fix is a fixture-owned checkpoint for the DECISION rather than the question. `Drain` now reports
-what it did â nothing, took the question, declined for want of an idle, or answered â and the
+what it did — nothing, took the question, declined for want of an idle, or answered — and the
 holding loop publishes that to `<state>.considered` with the token in it. The harness waits for a
 decision about ITS token, then asserts silence and releases. What it is looking at has already had
 its chance to answer, and a checkpoint from a previous barrier cannot stand in because the token is
@@ -8327,7 +8327,7 @@ per-question.
 Measured both ways, under the 400ms delay that defeated the old check: the new one ends the run at
 exit 3 (*what it decided was to acknowledge it*, and the window's own word for it quoted back), 2 of
 2. And removing the checkpoint from the fixture, with the barrier itself correct, makes the run NOT
-RUN at exit 2 â *the request has been read and not yet decided* â rather than passing quietly.
+RUN at exit 2 — *the request has been read and not yet decided* — rather than passing quietly.
 
 `TestTheSelfCheckLooksAfterTheFixtureHasDecided` is the ninth boundary test: nothing in
 `checkTheBarrier` may read whether the fixture acknowledged the barrier, and above all nothing may
@@ -8341,36 +8341,36 @@ versions of this check; the first two passed for reasons unrelated to what they 
 
 The Architect approved `5eccbcb` and **closed the harness review for this scope**: `plugins/e2e` is
 now the automated regression gate for the scenarios it covers, and no further owner walkthrough is
-needed for it. Both limits stay explicit by instruction, which is also how they are already held â
+needed for it. Both limits stay explicit by instruction, which is also how they are already held —
 `TestTheReportAlwaysSaysPhysicalCaptureWasNotExercised` prints physical capture as NOT EXERCISED on
 a green run in the same words as on a red one, and the barrier's own definition says in the code
 that a drained fixture queue is not proof that Windows had finished handing input to it. What the
 harness still cannot do is the FULL PHYSICAL-RECORDING PATH: a gesture Windows captured from a
 person's own hand, through the hooks, into a draft. That is what remains unexercised, and it is
-unexercised by construction rather than by omission â both hooks discard injected input.
+unexercised by construction rather than by omission — both hooks discard injected input.
 
 Narrowed deliberately, because the first version of this sentence said more than it should: review,
 Save, Record again and the replacement refusals are NOT inherently manual, and parts of each are
 already covered by the 24 named scripted-recorder tests the harness runs as its second layer. What
-no automated run can supply is the physical gesture at the start of them. `E2E.md` Â§63 is the
+no automated run can supply is the physical gesture at the start of them. `E2E.md` §63 is the
 walkthrough for the whole path end to end with a person's hands on it, which is a different claim
 from "none of this is tested".
 
-## Â§39 â a repair edited a claim out of somebody's file, and took the pauses with it
+## §39 — a repair edited a claim out of somebody's file, and took the pauses with it
 
 `orchestrator.Resave` saves a guarded routine again under the scope its presses need, rebuilt from
 the demonstration stored beside it. It rebuilt the draft with `Unstated`, and that was two defects
 in one argument.
 
 The visible one: a routine that stated `// Recorded as: coordinates.` came out of a repair stating
-nothing. Absence is the honest answer for a file that never said â writing it over a file that did
+nothing. Absence is the honest answer for a file that never said — writing it over a file that did
 say is a claim about somebody's afternoon edited out of their routine. Their card loses the
 sentence and every run record of it afterwards reads `unstated`.
 
 **The one that changes what the routine does:** the stated mode is also what lifts the 50ms wait
 cap, because the cap only ever made sense when an anchor poll did the real waiting. The repair runs
 under a `Deps` built for the repair, which states nothing, so a Studio launched with `$MARCO_CV=on`
-rebuilt the routine with every recorded pause capped and no anchor to wait on in their place â a
+rebuilt the routine with every recorded pause capped and no anchor to wait on in their place — a
 menu pressed before it has drawn, out of a repair. Studio is the window that inherits those flags
 all afternoon and the repair button is in it.
 
@@ -8390,19 +8390,19 @@ Studio's card test and the run-record test, each in its own sentence. The listin
 repair that edits the source changes every record after it without anything in `cmd/marco`
 changing.
 
-**Named and not fixed, deliberately:** `SimplifyRoute` â the "simplify further" path â has the same
+**Named and not fixed, deliberately:** `SimplifyRoute` — the "simplify further" path — has the same
 shape. It rebuilds a saved route from the same stored recording, simplifies under the environment,
 and writes through `codegen.Route` rather than `RouteAs`, so it drops the mode line and caps the
 gaps exactly as the repair did. It was out of the scope the Architect bounded this to, and it is a
 second behaviour change in a second user-facing path (it would start writing a line where it never
 wrote one), so it is recorded here rather than folded in quietly.
 
-## Â§40 â chords: three defects in six events, and the promise nobody was keeping
+## §40 — chords: three defects in six events, and the promise nobody was keeping
 
 `do OS's Key with "ctrl+shift+a"` is one line of Marco and six events at the boundary. The last
 two are a promise: a modifier this process pressed stays down on somebody's computer until this
 process lets go of it. Windows does not clean that up, the application cannot see that it is
-happening, and the person's next keystroke â and every one after it â arrives as something else.
+happening, and the person's next keystroke — and every one after it — arrives as something else.
 
 Three defects lived in the middle of that sequence, inside the function that calls `SendInput`,
 which is why none of them was reachable by a test:
@@ -8411,7 +8411,7 @@ which is why none of them was reachable by a test:
    of itself. `ctrl+shift+esc` with the Shift rejected returned *SendInput rejected key "shift"*
    with Ctrl still held on the desktop, and the reported half was the smaller half.
 2. **A stop during the modifier settle stopped nothing.** `sleepCtx` returns early when the run is
-   cancelled â that early return IS the signal â and the next line pressed the key regardless. So
+   cancelled — that early return IS the signal — and the next line pressed the key regardless. So
    Escape or the panic key, pressed in the one window where a chord was in flight, sent the chord.
    It had never fired, which is its own argument for a test.
 3. **A release the machine refused was discarded.** The reverse loop ignored every return value, so
@@ -8419,14 +8419,14 @@ which is why none of them was reachable by a test:
    status, and a modifier held down.
 
 The sequencing moved to `sendChord`, written against a `keyMachine` that takes one key event at a
-time â `down`, `up`, `settle`, three methods and no state â so a refused modifier, a stop
+time — `down`, `up`, `settle`, three methods and no state — so a refused modifier, a stop
 mid-flight and a release the machine will not take are all arrangeable without a desktop. Every
 key pressed is released before the function returns, in reverse, whatever happened; a key the
 machine would not press is not released, because there is nothing down to undo; a stuck key
 outranks a refused keystroke in what the caller is told, EXCEPT that a cancellation keeps its
 identity, since a stop that stopped reading as a stop would turn a person pressing Escape into a
-routine that failed. And the failure names the part and the chord â *the machine refused the "c"
-in "ctrl+c"* â rather than the whole spec.
+routine that failed. And the failure names the part and the chord — *the machine refused the "c"
+in "ctrl+c"* — rather than the whole spec.
 
 Ten tests, four mutations, each killed by the test named for it and by no other: the bare return
 from the modifier loop, the missing context check after the settle, the missing one at the
@@ -8437,12 +8437,12 @@ place the tests overlap on purpose).
 chord` plays `ctrl+shift+a` into the field the routine clicked into first, on three accounts: the
 order of the key messages the application received; the modifier state the application read from
 the SYSTEM at the instant the key arrived, which is new in the fixture and is the fact rather than
-the evidence â a sender whose modifier events the system never applied produces the same four
+the evidence — a sender whose modifier events the system never applied produces the same four
 messages in the same order and delivers a plain A; and what the desktop is still holding
 afterwards, read through `GetAsyncKeyState`, because no message tells an application about a key
 nobody released. The last is read before the run too: a modifier already held is a fact about the
 desktop, so the scenario declines rather than fails. The demonstration is RECORDED as a chord, not
-written as one â `simplify` folds the held modifiers, and a harness that wrote `ctrl+shift+a`
+written as one — `simplify` folds the held modifiers, and a harness that wrote `ctrl+shift+a`
 itself would be asserting against its own opinion of what a demonstration produces.
 
 It passed first time, which is worth saying because the three unit-level defects were real: the
@@ -8452,7 +8452,7 @@ safely.
 ### Three flakes the new scenario shook out, two of them fixed
 
 Three consecutive full runs each failed a DIFFERENT scenario, and chasing it mattered more than
-re-running until green â a gate that fails for its own reasons is a gate people learn to ignore.
+re-running until green — a gate that fails for its own reasons is a gate people learn to ignore.
 (I briefly concluded the chord change had caused the first one, on a two-fail/two-pass bisect;
 three more runs showed it passing 3 of 3 with the change in. The bisect was too small.)
 
@@ -8460,36 +8460,36 @@ three more runs showed it passing 3 of 3 with the change in. The bisect was too 
   written its account; Done becomes pressable when the window has noticed the child exit. Two
   instants, a real gap. It waits for the button now, in the same shape `play` already used.
 - **The fixture's snapshot could not be read while it was being replaced.** The fixture wrote a
-  temp file, deleted the real one, and moved the temp over it â so a reader arriving in the gap
+  temp file, deleted the real one, and moved the temp over it — so a reader arriving in the gap
   was told *Access is denied*, which is Windows's answer for a deletion-pending file and not a
   sentence anybody would connect to a file being rewritten. `File.Replace` now, which is atomic
   and keeps the file always present, with the other exception it can throw caught beside the one
   that was; and the harness retries a transient read anyway, because a reader of another process's
   file does not get to assume how that process writes it.
-- **Not fixed:** once in about ten runs, the first scenario failed with Marco's own refusal â *the
+- **Not fixed:** once in about ten runs, the first scenario failed with Marco's own refusal — *the
   fixture window is no longer in front, so a press would land in whatever is*. Marco was right to
   refuse and the harness was right to report it; what took the foreground between the activation
   and the press is not established. It fails SAFE, so it is recorded rather than worked around.
 
-### Â§40a â and the stop was still taking the stuck key with it
+### §40a — and the stop was still taking the stuck key with it
 
-Found in review of Â§40. `sendChord` reports a cancellation and a refused release together, with
-both identities intact â and then `performOnePlay` sets the outcome to `cancelled`, clears the
+Found in review of §40. `sendChord` reports a cancellation and a refused release together, with
+both identities intact — and then `performOnePlay` sets the outcome to `cancelled`, clears the
 error, and leaves `because` empty, because a stop is not a failure and never carried an error out.
 So the durable record said `cancelled` with nothing beside it while Ctrl was down, and
 `saidOfRoutine` had the same gap one layer on: *"X" was stopped part of the way through.* and no
 more.
 
 **The error could not be the channel.** Two things happen to it on the way up: `runRoute` flattens
-the host's account into the sentence *"X" stopped: â¦*, so nothing above it can recognise anything
+the host's account into the sentence *"X" stopped: …*, so nothing above it can recognise anything
 inside it, and `performOnePlay` then throws it away. So the host keeps this one the way it already
-keeps what it did not do â `Host.NotReleased` beside `Host.Unperformed`, and two lists rather than
+keeps what it did not do — `Host.NotReleased` beside `Host.Unperformed`, and two lists rather than
 one on purpose: everything in `Unperformed` is something that did not happen, and this is the
 opposite shape, something that DID happen and has not finished. `cmd/marco` asks the host after
 the run, through a `stillHolder` interface for the same reason `unperformer` is one.
 
 From there: into `because`, onto the run's own output as the LAST thing it says (which is how the
-window sees it at all â Studio keeps the final sentence before the outcome word and does not parse
+window sees it at all — Studio keeps the final sentence before the outcome word and does not parse
 it), and through `alsoSaid` into the card's sentence. The outcome stays `cancelled` throughout.
 
 Six tests across the three layers, each mutation-checked: the production-host cancellation path
@@ -8499,19 +8499,19 @@ ordering in `cmd/marco`, and the card both ways in `plugins/studio`.
 
 **One wording correction carried through the record:** "everything pressed is released" is
 narrowed everywhere to "every pressed key gets a release ATTEMPT". The machine can refuse a
-release â that refusal is the entire subject here â so the stronger sentence was a promise the
+release — that refusal is the entire subject here — so the stronger sentence was a promise the
 code cannot make.
 
 **A debugging note worth keeping.** The first version of the production-host test looked like the
 sequence was ignoring stops: the stand-in machine cancelled the context and returned at once, and
 `sendChord` then read a context that had not been cancelled yet. A stop reaches a host call by
-TRAVELLING â the runtime watches the entry context from a goroutine of its own and cancels the
-frame tree when it fires â and the real `settle` waits, so it sees it. The stand-in now waits for
+TRAVELLING — the runtime watches the entry context from a goroutine of its own and cancels the
+frame tree when it fires — and the real `settle` waits, so it sees it. The stand-in now waits for
 the cancellation to arrive, bounded so a wrong arrangement fails rather than hangs. It cost an
 afternoon of suspecting working code, which is the second time this week a stand-in that did not
 wait made a correct implementation look broken.
 
-### Â§40b â the gate for chords, and two questions that are not one question
+### §40b — the gate for chords, and two questions that are not one question
 
 Closed at `2aa5d21`. Three notes from the review worth keeping:
 
@@ -8520,24 +8520,24 @@ the chord path, and it needs no owner walkthrough. A documentation change needs 
 
 **A foreground interruption stays a failure or a NOT RUN.** It fails safe, and a harness that
 re-ran until green would convert the one honest answer into noise. What is genuinely about this
-desktop rather than about Marco is declined BY NAME â a modifier already held, an unmeasurable
-fixture, a remote session â which is a different thing from retrying.
+desktop rather than about Marco is declined BY NAME — a modifier already held, an unmeasurable
+fixture, a remote session — which is a different thing from retrying.
 
 **And a correction to my own summary:** I listed the refused-release question and
 `internal/stopsignal.Raise`'s unretried *Access is denied* side by side as "the same question of
 whether a refused Windows call deserves one retry". They are not the same question. A refused
-release leaves a key down on somebody's desktop and the consequence is continuous â every
-keystroke after it arrives modified â so the answer has to weigh a retry against making an input
+release leaves a key down on somebody's desktop and the consequence is continuous — every
+keystroke after it arrives modified — so the answer has to weigh a retry against making an input
 path do more work while something is already wrong. A refused stop signal fails to deliver one
 message, and the consequence is that one thing did not happen, which is an ordinary delivery
 failure with ordinary answers. Grouping them by the shape of the call rather than by what happens
 next is how two unrelated decisions get made together and neither gets thought about.
 
-## Â§41 â held keys: the same promise, kept by the end of a run
+## §41 — held keys: the same promise, kept by the end of a run
 
-The next slice after chords, and the same decision (ADR-258) rather than a new one. A hold â
+The next slice after chords, and the same decision (ADR-258) rather than a new one. A hold —
 `hold Q, click, release Q`, which `simplify` produces whenever a key stays down across something
-else â is a key held down on somebody's computer deliberately. The difference from a chord is who
+else — is a key held down on somebody's computer deliberately. The difference from a chord is who
 cleans up: the END OF A RUN does, so a hold whose release goes wrong goes wrong at the moment
 nobody is watching any more.
 
@@ -8546,7 +8546,7 @@ Four of the chord defects were there one layer up, and a fifth of its own:
 1. **`doKeyUp` forgot the key before finding out whether the release worked.** `delete` came
    before the call. The route-end sweep is the one thing that could try again, and it was being
    told the key had already come up.
-2. **The sweep discarded every answer** â `_ = h.b.keyUp(...)` â so the one path whose entire
+2. **The sweep discarded every answer** — `_ = h.b.keyUp(...)` — so the one path whose entire
    purpose is "nothing is left down" was the one path that could not say otherwise.
 3. **The keys were held in a map**, released in whatever order Go produced. A pile of holds coming
    apart in no order is a different keyboard state every run, and nothing could pin it. A list
@@ -8555,47 +8555,47 @@ Four of the chord defects were there one layer up, and a fifth of its own:
    cancelled in that instant pressed the key, reported the hold as FAILED, and was therefore never
    written down as holding anything. A key down for ever, invisible to the sweep, the record and
    the person. A send the machine took is now reported as having happened, because it did.
-5. **And nothing stopped a stopped run from starting a hold** â a key pressed down by a routine
+5. **And nothing stopped a stopped run from starting a hold** — a key pressed down by a routine
    that is already over, whose release has already happened.
 
 A refused release stays on the list so the sweep tries once more; one refusal then success is the
 ordinary transient and that retry is the only recovery here. Whatever the sweep still cannot
 release goes into `Host.NotReleased`, so it reaches the record, the run's own output and the card
-by the path the chord slice already built â and `Host.held` is a list now, because a chord's stuck
+by the path the chord slice already built — and `Host.held` is a list now, because a chord's stuck
 modifier and a sweep's stuck hold are two different sentences and a single field let the second
 replace the first.
 
 Ten tests. Five mutations over the five fixes, each killed by the case named for it and no other
-except where they overlap on purpose. One of the five is held by reading the SOURCE â
-`TestTheHoldPrimitivesDoNotReportAStop` â because from above the backend "the machine took it and
+except where they overlap on purpose. One of the five is held by reading the SOURCE —
+`TestTheHoldPrimitivesDoNotReportAStop` — because from above the backend "the machine took it and
 the run was cancelled" and "the machine refused it" are the same error, and the only way to
 exercise the real primitive is to send real input into somebody's desktop. And one is an ORDERING
 claim at the command layer: the sweep is a deferred call inside the run, so a key only the sweep
 discovered has to reach the record, which it does because the account is read afterwards.
 
 **Not done, and it is the remaining piece of this slice:** a desktop scenario for a hold. The
-harness can seed one â `simplify` already produces the steps â and the fixture's key log, with
+harness can seed one — `simplify` already produces the steps — and the fixture's key log, with
 the modifier state it now records, is the right oracle. It is left unwritten rather than written
 and unrun: adding an unexercised scenario to a gate makes that gate's first run a debugging
 session instead of a regression check, and the owner's screen was not available.
 
-### Â§41a â a hold's failure went nowhere, twice
+### §41a — a hold's failure went nowhere, twice
 
-Two P1s in review of Â§41, both about PROPAGATION rather than cleanup.
+Two P1s in review of §41, both about PROPAGATION rather than cleanup.
 
 **The generator propagated `Key` and not `KeyDown`/`KeyUp`.** A guarded routine's hold was written
-as an ordinary step, so `hold Q â click â release Q` could click after Q failed to go down. The
-click is a different gesture without the Q, and the window guard cannot tell â the window is the
+as an ordinary step, so `hold Q → click → release Q` could click after Q failed to go down. The
+click is a different gesture without the Q, and the window guard cannot tell — the window is the
 same window. The release is the half that looks harmless: everything after a release the machine
 refused runs with the key still down, so the presses that follow are modified presses, and the
 sweep recovering the key later is not the same as the routine having been right to carry on. Both
 are links now, in newly generated guarded routines; nothing on disk is rewritten.
 
 **And the host recorded neither failure.** `doKeyDown` returned a failed step, `doKeyUp` returned
-the error, and neither reached `Unperformed` â so the command read an empty account and reported
+the error, and neither reached `Unperformed` — so the command read an empty account and reported
 success about a routine that ran with a key in the wrong state. Both go through `delivered` now.
 
-Neither half is sufficient, which is why the tests go through generation â runtime â production
+Neither half is sufficient, which is why the tests go through generation → runtime → production
 host: a propagated step whose failure is not in the account lets the command report success, and
 an account without propagation lets the routine go on pressing. Mutating the generator kills the
 stopping tests and the control; mutating the host kills the account tests and the legacy case.
@@ -8603,53 +8603,57 @@ stopping tests and the control; mutating the host kills the account tests and th
 **And a run that finished holding a key was reported as performed.** `performOnePlay` read the
 cleanup account in the cancelled and failed branches and not in the one every successful run
 reaches. A routine that finished normally while holding a key, whose sweep then could not release
-it, had no cancellation and no execution error â so it fell through to `performed` with nothing
+it, had no cancellation and no execution error — so it fell through to `performed` with nothing
 said. The earlier sweep-to-record test forced a cancellation and could not see this path, which is
 exactly what the review said.
 
-It is `failed` now â *it having been tried, and gone wrong* â with the key in the record, on the
+It is `failed` now — *it having been tried, and gone wrong* — with the key in the record, on the
 run's output and on the card. Its control is the one that matters most: that branch answers for
 every successful run of every routine, so a check that was wrong about the empty case would turn
 the product's ordinary answer into a failure.
 
 **One imprecision left on purpose.** Studio's sentence for a failed routine is *"X" stopped, and
-nothing after the press that did not happen was done* â right when a hold or release failed
+nothing after the press that did not happen was done* — right when a hold or release failed
 mid-routine, slightly wrong when only the route-end sweep failed, because nothing stopped and
 nothing was skipped. The specific sentence arrives beside it through `alsoSaid`. Rewording a
 shipped sentence for every failure to suit this one case costs more than it buys, so it is
 recorded here rather than quietly changed.
 
-### Â§41b â closing Â§41a, and a timeout whose cause is a hypothesis
+### §41b — closing §41a, and an observed timeout with a hypothesis about its cause
 
 Approved through `a637996`. Two limits came with the approval and belong next to the work rather
 than in a message: **existing saved routines are not automatically regenerated** (recorded in
 [[ADR-258-a-chord-is-a-promise-to-let-go]] under what did not move), and **the desktop hold
-scenario remains unverified** â it can be completed through the automated harness when desktop
+scenario remains unverified** — it can be completed through the automated harness when desktop
 execution is available, with no owner walkthrough. It is unwritten on purpose: adding an
 unexercised scenario to a gate makes that gate's first run a debugging session instead of a
 regression check, and the owner's screen was not available.
 
 **And a correction to my own report.** One combined background run had `cmd/marco` hit its 600s
 package limit while `plugins/studio` finished in 63s. Run alone with nothing competing the same
-package gave `ok â¦ 12.117s`, exit 0, with no failing test in it. I reported that as contention,
+package gave `ok … 12.117s`, exit 0, with no failing test in it. I reported that as contention,
 because I had been compiling and running other Go programs at the time and this package is already
 documented as having been starved past that same limit once before (CLAUDE.md, the corpus test).
 
 That is a HYPOTHESIS, and the isolated pass is not evidence for it. An isolated pass establishes
 one thing: the suite passes in isolation. It does not establish what the slow run was waiting on,
-and it does not establish that the slow run will not happen again â a single non-reproduction over
+and it does not establish that the slow run will not happen again — a single non-reproduction over
 one attempt is weak evidence either way, and the two facts I reasoned from (my own concurrent load,
 and a previously recorded starvation of the same package) are circumstantial. Nothing was measured
 while it was slow: no goroutine dump, no per-test timing, no `-cpu` or `GOMAXPROCS` comparison. So
-the honest record is *one unexplained 600s timeout in `cmd/marco`, not reproduced, with contention
-as the leading guess and no measurement supporting it*. If it recurs, the thing to capture is the
-panic dump the timeout already prints â it names the goroutines that were alive â rather than
-re-running the package alone, which is the one experiment that cannot answer the question.
+the honest record separates the two: *an OBSERVED 600s timeout in `cmd/marco`, once, not
+reproduced* — that part is a fact — and *contention as a HYPOTHESIS about its cause, with no
+measurement supporting it*. Writing it as "a timeout that is a hypothesis" blurs them, which is
+the slip worth not making twice: the event happened, and only the explanation is a guess.
 
-Filed beside the harness's unexplained foreground refusal (Â§40b) as a second open anomaly that
+If it recurs, the thing to capture is the panic dump the timeout already prints — it names the
+goroutines that were alive — rather than re-running the package alone, which is the one
+experiment that cannot answer the question.
+
+Filed beside the harness's unexplained foreground refusal (§40b) as a second open anomaly that
 fails safe.
 
-### Â§41c â the hold scenario, written while the screen was unavailable
+### §41c — the hold scenario, written while the screen was unavailable
 
 The desktop hold scenario was outstanding because the owner's screen was not free. That is a
 reason to defer EXECUTION, not writing, so it is written: two scenarios, `hold/a hold is held
@@ -8657,21 +8661,21 @@ across the press` and `hold/a stopped run lets go of the key`, both **implemente
 execution pending**.
 
 **What needed building.** The fixture could not see a held non-modifier at all.
-`Control.ModifierKeys` answers for Ctrl, Shift and Alt â the whole of a chord's claim and
-half of a hold's â so a window asked whether Q was down could only ever have said "no
+`Control.ModifierKeys` answers for Ctrl, Shift and Alt — the whole of a chord's claim and
+half of a hold's — so a window asked whether Q was down could only ever have said "no
 modifiers". It now reports the state of keys the harness NAMES (`--watch q`), read with
 `GetKeyState` at the instant the message is handled, and on PRESSES as well as on keys, because
 the claim is about what was held when the click arrived. Named rather than enumerated: a fixture
 reporting every key's state is a keylogger.
 
 **Q and not a modifier.** `markHolds` skips modifiers by name, so Ctrl held across a click
-produces no key step at all â a modifier hold would not have worked. And the cost of the scenario
+produces no key step at all — a modifier hold would not have worked. And the cost of the scenario
 failing is a key left down on a real desktop: a letter repeats into whatever has the keyboard, a
 modifier changes every keystroke anybody types until somebody works out why.
 
 **The gate.** Both carry `onlyWhenAsked`, so a default run skips them and every report names them
 as *implemented and NOT EXERCISED* beside the physical-capture limit. Filed under `hold/` and not
-`keys/` so `-only keys` â the chord's gate â does not sweep them in. One green run takes the flag
+`keys/` so `-only keys` — the chord's gate — does not sweep them in. One green run takes the flag
 off, and half of `TestTheHoldScenariosAreAskedForByName` goes with it.
 
 **And the oracle is tested without a desktop.** A scenario is an arrangement plus a set of
@@ -8683,7 +8687,7 @@ survived at first, because the tests beside it exercised the assertion functions
 that calls them.
 
 **One of those mutations found something real.** The barrier-ordering boundary test guarded
-`presses` reads and not `keys` reads â so every absence the CHORD scenario asserts, and every one
+`presses` reads and not `keys` reads — so every absence the CHORD scenario asserts, and every one
 the hold scenarios assert, was crossing no barrier by that test's reckoning. Extending it
 immediately flagged two reads in failure paths that cannot cross the barrier, because they happen
 when no run record appeared at all. Rather than exempt them, those reads now return PROSE
@@ -8691,7 +8695,7 @@ when no run record appeared at all. Rather than exempt them, those reads now ret
 evidence for a reader and an unsound basis for a verdict, and making it structurally unusable as
 data beats remembering not to use it as data.
 
-**Still outstanding, and now only this:** one green desktop run. No owner walkthrough â the
+**Still outstanding, and now only this:** one green desktop run. No owner walkthrough — the
 scenarios are automated end to end.
 
 ### §41d — and a Ctrl-held click is a separate defect, now measured
@@ -8813,3 +8817,27 @@ Shift up, `click left`, `release ctrl` — with Ctrl appearing exactly twice, wh
 a chord naming it would break while leaving every ordering claim still satisfiable.
 
 Twenty-three mutations across the three rounds, twenty-two killed, one equivalent.
+
+### §41g — drags, scoped and paused
+
+Not started. The gate in front of them is the three hold scenarios running green —
+`plugins\e2e\run.cmd -only hold`, an automated acceptance and not an owner walkthrough. Written
+down because a scope agreed in review and not recorded is a scope the next session re-derives.
+
+Guarded drags, when they are unpaused:
+
+| | |
+|---|---|
+| a fresh window check before mouse-down | not a cached one. The same rule a guarded press follows, and the reason it exists: a check that read a remembered rectangle would be asking about the window as it was |
+| cancellation DURING movement | a drag is the one gesture with a long middle, so a stop can arrive between the press and the release |
+| a release attempt on every exit | success, refusal, stop. The same undertaking as a hold, and the same limit: attempted by code that gets to run, reported rather than recovered |
+| a delivery failure stopping what follows | a drag that did not happen leaves the screen in the state the rest of the routine was not demonstrated against |
+
+And the oracle is the fixture's received-input log, for the whole gesture rather than its ends: a
+press, the movement, the release, and where each arrived. `NoteClick` already records three
+coordinate spaces per button edge; what a drag needs beyond that is whether the window saw the
+movement BETWEEN them, which is the part a replay can skip while both ends still look right.
+
+A stuck mouse button is worse than a stuck modifier, which is worth saying before the work rather
+than after: a held Ctrl changes what keystrokes mean, and a held left button drags whatever the
+pointer passes over. That is the first thing to make impossible to leave behind.
