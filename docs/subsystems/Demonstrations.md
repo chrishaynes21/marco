@@ -444,6 +444,37 @@ collision to refuse and a second routine quietly kept beside the one somebody se
   pressed control is worth, measured on drawn pictures for the rules and on real 1920x1080 game
   frames for the number.
 
+## A modifier held across a CLICK is dropped, and the click looks ordinary
+
+An open defect, named here because it is a loss of recording fidelity and not a refusal: it does
+not stop anything, it produces a routine that looks right and performs a different gesture.
+
+Demonstrate Ctrl, then a click, then release Ctrl, and `simplify` emits **a plain click**.
+Measured, not inferred: the steps that come out are `activate`, `wait` and `click`, and the Ctrl
+is nowhere in them. `markHolds` skips modifiers by name, which is correct for a modifier around a
+KEY — that is how `ctrl+shift+a` becomes one chord step — and wrong for a modifier around a
+click, because there is no chord for it to fold into. The modifier is tracked, used for nothing,
+and discarded.
+
+**The gesture is already expressible, which is what makes this bounded.** `hold ctrl → click →
+release ctrl` generates as `do OS's KeyDown with "ctrl"`, the guarded click, and
+`do OS's KeyUp with "ctrl"` — `driver.CheckSource` accepts it, `Unpropagatable` reports nothing,
+so every step is a link in the chain and a failed modifier press stops the click. Checked
+directly. So this needs no new word, no new field on a click step, and no language work: the
+whole of it is `markHolds` excluding modifiers for a reason that only applies when the thing in
+the middle is another key.
+
+**Why it is worth writing down rather than fixing in passing.** A Ctrl+click and a click are
+different acts in most applications — one adds to a selection, one replaces it — and the routine
+that comes out of this is confidently wrong rather than visibly incomplete. That is the category
+of defect every account in this system is weakest against. But it is also a change to what
+`simplify` does with a recording, which means existing recordings start producing different
+routines, and that is a decision rather than a correction.
+
+The desktop hold scenario does **not** cover it: it holds Q deliberately, and
+[[ADR-258-a-chord-is-a-promise-to-let-go]] records why a modifier could not have been used there —
+`markHolds` would have dropped it, which is this defect.
+
 ## Known gaps
 
 See the *Known gaps* section of [[director-demonstrations]].

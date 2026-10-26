@@ -231,6 +231,11 @@ handled, and on PRESSES as well as on keys, because the claim is about what was 
 click arrived. Named rather than enumerated: a window reporting every key's state would be a
 keylogger, and the scenario knows which key it is about.
 
+**And what they do not cover.** A NON-MODIFIER hold, such as Q, is what these establish. A Ctrl-
+or Shift-held click is a separate open defect and no scenario here touches it: `simplify` drops
+the modifier and emits a plain click, which is why the hold scenario holds Q rather than a
+modifier. Recorded in [[Demonstrations]].
+
 **And what they deliberately do not do.** A refused delivery and a refused release are covered
 headlessly, in `internal/oshost`. A desktop scenario that needed a key to be STUCK in order to
 assert anything would be arranging to leave one down on somebody's computer — and when one of

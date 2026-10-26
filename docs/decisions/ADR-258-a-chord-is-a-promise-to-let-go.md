@@ -302,6 +302,18 @@ run means anything is the half that was never checked before it ran.
   picks the new shape up; there is no migration and no automatic rewriting. Worth stating in these
   words because "generated guarded routines now stop on a failed hold" is true of routines
   generated from now on and of no routine already in somebody's library.
+- **A Ctrl- or Shift-held CLICK is not established by any of this, and is a separate open
+  defect.** The hold work covers a non-modifier hold such as Q. A modifier held across a click is
+  a different thing and it is currently LOST: `simplify` emits a plain click and the modifier
+  appears nowhere in the steps — measured, not inferred. `markHolds` skips modifiers by name,
+  which is right when the thing between the edges is another key (that is how a chord is made)
+  and wrong when it is a click, because there is no chord to fold into. It is bounded rather than
+  a language question: `hold ctrl → click → release ctrl` already generates, already checks out
+  through `driver.CheckSource`, and already propagates with nothing unpropagatable, so no new
+  word and no new field is needed. But it changes what `simplify` makes of recordings that
+  already exist, which is a decision and not a correction. Recorded in
+  [[Demonstrations]], and it is also the reason the desktop hold scenario holds Q: a modifier
+  would have been dropped before it ever reached a routine.
 - **`keyDown` / `keyUp` — the holds — are untouched.** They are a single key each and already
   report what the machine said.
 - **The timings are the timings.** `$MARCO_CHORD_HOLD_MS` and `$MARCO_KEY_HOLD_MS` mean what they

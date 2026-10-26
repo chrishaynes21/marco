@@ -8693,3 +8693,33 @@ data beats remembering not to use it as data.
 
 **Still outstanding, and now only this:** one green desktop run. No owner walkthrough â the
 scenarios are automated end to end.
+
+### §41d — and a Ctrl-held click is a separate defect, now measured
+
+Closed the hold scenario's source review; the Architect drew one line worth keeping. The hold work
+covers a NON-MODIFIER hold such as Q. It establishes nothing about a Ctrl- or Shift-held click,
+and that limitation is separate.
+
+Measured rather than assumed, because the shape of the gap decides whether it is a small fix or a
+language question. A demonstrated Ctrl, click, release Ctrl comes out of `simplify` as
+`activate`, `wait`, `click` — **a plain click**, with the modifier nowhere in the steps.
+`markHolds` skips modifiers by name, which is right when the thing between the edges is another
+key (that is how `ctrl+shift+a` becomes one chord step) and wrong when it is a click, because
+there is no chord for it to fold into.
+
+And the other half, also checked: `hold ctrl → click → release ctrl` is already fully
+expressible. Built as IR by hand it generates `do OS's KeyDown with "ctrl"`, the guarded click and
+`do OS's KeyUp with "ctrl"`; `driver.CheckSource` accepts the result and `Unpropagatable` reports
+nothing, so every step is a link in the chain and a failed modifier press stops the click. So the
+whole of the defect is in `markHolds`, needing no new word and no new field on a click step.
+
+Not fixed, and deliberately: it changes what `simplify` makes of recordings that already exist,
+which is a decision rather than a correction. Recorded in [[Demonstrations]] and in
+[[ADR-258-a-chord-is-a-promise-to-let-go]] under what did not move. It is also why the desktop
+hold scenario holds Q — a modifier would have been dropped before it ever reached a routine, so
+the scenario would have been asserting about a plain click.
+
+Worth naming the category: this is a loss of recording fidelity that refuses nothing. A Ctrl+click
+and a click are different acts in most applications — one adds to a selection, one replaces it —
+so what comes out is confidently wrong rather than visibly incomplete, which is the kind of defect
+every account in this system is weakest against.
