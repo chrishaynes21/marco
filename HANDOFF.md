@@ -8770,3 +8770,46 @@ rather than Shift or Alt — Alt over a press opens menus, Shift extends selecti
 on a text field or a button does nothing anywhere.
 
 Nineteen mutations across the two rounds, eighteen killed, one equivalent.
+
+### §41f — and the extra modifier the fix dropped
+
+A defect in §41e, found in review. `Ctrl↓ Shift↓ A↓ A↑ Shift↑ click Ctrl↑`: Ctrl spans the click
+so it is a hold, Shift spans only the A so it is still chord state — and the held-key branch
+emitted a bare `Key "a"`, dropping the Shift. Playback performed Ctrl+A and then Ctrl+click where
+Ctrl+Shift+A and then Ctrl+click were demonstrated. Reproduced before fixing: the step list came
+out `keydown(ctrl) key(a) click keyup(ctrl)`.
+
+It is `Key "shift+a"` now — the extra modifier folded into a chord, the held one left out of it,
+because `sendChord` presses and releases exactly what it is given and naming Ctrl there would let
+go of it inside a hold that is still open.
+
+**And the obvious guard turned out to be dead code.** I wrote the fold as "chord state MINUS the
+held classes", with a `heldClasses` helper to compare them. Mutating the exclusion away failed
+nothing — because a modifier that becomes a hold never reaches the branch that sets the flags, so
+the flags are already false. The exclusion could not have mattered; two mechanisms guaranteed the
+same thing and only one was doing it.
+
+So it is removed. Dead code that looks load-bearing is worse than none: the next reader trusts the
+filter instead of the ordering, and the ordering is what was wrong in the first place.
+
+**Which left a load-bearing claim no behavioural test can reach.** No input distinguishes "the
+held modifier was filtered out of the chord" from "it never became chord state" — getting it right
+one way and the other way produce identical output. So
+`TestTheHoldMarkersAreReadBeforeTheModifierState` reads it off the source: the hold markers must
+be consumed before the branch that records modifier state. The `:=` that declares the four flags
+at the top of `lower` is an assignment to the same names and means the opposite thing, so the test
+discriminates on the token — which is why it is an AST walk rather than a grep. Reordering the two
+branches now fails six tests including that one.
+
+Same technique and same reason as `internal/oshost`'s `TestTheHoldPrimitivesDoNotReportAStop`:
+some rules are about the shape of the code, because the behaviour they produce cannot be told from
+the behaviour of getting them wrong a different way.
+
+**The ordering claim end to end** needed one log rather than four. `recBackend` keeps its calls per
+kind, so nothing in it said whether the click happened inside the hold or after its release; it
+now also keeps `calls`, one ordered sequence, and the mixed case runs the production `sendChord`
+into that same log. The result is readable as the gesture: `hold ctrl`, Shift down, A down, A up,
+Shift up, `click left`, `release ctrl` — with Ctrl appearing exactly twice, which is the assertion
+a chord naming it would break while leaving every ordering claim still satisfiable.
+
+Twenty-three mutations across the three rounds, twenty-two killed, one equivalent.

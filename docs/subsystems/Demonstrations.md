@@ -444,13 +444,21 @@ collision to refuse and a second routine quietly kept beside the one somebody se
   pressed control is worth, measured on drawn pictures for the rules and on real 1920x1080 game
   frames for the number.
 - `internal/simplify` `modifierhold_test.go` — a modifier held across a click, around a key, over
-  nothing, and across both; the three refusals and a control beside each. Every case goes through
-  the production `Simplify`, because the defect lived in the seam between classification and
-  lowering and either half alone looks fixed.
+  nothing, and across both; an extra modifier inside a hold, with the held one staying out of the
+  chord; the three refusals and a control beside each. Every case goes through the production
+  `Simplify`, because the defect lived in the seam between classification and lowering and either
+  half alone looks fixed. `TestTheHoldMarkersAreReadBeforeTheModifierState` holds the ordering off
+  the source, which is the only way it can be held: the two mechanisms that would each keep a held
+  modifier out of a chord are indistinguishable from outside.
 - `internal/oshost` `modifierclick_test.go` — the same gesture from recording events through
   `simplify`, `codegen` and the runtime to the production `Host`: a Ctrl the machine will not
   press stops the click, one it will not release is named in the account, a cancelled run still
   attempts the release, and a legacy routine keeps the contract it was saved under.
+- `internal/oshost` `TestAShortcutInsideAHeldModifierKeepsBoth` — the mixed case as an ORDERING,
+  end to end, with the production `sendChord` running underneath the keystroke so the chord's own
+  presses land in the same log as the hold around them: `hold ctrl`, Shift down, A down, A up,
+  Shift up, the click, `release ctrl`. Ctrl appears exactly twice, which is what a chord naming it
+  would break while leaving every moment the ordering asserts still present.
 - `internal/orchestrator` `refusedgesture_test.go` — the draft carries the reason and `Save`
   refuses it, with nothing written to the library; and the same demonstration done properly
   saves, as the gesture.
@@ -483,12 +491,30 @@ markers were read and `continue`d past them — so teaching the classifier about
 own would have left the marks right and still swallowed. Both are exercised through the real
 `Simplify`, which is the only way to tell a fix from half of one.
 
-**And a key under a hold is just that key.** `ctrl` down, `a`, click, `ctrl` up is one hold with a
-keystroke inside it: `KeyDown ctrl`, `Key "a"`, the click, `KeyUp ctrl`. Not `ctrl+a`, which would
-press the modifier again and release it before the click. And the key carries no `Text`, which is
-the subtler half — `Text` is what lets a run of keys coalesce into a `Type` step, and `Type` sends
-characters rather than keystrokes, so `a` under a held Ctrl would arrive as the letter after a fold
-two passes later that nothing at that point can see.
+**And a key under a hold carries only the modifiers the hold is not already supplying.** `ctrl`
+down, `a`, click, `ctrl` up is one hold with a keystroke inside it: `KeyDown ctrl`, `Key "a"`, the
+click, `KeyUp ctrl` — not `ctrl+a`, which would press the modifier again and release it before the
+click. Add a Shift that spans only the `a` and the key becomes `Key "shift+a"`: the extra modifier
+has nowhere else to go, and the held one must stay out, because `sendChord` presses and releases
+exactly what it is given.
+
+The first version of that branch emitted a bare key and dropped the extra modifier, so
+`Ctrl↓ Shift↓ A↓ A↑ Shift↑ click Ctrl↑` performed Ctrl+A and then Ctrl+click where Ctrl+Shift+A
+and then Ctrl+click were demonstrated. Every step looked right.
+
+What keeps the held modifier out of that chord is not a filter — it is that the hold markers are
+read BEFORE the branch that records modifier state, so a modifier written as a hold never becomes
+chord state at all. There was a filter as well, briefly; it was dead code, and no input could tell
+the two mechanisms apart. The ordering is pinned by a test that reads it off the source, because a
+test over behaviour cannot: getting it wrong the other way produces the same output as getting it
+right.
+
+And the key carries no `Text` either way, which is the subtler half — `Text` is what lets a run of
+keys coalesce into a `Type` step, and `Type` sends characters rather than keystrokes, so `a` under
+a held Ctrl would arrive as the letter after a fold two passes later that nothing at that point can
+see. Shift alone is the one place this is visibly a choice: outside a hold, Shift+A is how a
+capital is typed and comes out as a key carrying the text `A`; inside one it is part of a shortcut,
+and a capital letter is not what was asked for.
 
 ## What a recording refuses to say rather than guess at
 
