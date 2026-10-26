@@ -687,10 +687,45 @@ namespace MarcoFixture
             Field(b, "key", key.ToString()); b.Append(",");
             b.Append("\"vk\":").Append(N((int)key)).Append(",");
             b.Append("\"system\":").Append(system ? "true" : "false").Append(",");
+            // AND WHAT THIS WINDOW BELIEVES IS HELD AT THIS INSTANT, which is a different
+            // fact from the order of the messages.
+            //
+            // A chord is "the modifier was DOWN while the key arrived". The sequence of
+            // messages is evidence for that and not the thing itself: a sender whose
+            // modifier events the system did not apply — a wrong scan code, a lost extended
+            // flag — produces exactly the same four messages and delivers a plain key. This
+            // is the keyboard state as the application reads it, from the same call any
+            // application would use, so a chord that arrived as two taps is distinguishable
+            // from one that arrived as a chord.
+            Field(b, "mods", ModifiersNow()); b.Append(",");
             Field(b, "control", NameOf(Control.FromHandle(m.HWnd))); b.Append(",");
             Geometry(b);
             b.Append("}");
             WriteEvent(b.ToString());
+        }
+
+        /// <summary>The modifiers this window reads as held, in the harness's own spelling.</summary>
+        ///
+        /// `Control.ModifierKeys` asks the system, not a cached WinForms field, so this is the
+        /// keyboard as it actually is at the moment the key message is handled. Spelled the way
+        /// a Marco chord is spelled — `ctrl+shift` — so a log and a routine can be read side by
+        /// side without a translation step in between.
+        private static string ModifiersNow()
+        {
+            var m = Control.ModifierKeys;
+            var b = new StringBuilder();
+            if ((m & Keys.Control) != 0) { b.Append("ctrl"); }
+            if ((m & Keys.Shift) != 0)
+            {
+                if (b.Length > 0) { b.Append("+"); }
+                b.Append("shift");
+            }
+            if ((m & Keys.Alt) != 0)
+            {
+                if (b.Length > 0) { b.Append("+"); }
+                b.Append("alt");
+            }
+            return b.ToString();
         }
 
         private void NoteWindow(string what)
@@ -1153,15 +1188,39 @@ namespace MarcoFixture
 
             try
             {
+                // SWAPPED IN, NEVER DELETED AND RE-CREATED.
+                //
+                // Delete-then-move leaves a window in which this file does not exist, or
+                // exists with its deletion pending — and a reader arriving in it is told
+                // "Access is denied", which is not a sentence anybody would connect to a
+                // file being rewritten. It cost a desktop scenario a run.
+                //
+                // `File.Replace` is the atomic one: the destination always exists and
+                // always holds one whole snapshot. It needs the destination to be there,
+                // so the first write is still a move.
                 var tmp = statePath + ".tmp";
                 File.WriteAllText(tmp, b.ToString(), new UTF8Encoding(false));
-                if (File.Exists(statePath)) { File.Delete(statePath); }
-                File.Move(tmp, statePath);
+                if (File.Exists(statePath))
+                {
+                    File.Replace(tmp, statePath, null);
+                }
+                else
+                {
+                    File.Move(tmp, statePath);
+                }
             }
             catch (IOException)
             {
                 // A write the harness missed is a read it retries. Losing the window over a
                 // locked file would turn a flaky disk into a failed acceptance.
+            }
+            catch (UnauthorizedAccessException)
+            {
+                // AND `File.Replace` HAS ITS OWN WAY OF SAYING THE SAME THING. It does not
+                // derive from IOException, so the catch above would not have held it, and a
+                // snapshot this window could not swap in would have ended the window
+                // instead — a fixture that dies because a file was briefly open is a
+                // fixture that fails acceptances for its own reasons.
             }
         }
 

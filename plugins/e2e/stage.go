@@ -39,13 +39,26 @@ type stage struct {
 // `gap` is the pause between presses, which is what makes a run long enough to interrupt. One
 // control and no gap is the ordinary case.
 func setUp(w *world, name string, gap time.Duration, controls ...string) (*stage, error) {
+	return setUpSeeded(w, func(f *fixtureRun) (seededRoutine, error) {
+		return seedPresses(f, w.art, name, gap, controls...)
+	})
+}
+
+// setUpSeeded is the same with the demonstration supplied, for a routine that is not a list of
+// presses.
+//
+// The seam is here and not inside `seedPresses` because everything else about a stage is the
+// same: one fixture of this run's own, one store, the real Studio on the card for whatever was
+// seeded. A scenario about keystrokes that built its own stage would be a second arrangement to
+// drift from this one.
+func setUpSeeded(w *world, seeding func(*fixtureRun) (seededRoutine, error)) (*stage, error) {
 	st := &stage{w: w, store: w.freshStore()}
 	f, err := startFixture(w.b, w.art, false)
 	if err != nil {
 		return nil, err
 	}
 	st.f = f
-	seed, err := seedPresses(f, w.art, name, gap, controls...)
+	seed, err := seeding(f)
 	if err != nil {
 		st.down()
 		return nil, err
@@ -83,6 +96,20 @@ func (st *stage) play() error {
 
 // leaveRun presses Done and waits until the routines are on screen again.
 func (st *stage) leaveRun() error {
+	// WAITED FOR, BECAUSE A FINISHED RECORD IS NOT A FINISHED WINDOW.
+	//
+	// `waitForRecord` returns when the CHILD has written its account; Done becomes
+	// pressable when the WINDOW has noticed the child exit. Two different instants, and
+	// the gap between them is real — this lost it twice in four runs and reported *the
+	// window would not go back to the routines*, which is a harness losing a race and
+	// telling somebody their product is broken.
+	//
+	// The same shape as `play`, which waits for Play to be offered rather than assuming
+	// it: a harness that presses what is merely on screen is asserting about an instant
+	// it did not establish.
+	if _, err := st.s.waitFor(20*time.Second, "backBtn", enabled); err != nil {
+		return err
+	}
 	if err := st.s.press("backBtn"); err != nil {
 		return err
 	}

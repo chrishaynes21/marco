@@ -67,13 +67,17 @@ type fixtureState struct {
 
 // fixtureEvent is one thing the window received.
 type fixtureEvent struct {
-	Seq        int    `json:"seq"`
-	Ms         int64  `json:"ms"`
-	Kind       string `json:"kind"`
-	What       string `json:"what"`
-	Control    string `json:"control"`
-	Key        string `json:"key"`
-	VK         int    `json:"vk"`
+	Seq     int    `json:"seq"`
+	Ms      int64  `json:"ms"`
+	Kind    string `json:"kind"`
+	What    string `json:"what"`
+	Control string `json:"control"`
+	Key     string `json:"key"`
+	VK      int    `json:"vk"`
+	// Mods is what the window believed was HELD at the instant of this key, read from the
+	// system by the application itself. See the fixture's ModifiersNow: the order of four
+	// messages is evidence that a chord arrived, and this is the fact itself.
+	Mods       string `json:"mods"`
 	OnControlX int    `json:"on_control_x"`
 	OnControlY int    `json:"on_control_y"`
 	ClientX    int    `json:"client_x"`
@@ -92,7 +96,12 @@ func (e fixtureEvent) String() string {
 			e.Seq, e.Kind, e.What, e.Control, e.ScreenX, e.ScreenY, e.OnControlX,
 			e.OnControlY, e.Window)
 	case "key":
-		return fmt.Sprintf("#%d key %s %s on %q", e.Seq, e.What, e.Key, e.Control)
+		held := "nothing held"
+		if e.Mods != "" {
+			held = e.Mods + " held"
+		}
+		return fmt.Sprintf("#%d key %s %s on %q with %s", e.Seq, e.What, e.Key,
+			e.Control, held)
 	default:
 		return fmt.Sprintf("#%d %s %s, window %s", e.Seq, e.Kind, e.What, e.Window)
 	}
@@ -151,7 +160,29 @@ func startFixture(b *bundle, art *artifacts, stubborn bool, extra ...string) (*f
 	return f, nil
 }
 
+// read is the fixture's own snapshot of itself, retried briefly.
+//
+// RETRIED BECAUSE THIS IS SOMEBODY ELSE'S FILE BEING REPLACED WHILE IT IS READ. The fixture
+// swaps a whole snapshot in several times a second; a reader that arrives mid-swap used to be
+// told *Access is denied* — Windows's answer for a file whose deletion is pending — which ended
+// a scenario with a sentence about permissions on a file this harness had just created.
+//
+// The fixture no longer deletes it, which closes that particular window. This stays anyway: a
+// reader of another process's file does not get to assume how that process writes it, and a gate
+// that fails for its own reasons is a gate people learn to ignore. A transient read is retried, a
+// persistent one is still reported, and no scenario waits a fixed interval for either.
 func (f *fixtureRun) read() (fixtureState, error) {
+	var s fixtureState
+	var err error
+	for deadline := time.Now().Add(3 * time.Second); ; time.Sleep(50 * time.Millisecond) {
+		s, err = f.readOnce()
+		if err == nil || time.Now().After(deadline) {
+			return s, err
+		}
+	}
+}
+
+func (f *fixtureRun) readOnce() (fixtureState, error) {
 	var s fixtureState
 	data, err := os.ReadFile(f.state)
 	if err != nil {
@@ -197,6 +228,26 @@ func (f *fixtureRun) presses(after int) ([]fixtureEvent, error) {
 	var out []fixtureEvent
 	for _, e := range all {
 		if e.Seq > after && e.Kind == "mouse" && strings.HasSuffix(e.What, "_down") {
+			out = append(out, e)
+		}
+	}
+	return out, nil
+}
+
+// keys is every key message the window has received since a given sequence number, DOWN and UP
+// both.
+//
+// Both edges, unlike `presses`, because the claim a chord makes is about the pairs: a modifier
+// held before the key and let go after it, and nothing left without its release. A reader given
+// only the downs could not tell a chord from a chord that never ended.
+func (f *fixtureRun) keys(after int) ([]fixtureEvent, error) {
+	all, err := f.received()
+	if err != nil {
+		return nil, err
+	}
+	var out []fixtureEvent
+	for _, e := range all {
+		if e.Seq > after && e.Kind == "key" {
 			out = append(out, e)
 		}
 	}

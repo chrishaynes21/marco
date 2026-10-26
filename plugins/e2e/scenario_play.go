@@ -67,6 +67,13 @@ func scenarios() []scenario {
 			run: theWindowChangedSize,
 		},
 		{
+			name:  "keys/a chord arrives as a chord",
+			layer: layerDesktop,
+			about: "a seeded chord reaches the application with its modifiers " +
+				"held, and leaves nothing held down afterwards",
+			run: aChordArrivesAsAChord,
+		},
+		{
 			name:  "runs/two runs are two records",
 			layer: layerDesktop,
 			about: "two performances, two references, both accounted for",

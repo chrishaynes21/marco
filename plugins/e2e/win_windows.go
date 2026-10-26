@@ -48,6 +48,7 @@ var (
 	procGetDC                  = user32.NewProc("GetDC")
 	procReleaseDC              = user32.NewProc("ReleaseDC")
 	procPostMessageW           = user32.NewProc("PostMessageW")
+	procGetAsyncKeyState       = user32.NewProc("GetAsyncKeyState")
 	smRemoteSession            = 0x1000
 	smCXScreen, smCYScreen     = 0, 1
 	gwOwner                    = 4
@@ -244,4 +245,41 @@ func killPid(pid uint32) error {
 		return fmt.Errorf("killing pid %d: %w", pid, err)
 	}
 	return nil
+}
+
+// ── WHAT THIS DESKTOP IS STILL HOLDING DOWN ───────────────────────────────────
+//
+// A read, and the plainest one in the file: `GetAsyncKeyState` asks the system whether a key is
+// down right now. Nothing is sent and nothing moves.
+//
+// It is here because a chord is a promise to let go. Every other account of a chord — the order
+// of the messages, the modifier state the application read while the key arrived — is about what
+// the fixture saw, and a modifier left held down after the run is over is not something the
+// fixture can see at all: no message arrives to tell it. This is the one question that reaches
+// the state somebody would be left with, and it is asked of the desktop rather than of either
+// program.
+//
+// Measured BEFORE and after, because a modifier already held when the run started is a fact
+// about this desktop and not about Marco: the scenario that uses this declines rather than fails.
+var theModifiers = []struct {
+	name string
+	vk   int
+}{
+	{"ctrl", 0x11}, {"shift", 0x10}, {"alt", 0x12},
+	{"left win", 0x5B}, {"right win", 0x5C},
+}
+
+// heldModifiers is every modifier this desktop currently reports as down.
+func heldModifiers() []string {
+	var down []string
+	for _, m := range theModifiers {
+		// The HIGH bit is "down now". The low bit is "pressed since last asked", which
+		// is a different question and the wrong one: it would report a key somebody
+		// finished pressing a moment ago as one that is stuck.
+		state, _, _ := procGetAsyncKeyState.Call(uintptr(m.vk))
+		if state&0x8000 != 0 {
+			down = append(down, m.name)
+		}
+	}
+	return down
 }
