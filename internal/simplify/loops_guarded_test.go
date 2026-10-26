@@ -56,7 +56,7 @@ func countKinds(steps []macroir.Step) (clicks, loops int) {
 }
 
 func TestGuardedPressesAreNotFoldedIntoARepeat(t *testing.T) {
-	steps := Simplify(fourIdenticalPresses(true), Options{FoldLoops: true, MinLoopReps: 2})
+	steps := simplified(t, fourIdenticalPresses(true), Options{FoldLoops: true, MinLoopReps: 2})
 
 	clicks, loops := countKinds(steps)
 	if loops != 0 {
@@ -73,7 +73,7 @@ func TestGuardedPressesAreNotFoldedIntoARepeat(t *testing.T) {
 // The control, and it is what keeps the rule confined: a routine whose presses asked to be
 // checked against nothing reads the way it always did, repeats included.
 func TestUnmeasuredPressesAreStillFolded(t *testing.T) {
-	steps := Simplify(fourIdenticalPresses(false), Options{FoldLoops: true, MinLoopReps: 2})
+	steps := simplified(t, fourIdenticalPresses(false), Options{FoldLoops: true, MinLoopReps: 2})
 
 	_, loops := countKinds(steps)
 	if loops != 1 {

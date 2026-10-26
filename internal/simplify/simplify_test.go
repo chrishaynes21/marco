@@ -21,7 +21,7 @@ func TestArgKeyPlaceholder(t *testing.T) {
 		key("f9", true, 100), key("f9", false, 150), // arg 1
 		key("f9", true, 300), key("f9", false, 350), // arg 2
 	}
-	steps := Simplify(events, DefaultOptions())
+	steps := simplified(t, events, DefaultOptions())
 	var typed []string
 	for _, s := range steps {
 		if s.Kind == macroir.StepType {
@@ -67,7 +67,7 @@ func TestAppSwitchDropsNavClicks(t *testing.T) {
 		key("h", true, 400), key("h", false, 402),
 		key("i", true, 410), key("i", false, 412),
 	}
-	got := Simplify(evs, DefaultOptions())
+	got := simplified(t, evs, DefaultOptions())
 	want := []macroir.Step{
 		{Kind: macroir.StepActivate, Text: "notepad"},
 		{Kind: macroir.StepWait, Ms: 50}, // uniform gap after activate (window settle)
@@ -90,7 +90,7 @@ func TestInAppClickSurvivesSwitch(t *testing.T) {
 		click("left", false, -300, 740, 250),
 		appSwitch("chrome", 400), // switch away at the end with nothing after
 	}
-	got := Simplify(evs, DefaultOptions())
+	got := simplified(t, evs, DefaultOptions())
 	want := []macroir.Step{
 		{Kind: macroir.StepActivate, Text: "notepad"},
 		// No forced wait after activate now — the 10ms recorded gap is below MinWaitMs
@@ -122,7 +122,7 @@ func TestHoldKeySpansClick(t *testing.T) {
 		click("left", false, 100, 100, 70),
 		key("q", false, 120),
 	}
-	got := Simplify(evs, DefaultOptions())
+	got := simplified(t, evs, DefaultOptions())
 	if len(got) == 0 || got[0].Kind != macroir.StepKeyDown || got[0].Key != "q" {
 		t.Fatalf("first step should be KeyDown q, got %+v", got)
 	}
@@ -143,7 +143,7 @@ func TestHoldKeySpansClick(t *testing.T) {
 func TestHoldKeyByDuration(t *testing.T) {
 	// Hold Q for 600ms with nothing else (≥ holdThreshold) → still an explicit hold.
 	evs := []recorder.RecordedEvent{key("q", true, 0), key("q", false, 600)}
-	got := Simplify(evs, DefaultOptions())
+	got := simplified(t, evs, DefaultOptions())
 	if len(got) == 0 || got[0].Kind != macroir.StepKeyDown {
 		t.Fatalf("expected KeyDown first, got %+v", got)
 	}
@@ -160,7 +160,7 @@ func TestHoldKeyByDuration(t *testing.T) {
 
 func TestQuickTapIsNotHold(t *testing.T) {
 	// A quick Q tap (20ms, nothing between) is typing/a key press — never a hold.
-	got := Simplify([]recorder.RecordedEvent{key("q", true, 0), key("q", false, 20)}, DefaultOptions())
+	got := simplified(t, []recorder.RecordedEvent{key("q", true, 0), key("q", false, 20)}, DefaultOptions())
 	for _, s := range got {
 		if s.Kind == macroir.StepKeyDown || s.Kind == macroir.StepKeyUp {
 			t.Fatalf("a quick tap must not produce hold steps, got %+v", got)
@@ -178,10 +178,10 @@ func TestTypingRhythmFolds(t *testing.T) {
 		key("l", true, 310), key("l", false, 312),
 		key("o", true, 400), key("o", false, 402),
 	}
-	if faithful := Simplify(evs, DefaultOptions()); len(faithful) < 4 {
+	if faithful := simplified(t, evs, DefaultOptions()); len(faithful) < 4 {
 		t.Fatalf("expected faithful per-letter steps, got %d: %+v", len(faithful), faithful)
 	}
-	got := Simplify(evs, rhythmOpts())
+	got := simplified(t, evs, rhythmOpts())
 	want := []macroir.Step{{Kind: macroir.StepType, Text: "hello"}}
 	assertSteps(t, got, want)
 }
@@ -194,7 +194,7 @@ func TestTypingRhythmKeepsUniformSpam(t *testing.T) {
 		key("e", true, 140), key("e", false, 142),
 		key("e", true, 280), key("e", false, 282),
 	}
-	got := Simplify(evs, rhythmOpts())
+	got := simplified(t, evs, rhythmOpts())
 	for _, s := range got {
 		if s.Kind == macroir.StepType {
 			t.Fatalf("uniform spam was wrongly folded into typing: %+v", got)
@@ -216,7 +216,7 @@ func TestAggressiveFoldsWordGap(t *testing.T) {
 	}
 	o := DefaultOptions()
 	o.TypingRhythmMs = AggressiveTypingRhythmMs
-	got := Simplify(evs, o)
+	got := simplified(t, evs, o)
 	want := []macroir.Step{{Kind: macroir.StepType, Text: "hi yo"}}
 	assertSteps(t, got, want)
 }
@@ -230,7 +230,7 @@ func TestClickTemplateCarried(t *testing.T) {
 		{Kind: recorder.EvClick, Button: "left", Down: true, X: 50, Y: 60, T: at(0), Image: patch},
 		{Kind: recorder.EvClick, Button: "left", Down: false, X: 50, Y: 60, T: at(5)},
 	}
-	got := Simplify(evs, DefaultOptions())
+	got := simplified(t, evs, DefaultOptions())
 	if len(got) != 1 || got[0].Kind != macroir.StepClick {
 		t.Fatalf("expected one click, got %+v", got)
 	}
@@ -247,7 +247,7 @@ func TestCtrlComboBecomesChord(t *testing.T) {
 		key("c", true, 20), key("c", false, 25),
 		key("ctrl", false, 40),
 	}
-	got := Simplify(evs, DefaultOptions())
+	got := simplified(t, evs, DefaultOptions())
 	want := []macroir.Step{{Kind: macroir.StepKey, Key: "ctrl+c", Count: 1}}
 	assertSteps(t, got, want)
 }
@@ -261,7 +261,7 @@ func TestCtrlShiftCombo(t *testing.T) {
 		key("shift", false, 40),
 		key("ctrl", false, 45),
 	}
-	got := Simplify(evs, DefaultOptions())
+	got := simplified(t, evs, DefaultOptions())
 	want := []macroir.Step{{Kind: macroir.StepKey, Key: "ctrl+shift+esc", Count: 1}}
 	assertSteps(t, got, want)
 }
@@ -271,7 +271,7 @@ func TestClicksAndWait(t *testing.T) {
 		click("left", true, 100, 200, 0), click("left", false, 100, 200, 5),
 		click("left", true, 400, 500, 350), click("left", false, 400, 500, 355),
 	}
-	got := Simplify(evs, DefaultOptions())
+	got := simplified(t, evs, DefaultOptions())
 	want := []macroir.Step{
 		{Kind: macroir.StepClick, X: 100, Y: 200, Button: "left"},
 		{Kind: macroir.StepWait, Ms: 50},
@@ -286,7 +286,7 @@ func TestUniformKeyCoalesces(t *testing.T) {
 	for i := range 3 {
 		evs = append(evs, key("e", true, i*10), key("e", false, i*10+2))
 	}
-	got := Simplify(evs, DefaultOptions())
+	got := simplified(t, evs, DefaultOptions())
 	want := []macroir.Step{{Kind: macroir.StepKey, Key: "e", Count: 3, Text: "e"}}
 	assertSteps(t, got, want)
 }
@@ -296,14 +296,14 @@ func TestVariedKeysBecomeTyping(t *testing.T) {
 		key("h", true, 0), key("h", false, 2),
 		key("i", true, 8), key("i", false, 10),
 	}
-	got := Simplify(evs, DefaultOptions())
+	got := simplified(t, evs, DefaultOptions())
 	want := []macroir.Step{{Kind: macroir.StepType, Text: "hi"}}
 	assertSteps(t, got, want)
 }
 
 func TestNamedKeyStaysKey(t *testing.T) {
 	evs := []recorder.RecordedEvent{key("enter", true, 0), key("enter", false, 2)}
-	got := Simplify(evs, DefaultOptions())
+	got := simplified(t, evs, DefaultOptions())
 	want := []macroir.Step{{Kind: macroir.StepKey, Key: "enter", Count: 1}}
 	assertSteps(t, got, want)
 }
@@ -314,7 +314,7 @@ func TestDragDetected(t *testing.T) {
 		move(50, 50, 20), move(100, 100, 40),
 		click("left", false, 100, 100, 60),
 	}
-	got := Simplify(evs, DefaultOptions())
+	got := simplified(t, evs, DefaultOptions())
 	want := []macroir.Step{{Kind: macroir.StepDrag, X: 10, Y: 10, X2: 100, Y2: 100, Button: "left"}}
 	assertSteps(t, got, want)
 }
@@ -324,7 +324,7 @@ func TestHoverMovesDiscarded(t *testing.T) {
 		move(10, 10, 0), move(200, 200, 20),
 		click("left", true, 200, 200, 40), click("left", false, 200, 200, 45),
 	}
-	got := Simplify(evs, DefaultOptions())
+	got := simplified(t, evs, DefaultOptions())
 	want := []macroir.Step{{Kind: macroir.StepClick, X: 200, Y: 200, Button: "left"}}
 	assertSteps(t, got, want)
 }
@@ -341,7 +341,7 @@ func TestCycleFold(t *testing.T) {
 			click("left", true, 9, 9, t0+100), click("left", false, 9, 9, t0+105),
 		)
 	}
-	got := Simplify(evs, DefaultOptions())
+	got := simplified(t, evs, DefaultOptions())
 	if len(got) != 1 || got[0].Kind != macroir.StepLoop || got[0].Count != 3 {
 		t.Fatalf("expected one loop count 3, got %+v", got)
 	}
@@ -365,7 +365,7 @@ func TestNearRepeatNotFolded(t *testing.T) {
 		t0 := i * 200
 		evs = append(evs, click("left", true, c, c, t0), click("left", false, c, c, t0+5))
 	}
-	got := Simplify(evs, DefaultOptions())
+	got := simplified(t, evs, DefaultOptions())
 	if len(got) != 5 { // click, wait, click, wait, click
 		t.Fatalf("expected 5 steps (no fold), got %d: %+v", len(got), got)
 	}
@@ -382,7 +382,7 @@ func TestShiftedPlaceholderRecords(t *testing.T) {
 		key("]", true, 35), key("]", true, 40),
 		key("shift", false, 45),
 	}
-	got := Simplify(evs, DefaultOptions())
+	got := simplified(t, evs, DefaultOptions())
 	want := []macroir.Step{{Kind: macroir.StepType, Text: "{{pw}}"}}
 	assertSteps(t, got, want)
 }
@@ -392,4 +392,19 @@ func assertSteps(t *testing.T, got, want []macroir.Step) {
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("steps mismatch:\n got: %+v\nwant: %+v", got, want)
 	}
+}
+
+// simplified is Simplify for a test that is not about a refusal.
+//
+// Added when Simplify grew a refusal: every case here is a recording that CAN be written down,
+// so a refusal in one of them is a defect in the case or in the refusal and not a result the
+// test should carry on past. `t.Fatal` rather than a returned error, so a test reads the way it
+// did before.
+func simplified(t *testing.T, events []recorder.RecordedEvent, opt Options) []macroir.Step {
+	t.Helper()
+	steps, err := Simplify(events, opt)
+	if err != nil {
+		t.Fatalf("this recording was refused and the test is not about a refusal: %v", err)
+	}
+	return steps
 }

@@ -42,7 +42,7 @@ func aMeasuredPressAndRelease() []recorder.RecordedEvent {
 func oneClick(t *testing.T, events []recorder.RecordedEvent) macroir.Step {
 	t.Helper()
 	var found []macroir.Step
-	for _, s := range Simplify(events, DefaultOptions()) {
+	for _, s := range simplified(t, events, DefaultOptions()) {
 		if s.Kind == macroir.StepClick {
 			found = append(found, s)
 		}
@@ -138,7 +138,7 @@ func TestADragClaimsNothingAboutAWindow(t *testing.T) {
 			T: clock(200)},
 	}
 	var drags []macroir.Step
-	for _, s := range Simplify(events, DefaultOptions()) {
+	for _, s := range simplified(t, events, DefaultOptions()) {
 		if s.Kind == macroir.StepDrag {
 			drags = append(drags, s)
 		}

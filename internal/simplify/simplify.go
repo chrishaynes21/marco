@@ -5,6 +5,8 @@
 package simplify
 
 import (
+	"errors"
+	"fmt"
 	"reflect"
 	"strconv"
 	"strings"
@@ -90,12 +92,24 @@ func DefaultOptions() Options {
 }
 
 // Simplify lowers a recorded event stream into a clean step list.
-func Simplify(events []recorder.RecordedEvent, opt Options) []macroir.Step {
+//
+// The error is a REFUSAL and not a failure: the recording contains a gesture that cannot be
+// written down faithfully, and the sentence says which and what to do instead. Every caller has
+// to answer for it, which is why it is a second return rather than something to ask about
+// afterwards — a path that simplified and saved without asking would be the exact defect this
+// exists to prevent, and it would look like a working save. See modifierTrouble.
+//
+// The steps come back anyway. A person reviewing a refused recording is entitled to see what was
+// understood of it, and nothing downstream may save them while the reason is set.
+func Simplify(events []recorder.RecordedEvent, opt Options) ([]macroir.Step, error) {
 	opt = opt.normalize()
 	timed := lower(events, opt)
 	timed = foldActivates(timed)
-	steps := insertWaits(timed, opt)
-	return SimplifySteps(steps, opt)
+	steps := SimplifySteps(insertWaits(timed, opt), opt)
+	if why := modifierTrouble(events, strings.ToLower(strings.TrimSpace(opt.ArgKey))); why != "" {
+		return steps, errors.New(why)
+	}
+	return steps, nil
 }
 
 // SimplifySteps re-simplifies an existing step list (coalesce typing, coalesce
@@ -128,6 +142,12 @@ type timedStep struct {
 func lower(events []recorder.RecordedEvent, opt Options) []timedStep {
 	var out []timedStep
 	shift, ctrl, alt, win := false, false, false, false
+	// heldMods are the modifiers currently down as an EXPLICIT hold, as opposed to the
+	// four flags above, which are the ones being tracked for a chord. The two are
+	// mutually exclusive on purpose and the distinction is the whole of this fix: a
+	// modifier in here has already been pressed by a step of its own, so a key arriving
+	// under it is an ordinary keystroke under a held key and not a chord to expand.
+	heldMods := map[string]bool{}
 
 	// mouse-down tracking for drag detection
 	downActive := false
@@ -235,6 +255,33 @@ func lower(events []recorder.RecordedEvent, opt Options) []timedStep {
 				}
 				continue
 			}
+			// A HELD key (≥ holdThreshold, or spanning an action) becomes an explicit
+			// press/release that brackets the steps in between — the hold persists.
+			//
+			// BEFORE THE MODIFIER BRANCH, AND THAT ORDER IS THE SECOND HALF OF THE FIX.
+			// The branch below used to come first and `continue` past these two, so a
+			// modifier marked as a hold by `markHolds` would still have been swallowed
+			// by it: the classification would have been right and nothing would have
+			// come out. Teaching `markHolds` about modifiers without moving this would
+			// have changed nothing at all, which is the kind of fix that looks done.
+			if holdDown[i] {
+				out = append(out, timedStep{step: macroir.Step{Kind: macroir.StepKeyDown, Key: name}, t: ev.T})
+				if isModifier(name) {
+					heldMods[name] = true
+				}
+				continue
+			}
+			if holdUp[i] {
+				out = append(out, timedStep{step: macroir.Step{Kind: macroir.StepKeyUp, Key: name}, t: ev.T})
+				delete(heldMods, name)
+				continue
+			}
+			// AND A MODIFIER THAT IS NOT A HOLD IS STATE, FOR THE CHORD BELOW.
+			//
+			// Deliberately not set for one that IS a hold: the hold already presses the
+			// key, and a chord built from it as well would press Ctrl a second time and
+			// release it inside its own expansion — which is how "Ctrl held across a
+			// keypress and then a click" would come out releasing Ctrl before the click.
 			if isModifier(name) {
 				switch {
 				case strings.Contains(name, "shift"):
@@ -248,17 +295,22 @@ func lower(events []recorder.RecordedEvent, opt Options) []timedStep {
 				}
 				continue
 			}
-			// A HELD key (≥ holdThreshold or spanning an action) becomes an explicit
-			// press/release that brackets the steps in between — the hold persists.
-			if holdDown[i] {
-				out = append(out, timedStep{step: macroir.Step{Kind: macroir.StepKeyDown, Key: name}, t: ev.T})
-				continue
-			}
-			if holdUp[i] {
-				out = append(out, timedStep{step: macroir.Step{Kind: macroir.StepKeyUp, Key: name}, t: ev.T})
-				continue
-			}
 			if !ev.Down {
+				continue
+			}
+			// UNDER AN EXPLICIT HOLD, A KEY IS JUST THAT KEY.
+			//
+			// No chord, because the modifier is already down and a chord would press
+			// and release it again inside a hold that is still open. And no Text,
+			// which is the subtler half: Text is what lets a run of keys coalesce
+			// into a Type step, and Type sends characters rather than keystrokes —
+			// so `a` typed under a held Ctrl would arrive as the letter and not as
+			// Ctrl+A, after a fold nothing here could see.
+			if len(heldMods) > 0 {
+				out = append(out, timedStep{
+					step: macroir.Step{Kind: macroir.StepKey, Key: name, Count: 1},
+					t:    ev.T,
+				})
 				continue
 			}
 			// With a command modifier (Ctrl/Alt/Win) held, this is a shortcut, not
@@ -304,19 +356,30 @@ func markHolds(events []recorder.RecordedEvent, argKey string) (down, up map[int
 			continue
 		}
 		name := strings.ToLower(ev.KeyName)
-		if isModifier(name) || isArg(name) {
+		if isArg(name) {
 			continue
 		}
-		j := -1
-		for k := i + 1; k < len(events); k++ {
-			e := events[k]
-			if e.Kind == recorder.EvKey && !e.Down && strings.ToLower(e.KeyName) == name {
-				j = k
-				break
-			}
-		}
+		j := releaseOf(events, i, name)
 		if j < 0 {
 			continue // no release captured → leave it a tap
+		}
+		// A MODIFIER IS A HOLD WHEN IT SPANS A POINTER ACTION, AND ONLY THEN.
+		//
+		// `ctrl+shift+a` is one chord step and must stay one: the modifiers around a KEY
+		// fold into it, and emitting them as holds as well would press Ctrl twice and
+		// release it in the middle of its own chord. But a modifier around a CLICK has no
+		// chord to fold into, and the branch below used to skip every modifier by name —
+		// so Ctrl+click came out as a plain click, which is a different act in most
+		// applications and looked like a faithful recording.
+		//
+		// The DURATION rule deliberately does not apply here. A modifier held a long
+		// while with nothing in between modified nothing, and a person resting a finger
+		// on Shift while they think should not acquire a stray hold.
+		if isModifier(name) {
+			if spansAPointerAction(events, i, j) {
+				down[i], up[j] = true, true
+			}
+			continue
 		}
 		held := events[j].T.Sub(ev.T) >= holdThreshold
 		for k := i + 1; k < j && !held; k++ {
@@ -748,6 +811,165 @@ func anyGuarded(steps []macroir.Step) bool {
 		}
 		if len(s.Steps) > 0 && anyGuarded(s.Steps) {
 			return true
+		}
+	}
+	return false
+}
+
+// releaseOf is the index of the key-UP that ends the press at index i, or -1 if the recording
+// never captured one.
+//
+// Split out when modifiers started being candidates for a hold, because three things now need
+// the same answer and a second copy of this loop would be a second chance to disagree about it.
+func releaseOf(events []recorder.RecordedEvent, i int, name string) int {
+	for k := i + 1; k < len(events); k++ {
+		e := events[k]
+		if e.Kind == recorder.EvKey && !e.Down && strings.ToLower(e.KeyName) == name {
+			return k
+		}
+	}
+	return -1
+}
+
+// spansAPointerAction reports whether a pointer action is COMPLETED between two indices.
+//
+// The emission point of a click, not its press: `lower` turns a press-and-release into one step
+// when the release arrives, because that is when it knows whether the gesture was a click or a
+// drag. So a modifier whose hold is to bracket a click has to still be down at that point, and
+// asking about the press instead would mark a hold whose release the lowering then emits BEFORE
+// the click it was supposed to modify.
+//
+// A bare move is not an action: `lower` discards hover movement, so a modifier held across one
+// has modified nothing.
+func spansAPointerAction(events []recorder.RecordedEvent, from, to int) bool {
+	for k := from + 1; k < to; k++ {
+		if events[k].Kind == recorder.EvClick && !events[k].Down {
+			return true
+		}
+	}
+	return false
+}
+
+// modifierTrouble is the gesture this recording contains that cannot be written down faithfully,
+// or "" when there is none.
+//
+// # Why a refusal and not a best guess
+//
+// Everything else here degrades gracefully on purpose: an unreleased ordinary key becomes a tap,
+// hover movement disappears, a wait gets rounded. None of those changes what the routine DOES.
+// Dropping a modifier does: Ctrl+click and click are different acts in most applications — one
+// adds to a selection, one replaces it — so a routine that quietly lost the Ctrl performs a
+// different gesture while reading as a faithful recording of the one that was shown. That is the
+// one failure this whole package is least able to make visible afterwards, so it is refused at
+// the point where it is still obvious what happened.
+//
+// Three ways a modifier around a pointer action cannot be written down, and all three are about
+// not knowing WHEN it was held rather than whether:
+//
+//	released mid-click     the modifier came up between the press and the release of a
+//	                       click, so neither "held across it" nor "not held" is what happened
+//	never released         the recording ends with it down, so a hold written from it would
+//	                       have no release and would leave the key down on a real desktop
+//	never pressed          it was already down when recording began, so there is no instant
+//	                       to press it at and no way to know what else it was modifying
+func modifierTrouble(events []recorder.RecordedEvent, argKey string) string {
+	isArg := func(name string) bool { return argKey != "" && argKey != "off" && name == argKey }
+	seen := map[string]bool{}
+	for i := range events {
+		ev := events[i]
+		if ev.Kind != recorder.EvKey {
+			continue
+		}
+		name := strings.ToLower(ev.KeyName)
+		if !isModifier(name) || isArg(name) {
+			continue
+		}
+		if !ev.Down {
+			// A RELEASE OF SOMETHING THIS RECORDING NEVER SAW PRESSED. Only
+			// trouble if something was pressed under it; a stray modifier release
+			// before anything happened modified nothing.
+			if !seen[name] && aPointerActionHappenedBefore(events, i) {
+				return fmt.Sprintf("%s was released during this recording and "+
+					"never pressed in it, so it was already held when "+
+					"recording began — and a press was made while it was "+
+					"down. There is no instant in the recording to press "+
+					"it at, so what that press actually was cannot be "+
+					"written down. Record it again, pressing %s yourself "+
+					"after recording starts", name, name)
+			}
+			continue
+		}
+		seen[name] = true
+		j := releaseOf(events, i, name)
+		if j < 0 {
+			if aPointerActionHappenedAfter(events, i) {
+				return fmt.Sprintf("%s was pressed and never released in this "+
+					"recording, and a press was made while it was down. A "+
+					"hold written from that would have no release and would "+
+					"leave %s down on the desktop after the routine "+
+					"finished. Record it again, letting go of %s before you "+
+					"stop", name, name, name)
+			}
+			continue
+		}
+		// EITHER EDGE LANDING INSIDE A PRESS IS THE SAME AMBIGUITY.
+		//
+		// Released mid-press: held across the whole thing and let go before it are
+		// different gestures. Pressed mid-press: the application read the keyboard
+		// when the button went down, so the press was unmodified — and writing a hold
+		// around it would claim a gesture that did not happen. Neither is answerable
+		// from the recording, and the pair of them is why spansAPointerAction's choice
+		// of which click edge to test cannot change an outcome: every case where the
+		// two edges disagree is refused here first.
+		if insideAClick(events, i) || insideAClick(events, j) {
+			return fmt.Sprintf("%s was let go of in the middle of a press — after the "+
+				"mouse button went down and before it came up. Holding it across "+
+				"the whole press and letting go before it are different gestures, "+
+				"and this recording does not say which one was meant. Record it "+
+				"again, keeping %s down until after the click", name, name)
+		}
+	}
+	return ""
+}
+
+// aPointerActionHappenedBefore / After are the two halves of "was anything pressed while this
+// modifier was down", for the cases where one end of the hold is missing.
+//
+// Asked at all because an unbalanced modifier is only a problem when something happened under it.
+// A recording that begins with a stray Shift release and contains no press at all has lost
+// nothing, and refusing it would be refusing a recording for a key that modified nothing.
+func aPointerActionHappenedBefore(events []recorder.RecordedEvent, to int) bool {
+	return spansAPointerAction(events, -1, to)
+}
+
+func aPointerActionHappenedAfter(events []recorder.RecordedEvent, from int) bool {
+	return spansAPointerAction(events, from, len(events))
+}
+
+// insideAClick reports whether the event at index k falls between a mouse-down and its own
+// mouse-up.
+//
+// The ambiguous instant, asked of both ends of a modifier hold. Everything else about a modifier
+// is answerable from the ORDER of the events; this is not, because the application reads the
+// keyboard when the button goes down while the recording's own step is emitted when it comes up.
+// A modifier whose press or release lands in that gap was held for part of a press, and "part"
+// is not a thing a routine can say.
+//
+// A mouse-down with no release does not contain anything: the lowering emits no step for it at
+// all, so there is no gesture for a modifier to be ambiguous about.
+func insideAClick(events []recorder.RecordedEvent, k int) bool {
+	for d := 0; d < k; d++ {
+		if events[d].Kind != recorder.EvClick || !events[d].Down {
+			continue
+		}
+		for u := d + 1; u < len(events); u++ {
+			if events[u].Kind != recorder.EvClick || events[u].Down {
+				continue
+			}
+			if u > k {
+				return true
+			}
+			break // that press closed before k; look for a later one
 		}
 	}
 	return false
