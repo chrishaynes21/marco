@@ -195,7 +195,10 @@ func (c *Capture) Finish() *Draft {
 		events = withoutRedundantReturns(withoutOwner(events, d.Owner, d.OwnerPID))
 	}
 
-	opts := d.learnOptions()
+	// THE MODE THIS CAPTURE RAN UNDER, not this Deps' now. The same value today — the
+	// capture took it from the Deps — and the one that stays right if a draft ever outlives
+	// the window state that made it, which is what `Draft.Mode` is for one field down.
+	opts := d.learnOptionsFor(c.mode)
 	opts.ArgNames = argNames
 	steps := simplify.Simplify(events, opts)
 	d.enrichAnchors(steps)
@@ -556,6 +559,9 @@ func (d Deps) Unrunnable() []Unrunnable {
 // The demonstration is re-simplified rather than the source rewritten, because the source is
 // generated and rewriting generated Marco by hand is how two things that have to agree stop
 // agreeing. The old file is removed only once the new one is written.
+//
+// WHAT THE ROUTINE STATES ABOUT ITS OWN RECORDING SURVIVES, and that is not only a comment: the
+// stated mode decides the simplification as well as the line. See the note beside the read below.
 func (d Deps) Resave(u Unrunnable) (routes.Route, error) {
 	if !u.Resavable {
 		return routes.Route{}, fmt.Errorf("%q no longer has the demonstration it "+
@@ -573,7 +579,29 @@ func (d Deps) Resave(u Unrunnable) (routes.Route, error) {
 		return routes.Route{}, fmt.Errorf("%q: its demonstration could not be "+
 			"read back: %w", u.Name, err)
 	}
-	dr := d.DraftOf(u.Name, events, u.Route.App, "a repair", Unstated)
+	// ── WHAT THE ROUTINE SAYS IT WAS RECORDED AS, READ OFF THE FILE BEING REPLACED ──
+	//
+	// `Unstated` here was a defect, and a quiet one in both directions. The saved line went
+	// missing, so a routine that stated coordinates came back out of a repair stating
+	// nothing — a repair that edits a claim about somebody's afternoon out of their file.
+	// And because the mode is also what keeps the recorded gaps, a Studio launched with
+	// `$MARCO_CV=on` rebuilt that same routine with every pause capped to 50ms and no
+	// anchor to wait on in their place. The routine then presses a menu before it has
+	// drawn, having been repaired.
+	//
+	// Read from the source rather than taken from this Deps or from the caller's
+	// `Unrunnable`, for the reason `ModeOf` exists: the saved Marco is the only durable
+	// account of how a recording was made, and anything else is a second account to
+	// disagree with it.
+	src, err := os.ReadFile(d.Reg.Path(u.Route))
+	if err != nil {
+		return routes.Route{}, fmt.Errorf("%q could not be read back, so what it "+
+			"states about its own recording cannot be carried into the repair: %w",
+			u.Name, err)
+	}
+	// AND AN UNKNOWN WORD STAYS UNSTATED rather than being echoed, which `ModeOf` is what
+	// does: a repair is not a place to start passing on a claim nothing verified.
+	dr := d.DraftOf(u.Name, events, u.Route.App, "a repair", ModeOf(string(src)))
 	name := dr.Name
 	app := u.Route.App
 	if app == "" {
@@ -592,7 +620,8 @@ func (d Deps) Resave(u Unrunnable) (routes.Route, error) {
 		}
 	}
 	mlog.Info("resave: saved again so its presses have a window", "route", name,
-		"was", string(ScopeApp), "now", string(ScopeAppAnywhere))
+		"was", string(ScopeApp), "now", string(ScopeAppAnywhere),
+		"recorded_as", string(dr.Mode))
 	return rt, nil
 }
 
@@ -803,7 +832,11 @@ func (d Deps) DraftOf(name string, events []recorder.RecordedEvent, app, stopped
 	mode RecordedAs) *Draft {
 
 	base, argNames := routes.SplitArgs(name)
-	opts := d.learnOptions()
+	// THE MODE GIVEN, AND NOT THIS DEPS'. A caller stating a mode here is describing a
+	// recording that already happened — a repair rebuilding a saved routine from the
+	// demonstration beside it — and the simplification depends on the mode as much as the
+	// comment does: see learnOptionsFor.
+	opts := d.learnOptionsFor(mode)
 	opts.ArgNames = argNames
 	return &Draft{Name: base, Args: argNames,
 		Steps: simplify.Simplify(events, opts), Events: events,

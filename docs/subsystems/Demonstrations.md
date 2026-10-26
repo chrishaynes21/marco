@@ -364,6 +364,16 @@ back as *unstated*; a word this build does not recognise reads back as *unstated
 echoed into a record as something verified; and the page renders a blank as a blank rather than as
 `undefined` or as the likeliest answer. Every routine already in a library says nothing, and what
 those captured depended on the environment of a process that has since exited.
+
+And it survives a REPAIR, which it did not. `Resave` rebuilt a saved routine from the demonstration
+beside it while stating nothing, so a coordinate routine came back out stating nothing — its card
+lost the sentence and every run record of it afterwards read *unstated*. The quieter half was the
+same one as above, arriving a second time: the stated mode is what lifts the 50ms wait cap, so a
+window that had inherited `$MARCO_CV=on` rebuilt the routine with its pauses capped and no anchor
+to wait on in their place. The mode now travels with the recording rather than with whichever
+`Deps` is holding it — read from the source of the file being replaced, and used for the
+simplification as well as for the line. Nothing is versioned and nothing is migrated: a repair
+writes what the file already said.
 [[ADR-254-what-a-recording-captures-is-stated]]
 
 ## Readiness is what has been checked, and it says what it has not

@@ -132,6 +132,23 @@ type Deps struct {
 // learnOptions are the simplify defaults for a demonstration, honoring the
 // configured arg key.
 func (d Deps) learnOptions() simplify.Options {
+	return d.learnOptionsFor(d.recordedAs())
+}
+
+// learnOptionsFor is the same for ONE recording whose mode is known, which is not always this
+// Deps'.
+//
+// The distinction is load-bearing and was missing. `Deps.Mode` is what a recording STARTED
+// through this Deps is told to capture, and it is the right answer while a window is recording.
+// It is the wrong answer for a recording that already happened: a repair rebuilds a saved
+// routine's steps from the demonstration stored beside it, under a `Deps` built for the repair,
+// which states nothing. Simplifying under that Deps' mode capped the recorded gaps to 50ms of a
+// routine whose file says it was recorded as coordinates — taking the pauses out of a routine
+// that has no anchor to wait on instead, which is a menu pressed before it has drawn.
+//
+// So the mode travels with the recording, from the capture that ran or from the source that
+// states it, and the environment decides only where nothing says otherwise.
+func (d Deps) learnOptionsFor(mode RecordedAs) simplify.Options {
 	o := simplify.DefaultOptions()
 	if k := strings.TrimSpace(d.ArgKey); k != "" {
 		o.ArgKey = strings.ToLower(k)
@@ -146,7 +163,7 @@ func (d Deps) learnOptions() simplify.Options {
 	// pauses taken out and nothing put in their place, which is a menu pressed before it
 	// has drawn. The stated mode is about this recording and the variable is about the
 	// process, so the statement wins.
-	if d.recordedAs() == Coordinates || cvOff() {
+	if mode == Coordinates || cvOff() {
 		o.MaxWaitMs = 24 * 60 * 60 * 1000 // effectively no cap — keep the exact recorded gaps
 	}
 	return o

@@ -22,9 +22,12 @@ There are two harnesses, they answer different questions, and both run only when
 `plugins/e2e` is the **automated regression gate for the scenarios below** — reviewed and closed at
 `5eccbcb`, and a change to Studio's product path is expected to be run against it. It does not
 replace a person at the keyboard for what it cannot reach, and the two things it cannot reach are
-stated in every report and in their own sections here: physical recording capture is NOT EXERCISED,
+stated in every report and in their own sections here: the FULL physical-recording path is NOT
+EXERCISED — a gesture Windows captured from somebody's own hand, through the hooks, into a draft —
 and the drain barrier establishes that the fixture's queue was empty rather than that Windows had
-finished handing input to it.
+finished handing input to it. Review, Save, Record again and the replacement refusals are not
+themselves manual: parts of each are covered by the scripted-recorder layer below. It is the
+physical gesture at the start of them that no automated run can supply.
 
 | | question | entrance |
 |---|---|---|

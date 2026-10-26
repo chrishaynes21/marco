@@ -1128,3 +1128,68 @@ func TestTheRunsOwnReferenceReachesTheWindow(t *testing.T) {
 		t.Error("the run no longer says it is a routine's")
 	}
 }
+
+// AND SAVING ONE AGAIN KEEPS WHAT IT SAYS ABOUT HOW IT WAS RECORDED.
+//
+// The repair button is in THIS window, and this window is open all afternoon under whatever
+// launched it. `Resave` rebuilt the routine from the demonstration beside it while stating
+// nothing about the mode, so a routine that said it was recorded as coordinates came back out
+// saying nothing — and with `$MARCO_CV` inherited on, the same rebuild capped the recorded
+// pauses of a routine that has no anchor to wait on in their place.
+//
+// Here because the card is where somebody reads it: the listing's "recorded as" sentence comes
+// off the saved source through the one reader of that line, so a repair that dropped the line
+// takes the sentence off the card. The pauses and the word are held at the repair itself, in
+// `internal/orchestrator` `TestARepairKeepsTheRecordedPausesOfACoordinateRoutine`.
+func TestSavingAgainKeepsWhatTheRoutineSaysItRecorded(t *testing.T) {
+	// THE SENSING FLAGS INHERITED ON, which is the case that made it a defect rather
+	// than a tidiness.
+	t.Setenv("MARCO_CV", "on")
+	t.Setenv("MARCO_ANCHORS", "1")
+	t.Setenv("MARCO_ROUTES", t.TempDir())
+
+	a := recorded(t, nil)
+	d := orchestrator.Deps{Reg: a.reg(), Out: &strings.Builder{}}
+	rt, err := d.Save(a.capture.draft, orchestrator.ScopeApp, "arkascended")
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(a.reg().Path(rt))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := orchestrator.ModeOf(string(raw)); got != orchestrator.Coordinates {
+		t.Fatalf("this window saved a routine stating %q, so there is nothing here "+
+			"for a repair to lose:\n%s", got, raw)
+	}
+
+	listed := a.Unrunnable()
+	if len(listed) != 1 {
+		t.Fatalf("%d routines cannot press anything, want the one just saved: %+v",
+			len(listed), listed)
+	}
+	if why := a.Resave(listed[0].ID); why != "" {
+		t.Fatalf("saving it again was refused: %s", why)
+	}
+
+	var row Routine
+	for _, r := range a.Routines() {
+		if r.Slug == rt.Slug {
+			row = r
+		}
+	}
+	if row.ID == "" {
+		t.Fatalf("the repaired routine is not in the listing: %+v", a.Routines())
+	}
+	if row.Mode != string(orchestrator.Coordinates) {
+		t.Errorf("after being saved again the card says it was recorded as %q, and "+
+			"the routine was recorded as %q — the repair took the statement out "+
+			"of the file the card reads:\n%s", row.Mode,
+			orchestrator.Coordinates, row.Source)
+	}
+	// AND IN A SENTENCE, because the card shows somebody what the word means for the
+	// routine in front of them rather than the word on its own.
+	if row.Captures == "" {
+		t.Error("the card carries the mode with nothing said about what it means")
+	}
+}

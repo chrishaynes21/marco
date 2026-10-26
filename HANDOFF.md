@@ -8345,5 +8345,54 @@ needed for it. Both limits stay explicit by instruction, which is also how they 
 `TestTheReportAlwaysSaysPhysicalCaptureWasNotExercised` prints physical capture as NOT EXERCISED on
 a green run in the same words as on a red one, and the barrier's own definition says in the code
 that a drained fixture queue is not proof that Windows had finished handing input to it. What the
-harness still cannot do is the demonstration half — Record, Stop, review, Save, Record again, and
-the replacement refusals — which `E2E.md` §63 keeps as a person's job on purpose.
+harness still cannot do is the FULL PHYSICAL-RECORDING PATH: a gesture Windows captured from a
+person's own hand, through the hooks, into a draft. That is what remains unexercised, and it is
+unexercised by construction rather than by omission — both hooks discard injected input.
+
+Narrowed deliberately, because the first version of this sentence said more than it should: review,
+Save, Record again and the replacement refusals are NOT inherently manual, and parts of each are
+already covered by the 24 named scripted-recorder tests the harness runs as its second layer. What
+no automated run can supply is the physical gesture at the start of them. `E2E.md` §63 is the
+walkthrough for the whole path end to end with a person's hands on it, which is a different claim
+from "none of this is tested".
+
+## §39 — a repair edited a claim out of somebody's file, and took the pauses with it
+
+`orchestrator.Resave` saves a guarded routine again under the scope its presses need, rebuilt from
+the demonstration stored beside it. It rebuilt the draft with `Unstated`, and that was two defects
+in one argument.
+
+The visible one: a routine that stated `// Recorded as: coordinates.` came out of a repair stating
+nothing. Absence is the honest answer for a file that never said — writing it over a file that did
+say is a claim about somebody's afternoon edited out of their routine. Their card loses the
+sentence and every run record of it afterwards reads `unstated`.
+
+**The one that changes what the routine does:** the stated mode is also what lifts the 50ms wait
+cap, because the cap only ever made sense when an anchor poll did the real waiting. The repair runs
+under a `Deps` built for the repair, which states nothing, so a Studio launched with `$MARCO_CV=on`
+rebuilt the routine with every recorded pause capped and no anchor to wait on in their place — a
+menu pressed before it has drawn, out of a repair. Studio is the window that inherits those flags
+all afternoon and the repair button is in it.
+
+The fix makes the mode travel with the recording instead of with whichever `Deps` is holding it.
+`Resave` reads it from the SOURCE of the file it is about to replace, through `ModeOf`, so an
+unknown word still reads as unstated and a repair never starts carrying an unverified claim.
+`learnOptionsFor(mode)` is the distinction that was missing: `DraftOf` simplifies under the mode it
+is GIVEN and `Capture.Finish` under the mode its capture ran under, rather than both asking the
+`Deps` they happen to hold. Nothing is versioned and nothing is migrated.
+
+Six tests, all through the production repair path (`Unrunnable` then `Resave`, which is what the
+button calls), and the first two have to be a pair: with the simplification mutated back to the
+`Deps`' mode, the word stays in place and the routine's longest pause goes from 800ms to 250ms, so
+only the pauses test fails. Dropping the stated mode again fails the word test, the pauses test,
+Studio's card test and the run-record test, each in its own sentence. The listing is held in
+`plugins/studio` and the run record in `cmd/marco`, because the record is read off the source: a
+repair that edits the source changes every record after it without anything in `cmd/marco`
+changing.
+
+**Named and not fixed, deliberately:** `SimplifyRoute` — the "simplify further" path — has the same
+shape. It rebuilds a saved route from the same stored recording, simplifies under the environment,
+and writes through `codegen.Route` rather than `RouteAs`, so it drops the mode line and caps the
+gaps exactly as the repair did. It was out of the scope the Architect bounded this to, and it is a
+second behaviour change in a second user-facing path (it would start writing a line where it never
+wrote one), so it is recorded here rather than folded in quietly.

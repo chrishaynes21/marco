@@ -18,7 +18,12 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/chaynes-simpleclouds/marco/internal/macroir"
 	"github.com/chaynes-simpleclouds/marco/internal/orchestrator"
+	"github.com/chaynes-simpleclouds/marco/internal/oshost"
+	"github.com/chaynes-simpleclouds/marco/internal/recorder"
+	"github.com/chaynes-simpleclouds/marco/internal/routes"
+	"github.com/chaynes-simpleclouds/marco/internal/runtime"
 )
 
 // aCoordinateRoutine is `aGuardedRoutine` with the line a coordinate-mode save writes.
@@ -100,5 +105,70 @@ func TestTheRecordedModeIsNotTakenFromThisProcessEnvironment(t *testing.T) {
 	}
 	if strings.Contains(raw, "anchors") || strings.Contains(raw, "MARCO_CV") {
 		t.Errorf("an environment variable reached a durable record:\n%s", raw)
+	}
+}
+
+// AND A ROUTINE THAT WAS SAVED AGAIN STILL SAYS IT, which is the end of the chain.
+//
+// A repair rebuilds a saved routine from the demonstration stored beside it, under a `Deps` that
+// states nothing about any mode — and it rebuilt it stating nothing, so a routine that had said
+// coordinates produced run records reading `unstated` from then on. The record is read off the
+// SOURCE, so the loss arrives here without anything in this package changing.
+//
+// Through the production repair — `Unrunnable` then `Resave`, which is what the window's button
+// calls — rather than by hand-writing the source a repair would have written. The word and the
+// recorded pauses are held at the repair itself in `internal/orchestrator`
+// `TestARepairKeepsWhatTheRoutineSaysItRecorded`; this is the record a person quotes afterwards.
+//
+// NOTHING IS PRESSED: the routine names the same absent application as every other case here, so
+// the preparation fails and the chain stops before any input.
+func TestTheRecordOfARepairedRoutineSaysWhatItWasRecordedAs(t *testing.T) {
+	t.Setenv("MARCO_HOME", t.TempDir())
+	// THE SENSING FLAGS INHERITED ON, as a window open all afternoon has them.
+	t.Setenv("MARCO_CV", "on")
+	t.Setenv("MARCO_ANCHORS", "1")
+
+	reg := routes.Registry{Dir: t.TempDir()}
+	t.Setenv("MARCO_ROUTES", reg.Dir)
+	press := recorder.RecordedEvent{Kind: recorder.EvClick, Button: "left", Down: true,
+		X: 640, Y: 480, App: anAbsentApplication, PID: 4242, WinRel: true,
+		RelX: 500, RelY: 400, RelTo: macroir.RelToWindow, WinW: 1280, WinH: 720,
+		Dpi: 96, Process: anAbsentApplication + ".exe"}
+	events := []recorder.RecordedEvent{
+		{Kind: recorder.EvAppSwitch, KeyName: anAbsentApplication},
+		press,
+		{Kind: recorder.EvClick, Button: "left", Down: false, X: 640, Y: 480,
+			App: anAbsentApplication, PID: 4242},
+	}
+	saving := orchestrator.Deps{Reg: reg, Out: &strings.Builder{},
+		Mode: orchestrator.Coordinates}
+	dr := saving.DraftOf("a routine", events, anAbsentApplication, "a demonstration",
+		orchestrator.Coordinates)
+	// ScopeApp is what leaves its guarded presses with no window to be checked against,
+	// which is the state a repair is about. See orchestrator.Unrunnable.
+	if _, err := saving.Save(dr, orchestrator.ScopeApp, anAbsentApplication); err != nil {
+		t.Fatal(err)
+	}
+	// THE REPAIR, under a Deps that states nothing — the one the button builds.
+	repair := orchestrator.Deps{Reg: reg, Out: &strings.Builder{}}
+	listed := repair.Unrunnable()
+	if len(listed) != 1 {
+		t.Fatalf("%d routines cannot press anything, want the one just saved: %+v",
+			len(listed), listed)
+	}
+	rt, err := repair.Resave(listed[0])
+	if err != nil {
+		t.Fatalf("saving it again: %v", err)
+	}
+
+	d := orchestrator.Deps{Reg: reg, Out: &strings.Builder{},
+		Hosts: map[string]runtime.Host{"*": oshost.New()}}
+	_, _, ref := aRunOf(t, d, rt)
+	m, raw := recordAt(t, ref.ID)
+	if m["mode"] != string(orchestrator.Coordinates) {
+		t.Errorf("the record of a run of a REPAIRED routine says mode %v, and the "+
+			"routine was recorded as %q — the repair took the statement out of "+
+			"the source this is read from:\n%s", m["mode"],
+			orchestrator.Coordinates, raw)
 	}
 }

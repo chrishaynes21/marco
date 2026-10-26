@@ -1554,15 +1554,19 @@ invisible to a green suite, and so was the stale window that hid its fix.
 > whether it has finished processing what it was sent. A run finishing only means nothing more
 > will be sent.
 >
-> It cannot cover the recording itself. Marco's hooks discard injected input on purpose, so no
+> It cannot cover the gesture itself. Marco's hooks discard injected input on purpose, so no
 > automated run can establish that Windows captured a physical gesture — and every report the
 > harness prints ends with that sentence, on a green run as much as a red one. The routines it
 > plays are **seeded**, written into a test library through the production generator, and are
 > labelled seeded wherever they are reported.
 >
-> So what is still worth your hands is the part that begins with a demonstration: **Record,
-> Stop, the review, Save, Record again, and the refusals around replacing.** Everything from
-> the saved routine onwards has an automated account of itself now.
+> So what is still worth your hands is the **full path that begins with a gesture**: Record with
+> your own mouse and keyboard, Stop, the review, Save, Record again, and the refusals around
+> replacing — end to end, in that order, in one sitting. Not because those steps are untested:
+> parts of each are covered by the 24 named scripted-recorder tests the harness runs as its second
+> layer, and everything from the saved routine onwards has an automated account of itself. It is
+> the physical capture at the start, and the whole path hanging off it, that only your hands can
+> establish.
 
 **Close Studio first**, then build:
 

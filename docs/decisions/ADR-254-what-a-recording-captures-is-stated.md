@@ -2,7 +2,7 @@
 type: adr
 status: accepted
 date: 2026-10-24
-decision: "ACCEPTED — WHAT A RECORDING CAPTURES IS STATED BY THE THING THAT STARTS IT, AND NEVER INFERRED. `$MARCO_CV` and `$MARCO_ANCHORS` are read ONCE, into package variables, when a process starts: right for a command you set a switch and run, wrong for a window that stays open all afternoon with whatever shell launched it. With anchors inherited on, a click whose crop happened to be distinctive carried a template; a press found by matching a picture cannot be stopped at, so `codegen.Unpropagatable` refused the WHOLE guarded recording at Save. The same demonstration therefore saved or was refused depending on a variable nobody in the window could see and the pixels that happened to be under the pointer. So `recorder.Mode` is a statement about ONE recording — `Inherited`, which is every caller there was, or `Coordinates`, which captures the coordinate and the clock and nothing else — handed to the recorder BEFORE `Start`, because the hooks read it and the first press can already have been seen. A stated mode BEATS the environment at every point that would capture, crop, colour-sample or listen for the anchor key, and those points ask one function, `anchoring()`. Studio states `Coordinates`, once, to the thing that acts on it, and the sentence a person reads is a COPY of that — not the constant a second time, which the mutation gate caught as a window still promising coordinates over a recording that had gone back to inheriting them. A stated coordinate mode also keeps the recorded pauses, which `cvOff()` alone did not: a Studio launched with `$MARCO_CV=on` capped every gap to 50ms while capturing no anchor to wait on. The word travels on the DRAFT (review happens before the save), into the saved source as a comment line `// Recorded as: <mode>.`, and from there into the run record via `orchestrator.ModeOf` off the same single read as the digest and the contract. ABSENCE SURVIVES ALL OF IT: a caller that states nothing writes no line, a file with no line reads back as `Unstated`, a word this build does not know reads back as `Unstated` rather than being echoed into a record as something verified, and the page renders a blank as a blank rather than as `undefined` or as the likeliest answer. Every other caller — the overlay, `marco learn`, `director demonstrate-visual`, the CLI — states nothing and is unchanged, because turning the switch on and demonstrating something is what the switch is FOR there."
+decision: "ACCEPTED — WHAT A RECORDING CAPTURES IS STATED BY THE THING THAT STARTS IT, AND NEVER INFERRED. `$MARCO_CV` and `$MARCO_ANCHORS` are read ONCE, into package variables, when a process starts: right for a command you set a switch and run, wrong for a window that stays open all afternoon with whatever shell launched it. With anchors inherited on, a click whose crop happened to be distinctive carried a template; a press found by matching a picture cannot be stopped at, so `codegen.Unpropagatable` refused the WHOLE guarded recording at Save. The same demonstration therefore saved or was refused depending on a variable nobody in the window could see and the pixels that happened to be under the pointer. So `recorder.Mode` is a statement about ONE recording — `Inherited`, which is every caller there was, or `Coordinates`, which captures the coordinate and the clock and nothing else — handed to the recorder BEFORE `Start`, because the hooks read it and the first press can already have been seen. A stated mode BEATS the environment at every point that would capture, crop, colour-sample or listen for the anchor key, and those points ask one function, `anchoring()`. Studio states `Coordinates`, once, to the thing that acts on it, and the sentence a person reads is a COPY of that — not the constant a second time, which the mutation gate caught as a window still promising coordinates over a recording that had gone back to inheriting them. A stated coordinate mode also keeps the recorded pauses, which `cvOff()` alone did not: a Studio launched with `$MARCO_CV=on` capped every gap to 50ms while capturing no anchor to wait on. The word travels on the DRAFT (review happens before the save), into the saved source as a comment line `// Recorded as: <mode>.`, and from there into the run record via `orchestrator.ModeOf` off the same single read as the digest and the contract. ABSENCE SURVIVES ALL OF IT: a caller that states nothing writes no line, a file with no line reads back as `Unstated`, a word this build does not know reads back as `Unstated` rather than being echoed into a record as something verified, and the page renders a blank as a blank rather than as `undefined` or as the likeliest answer. Every other caller — the overlay, `marco learn`, `director demonstrate-visual`, the CLI — states nothing and is unchanged, because turning the switch on and demonstrating something is what the switch is FOR there. AND THE STATEMENT SURVIVES A REPAIR, which it did not: `Resave` rebuilt a saved routine stating nothing, so a coordinate routine lost its line AND — because the stated mode is also what lifts the 50ms wait cap — lost its recorded pauses to a window that happened to inherit `$MARCO_CV=on`, which is a menu pressed before it has drawn, out of a repair. The mode now travels with the recording: read from the source of the file being replaced, and simplified under the mode given rather than under whatever `Deps` is holding it. Nothing is versioned and nothing is migrated."
 supersedes: []
 affects:
   - execution
@@ -127,6 +127,39 @@ second entrance rather than a changed signature. A caller forced to pass a value
 would pass a guess, and a guess written into a saved routine is a claim about how somebody's
 recording was made.
 
+## And a repair carries the statement, including the part of it that is not a comment
+
+Found in review after the rest of this had landed: `orchestrator.Resave` — the repair that saves a
+guarded routine again under a scope that brings its window forward — rebuilt the draft stating
+`Unstated`. Two things went missing, and only one of them was visible.
+
+The visible one is the line. A routine that stated `coordinates` came out of a repair stating
+nothing, so its card lost the sentence and every run record of it afterwards read `unstated`.
+Absent is the honest answer for a file that never said; writing it over a file that did say is a
+claim edited out of somebody's afternoon.
+
+**The other one changes what the routine does.** The stated mode is also what keeps the recorded
+gaps — `learnOptions` lifts the 50ms wait cap for a coordinate recording, because the cap only ever
+made sense when an anchor poll did the real waiting. The repair ran under a `Deps` built for the
+repair, which states nothing, so with `$MARCO_CV` inherited on it rebuilt the routine with every
+pause capped and no anchor to wait on in their place. A menu pressed before it has drawn, out of a
+repair. Studio is the window that inherits those flags all afternoon, and the repair button is in
+it.
+
+So the mode travels with the recording rather than with the process:
+
+- `Resave` reads it from the SOURCE of the file it is about to replace, through `ModeOf`, for the
+  same reason that function exists — the saved Marco is the only durable account of how a recording
+  was made, and anything beside it is a second account to disagree with it. A word this build does
+  not know still reads as unstated, so a repair never starts passing on an unverified claim.
+- `DraftOf` simplifies under the mode it is GIVEN, and `Capture.Finish` under the mode its capture
+  ran under, rather than both asking the `Deps` they happen to be holding. `learnOptionsFor` is
+  that distinction, and its absence was the defect: the comment and the simplification were being
+  decided from two different places.
+
+Nothing was versioned and nothing is rewritten automatically. A routine on disk is read, not
+migrated; a repair writes what the file already said.
+
 ## What did not move
 
 - **The default is still off, and this does not answer the open question.** `cvOff()` keeps its
@@ -172,6 +205,27 @@ recording was made.
 - `internal/orchestrator` `TestAModeThisBuildDoesNotKnowReadsBackAsUnstated` — three unknown words.
 - `internal/orchestrator` `TestAStatedCoordinateModeKeepsTheRecordedPauses` — with `$MARCO_CV=on`,
   and the second half checks the switch still does what it did for a caller that states nothing.
+- `internal/orchestrator` `TestARepairKeepsWhatTheRoutineSaysItRecorded` /
+  `TestARepairKeepsTheRecordedPausesOfACoordinateRoutine` — **the pair, and it has to be a pair.**
+  Through the production repair (`Unrunnable` then `Resave`) with the sensing flags inherited ON. A
+  repair that carried the comment and dropped the gaps passes the first and fails the second,
+  measurably: simplifying under the `Deps`' mode instead of the stated one leaves the word in place
+  and takes the routine's longest pause from 800ms to 250ms.
+- `internal/orchestrator` `TestARepairStatesNothingWhenTheRoutineStatedNothing` /
+  `TestARepairDoesNotCarryOnAWordThisBuildDoesNotKnow` — absence survives a repair as absence, and
+  is not inferred from the geometry: this demonstration has no pictures in it, which is what a
+  coordinate recording looks like AND what anchors-on against a flat menu looks like. An unknown
+  word is not echoed either, because a repair writes the file a run record quotes.
+- `internal/orchestrator` `TestARepairStillRepairsAndWritesTheSameRoutine` — the behaviour the line
+  travels with, beside it: the same slug and application, now brought forward; one routine left in
+  the library; nothing still unable to press; the demonstration still stored beside it; and the
+  contract compared against what it was rather than against a word written in the test.
+- `plugins/studio` `TestSavingAgainKeepsWhatTheRoutineSaysItRecorded` — the card after the repair
+  button, in the window that inherits the flags.
+- `cmd/marco` `TestTheRecordOfARepairedRoutineSaysWhatItWasRecordedAs` — the end of the chain, and
+  the reason the loss would have been found by somebody reading a bug report rather than by a test:
+  the record is read off the source, so a repair that edits the source changes every record after
+  it without anything in `cmd/marco` changing.
 - `cmd/marco` `TestTheRecordSaysWhatTheRoutineWasRecordedAs` /
   `TestTheRecordSaysUnstatedWhenTheRoutineDoesNotSay` — the word reaches the run record, and
   absence reaches it as `unstated`.
