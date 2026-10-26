@@ -98,6 +98,18 @@ type Draft struct {
 	App string
 	// StoppedBy says how the capture ended, which review may want to show.
 	StoppedBy string
+	// Unrepresentable is why this recording cannot be saved, or "" when it can.
+	//
+	// A REFUSAL CARRIED ON THE DRAFT RATHER THAN RETURNED INSTEAD OF IT. The person is
+	// about to review what was recorded, and "nothing happened" would be a worse answer
+	// than the steps plus the reason they cannot be kept: the gesture that could not be
+	// written down is one they performed, and they are the only one who can perform it
+	// again differently. So review shows both and `Save` refuses.
+	//
+	// Set from `simplify.Simplify`, which is the only thing that knows. See
+	// `simplify.modifierTrouble` for what qualifies and why it is a refusal and not a
+	// best guess.
+	Unrepresentable string
 	// Mode is what the recording was TOLD to capture, or Unstated when nothing was.
 	//
 	// It travels on the draft because review happens before the save: a person deciding
@@ -200,7 +212,7 @@ func (c *Capture) Finish() *Draft {
 	// the window state that made it, which is what `Draft.Mode` is for one field down.
 	opts := d.learnOptionsFor(c.mode)
 	opts.ArgNames = argNames
-	steps := simplify.Simplify(events, opts)
+	steps, refused := simplify.Simplify(events, opts)
 	d.enrichAnchors(steps)
 
 	app := firstActivateApp(steps)
@@ -216,6 +228,7 @@ func (c *Capture) Finish() *Draft {
 	return &Draft{
 		Name: name, Args: argNames, Steps: steps, Events: events,
 		App: app, StoppedBy: how,
+		Unrepresentable: reasonOf(refused),
 		// THE MODE THIS CAPTURE WAS STARTED UNDER, carried from the capture and
 		// not asked of the environment again. `Begin` is where it was stated and
 		// where the recorder was told; a second reading here could disagree with
@@ -268,6 +281,13 @@ func (d Deps) Save(dr *Draft, scope Scope, app string) (routes.Route, error) {
 	if len(dr.Steps) == 0 {
 		return routes.Route{}, fmt.Errorf("nothing was recorded, so there is " +
 			"nothing to save")
+	}
+	// THE ONE WAY A DRAFT BECOMES A ROUTINE, so the one place a refusal has to be
+	// answered. A gesture that cannot be written down faithfully is not saved as
+	// something else: see Draft.Unrepresentable.
+	if dr.Unrepresentable != "" {
+		return routes.Route{}, fmt.Errorf("this recording cannot be saved as it "+
+			"stands: %s", dr.Unrepresentable)
 	}
 	if app == "" {
 		app = dr.App
@@ -838,7 +858,20 @@ func (d Deps) DraftOf(name string, events []recorder.RecordedEvent, app, stopped
 	// comment does: see learnOptionsFor.
 	opts := d.learnOptionsFor(mode)
 	opts.ArgNames = argNames
+	steps, refused := simplify.Simplify(events, opts)
 	return &Draft{Name: base, Args: argNames,
-		Steps: simplify.Simplify(events, opts), Events: events,
+		Steps: steps, Events: events, Unrepresentable: reasonOf(refused),
 		App: app, StoppedBy: stoppedBy, Mode: mode}
+}
+
+// reasonOf is a refusal as the sentence a draft carries, and "" for no refusal.
+//
+// One line, and it exists so that the two places that build a draft cannot differ about what an
+// absent refusal looks like — an `err.Error()` on a nil error panics, and a `!= nil` check
+// written twice is a check that gets written once.
+func reasonOf(err error) string {
+	if err == nil {
+		return ""
+	}
+	return err.Error()
 }

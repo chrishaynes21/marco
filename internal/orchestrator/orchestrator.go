@@ -265,12 +265,24 @@ func (d Deps) Learn(name string) error {
 	// loop-folding ever sees repeated letters.
 	opts := d.learnOptions()
 	opts.ArgNames = argNames
-	steps := simplify.Simplify(events, opts)
+	steps, refused := simplify.Simplify(events, opts)
 	d.enrichAnchors(steps) // OCR each demonstrated anchor's button → text locator
 	mlog.Info("record: simplified", "route", name, "events", len(events), "steps", len(steps))
 	if len(steps) == 0 {
 		mlog.Warn("record: nothing recorded", "route", name)
 		fmt.Fprintln(d.Out, "Nothing was recorded — not saving.")
+		return nil
+	}
+	// AND A GESTURE THAT CANNOT BE WRITTEN DOWN IS NOT WRITTEN DOWN AS SOMETHING ELSE.
+	//
+	// Said and not saved, in the same shape as the empty recording above: the person
+	// performed the gesture and is the only one who can perform it again differently, so
+	// the sentence names what it was and what to do instead. The alternative is a routine
+	// that quietly does something else and reads as a faithful recording of what was
+	// shown. See simplify.modifierTrouble.
+	if refused != nil {
+		mlog.Warn("record: refused", "route", name, "why", refused.Error())
+		fmt.Fprintf(d.Out, "Not saving: %s.\n", refused)
 		return nil
 	}
 	// The route's primary app — for scope and the context comment — is the app it
@@ -305,7 +317,15 @@ func (d Deps) Learn(name string) error {
 		}
 		// actionSimplify (only offered while not yet simplified)
 		opts.TypingRhythmMs = simplify.AggressiveTypingRhythmMs
-		steps = simplify.Simplify(events, opts)
+		if steps, refused = simplify.Simplify(events, opts); refused != nil {
+			// A REFUSAL CANNOT ARRIVE HERE THAT WAS NOT ALREADY TRUE ABOVE.
+			// "Simplify further" re-runs the same pipeline over the same events
+			// with typing folded harder, and what gets refused is a property of
+			// the EVENTS. Answered anyway rather than dropped: a reason that
+			// could only appear by surprise is the one worth not swallowing.
+			fmt.Fprintf(d.Out, "Not saving: %s.\n", refused)
+			return nil
+		}
 		d.enrichAnchors(steps) // re-simplify rebuilds steps from events → re-label anchors
 		if src, _, err = codegen.Route(name, app, steps, "", argNames...); err != nil {
 			return err
@@ -443,12 +463,20 @@ func (d Deps) LearnAuto(name string) error {
 
 	opts := d.learnOptions()
 	opts.ArgNames = argNames
-	steps := simplify.Simplify(events, opts)
+	steps, refused := simplify.Simplify(events, opts)
 	d.enrichAnchors(steps) // OCR each demonstrated anchor's button → text locator
 	mlog.Info("record-auto: simplified", "route", name, "events", len(events), "steps", len(steps))
 	if len(steps) == 0 {
 		mlog.Warn("record-auto: nothing recorded", "route", name)
 		fmt.Fprintln(d.Out, "Nothing was recorded — not saving.")
+		return nil
+	}
+	// AND THE SAME REFUSAL, which matters MORE here than in the reviewed path: auto-learn
+	// saves without showing anybody the route first, so a gesture that came out as
+	// something else would reach the library with nobody having looked at it.
+	if refused != nil {
+		mlog.Warn("record-auto: refused", "route", name, "why", refused.Error())
+		fmt.Fprintf(d.Out, "Not saving: %s.\n", refused)
 		return nil
 	}
 	app := firstActivateApp(steps)
@@ -559,10 +587,19 @@ func (d Deps) SimplifyRoute(name string) error {
 	canon := strings.ReplaceAll(rt.Slug, "-", " ")
 	opts := d.learnOptions()
 	opts.TypingRhythmMs = simplify.AggressiveTypingRhythmMs
-	steps := simplify.Simplify(events, opts)
+	steps, refused := simplify.Simplify(events, opts)
 	d.enrichAnchors(steps) // re-derive text anchors lost when rebuilding from raw events
 	if len(steps) == 0 {
 		fmt.Fprintln(d.Out, "Nothing left after simplifying — leaving it as is.")
+		return nil
+	}
+	// AND A REFUSAL LEAVES THE SAVED ROUTINE ALONE, which is the right answer here and a
+	// different one from the two record paths: there is already a routine on disk, and
+	// replacing it with a rebuild that could not represent one of its gestures would lose
+	// something the person already has. Said, and nothing written.
+	if refused != nil {
+		mlog.Warn("simplify: refused", "route", name, "why", refused.Error())
+		fmt.Fprintf(d.Out, "Leaving it as it is: %s.\n", refused)
 		return nil
 	}
 	// Preserve the route's scope. A focus route keeps switching to its app (codegen

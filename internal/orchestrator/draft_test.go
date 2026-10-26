@@ -620,8 +620,13 @@ func TestAClickOntoTheRecorderAndBackLeavesNoHalfBehind(t *testing.T) {
 	// AND NO PHANTOM GESTURE COMES OUT OF WHAT IS LEFT, which is the thing the
 	// person actually saw. Through the production simplifier, because that is what
 	// read the halves as a drag.
-	for _, s := range simplify.Simplify(withoutOwner(stream, "studio", studioPID),
-		simplify.Options{}) {
+	left, refused := simplify.Simplify(withoutOwner(stream, "studio", studioPID),
+		simplify.Options{})
+	if refused != nil {
+		t.Fatalf("the simplifier refused what was left, which this case is not "+
+			"about: %v", refused)
+	}
+	for _, s := range left {
 		if s.Kind == macroir.StepDrag {
 			t.Fatalf("a drag was invented out of two clicks: from %d,%d to "+
 				"%d,%d", s.X, s.Y, s.X2, s.Y2)

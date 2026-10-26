@@ -489,6 +489,18 @@ func (a *Acts) Recording() Recording {
 	out.AgainElsewhere = againElsewhere(c.again, dr.App)
 	out.Pressable = dr.Pressable()
 	out.Steps = inWords(dr.Steps)
+	// AND A GESTURE THAT CANNOT BE WRITTEN DOWN IS SAID HERE, BESIDE THE STEPS.
+	//
+	// Before the pressable check, because it is the more specific statement about the same
+	// recording, and the steps are left in the payload on purpose: the person is entitled
+	// to see what was understood of what they did. `Save` refuses this draft as well, so
+	// this sentence is the explanation and not the enforcement — a window that only said
+	// it, or a save that only refused it, would each be half an answer.
+	if dr.Unrepresentable != "" {
+		out.Failed = true
+		out.Said = dr.Unrepresentable + "."
+		return out
+	}
 	if out.Pressable == 0 {
 		out.Failed = true
 		out.Said = "nothing in this recording presses anything, so there is " +
