@@ -553,6 +553,23 @@ func performOnePlay(d orchestrator.Deps, p playInvocation) (Outcome, error) {
 			because += " — " + warn
 			fmt.Println(warn)
 		}
+	default:
+		// AND A RUN THAT DID EVERYTHING AND LEFT A KEY DOWN DID NOT SUCCEED.
+		//
+		// The branch that was missing, and the one case that reaches it: a routine that
+		// finishes normally while holding a key, whose route-end sweep then cannot
+		// release it. There is no cancellation and no execution error — every action
+		// happened — so it fell through to `performed` with nothing said, which is the
+		// product reporting success about a computer it has left in a changed state.
+		//
+		// `failed` is the word for it: "it having been tried, and gone wrong" is
+		// exactly what happened, and a successful word here would be read by every
+		// front end as nothing to look at. The key is named in the record, said on the
+		// run's own output, and shown on the card, by the path the chord slice built.
+		if warn := stillHeld(d); warn != "" {
+			out, because = OutcomeFailed, warn
+			fmt.Println(warn)
+		}
 	}
 	// AND WHAT BECAME OF IT, INTO THE REFERENCE THAT WAS ALREADY PRINTED. The same
 	// identity the reservation was given, not a second reading of the file.

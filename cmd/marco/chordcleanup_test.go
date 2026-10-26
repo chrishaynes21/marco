@@ -276,3 +276,98 @@ func TestAKeyTheRouteEndSweepCouldNotReleaseReachesTheRecord(t *testing.T) {
 		t.Errorf("the run said nothing about the key its sweep left down:\n%s", said)
 	}
 }
+
+// AND A RUN THAT FINISHED AND LEFT A KEY DOWN DID NOT SUCCEED.
+//
+// The path the two cases above cannot reach, because both of them force a cancellation. A routine
+// that finishes NORMALLY while holding a key, whose route-end sweep then cannot release it, has
+// no cancellation and no execution error — every action it was asked for happened. It fell
+// through to `performed` with nothing said, which is the product reporting success about a
+// computer it has left in a changed state.
+//
+// `failed` is the word: *it having been tried, and gone wrong*, which is what happened. Anything
+// successful here is read by every front end as nothing to look at.
+type aHostWhoseSweepStuck struct {
+	swept bool
+	// stuck is what the sweep could not release, empty for the control.
+	stuck string
+}
+
+func (h *aHostWhoseSweepStuck) Invoke(runtime.HostCall) (string, runtime.Value, error) {
+	return "ok", runtime.Absent(), nil
+}
+
+func (h *aHostWhoseSweepStuck) Unperformed() []string { return nil }
+
+// ReleaseHeld is the driver's deferred sweep, which is where this failure is discovered.
+func (h *aHostWhoseSweepStuck) ReleaseHeld() { h.swept = true }
+
+func (h *aHostWhoseSweepStuck) NotReleased() string {
+	if !h.swept || h.stuck == "" {
+		return ""
+	}
+	return fmt.Sprintf("after the run, %s", oshost.KeyNotReleased(h.stuck))
+}
+
+// finishedHolding performs the fixture routine to the end, with no cancellation anywhere.
+func finishedHolding(t *testing.T, machine *aHostWhoseSweepStuck) (Outcome, map[string]any,
+	string, string) {
+
+	t.Helper()
+	t.Setenv("MARCO_HOME", t.TempDir())
+	reg, rt := aSavedRoute(t, aGuardedRoutine)
+	t.Setenv("MARCO_ROUTES", reg.Dir)
+
+	d := orchestrator.Deps{Reg: reg, Out: &strings.Builder{},
+		Hosts: map[string]runtime.Host{"*": machine}}
+	said, out, ref := aRunOf(t, d, rt)
+	if !machine.swept {
+		t.Fatalf("the driver never swept the run's held keys:\n%s", said)
+	}
+	if ref.ID == "" {
+		t.Fatalf("the run cited no reference:\n%s", said)
+	}
+	m, raw := recordAt(t, ref.ID)
+	return out, m, said, raw + "\n" + said
+}
+
+func TestARunThatFinishedHoldingAKeyIsNotReportedAsPerformed(t *testing.T) {
+	out, m, said, raw := finishedHolding(t, &aHostWhoseSweepStuck{stuck: "q"})
+
+	if out == OutcomePerformed {
+		t.Errorf("a run that finished with q held down reported %q — every front end "+
+			"reading that word sees nothing to look at, and the person's next "+
+			"keystroke arrives with q held:\n%s", out, raw)
+	}
+	if m["outcome"] == string(OutcomePerformed) {
+		t.Errorf("the record says %v:\n%s", m["outcome"], raw)
+	}
+	because, _ := m["because"].(string)
+	if !strings.Contains(because, "q") || !strings.Contains(because, "still be held") {
+		t.Errorf("the record says %q and does not name the key the run left down:\n%s",
+			because, raw)
+	}
+	if !strings.Contains(said, "still be held down") {
+		t.Errorf("the run said nothing about it, so nothing reading its output could "+
+			"show it:\n%s", said)
+	}
+}
+
+// AND A RUN WHOSE SWEEP LET GO OF EVERYTHING IS STILL `performed`.
+//
+// The control, and the one that matters most here: this branch is reached by EVERY successful run
+// of every routine. A check that was wrong about the empty case would turn the product's ordinary
+// answer into a failure.
+func TestARunWhoseSweepReleasedEverythingIsStillPerformed(t *testing.T) {
+	out, m, said, raw := finishedHolding(t, &aHostWhoseSweepStuck{})
+
+	if out != OutcomePerformed {
+		t.Errorf("an ordinary successful run reported %q:\n%s", out, raw)
+	}
+	if because, _ := m["because"].(string); because != "" {
+		t.Errorf("an ordinary successful run recorded %q beside it", because)
+	}
+	if strings.Contains(said, "still be held down") {
+		t.Errorf("an ordinary successful run warned about a held key:\n%s", said)
+	}
+}
