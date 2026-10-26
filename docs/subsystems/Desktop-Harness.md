@@ -135,7 +135,7 @@ which would flatten 2 and 3 into 1.
 
 ## What it establishes today
 
-Ten scenarios, about 45 seconds, one command — and two more that are written and gated out of a
+Ten scenarios, about 45 seconds, one command — and three more that are written and gated out of a
 default run until they have run green once (see below).
 
 | | |
@@ -201,12 +201,13 @@ that a chord happened; this is the fact itself, and it is what catches a sender 
 events the system never applied — same four messages, same order, a plain keystroke delivered.
 See [[ADR-258-a-chord-is-a-promise-to-let-go]].
 
-## And two scenarios that are written and have never run
+## And three scenarios that are written and have never run
 
 | | |
 |---|---|
 | `hold/a hold is held across the press` | a held key is DOWN, by the application's own reading of the keyboard, when the press inside the hold arrives — and up afterwards, by the desktop's |
 | `hold/a stopped run lets go of the key` | Stop during a hold ends the run as cancelled, sends nothing more, and leaves no key down |
+| `hold/a ctrl-held click arrives with ctrl held` | a demonstrated Ctrl+click reaches the application as one, by its own reading of the keyboard, and lets go after |
 
 Both are **implemented, desktop execution pending**, and both are gated out of a default run by
 `onlyWhenAsked` until one green run takes the flag off. The reason for the gate is that adding an
@@ -231,10 +232,11 @@ handled, and on PRESSES as well as on keys, because the claim is about what was 
 click arrived. Named rather than enumerated: a window reporting every key's state would be a
 keylogger, and the scenario knows which key it is about.
 
-**And what they do not cover.** A NON-MODIFIER hold, such as Q, is what these establish. A Ctrl-
-or Shift-held click is a separate open defect and no scenario here touches it: `simplify` drops
-the modifier and emits a plain click, which is why the hold scenario holds Q rather than a
-modifier. Recorded in [[Demonstrations]].
+**And a third, for the gesture that used to be dropped.** `hold/a ctrl-held click arrives with
+ctrl held` — a demonstrated Ctrl+click, asserted on the application's own reading of the keyboard
+at the instant the press arrived. The fixture reports the modifier state on PRESSES as well as on
+keys for it, which is the only account that can settle the claim: the four messages of a chord and
+the two of a modified press look the same from outside. Gated with the other two.
 
 **And what they deliberately do not do.** A refused delivery and a refused release are covered
 headlessly, in `internal/oshost`. A desktop scenario that needed a key to be STUCK in order to

@@ -443,37 +443,86 @@ collision to refuse and a second routine quietly kept beside the one somebody se
 - `internal/director/controlevidence`, `internal/director/match` and `cmd/director` — what a
   pressed control is worth, measured on drawn pictures for the rules and on real 1920x1080 game
   frames for the number.
+- `internal/simplify` `modifierhold_test.go` — a modifier held across a click, around a key, over
+  nothing, and across both; the three refusals and a control beside each. Every case goes through
+  the production `Simplify`, because the defect lived in the seam between classification and
+  lowering and either half alone looks fixed.
+- `internal/oshost` `modifierclick_test.go` — the same gesture from recording events through
+  `simplify`, `codegen` and the runtime to the production `Host`: a Ctrl the machine will not
+  press stops the click, one it will not release is named in the account, a cancelled run still
+  attempts the release, and a legacy routine keeps the contract it was saved under.
+- `internal/orchestrator` `refusedgesture_test.go` — the draft carries the reason and `Save`
+  refuses it, with nothing written to the library; and the same demonstration done properly
+  saves, as the gesture.
+- `plugins/studio` `refusedgesture_test.go` — the window says WHY, beside the steps it
+  understood, and still offers an ordinary recording for review.
 
-## A modifier held across a CLICK is dropped, and the click looks ordinary
+## A modifier held across a CLICK is a hold, and used to be dropped
 
-An open defect, named here because it is a loss of recording fidelity and not a refusal: it does
-not stop anything, it produces a routine that looks right and performs a different gesture.
+Ctrl+click and click are different acts in most applications — one adds to a selection, one
+replaces it. Demonstrate Ctrl, then a click, then release Ctrl, and `simplify` used to emit **a
+plain click**: the modifier was tracked for chord-folding, found no key to fold into, and was
+discarded. The routine performed a different gesture from the one that was shown and read as a
+faithful recording of it, which is the one failure this subsystem is least able to make visible
+afterwards.
 
-Demonstrate Ctrl, then a click, then release Ctrl, and `simplify` emits **a plain click**.
-Measured, not inferred: the steps that come out are `activate`, `wait` and `click`, and the Ctrl
-is nowhere in them. `markHolds` skips modifiers by name, which is correct for a modifier around a
-KEY — that is how `ctrl+shift+a` becomes one chord step — and wrong for a modifier around a
-click, because there is no chord for it to fold into. The modifier is tracked, used for nothing,
-and discarded.
+It is now a hold, written with the `KeyDown`/`KeyUp` steps that already existed. No new word, no
+new field on a click step, no language change.
 
-**The gesture is already expressible, which is what makes this bounded.** `hold ctrl → click →
-release ctrl` generates as `do OS's KeyDown with "ctrl"`, the guarded click, and
-`do OS's KeyUp with "ctrl"` — `driver.CheckSource` accepts it, `Unpropagatable` reports nothing,
-so every step is a link in the chain and a failed modifier press stops the click. Checked
-directly. So this needs no new word, no new field on a click step, and no language work: the
-whole of it is `markHolds` excluding modifiers for a reason that only applies when the thing in
-the middle is another key.
+**The rule.** A modifier is a hold when it spans a POINTER action, and only then. The modifiers
+around a KEY still fold into a chord, because that is what `ctrl+shift+a` is and because a chord
+presses and releases them itself — a chord whose modifiers were *also* written as holds would
+press Ctrl twice and release it in the middle of its own expansion. And the duration rule that
+makes an ordinary key a hold after half a second deliberately does not apply: a modifier held over
+nothing modified nothing, and a person resting a finger on Shift while they think should not
+acquire a stray hold.
 
-**Why it is worth writing down rather than fixing in passing.** A Ctrl+click and a click are
-different acts in most applications — one adds to a selection, one replaces it — and the routine
-that comes out of this is confidently wrong rather than visibly incomplete. That is the category
-of defect every account in this system is weakest against. But it is also a change to what
-`simplify` does with a recording, which means existing recordings start producing different
-routines, and that is a decision rather than a correction.
+**It took two changes, and either alone does nothing.** `markHolds` decides which presses are
+holds; `lower` decides what is written down. The modifier branch in `lower` ran *before* the hold
+markers were read and `continue`d past them — so teaching the classifier about modifiers on its
+own would have left the marks right and still swallowed. Both are exercised through the real
+`Simplify`, which is the only way to tell a fix from half of one.
 
-The desktop hold scenario does **not** cover it: it holds Q deliberately, and
-[[ADR-258-a-chord-is-a-promise-to-let-go]] records why a modifier could not have been used there —
-`markHolds` would have dropped it, which is this defect.
+**And a key under a hold is just that key.** `ctrl` down, `a`, click, `ctrl` up is one hold with a
+keystroke inside it: `KeyDown ctrl`, `Key "a"`, the click, `KeyUp ctrl`. Not `ctrl+a`, which would
+press the modifier again and release it before the click. And the key carries no `Text`, which is
+the subtler half — `Text` is what lets a run of keys coalesce into a `Type` step, and `Type` sends
+characters rather than keystrokes, so `a` under a held Ctrl would arrive as the letter after a fold
+two passes later that nothing at that point can see.
+
+## What a recording refuses to say rather than guess at
+
+A modifier is never silently discarded. Where the gesture cannot be written down faithfully the
+recording is REFUSED, with a sentence naming the key and what to do instead — because the
+alternative is the original defect, and the person who performed the gesture is the only one who
+can perform it again differently.
+
+Three ways, all of them about not knowing WHEN it was held rather than whether:
+
+| | |
+|---|---|
+| never released | the recording ends with it down, so a hold written from it would have no release and would leave the key down on a real desktop |
+| never pressed | it was already held when recording began, so there is no instant to press it at and no way to know what the press under it actually was |
+| pressed or released mid-press | it was held for *part* of a click, and "part" is not a thing a routine can say |
+
+Each has a control beside it where the same shape is harmless: an unbalanced modifier that nothing
+happened under modified nothing, and refusing that would refuse a recording for no reason.
+
+The third is also why the choice of which click edge decides "spans a pointer action" cannot change
+an outcome — every recording where the two edges disagree is refused before the classification is
+reached. That is a surviving mutation in the gate, and it survives because the two variants are
+equivalent given the refusals, not because nothing tests it.
+
+**The refusal is answered in four places and enforced in one.** `Simplify` returns it, so every
+caller has to answer for it — a compiler question rather than something to remember. `Learn` and
+`LearnAuto` print it and save nothing; `SimplifyRoute` prints it and leaves the routine already on
+disk alone, which is the right answer there and a different one. A draft carries it, so Studio's
+review shows the sentence beside the steps that were understood. And `Save` refuses it, which is
+the only way a draft becomes a routine and therefore the only place the enforcement has to be.
+
+**Compatibility.** New recordings use the corrected interpretation. Existing saved Marco is
+unchanged — nothing on disk is rewritten and there is no migration. Re-recording or an explicit
+`marco simplify` picks the correction up, which is a person asking for it.
 
 ## Known gaps
 

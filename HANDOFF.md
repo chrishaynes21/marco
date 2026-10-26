@@ -8723,3 +8723,50 @@ Worth naming the category: this is a loss of recording fidelity that refuses not
 and a click are different acts in most applications — one adds to a selection, one replaces it —
 so what comes out is confidently wrong rather than visibly incomplete, which is the kind of defect
 every account in this system is weakest against.
+
+### §41e — the Ctrl-held click, fixed
+
+§41d recorded a dropped Ctrl+click as a separate open defect. The Architect's call was that it is
+incorrect playback rather than missing coverage, so it was next, as a bounded correction with no
+language change. [[Demonstrations]] holds the rule and the refusals; this is what it cost and what
+it taught.
+
+**Two changes, and either alone does nothing.** `markHolds` decides which presses are holds and
+`lower` decides what is written down. The modifier branch in `lower` ran BEFORE the hold markers
+were read and `continue`d past them — so teaching the classifier about modifiers on its own would
+have produced correct marks that nothing consumed. The mutation run shows it from both sides:
+disabling the classifier and making the lowering skip modifier marks each kill the same tests.
+
+**The rule.** A modifier is a hold when it spans a pointer action, and only then. Modifiers around
+a KEY still fold into a chord — `ctrl+shift+a` is one step and must stay one, because the chord
+presses and releases them itself. And the duration rule that makes an ordinary key a hold after
+half a second does not apply to a modifier: held over nothing it modified nothing.
+
+**A key under a hold is just that key.** `ctrl` down, `a`, click, `ctrl` up comes out as
+`KeyDown ctrl`, `Key "a"`, the click, `KeyUp ctrl`. Not `ctrl+a`, which would press the modifier
+again and release it before the click — the Architect named that one in advance. And no `Text` on
+the key, which is the half I would have missed: `Text` is what lets keys coalesce into a `Type`
+step, and `Type` sends characters rather than keystrokes, so `a` under a held Ctrl would arrive as
+the letter after a fold two passes later that nothing at that point can see.
+
+**The refusal needed a channel, so `Simplify` returns an error.** Every caller then has to answer
+for it — a compiler question rather than something to remember, and the one mutation that tried to
+drop the reason from a draft would not compile. Four answers, one enforcement: `Learn` and
+`LearnAuto` print and save nothing, `SimplifyRoute` prints and leaves the routine already on disk
+alone, a draft carries the sentence so review shows it beside the steps, and `Save` refuses —
+which is the only path from draft to routine.
+
+**A surviving mutation that is a result rather than a gap.** Which edge of a click decides "spans
+a pointer action" can be changed with no test failing. That is because every recording where the
+two edges disagree is refused first: a modifier pressed or released in the middle of a press was
+held for PART of a click, and part is not a thing a routine can say. Recorded as an equivalence
+rather than chased, and the test that depends on it says so.
+
+**And a third gated desktop scenario**, `hold/a ctrl-held click arrives with ctrl held`. The
+fixture now reports the modifier state on PRESSES as well as on keys, which is what settles the
+claim nothing else can: the four messages of a chord and the two of a modified press look the same
+from outside, and only the application's own reading of the keyboard says which arrived. Ctrl
+rather than Shift or Alt — Alt over a press opens menus, Shift extends selections, and Ctrl+click
+on a text field or a button does nothing anywhere.
+
+Nineteen mutations across the two rounds, eighteen killed, one equivalent.
