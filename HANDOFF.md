@@ -8841,3 +8841,40 @@ movement BETWEEN them, which is the part a replay can skip while both ends still
 A stuck mouse button is worse than a stuck modifier, which is worth saying before the work rather
 than after: a held Ctrl changes what keystrokes mean, and a held left button drags whatever the
 pointer passes over. That is the first thing to make impossible to leave behind.
+
+### §41h — the repair tool broke the file it was repairing, and the counters said it worked
+
+Found while going to apply a one-line correction to §41b's heading: the heading's bytes were
+mojibake, and the damage was mine. A `perl -0777 -pi` substitution had used a `\x{2014}` escape
+for an em-dash. That escape makes a wide CHARACTER, which upgrades the whole file to character
+semantics for that run — so printing it re-encoded every multi-byte sequence that was already
+there. **1924 characters double-encoded**, 1291 em-dashes, 369 arrows, 38 section marks,
+introduced in `32819a2` and surviving three commits, because that kind of damage is only visible
+where somebody happens to be looking at the line.
+
+The fix collapses one layer: a run of `C3 xx (C2 yy)+` decoded as UTF-8 gives codepoints all below
+0x100, and re-encoding those as Latin-1 gives the original bytes back. Anything that does not
+round-trip is left exactly as it was.
+
+**The evidence that supports it is the byte comparison, not the counts.** The repaired file is
+byte-identical to `c07af66` — the last clean version — for every line that existed then, with a
+single pure-addition hunk for what was written since. The character counts also reconcile
+(20+1291 em-dashes, 5+38 section marks, 2+369 arrows), and that is the weaker half: a repair that
+DELETED the damaged characters satisfies the counts just as well as one that restored them. Which
+is not hypothetical —
+
+**the first three attempts deleted them, and reported success.** `Encode::decode` with a true
+CHECK **consumes its argument in place**: the part it processed is removed from the scalar it was
+handed. Validating `$bytes` emptied it before the return, so the substitution replaced each
+damaged run with nothing while `$fixed` still counted up to 1924. A counter maintained by the code
+under suspicion is not a check on it. The tool now validates copies, and the thing that caught the
+bug was instrumenting the output rather than reading the summary line.
+
+So: a byte-level rewrite of somebody's file is checked by comparing bytes against the last
+known-good version. Not by asking the rewriter how it went.
+
+**Parked, by review decision, and separate from the input work:** `E2E.md` (265 runs) and
+[[ADR-252-a-library-is-a-place-and-a-routine-is-played-where-it-was-made]] (50) carry the same
+double-encoding and PREDATE this session — different cause, same shape. They are deliberately left
+alone so what I broke stays distinguishable from what I found, and they are repairable on request
+with the method above.
