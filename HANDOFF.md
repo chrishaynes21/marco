@@ -8618,3 +8618,33 @@ mid-routine, slightly wrong when only the route-end sweep failed, because nothin
 nothing was skipped. The specific sentence arrives beside it through `alsoSaid`. Rewording a
 shipped sentence for every failure to suit this one case costs more than it buys, so it is
 recorded here rather than quietly changed.
+
+### §41b — closing §41a, and a timeout whose cause is a hypothesis
+
+Approved through `a637996`. Two limits came with the approval and belong next to the work rather
+than in a message: **existing saved routines are not automatically regenerated** (recorded in
+[[ADR-258-a-chord-is-a-promise-to-let-go]] under what did not move), and **the desktop hold
+scenario remains unverified** — it can be completed through the automated harness when desktop
+execution is available, with no owner walkthrough. It is unwritten on purpose: adding an
+unexercised scenario to a gate makes that gate's first run a debugging session instead of a
+regression check, and the owner's screen was not available.
+
+**And a correction to my own report.** One combined background run had `cmd/marco` hit its 600s
+package limit while `plugins/studio` finished in 63s. Run alone with nothing competing the same
+package gave `ok … 12.117s`, exit 0, with no failing test in it. I reported that as contention,
+because I had been compiling and running other Go programs at the time and this package is already
+documented as having been starved past that same limit once before (CLAUDE.md, the corpus test).
+
+That is a HYPOTHESIS, and the isolated pass is not evidence for it. An isolated pass establishes
+one thing: the suite passes in isolation. It does not establish what the slow run was waiting on,
+and it does not establish that the slow run will not happen again — a single non-reproduction over
+one attempt is weak evidence either way, and the two facts I reasoned from (my own concurrent load,
+and a previously recorded starvation of the same package) are circumstantial. Nothing was measured
+while it was slow: no goroutine dump, no per-test timing, no `-cpu` or `GOMAXPROCS` comparison. So
+the honest record is *one unexplained 600s timeout in `cmd/marco`, not reproduced, with contention
+as the leading guess and no measurement supporting it*. If it recurs, the thing to capture is the
+panic dump the timeout already prints — it names the goroutines that were alive — rather than
+re-running the package alone, which is the one experiment that cannot answer the question.
+
+Filed beside the harness's unexplained foreground refusal (§40b) as a second open anomaly that
+fails safe.

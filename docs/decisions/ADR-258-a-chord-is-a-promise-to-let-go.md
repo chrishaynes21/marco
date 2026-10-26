@@ -235,6 +235,13 @@ buys. Recorded rather than quietly changed.
   the harness scenario that kills a runner mid-run; it establishes that nobody can speak for such
   an attempt, which is exactly the right claim and not a recovery either. The guarantee is: every
   pressed key gets a release attempt **by code that gets to run**.
+- **And nothing on disk was regenerated.** The propagation fix is in the GENERATOR, so a routine
+  saved before it keeps the chain it was saved with: its hold is an ordinary step and its failure
+  stops nothing. That is the contract that routine was saved under, and the reason
+  `TestALegacyRoutineWhoseHoldFailedCarriesOn` exists rather than being a curiosity. Re-saving one
+  picks the new shape up; there is no migration and no automatic rewriting. Worth stating in these
+  words because "generated guarded routines now stop on a failed hold" is true of routines
+  generated from now on and of no routine already in somebody's library.
 - **`keyDown` / `keyUp` — the holds — are untouched.** They are a single key each and already
   report what the machine said.
 - **The timings are the timings.** `$MARCO_CHORD_HOLD_MS` and `$MARCO_KEY_HOLD_MS` mean what they
