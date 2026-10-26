@@ -68,8 +68,18 @@
 //	             has DECIDED what to do about a drain request while still holding its
 //	             loop — which is the instant the barrier can be told from an echo.
 //
+// # The keys it reports the state of
+//
+//	--watch <key>   report, on every press and every key, whether <key> is held — read
+//	                from the system at the instant that message is handled.
+//
+// `Control.ModifierKeys` answers for Ctrl, Shift and Alt, which is the whole of a chord and half
+// of a HOLD: `hold Q, click, release Q` claims Q was DOWN when the click arrived, and no modifier
+// reading can see Q. Named by the harness rather than enumerated, because a window reporting
+// every key's state would be a keylogger. Repeatable.
+//
 // Build:  powershell -File plugins/fixture/build.ps1
-// Run:    plugins/fixture/fixture.exe --state <path> [--stubborn] [--view second]
+// Run:    plugins/fixture/fixture.exe --state <path> [--stubborn] [--watch <key>]
 
 using System;
 using System.Diagnostics;
@@ -91,6 +101,7 @@ namespace MarcoFixture
             string events = null;
             bool stubborn = false;
             bool selftest = false;
+            var watch = new System.Collections.Generic.List<string>();
             for (int i = 0; i < args.Length; i++)
             {
                 switch (args[i])
@@ -107,6 +118,18 @@ namespace MarcoFixture
                     case "--selftest":
                         selftest = true;
                         break;
+                    // THE KEYS THIS WINDOW IS TO REPORT THE STATE OF, named by the harness.
+                    //
+                    // `Control.ModifierKeys` answers for Ctrl, Shift and Alt and for nothing
+                    // else, which is the whole question for a chord and only half of it for a
+                    // HOLD: a routine that holds Q across a click is asking whether Q was down
+                    // when the click arrived, and no amount of looking at modifiers answers
+                    // that. So the harness says which key a scenario is about and this window
+                    // reports that key's state from the system, on every event, the same way it
+                    // already reports the modifiers.
+                    case "--watch":
+                        if (i + 1 < args.Length) { watch.Add(args[++i]); }
+                        break;
                     default:
                         Console.Error.WriteLine("fixture: unknown argument " + args[i]);
                         return 2;
@@ -115,13 +138,43 @@ namespace MarcoFixture
             if (string.IsNullOrEmpty(state))
             {
                 Console.Error.WriteLine("usage: fixture.exe --state <path> " +
-                    "[--events <path>] [--stubborn] [--selftest]");
+                    "[--events <path>] [--stubborn] [--selftest] [--watch <key>]");
                 return 2;
+            }
+
+            // THE WATCHED KEYS ARE RESOLVED HERE, so a name the system does not know is an
+            // argument error like any other: a message and exit 2, before a window exists.
+            //
+            // Not in the window's constructor, where it was first written. A throw from there
+            // arrives as a .NET crash dialog on somebody's desktop, which is the worst possible
+            // answer to a harness typo — and it is an answer no automated check can read, while
+            // an exit code is. Resolved through the `Keys` enum, which is the same spelling
+            // NoteKey writes into the log, so a scenario asking about `q` and a record saying `Q`
+            // are talking about one key with no translation table in between.
+            var watchVk = new System.Collections.Generic.List<int>();
+            var watchName = new System.Collections.Generic.List<string>();
+            foreach (var w in watch)
+            {
+                if (string.IsNullOrEmpty(w)) { continue; }
+                Keys k;
+                try
+                {
+                    k = (Keys)Enum.Parse(typeof(Keys), w, true);
+                }
+                catch (ArgumentException)
+                {
+                    Console.Error.WriteLine("fixture: --watch " + w +
+                        " is not a key this system has a name for");
+                    return 2;
+                }
+                watchVk.Add((int)k);
+                watchName.Add(k.ToString());
             }
 
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
-            Application.Run(new FixtureForm(state, stubborn, events, selftest));
+            Application.Run(new FixtureForm(state, stubborn, events, selftest,
+                watchVk.ToArray(), watchName.ToArray()));
             return 0;
         }
     }
@@ -131,6 +184,9 @@ namespace MarcoFixture
     {
         private readonly string statePath;
         private readonly bool stubborn;
+        // The keys this window reports the state of, resolved once from --watch. See WatchedNow.
+        private readonly int[] watchVk;
+        private readonly string[] watchName;
 
         // ── THE WITNESS: WHAT THIS WINDOW RECEIVED, AS OPPOSED TO WHAT IT NOW HOLDS ──
         //
@@ -277,12 +333,15 @@ namespace MarcoFixture
         private int collapseEvents;
         private bool documentsExpanded;
 
-        internal FixtureForm(string statePath, bool stubborn, string eventsPath, bool selftest)
+        internal FixtureForm(string statePath, bool stubborn, string eventsPath, bool selftest,
+            int[] watchVk, string[] watchName)
         {
             this.statePath = statePath;
             this.stubborn = stubborn;
             this.eventsPath = eventsPath;
             this.selftest = selftest;
+            this.watchVk = watchVk ?? new int[0];
+            this.watchName = watchName ?? new string[0];
             drainRequest = statePath + ".drain";
             drainAnswer = statePath + ".drained";
             selftestRequest = statePath + ".selftest";
@@ -664,6 +723,10 @@ namespace MarcoFixture
             Head(b, "mouse");
             Field(b, "what", button + (down ? "_down" : "_up")); b.Append(",");
             Field(b, "control", NameOf(c)); b.Append(",");
+            // AND WHAT WAS HELD WHEN THIS PRESS ARRIVED, which is what makes a click inside a
+            // hold a different act from the same click outside one. Empty unless the harness
+            // named a key to watch; the modifiers have their own field on key records.
+            Field(b, "watched", WatchedNow()); b.Append(",");
             b.Append("\"on_control_x\":").Append(N(onControl.X)).Append(",");
             b.Append("\"on_control_y\":").Append(N(onControl.Y)).Append(",");
             b.Append("\"client_x\":").Append(N(client.X)).Append(",");
@@ -698,6 +761,7 @@ namespace MarcoFixture
             // application would use, so a chord that arrived as two taps is distinguishable
             // from one that arrived as a chord.
             Field(b, "mods", ModifiersNow()); b.Append(",");
+            Field(b, "watched", WatchedNow()); b.Append(",");
             Field(b, "control", NameOf(Control.FromHandle(m.HWnd))); b.Append(",");
             Geometry(b);
             b.Append("}");
@@ -724,6 +788,40 @@ namespace MarcoFixture
             {
                 if (b.Length > 0) { b.Append("+"); }
                 b.Append("alt");
+            }
+            return b.ToString();
+        }
+
+        /// <summary>The keys the harness named, that this window reads as held right now.</summary>
+        ///
+        /// # Why this exists beside ModifiersNow and is not part of it
+        ///
+        /// `Control.ModifierKeys` answers for Ctrl, Shift and Alt. That is the whole question a
+        /// chord asks and half of the one a HOLD asks: `hold Q, click, release Q` is a claim that
+        /// Q was DOWN when the click arrived, and a modifier reading cannot see Q at all. Nor can
+        /// the order of the messages settle it — a key-down message is evidence that something
+        /// was sent, and the thing being claimed is that the system APPLIED it, which is a
+        /// different fact and the one a wrong scan code or a lost flag gets wrong.
+        ///
+        /// `GetKeyState` and not `GetAsyncKeyState`, and the difference is the point: this is the
+        /// keyboard as it stood for the message being processed, so a click's record says what
+        /// was held when THAT CLICK arrived rather than what is held now that somebody is reading
+        /// the log. The asynchronous question — is a key still down after the run — is the
+        /// harness's to ask of the desktop, and this window could not answer it anyway: no
+        /// message arrives to tell an application about a key nobody pressed in it.
+        ///
+        /// Named rather than enumerated. A window that reported the state of every key would be
+        /// a keylogger, which is not a thing to leave lying in a test fixture, and the harness
+        /// knows which key its scenario is about.
+        private string WatchedNow()
+        {
+            if (watchVk.Length == 0) { return ""; }
+            var b = new StringBuilder();
+            for (int i = 0; i < watchVk.Length; i++)
+            {
+                if ((GetKeyState(watchVk[i]) & 0x8000) == 0) { continue; }
+                if (b.Length > 0) { b.Append("+"); }
+                b.Append(watchName[i]);
             }
             return b.ToString();
         }
@@ -826,6 +924,11 @@ namespace MarcoFixture
 
         [DllImport("user32.dll")]
         private static extern IntPtr GetForegroundWindow();
+
+        // The keyboard as it stood for the message being processed — see WatchedNow for why this
+        // and not GetAsyncKeyState.
+        [DllImport("user32.dll")]
+        private static extern short GetKeyState(int vk);
 
         /// <summary>Comes to the front when the harness asks, and reports that it did.</summary>
         ///
