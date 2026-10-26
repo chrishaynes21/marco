@@ -76,6 +76,11 @@ type recBackend struct {
 	// "refuses once and then works" is a different outcome from "refuses for ever".
 	// Negative means for ever.
 	refuseReleases map[string]int
+	// calls is every machine call in ONE order, which the lists above cannot give:
+	// they are kept per kind, so nothing in them says whether a click happened
+	// inside a hold or after its release. A gesture is an ordering, so the claim
+	// needs a log that is one.
+	calls []string
 }
 
 // sending counts one input send and says whether the machine is taking it.
@@ -99,6 +104,7 @@ func (r *recBackend) sawKey(name string, hold time.Duration) {
 	defer r.mu.Unlock()
 	r.keys = append(r.keys, name)
 	r.keyHolds = append(r.keyHolds, hold)
+	r.calls = append(r.calls, "key "+name)
 }
 
 func (r *recBackend) key(_ context.Context, name string, hold time.Duration) error {
@@ -118,6 +124,7 @@ func (r *recBackend) keyDown(_ context.Context, name string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.keyDowns = append(r.keyDowns, name)
+	r.calls = append(r.calls, "hold "+name)
 	if r.refuseHolds[name] {
 		return fmt.Errorf("the machine would not hold the %q key down", name)
 	}
@@ -130,6 +137,7 @@ func (r *recBackend) keyUp(_ context.Context, name string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.keyUps = append(r.keyUps, name)
+	r.calls = append(r.calls, "release "+name)
 	if n := r.refuseReleases[name]; n != 0 {
 		if n > 0 {
 			r.refuseReleases[name] = n - 1
@@ -151,6 +159,7 @@ func (r *recBackend) click(_ context.Context, b string) error {
 		return err
 	}
 	r.clicks = append(r.clicks, b)
+	r.calls = append(r.calls, "click "+b)
 	return nil
 }
 func (r *recBackend) clickAt(_ context.Context, b string, x, y int) error {
@@ -163,6 +172,7 @@ func (r *recBackend) clickAt(_ context.Context, b string, x, y int) error {
 	}
 	r.moves = append(r.moves, [2]int{x, y})
 	r.clicks = append(r.clicks, b)
+	r.calls = append(r.calls, "click "+b)
 	return nil
 }
 func (r *recBackend) drag(_ context.Context, _ string, x1, y1, x2, y2 int) error {

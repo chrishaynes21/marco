@@ -298,17 +298,50 @@ func lower(events []recorder.RecordedEvent, opt Options) []timedStep {
 			if !ev.Down {
 				continue
 			}
-			// UNDER AN EXPLICIT HOLD, A KEY IS JUST THAT KEY.
+			// UNDER AN EXPLICIT HOLD, A KEY CARRIES ONLY THE MODIFIERS THE HOLD IS
+			// NOT ALREADY SUPPLYING.
 			//
-			// No chord, because the modifier is already down and a chord would press
-			// and release it again inside a hold that is still open. And no Text,
-			// which is the subtler half: Text is what lets a run of keys coalesce
-			// into a Type step, and Type sends characters rather than keystrokes —
-			// so `a` typed under a held Ctrl would arrive as the letter and not as
-			// Ctrl+A, after a fold nothing here could see.
+			// `Ctrl↓ Shift↓ A↓ A↑ Shift↑ click Ctrl↑` is the case this is for. Ctrl
+			// spans the click so it is a hold; Shift spans only the A, so it is
+			// still chord state — and a bare `Key "a"` here drops it, performing
+			// Ctrl+A where Ctrl+Shift+A was demonstrated. That was the first version
+			// of this branch and the defect was invisible: every step looked right.
+			//
+			// The flags carry only the modifiers that are NOT held, and they carry
+			// that by construction rather than by being filtered here: the hold
+			// checks above `continue` before the branch that sets them, so a
+			// modifier written as a hold never becomes chord state in the first
+			// place. That ordering is the whole of why a chord cannot name a key the
+			// hold is already holding — which matters, because `sendChord` presses
+			// and releases what it is given, so naming Ctrl here would press it a
+			// second time and let go of it inside a hold that is still open, leaving
+			// the click after it unmodified.
+			//
+			// An earlier version of this filtered the held classes out again, here.
+			// It was dead code — the flags were already false — and dead code that
+			// looks load-bearing is worse than none, because the next reader trusts
+			// it instead of the ordering. The ordering is what is pinned, by
+			// `TestTheHoldMarkersAreReadBeforeTheModifierState`, which reads it off
+			// the source: there is no input that can tell the two mechanisms apart,
+			// so a test over behaviour cannot hold this.
+			//
+			// And NO TEXT either way, which is the subtler half: Text is what lets a
+			// run of keys coalesce into a Type step, and Type sends characters rather
+			// than keystrokes — so `a` under a held Ctrl would arrive as the letter
+			// and not as Ctrl+A, after a fold nothing here could see. `chord` does
+			// not set it, and the bare step below must not either.
 			if len(heldMods) > 0 {
+				k := name
+				if ctrl || alt || shift || win {
+					// SHIFT ALONE IS A MODIFIER HERE AND A CAPITAL LETTER
+					// ANYWHERE ELSE. Outside a hold, Shift+A is how a capital
+					// is typed and comes out as a key carrying the text "A".
+					// Inside one it is part of a shortcut — Ctrl+Shift+A — and
+					// a capital letter is not what was asked for.
+					k = chord(ctrl, alt, shift, win, name)
+				}
 				out = append(out, timedStep{
-					step: macroir.Step{Kind: macroir.StepKey, Key: name, Count: 1},
+					step: macroir.Step{Kind: macroir.StepKey, Key: k, Count: 1},
 					t:    ev.T,
 				})
 				continue

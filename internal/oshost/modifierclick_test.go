@@ -28,12 +28,17 @@ package oshost
 // See [[ADR-258-a-chord-is-a-promise-to-let-go]] and [[Demonstrations]].
 
 import (
+	"bytes"
 	"context"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/chaynes-simpleclouds/marco/internal/driver"
+	"github.com/chaynes-simpleclouds/marco/internal/mlog"
 	"github.com/chaynes-simpleclouds/marco/internal/orchestrator"
 	"github.com/chaynes-simpleclouds/marco/internal/recorder"
+	"github.com/chaynes-simpleclouds/marco/internal/runtime"
 )
 
 // aCtrlHeldClickInTheGame is the demonstration: hold Ctrl, click something, let go.
@@ -268,5 +273,176 @@ func TestARunCancelledHoldingCtrlStillLetsGo(t *testing.T) {
 	}
 	if warn := hs.NotReleased(); warn != "" {
 		t.Errorf("a sweep that released the modifier reports %q", warn)
+	}
+}
+
+// ── AND AN EXTRA MODIFIER INSIDE THE HOLD, WHICH IS AN ORDERING CLAIM ─────────────────
+//
+// `Ctrl↓ Shift↓ A↓ A↑ Shift↑ click Ctrl↑` is two gestures sharing a held key: Ctrl+Shift+A, then
+// Ctrl+click. The simplifier writes it as `KeyDown ctrl`, `Key "shift+a"`, the click,
+// `KeyUp ctrl` — the Shift folded into a chord and the Ctrl deliberately NOT, because `sendChord`
+// presses and releases what it is given, so naming Ctrl there would let go of it inside a hold
+// that is still open.
+//
+// Everything about that is an ORDER, and the lists the recording backend keeps are per kind — so
+// nothing in them says whether the click happened inside the hold or after its release. These
+// cases read `calls`, which is one log, and run the PRODUCTION `sendChord` underneath the
+// keystroke so the chord's own presses land in the same sequence as the hold around them.
+
+// aLoggingMachine is the keyboard `sendChord` presses, writing into the backend's own ordered log.
+//
+// So one sequence holds the hold, the chord's expansion and the click. Two logs stitched together
+// afterwards would be this test's opinion of how they interleaved, and the interleaving is the
+// whole claim.
+type aLoggingMachine struct{ rec *recBackend }
+
+func (m aLoggingMachine) down(k keySpec) bool {
+	m.rec.mu.Lock()
+	defer m.rec.mu.Unlock()
+	m.rec.calls = append(m.rec.calls, "chord down "+k.name)
+	return true
+}
+
+func (m aLoggingMachine) up(k keySpec) bool {
+	m.rec.mu.Lock()
+	defer m.rec.mu.Unlock()
+	m.rec.calls = append(m.rec.calls, "chord up "+k.name)
+	return true
+}
+
+func (m aLoggingMachine) settle(context.Context, time.Duration) {}
+
+// aBackendWhoseChordsAreReal runs the real sequence for a keystroke, into the ordered log.
+type aBackendWhoseChordsAreReal struct{ *recBackend }
+
+func (b aBackendWhoseChordsAreReal) key(ctx context.Context, name string, hold time.Duration) error {
+	return sendChord(ctx, aLoggingMachine{b.recBackend}, name,
+		spec(strings.Split(name, "+")...), hold, 0, 0)
+}
+
+// aCtrlHeldClickAfterAShortcut is the demonstration: hold Ctrl, press Shift+A inside it, let go
+// of Shift, click, let go of Ctrl.
+//
+// Shift's edges are clear of the click on purpose — it is released before the press begins — so
+// this is the mixed case and not the ambiguous one the simplifier refuses by name.
+func aCtrlHeldClickAfterAShortcut() []recorder.RecordedEvent {
+	k := func(name string, down bool, at int) recorder.RecordedEvent {
+		return recorder.RecordedEvent{Kind: recorder.EvKey, KeyName: name, Down: down,
+			App: "arkascended", PID: 4812, T: when(at)}
+	}
+	return []recorder.RecordedEvent{
+		{Kind: recorder.EvAppSwitch, KeyName: "arkascended", T: when(0)},
+		k("ctrl", true, 100),
+		k("shift", true, 120),
+		k("a", true, 200), k("a", false, 240),
+		k("shift", false, 300),
+		{Kind: recorder.EvClick, Button: "left", Down: true,
+			X: 900, Y: 300, WinRel: true, RelX: 100, RelY: 200, RelTo: "window",
+			WinW: 1920, WinH: 1080, Dpi: 144, Process: "arkascended.exe",
+			App: "arkascended", PID: 4812, T: when(700)},
+		{Kind: recorder.EvClick, Button: "left", Down: false,
+			X: 900, Y: 300, App: "arkascended", PID: 4812, T: when(740)},
+		k("ctrl", false, 1100),
+		{Kind: recorder.EvMove, X: 1500, Y: 900, T: when(1400)},
+		{Kind: recorder.EvClick, Button: "left", Down: true,
+			X: 1511, Y: 913, App: "studio", PID: 7001, T: when(1500)},
+		{Kind: recorder.EvClick, Button: "left", Down: false,
+			X: 1511, Y: 913, App: "studio", PID: 7001, T: when(1505)},
+	}
+}
+
+// A SHORTCUT INSIDE A HELD MODIFIER KEEPS BOTH, AND LETS GO OF EACH AT THE RIGHT TIME.
+func TestAShortcutInsideAHeldModifierKeepsBoth(t *testing.T) {
+	src, at := savedFrom(t, orchestrator.ScopeAppAnywhere, aCtrlHeldClickAfterAShortcut())
+	// THE SAVED SHAPE IS A PRECONDITION. A routine that lost the Shift would make every
+	// assertion below true of a gesture that is not the one demonstrated.
+	for _, want := range []string{`do OS's KeyDown with "ctrl"`,
+		`do OS's Key with "shift+a"`, `do OS's KeyUp with "ctrl"`} {
+		if !strings.Contains(src, want) {
+			t.Fatalf("the demonstration did not come out as a shortcut inside a "+
+				"hold: no %s in\n%s", want, src)
+		}
+	}
+	if strings.Contains(src, `do OS's Key with "ctrl+shift+a"`) {
+		t.Fatalf("the chord names the modifier the hold is already holding, so it "+
+			"would press Ctrl again and let go of it before the click:\n%s", src)
+	}
+
+	onADesktopLike(t, steady(sameWindowMoved), "arkascended.exe")
+	wasBind, wasLog := bindWindow, mlog.Default
+	t.Cleanup(func() { bindWindow, mlog.Default = wasBind, wasLog })
+	bindWindow = func(string) (uintptr, error) { return theGameWindow, nil }
+	var said bytes.Buffer
+	mlog.Default = mlog.New(&said, mlog.LevelDebug)
+
+	rec := &recBackend{}
+	h := &Host{b: aBackendWhoseChordsAreReal{recBackend: rec}}
+	var out bytes.Buffer
+	if err := driver.RunFileWithHosts(at, &out, map[string]runtime.Host{"*": h}); err != nil {
+		t.Fatalf("the saved route would not run: %v\n%s", err, out.String())
+	}
+	got := strings.Join(rec.calls, " | ")
+
+	want := "hold ctrl | chord down shift | chord down a | chord up a | chord up shift | " +
+		"click left | release ctrl"
+	if got != want {
+		t.Errorf("the machine was driven as:\n  %s\nwant:\n  %s", got, want)
+	}
+	// CTRL IS PRESSED ONCE. Counted as well as ordered, because a chord that named it
+	// would put a second press and a second release in the middle and the sequence above
+	// would still contain every moment this asserts.
+	if n := strings.Count(got, "ctrl"); n != 2 {
+		t.Errorf("Ctrl appears %d times in %s, want exactly one press and one release",
+			n, got)
+	}
+	// AND SHIFT BRACKETS THE A AND IS RELEASED BEFORE THE CLICK, while Ctrl is not.
+	shiftUp := strings.Index(got, "chord up shift")
+	click := strings.Index(got, "click left")
+	ctrlUp := strings.Index(got, "release ctrl")
+	switch {
+	case shiftUp < 0 || click < 0 || ctrlUp < 0:
+		t.Fatalf("one of the three moments is missing from %s", got)
+	case shiftUp > click:
+		t.Errorf("Shift was still down when the click arrived, so the click was a "+
+			"Ctrl+Shift+click: %s", got)
+	case click > ctrlUp:
+		t.Errorf("Ctrl was released before the click, so the click was unmodified: %s",
+			got)
+	}
+	if undone := h.Unperformed(); len(undone) != 0 {
+		t.Errorf("a run where everything happened reports %v", undone)
+	}
+	if warn := h.NotReleased(); warn != "" {
+		t.Errorf("a run that let go of everything reports %q", warn)
+	}
+}
+
+// AND THE SIMPLER MIXED CASE IS UNCHANGED.
+//
+// `Ctrl↓ A↓ A↑ click Ctrl↑` — no second modifier, so the key under the hold stays bare. The
+// control for the case above, and it cuts both ways: a change that always built a chord would
+// turn this into `chord(false, false, false, false, "a")`, and one that never built one would
+// lose the Shift.
+func TestACtrlHeldClickAfterAPlainKeyIsUnchanged(t *testing.T) {
+	var without []recorder.RecordedEvent
+	for _, e := range aCtrlHeldClickAfterAShortcut() {
+		if e.Kind == recorder.EvKey && strings.EqualFold(e.KeyName, "shift") {
+			continue
+		}
+		without = append(without, e)
+	}
+	src, at := savedFrom(t, orchestrator.ScopeAppAnywhere, without)
+	if !strings.Contains(src, `do OS's Key with "a"`) {
+		t.Fatalf("a plain key inside a Ctrl hold did not stay plain:\n%s", src)
+	}
+
+	rec := &recBackend{}
+	h, out := playedBy(t, at, rec)
+	if got, want := strings.Join(rec.calls, " | "),
+		"hold ctrl | key a | click left | release ctrl"; got != want {
+		t.Errorf("the machine was driven as:\n  %s\nwant:\n  %s\n%s", got, want, out)
+	}
+	if undone := h.Unperformed(); len(undone) != 0 {
+		t.Errorf("a run where everything happened reports %v", undone)
 	}
 }

@@ -29,6 +29,9 @@ package simplify
 // See [[ADR-258-a-chord-is-a-promise-to-let-go]].
 
 import (
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"strings"
 	"testing"
 
@@ -305,5 +308,229 @@ func TestARefusedRecordingStillSaysWhatItUnderstood(t *testing.T) {
 	if len(steps) == 0 {
 		t.Error("a refused recording came back with no steps, so review can only " +
 			"say that something was wrong and not what was seen")
+	}
+}
+
+// AND AN EXTRA MODIFIER INSIDE A HOLD IS KEPT, WITHOUT NAMING THE ONE ALREADY HELD.
+//
+// `Ctrl↓ Shift↓ A↓ A↑ Shift↑ click Ctrl↑` — Ctrl spans the click so it is a hold, Shift spans
+// only the A so it is still chord state. The first version of the held-key branch emitted a bare
+// `Key "a"` and dropped the Shift, so playback performed Ctrl+A and then Ctrl+click where
+// Ctrl+Shift+A and then Ctrl+click were demonstrated. Every step looked right, which is what made
+// it worth a test of its own rather than a line in one of the cases above.
+//
+// Two things have to be true at once and each is a different way to get it wrong: the Shift has
+// to be THERE, and the Ctrl must not be — `sendChord` presses and releases what it is given, so a
+// chord naming Ctrl would press it a second time and let go of it inside a hold that is still
+// open, leaving the click after it unmodified.
+func TestAnExtraModifierInsideAHoldIsKept(t *testing.T) {
+	ev := []recorder.RecordedEvent{
+		key("ctrl", true, 100),
+		key("shift", true, 120),
+		key("a", true, 200), key("a", false, 240),
+		key("shift", false, 300),
+		click("left", true, 10, 20, 600), click("left", false, 10, 20, 640),
+		key("ctrl", false, 900),
+	}
+	steps := simplified(t, ev, DefaultOptions())
+	if got := shapeOf(steps); got != "keydown(ctrl) key(shift+a) click keyup(ctrl)" {
+		t.Errorf("Ctrl+Shift+A inside a Ctrl hold came out as:\n  %s\n"+
+			"want keydown(ctrl) key(shift+a) click keyup(ctrl)", got)
+	}
+	for _, s := range steps {
+		if s.Kind != macroir.StepKey {
+			continue
+		}
+		// THE SHIFT IS THERE.
+		if !strings.Contains(s.Key, "shift") {
+			t.Errorf("the key step is %q and does not carry the Shift, so playback "+
+				"performs Ctrl+A where Ctrl+Shift+A was demonstrated", s.Key)
+		}
+		// AND THE CTRL IS NOT. A chord that named it would press it again and release
+		// it, so the click that follows would arrive unmodified.
+		if strings.Contains(s.Key, "ctrl") {
+			t.Errorf("the key step is %q and names the modifier the hold is already "+
+				"holding — the chord would press Ctrl again and let go of it "+
+				"before the click", s.Key)
+		}
+		// AND NO TEXT, so it cannot become typing.
+		if s.Text != "" {
+			t.Errorf("the key step carries Text %q, so it can coalesce into a Type "+
+				"step and arrive as a character rather than a keystroke", s.Text)
+		}
+	}
+}
+
+// AND THE SAME WITH THE MODIFIERS NAMED BY SIDE.
+//
+// The recorder reports a modifier by the specific key where it can — `lctrl`, `rshift` — and
+// `isModifier` knows those names, so a hold of one is classified as a hold and the chord beside it
+// is built from what is left. Here because the names are what the recorder actually produces and
+// every other case in this file uses the generic ones.
+func TestAHoldOfAModifierNamedBySideStillWorks(t *testing.T) {
+	ev := []recorder.RecordedEvent{
+		key("lctrl", true, 100),
+		key("rshift", true, 120),
+		key("a", true, 200), key("a", false, 240),
+		key("rshift", false, 300),
+		click("left", true, 10, 20, 600), click("left", false, 10, 20, 640),
+		key("lctrl", false, 900),
+	}
+	steps := simplified(t, ev, DefaultOptions())
+	for _, s := range steps {
+		if s.Kind == macroir.StepKey && strings.Contains(s.Key, "ctrl") {
+			t.Errorf("a hold of %q was not recognised as holding Ctrl: the key step "+
+				"is %q and names it again", "lctrl", s.Key)
+		}
+		if s.Kind == macroir.StepKey && !strings.Contains(s.Key, "shift") {
+			t.Errorf("the key step is %q and lost the Shift", s.Key)
+		}
+	}
+}
+
+// AND A KEY UNDER A HOLD WITH NOTHING ELSE HELD IS STILL A BARE KEY.
+//
+// The control for both cases above. Without it, a change that always built a chord would pass
+// them — and `chord(false, false, false, false, "a")` is not a thing to find out about later.
+func TestAKeyUnderAHoldWithNoOtherModifierIsBare(t *testing.T) {
+	ev := aModifierAround([]recorder.RecordedEvent{
+		key("a", true, 200), key("a", false, 240),
+		click("left", true, 10, 20, 500), click("left", false, 10, 20, 540),
+	}, "ctrl")
+	for _, s := range simplified(t, ev, DefaultOptions()) {
+		if s.Kind == macroir.StepKey && s.Key != "a" {
+			t.Errorf("a key under a Ctrl hold with nothing else held came out as %q",
+				s.Key)
+		}
+	}
+}
+
+// THE HOLD MARKERS ARE READ BEFORE THE MODIFIER-STATE BRANCH, AND THAT IS WHAT MAKES IT CORRECT.
+//
+// # Why this is read off the source rather than exercised
+//
+// Two mechanisms would each stop a chord naming a modifier the hold is already holding: filtering
+// the held classes out when the chord is built, or never letting a held modifier become chord
+// state at all. `lower` relies on the second — the hold checks `continue` before the branch that
+// sets the flags — and NO INPUT CAN TELL THEM APART. A test over behaviour therefore cannot hold
+// this: an earlier version did the filtering as well, and removing that filter failed nothing,
+// because the flags were already false.
+//
+// That is exactly the condition under which a claim has to be pinned to the code. The ordering is
+// load-bearing, it was WRONG ONCE — the modifier branch used to run first and `continue` past the
+// hold markers, which is why a demonstrated Ctrl+click came out as a plain click — and the next
+// change to this function is as likely to reintroduce it as anything else. If it does, a chord
+// built under a hold would name the held modifier, `sendChord` would press it a second time and
+// release it, and the click after it would arrive unmodified while every step still looked right.
+//
+// The same technique and the same reason as `internal/oshost`'s
+// `TestTheHoldPrimitivesDoNotReportAStop`: some rules are about the shape of the code because the
+// behaviour they produce is indistinguishable from the behaviour of getting them wrong a
+// different way.
+func TestTheHoldMarkersAreReadBeforeTheModifierState(t *testing.T) {
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, "simplify.go", nil, 0)
+	if err != nil {
+		t.Fatalf("parsing simplify.go: %v", err)
+	}
+	var fn *ast.FuncDecl
+	for _, decl := range file.Decls {
+		if d, ok := decl.(*ast.FuncDecl); ok && d.Name.Name == "lower" {
+			fn = d
+		}
+	}
+	if fn == nil {
+		t.Fatal("lower is gone; it is what turns recorded events into steps")
+	}
+
+	// THE THREE PLACES, by what each one is: the two hold markers being read, and the
+	// assignment that makes a modifier chord state.
+	var holdRead, flagSet token.Pos
+	ast.Inspect(fn, func(n ast.Node) bool {
+		switch v := n.(type) {
+		case *ast.IndexExpr:
+			// holdDown[i] / holdUp[i]
+			if id, ok := v.X.(*ast.Ident); ok &&
+				(id.Name == "holdDown" || id.Name == "holdUp") {
+				if !holdRead.IsValid() {
+					holdRead = v.Pos()
+				}
+			}
+		case *ast.AssignStmt:
+			// `ctrl = ev.Down` and its three siblings — and NOT the `:=` that
+			// declares all four at the top of the function, which is an
+			// assignment to the same names and means the opposite thing. The
+			// token is the discriminator and it is the whole reason this is read
+			// off the syntax rather than grepped for.
+			if v.Tok != token.ASSIGN {
+				return true
+			}
+			for _, lhs := range v.Lhs {
+				id, ok := lhs.(*ast.Ident)
+				if !ok {
+					continue
+				}
+				switch id.Name {
+				case "ctrl", "alt", "shift", "win":
+					if !flagSet.IsValid() {
+						flagSet = v.Pos()
+					}
+				}
+			}
+		}
+		return true
+	})
+
+	switch {
+	case !holdRead.IsValid():
+		t.Fatal("lower never reads the hold markers, so no key is written down as a " +
+			"hold at all")
+	case !flagSet.IsValid():
+		t.Fatal("lower never tracks modifier state, so no chord can be built")
+	case holdRead > flagSet:
+		t.Errorf("lower sets modifier state at %s before it reads the hold markers at "+
+			"%s. A modifier written as a hold would then also be chord state, so a "+
+			"chord built under that hold would name it — pressing it a second time "+
+			"and releasing it inside a hold that is still open, leaving the press "+
+			"after it unmodified. This ordering is the only thing preventing that, "+
+			"and getting it wrong is what made a demonstrated Ctrl+click come out "+
+			"as a plain click", fset.Position(flagSet), fset.Position(holdRead))
+	}
+}
+
+// AND A MODIFIER WRITTEN AS A HOLD IS NOT ALSO CHORD STATE, as far as anything outside can see.
+//
+// The behavioural half of the claim above, and the reason it is not enough on its own: it passes
+// whichever mechanism is doing the work. Kept because it is the thing that actually matters, and
+// because a reader should not have to take the AST test's word for what it protects.
+func TestAHeldModifierNeverEndsUpInAChord(t *testing.T) {
+	// Every combination of a held modifier and a second one tapped under it.
+	for _, c := range []struct{ hold, inner string }{
+		{"ctrl", "shift"}, {"shift", "ctrl"}, {"alt", "shift"}, {"ctrl", "alt"},
+	} {
+		t.Run(c.hold+"+"+c.inner, func(t *testing.T) {
+			ev := []recorder.RecordedEvent{
+				key(c.hold, true, 100),
+				key(c.inner, true, 120),
+				key("a", true, 200), key("a", false, 240),
+				key(c.inner, false, 300),
+				click("left", true, 10, 20, 600),
+				click("left", false, 10, 20, 640),
+				key(c.hold, false, 900),
+			}
+			for _, s := range simplified(t, ev, DefaultOptions()) {
+				if s.Kind != macroir.StepKey {
+					continue
+				}
+				if strings.Contains(s.Key, c.hold) {
+					t.Errorf("the key step is %q and names %s, which the "+
+						"hold is already holding", s.Key, c.hold)
+				}
+				if !strings.Contains(s.Key, c.inner) {
+					t.Errorf("the key step is %q and lost the %s",
+						s.Key, c.inner)
+				}
+			}
+		})
 	}
 }
