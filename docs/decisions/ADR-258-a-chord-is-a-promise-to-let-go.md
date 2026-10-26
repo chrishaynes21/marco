@@ -174,6 +174,49 @@ release goes into the same account a chord's does, so it reaches the record, the
 the card by the path that was already built. Releasing is gated on nothing: a stopped run is
 exactly when a key most needs to come up.
 
+### And two ways a hold's failure went nowhere
+
+Found in review of the slice above, and both are about PROPAGATION rather than cleanup.
+
+**The generator propagated `Key` and not `KeyDown` or `KeyUp`.** So a guarded routine's hold was
+written as an ordinary step, and `hold Q → click → release Q` could click after Q failed to go
+down. The click is a different gesture without the Q — a modified click is not a click — and the
+window guard cannot tell, because the window is the same window. The release is the half that
+looks harmless and is not: everything after a release the machine refused runs with the key STILL
+DOWN, so the presses that follow are modified presses, and the sweep recovering the key afterwards
+is not the same as the routine having been right to carry on. Both are links in the chain now, in
+newly generated guarded routines; nothing on disk is rewritten.
+
+**And the host recorded neither failure.** `doKeyDown` returned a failed step and `doKeyUp`
+returned the error, and neither reached `Unperformed` — so the command read an empty account and
+reported success about a routine that ran with a key in the wrong state. Both go through
+`delivered` now, like a press and like a keystroke.
+
+Neither half is sufficient. A propagated step whose failure is not in the account lets the command
+report success; an account without propagation lets the routine go on pressing. The tests go
+through generation, the runtime and the production host for exactly that reason, with a legacy
+control that still attempts its input and carries on.
+
+### And a run that finished holding a key did not succeed
+
+`performOnePlay` read the cleanup account in the cancelled and the failed branches, and not in the
+one every successful run reaches. So a routine that finished NORMALLY while holding a key, whose
+route-end sweep then could not release it, had no cancellation and no execution error — every
+action it was asked for happened — and fell through to `performed` with nothing said.
+
+It is `failed` now: *it having been tried, and gone wrong*, which is what happened. The key is
+named in the record, said on the run's own output and shown on the card. The control for that
+check is the one that matters most, because the branch is reached by every successful run of every
+routine: a check that was wrong about the empty case would turn the product's ordinary answer into
+a failure.
+
+One imprecision is left and is deliberate. Studio's sentence for a failed routine is *"X" stopped,
+and nothing after the press that did not happen was done*, which is exactly right when a hold or
+release failed mid-routine and slightly wrong when only the route-end sweep failed — nothing
+stopped and nothing was skipped. The specific sentence arrives beside it through `alsoSaid`, and
+rewording the shipped sentence for every failure to suit this one case would cost more than it
+buys. Recorded rather than quietly changed.
+
 ## What did not move
 
 - **No retry on a release.** A modifier the machine refuses to release twice is a different
@@ -264,6 +307,22 @@ exactly when a key most needs to come up.
   real primitive is to send real input into somebody's desktop. The rule is that the hold
   primitives do not consult the run's context at all — pressing is gated one layer up in
   `doKeyDown`, releasing is gated nowhere.
+- `internal/oshost` `holdchain_test.go` — the propagation, through generation → runtime →
+  production host, in both failure positions. A refused HOLD sends no press after it; a refused
+  RELEASE lets the press inside the hold happen and nothing after it; both are named in
+  `Unperformed`. With the generator's two cases removed, the stopping tests fail and so does the
+  control, because the control asserts the link shape; with the host's two `delivered` calls
+  reverted, the account tests fail and so does the legacy case. Two halves, two mutations, and
+  neither half is sufficient alone.
+- `internal/oshost` `TestAHoldTheMachineTakesLetsTheRoutineGoOn` /
+  `TestALegacyRoutineWhoseHoldFailedCarriesOn` — the control, and the contract that must not
+  change: a legacy route attempts its input and carries on, and the account is recorded for both
+  while being acted on for one.
+- `cmd/marco` `TestARunThatFinishedHoldingAKeyIsNotReportedAsPerformed` /
+  `TestARunWhoseSweepReleasedEverythingIsStillPerformed` — the branch every successful run
+  reaches. No cancellation, no execution error, a sweep that could not release: `failed`, with the
+  key named in the record and on the output. The second is the control that matters most, since
+  the same branch answers for every ordinary run.
 - `cmd/marco` `TestAKeyTheRouteEndSweepCouldNotReleaseReachesTheRecord` — an ORDERING claim: the
   sweep is a deferred call inside the run, and the account is read after it, so a key only the
   sweep discovered still reaches the record. The stand-in says nothing until its sweep has run, so

@@ -8578,3 +8578,43 @@ harness can seed one — `simplify` already produces the steps — and the fixtu
 the modifier state it now records, is the right oracle. It is left unwritten rather than written
 and unrun: adding an unexercised scenario to a gate makes that gate's first run a debugging
 session instead of a regression check, and the owner's screen was not available.
+
+### §41a — a hold's failure went nowhere, twice
+
+Two P1s in review of §41, both about PROPAGATION rather than cleanup.
+
+**The generator propagated `Key` and not `KeyDown`/`KeyUp`.** A guarded routine's hold was written
+as an ordinary step, so `hold Q → click → release Q` could click after Q failed to go down. The
+click is a different gesture without the Q, and the window guard cannot tell — the window is the
+same window. The release is the half that looks harmless: everything after a release the machine
+refused runs with the key still down, so the presses that follow are modified presses, and the
+sweep recovering the key later is not the same as the routine having been right to carry on. Both
+are links now, in newly generated guarded routines; nothing on disk is rewritten.
+
+**And the host recorded neither failure.** `doKeyDown` returned a failed step, `doKeyUp` returned
+the error, and neither reached `Unperformed` — so the command read an empty account and reported
+success about a routine that ran with a key in the wrong state. Both go through `delivered` now.
+
+Neither half is sufficient, which is why the tests go through generation → runtime → production
+host: a propagated step whose failure is not in the account lets the command report success, and
+an account without propagation lets the routine go on pressing. Mutating the generator kills the
+stopping tests and the control; mutating the host kills the account tests and the legacy case.
+
+**And a run that finished holding a key was reported as performed.** `performOnePlay` read the
+cleanup account in the cancelled and failed branches and not in the one every successful run
+reaches. A routine that finished normally while holding a key, whose sweep then could not release
+it, had no cancellation and no execution error — so it fell through to `performed` with nothing
+said. The earlier sweep-to-record test forced a cancellation and could not see this path, which is
+exactly what the review said.
+
+It is `failed` now — *it having been tried, and gone wrong* — with the key in the record, on the
+run's output and on the card. Its control is the one that matters most: that branch answers for
+every successful run of every routine, so a check that was wrong about the empty case would turn
+the product's ordinary answer into a failure.
+
+**One imprecision left on purpose.** Studio's sentence for a failed routine is *"X" stopped, and
+nothing after the press that did not happen was done* — right when a hold or release failed
+mid-routine, slightly wrong when only the route-end sweep failed, because nothing stopped and
+nothing was skipped. The specific sentence arrives beside it through `alsoSaid`. Rewording a
+shipped sentence for every failure to suit this one case costs more than it buys, so it is
+recorded here rather than quietly changed.
