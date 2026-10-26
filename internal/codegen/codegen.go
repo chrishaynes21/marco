@@ -864,6 +864,24 @@ func (g *gen) propagating(s macroir.Step) (guard, follow string, ok bool) {
 		// into its presses; a single guard standing for three presses would be a claim
 		// about three things from one answer.
 		return fmt.Sprintf("OS's Key with %q", s.Key), "", true
+	case s.Kind == macroir.StepKeyDown:
+		// AND SO IS THE START OF A HOLD, for a reason of its own.
+		//
+		// A keystroke that did not arrive leaves the screen unchanged. A HOLD that did
+		// not go down leaves the screen unchanged AND leaves everything after it acting
+		// as though a key were held when it is not — `hold Q, click, release Q` is one
+		// gesture, and the click is a different gesture entirely without the Q. The
+		// window guard cannot see the difference: the window is the same window.
+		return fmt.Sprintf("OS's KeyDown with %q", s.Key), "", true
+	case s.Kind == macroir.StepKeyUp:
+		// AND THE END OF ONE, which is the half that is easy to think does not matter.
+		//
+		// It does: a release that the machine would not take leaves everything after it
+		// running with the key STILL DOWN, so the clicks that follow are modified
+		// clicks and the typing that follows is different typing. The route-end sweep
+		// may recover the key afterwards, and that is not the same as the routine
+		// having been right to carry on.
+		return fmt.Sprintf("OS's KeyUp with %q", s.Key), "", true
 	case !guardedStep(s):
 		return "", "", false
 	case s.Kind == macroir.StepMove:

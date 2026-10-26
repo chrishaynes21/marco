@@ -437,8 +437,13 @@ func (h *Host) doKeyDown(c runtime.HostCall) (string, runtime.Value, error) {
 	if err := c.Ctx.Err(); err != nil {
 		return fail(err.Error())
 	}
+	// AND A HOLD THE MACHINE WOULD NOT TAKE IS KEPT, like a press and like a keystroke.
+	//
+	// It was reported as a failed step and recorded nowhere, so the command read an empty
+	// account and reported success about a routine whose hold never went down — and
+	// everything after that hold ran as though a key were held when it was not.
 	if err := h.b.keyDown(c.Ctx, name); err != nil {
-		return fail(err.Error())
+		return h.delivered("the "+name+" hold", err)
 	}
 	// AND A KEY THAT WENT DOWN IS WRITTEN DOWN, IN THE ORDER IT WENT DOWN.
 	h.holding(name)
@@ -460,7 +465,11 @@ func (h *Host) doKeyUp(c runtime.HostCall) (string, runtime.Value, error) {
 	if err := h.b.keyUp(c.Ctx, name); err != nil {
 		mlog.Error("key: the machine would not release a held key", "key", name,
 			"err", err)
-		return ok(err)
+		// KEPT IN THE ACCOUNT TOO. Everything after a release that did not happen runs
+		// with the key still down — modified clicks, different typing — and the
+		// route-end sweep recovering the key later is not the same as the routine
+		// having been right to carry on.
+		return h.delivered("the "+name+" release", err)
 	}
 	h.released(name)
 	mlog.Debug("key: release", "key", name)
