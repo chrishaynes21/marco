@@ -67,14 +67,19 @@ type Host struct {
 	// asked is how many input actions this run asked the machine for. Guarded by mu.
 	// See Host.InputActions for what the number is and is not.
 	asked int
-	// held is a key the machine would not release, which is a state this run LEFT rather
-	// than a thing it did not do — and the one account that has to survive a cancelled
-	// run discarding its error. Guarded by mu. See noteHeld and NotReleased.
-	held string
-	// heldKeys are keys pressed by a KeyDown without a matching KeyUp yet. Tracked so a
-	// route end (success, error, or Esc) can release any still down — a per-command process
-	// exiting with a key held would leave it STUCK down in the target app. Guarded by mu.
-	heldKeys map[string]bool
+	// held is every key the machine would not release, which is a state this run LEFT
+	// rather than a thing it did not do — and the one account that has to survive a
+	// cancelled run discarding its error. Guarded by mu. See noteHeld and NotReleased.
+	//
+	// More than one, because there is more than one way to be left holding something: a
+	// chord whose modifier would not come up, and a hold the route-end sweep could not
+	// release. A single field let the second quietly replace the first.
+	held []string
+	// heldKeys are keys pressed by a KeyDown without a matching KeyUp yet, IN THE ORDER
+	// THEY WENT DOWN. Tracked so a route end (success, error, or Esc) can release any still
+	// down — a per-command process exiting with a key held would leave it STUCK down in the
+	// target app — and ordered because they come up in reverse. Guarded by mu.
+	heldKeys []string
 	// activated is set once this run brings a specific window to the front (Activate).
 	// Window-relative clicks resolve their origin from "the foreground window", which is
 	// only trustworthy AFTER an Activate (then foreground really is the target app).
@@ -425,46 +430,108 @@ func (h *Host) doKeyDown(c runtime.HostCall) (string, runtime.Value, error) {
 	if name == "" {
 		return fail("keydown needs a key")
 	}
+	// NOTHING IS PRESSED BY A RUN THAT HAS ALREADY STOPPED, and a HOLD is the worst one
+	// to get wrong: the thing that releases it is the end of a run that is already over.
+	// Here rather than in the backend so it holds for every backend and can be checked
+	// without a desktop — the same place and the same reason as `sendChord`.
+	if err := c.Ctx.Err(); err != nil {
+		return fail(err.Error())
+	}
 	if err := h.b.keyDown(c.Ctx, name); err != nil {
 		return fail(err.Error())
 	}
-	h.mu.Lock()
-	if h.heldKeys == nil {
-		h.heldKeys = map[string]bool{}
-	}
-	h.heldKeys[name] = true
-	h.mu.Unlock()
+	// AND A KEY THAT WENT DOWN IS WRITTEN DOWN, IN THE ORDER IT WENT DOWN.
+	h.holding(name)
 	mlog.Debug("key: hold", "key", name)
 	return ok(nil)
 }
 
 // doKeyUp releases a held key.
+//
+// THE RELEASE IS ATTEMPTED FIRST AND THE KEY IS FORGOTTEN ONLY IF IT WORKED. Forgetting it
+// first was the defect: the route-end sweep is the one thing that could try again, and it was
+// being told the key had come up. A key the machine refuses stays on the list, so the sweep
+// tries once more and reports it if that fails too.
 func (h *Host) doKeyUp(c runtime.HostCall) (string, runtime.Value, error) {
 	name := c.Input.AsText()
 	if name == "" {
 		return fail("keyup needs a key")
 	}
-	h.mu.Lock()
-	delete(h.heldKeys, name)
-	h.mu.Unlock()
+	if err := h.b.keyUp(c.Ctx, name); err != nil {
+		mlog.Error("key: the machine would not release a held key", "key", name,
+			"err", err)
+		return ok(err)
+	}
+	h.released(name)
 	mlog.Debug("key: release", "key", name)
-	return ok(h.b.keyUp(c.Ctx, name))
+	return ok(nil)
+}
+
+// holding and released are the list of keys this run is holding down, in the order they went
+// down.
+//
+// A LIST AND NOT A SET, because the order is the answer. Releasing holds in the order a map
+// happened to iterate was releasing them in no order at all: an application reading modifier
+// state while a chord of holds comes apart sees a different thing depending on which goes
+// first, and "whichever Go felt like" is not a thing a test can pin or a person can reason
+// about. The reverse of the pressing is what a hand does and what applications expect.
+func (h *Host) holding(name string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for _, k := range h.heldKeys {
+		if k == name {
+			return // already down; holding it twice is still one key
+		}
+	}
+	h.heldKeys = append(h.heldKeys, name)
+}
+
+func (h *Host) released(name string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for i, k := range h.heldKeys {
+		if k == name {
+			h.heldKeys = append(h.heldKeys[:i], h.heldKeys[i+1:]...)
+			return
+		}
+	}
 }
 
 // ReleaseHeld releases any key still down from a KeyDown without a matching KeyUp. The
 // driver calls it at route end (success, error, or Esc), so a hold can never leave a key
 // stuck down after the per-command process exits. No-op when nothing is held.
+//
+// # What it guarantees, in the words that survive review
+//
+// Every key this run is holding gets a release ATTEMPT, in the reverse of the order it was
+// pressed, and a key the machine refuses is REPORTED — through the same account a chord's
+// refused release goes into, so `marco` puts it in the record and Studio shows it. It is not a
+// recovery: nothing here can put a key up that the machine will not take, and a process killed
+// before this runs does not run it at all.
+//
+// It used to discard every answer (`_ = h.b.keyUp(...)`), which made the one path whose entire
+// purpose is "nothing is left down" the one path that could not say otherwise.
+//
+// The context is `Background` on purpose and not the run's: a stopped run is exactly when a key
+// most needs to come up.
 func (h *Host) ReleaseHeld() {
 	h.mu.Lock()
-	held := make([]string, 0, len(h.heldKeys))
-	for k := range h.heldKeys {
-		held = append(held, k)
-	}
+	held := append([]string(nil), h.heldKeys...)
 	h.heldKeys = nil
 	h.mu.Unlock()
-	for _, k := range held {
-		mlog.Debug("key: releasing still-held key at route end", "key", k)
-		_ = h.b.keyUp(context.Background(), k)
+
+	var stuck []string
+	for i := len(held) - 1; i >= 0; i-- {
+		mlog.Debug("key: releasing still-held key at route end", "key", held[i])
+		if err := h.b.keyUp(context.Background(), held[i]); err != nil {
+			// EVERY ONE IS STILL ATTEMPTED. Stopping at the first failure would
+			// leave the rest down in order to report it.
+			stuck = append(stuck, held[i])
+		}
+	}
+	if len(stuck) > 0 {
+		mlog.Error("key: a held key would not come up at route end", "keys", stuck)
+		h.noteHeld("the run", KeyNotReleased(stuck...))
 	}
 }
 
@@ -1861,9 +1928,15 @@ func (h *Host) noteHeld(what string, err error) {
 	if !errors.As(err, &stuck) {
 		return
 	}
+	said := fmt.Sprintf("after %s, %s", what, stuck.Error())
 	h.mu.Lock()
-	h.held = fmt.Sprintf("after %s, %s", what, stuck.Error())
-	h.mu.Unlock()
+	defer h.mu.Unlock()
+	for _, already := range h.held {
+		if already == said {
+			return
+		}
+	}
+	h.held = append(h.held, said)
 }
 
 // NotReleased is the key this run may have left held down, or empty.
@@ -1873,7 +1946,7 @@ func (h *Host) noteHeld(what string, err error) {
 func (h *Host) NotReleased() string {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	return h.held
+	return strings.Join(h.held, " — and ")
 }
 
 // delivered reports a host call that sent input, keeping the sentence when the machine would not

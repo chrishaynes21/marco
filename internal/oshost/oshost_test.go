@@ -3,6 +3,7 @@ package oshost
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"sync"
 	"testing"
@@ -68,6 +69,13 @@ type recBackend struct {
 	// until this existed only one of them could be tested.
 	refuseFrom int
 	sends      int
+	// refuseHolds names keys the machine will not press and hold.
+	refuseHolds map[string]bool
+	// refuseReleases names keys the machine will not let go of, and how many times: a
+	// count rather than a flag because the route-end sweep is a SECOND attempt, and
+	// "refuses once and then works" is a different outcome from "refuses for ever".
+	// Negative means for ever.
+	refuseReleases map[string]int
 }
 
 // sending counts one input send and says whether the machine is taking it.
@@ -110,12 +118,24 @@ func (r *recBackend) keyDown(_ context.Context, name string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.keyDowns = append(r.keyDowns, name)
+	if r.refuseHolds[name] {
+		return fmt.Errorf("the machine would not hold the %q key down", name)
+	}
 	return nil
 }
+
+// keyUp records the attempt BEFORE deciding whether the machine takes it, because an attempt
+// that was refused is still an attempt and "every key was at least asked" is the claim.
 func (r *recBackend) keyUp(_ context.Context, name string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.keyUps = append(r.keyUps, name)
+	if n := r.refuseReleases[name]; n != 0 {
+		if n > 0 {
+			r.refuseReleases[name] = n - 1
+		}
+		return KeyNotReleased(name)
+	}
 	return nil
 }
 func (r *recBackend) typeText(_ context.Context, t string) error {

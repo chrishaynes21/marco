@@ -95,26 +95,37 @@ func (winBackend) key(ctx context.Context, name string, hold time.Duration) erro
 
 // keyDown presses and HOLDS a single key (no release) — the start of a hold. keyUp
 // releases it. Single key only (a held combo isn't a recorded pattern).
-func (winBackend) keyDown(ctx context.Context, name string) error {
+//
+// NEITHER OF THESE REPORTS A STOP ANY MORE, AND THAT IS THE FIX RATHER THAN A SHORTCUT.
+// They used to end with `return ctx.Err()`, after the send — so a run cancelled at that
+// instant pressed the key down AND told its caller the hold had failed, and the caller
+// then did not write the key down as held. The one thing that could have released it did
+// not know it existed. A send that the machine took is reported as having happened,
+// because it did; whether the run should go on is decided where the run is.
+//
+// The stop is enforced one layer up, in `Host.doKeyDown`, so it holds for every backend
+// and can be checked without a desktop. A RELEASE is never gated on it: a stopped run is
+// exactly when a key must still come up.
+func (winBackend) keyDown(_ context.Context, name string) error {
 	vk, scan, ext := resolveKey(name)
 	if vk == 0 && scan == 0 {
 		return fmt.Errorf("unknown key: %q", name)
 	}
 	if !sendKeyDown(vk, scan, ext) {
-		return fmt.Errorf("SendInput rejected key %q", name)
+		return fmt.Errorf("the machine would not hold the %q key down", name)
 	}
-	return ctx.Err()
+	return nil
 }
 
-func (winBackend) keyUp(ctx context.Context, name string) error {
+func (winBackend) keyUp(_ context.Context, name string) error {
 	vk, scan, ext := resolveKey(name)
 	if vk == 0 && scan == 0 {
 		return fmt.Errorf("unknown key: %q", name)
 	}
 	if !sendKeyUp(vk, scan, ext) {
-		return fmt.Errorf("SendInput rejected key %q", name)
+		return KeyNotReleased(name)
 	}
-	return ctx.Err()
+	return nil
 }
 
 // splitChord splits a key spec on '+' into non-empty parts. A bare "+" (the plus
