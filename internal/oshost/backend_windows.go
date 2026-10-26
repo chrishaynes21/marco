@@ -60,63 +60,37 @@ func sleepCtx(ctx context.Context, d time.Duration) {
 	}
 }
 
+// theMachine is SendInput, one key event at a time, which is what `sendChord` is written
+// against so that the sequencing can be checked without a desktop. See chord.go.
+type theMachine struct{}
+
+func (theMachine) down(k keySpec) bool { return sendKeyDown(k.vk, k.scan, k.ext) }
+func (theMachine) up(k keySpec) bool   { return sendKeyUp(k.vk, k.scan, k.ext) }
+
+// settle waits, and RETURNS EARLY when the run is stopped. That early return is how a stop
+// reaches a chord that is mid-flight; `sendChord` reads the context straight afterwards.
+func (theMachine) settle(ctx context.Context, d time.Duration) { sleepCtx(ctx, d) }
+
 func (winBackend) key(ctx context.Context, name string, hold time.Duration) error {
-	// A chord like "ctrl+c" or "ctrl+shift+esc": all parts but the last are
-	// modifiers held down while the last key is tapped, then released in reverse.
-	// A plain "c" is just a one-element chord.
+	// A chord like "ctrl+c" or "ctrl+shift+esc": all parts but the last are modifiers
+	// held down while the last key is tapped, then released in reverse. A plain "c" is
+	// just a one-element chord.
+	//
+	// RESOLVED FIRST, ALL OF IT, BEFORE ANYTHING IS PRESSED. An unknown part found
+	// halfway through would otherwise be an error returned with a modifier already down.
 	parts := splitChord(name)
 	if len(parts) == 0 {
 		return fmt.Errorf("empty key")
 	}
-	type resolved struct {
-		vk, scan uint16
-		ext      bool
-	}
-	keys := make([]resolved, len(parts))
+	keys := make([]keySpec, len(parts))
 	for i, p := range parts {
 		vk, scan, ext := resolveKey(p)
 		if vk == 0 && scan == 0 {
 			return fmt.Errorf("unknown key: %q", p)
 		}
-		keys[i] = resolved{vk, scan, ext}
+		keys[i] = keySpec{name: p, vk: vk, scan: scan, ext: ext}
 	}
-	// Hold modifiers down.
-	for i := 0; i < len(keys)-1; i++ {
-		if !sendKeyDown(keys[i].vk, keys[i].scan, keys[i].ext) {
-			return fmt.Errorf("SendInput rejected key %q", parts[i])
-		}
-	}
-	// A chord (held modifiers) gets a small hold so the app registers it — a combo
-	// like Alt+Tab needs the modifier settled before the key and the combo held a
-	// beat, or it's missed. A plain key still gets a SMALL linger (tapHold) so a fast
-	// game/app registers the press — an instant down+up is what they drop.
-	chord := len(keys) > 1
-	last := keys[len(keys)-1]
-	// How long the key/combo stays down before release. An explicit hold (from
-	// `Key with Key …, Hold …`) overrides the default linger — this is what lets
-	// Alt+Tab stay held long enough to commit the switch against a fullscreen app.
-	holdDur := hold
-	if holdDur <= 0 {
-		if chord {
-			holdDur = chordHold
-		} else {
-			holdDur = tapHold
-		}
-	}
-	if chord {
-		sleepCtx(ctx, chordHold) // let the modifier(s) settle
-	}
-	okDown := sendKeyDown(last.vk, last.scan, last.ext)
-	sleepCtx(ctx, holdDur) // hold the key/combo before releasing
-	okUp := sendKeyUp(last.vk, last.scan, last.ext)
-	// Release modifiers in reverse order, even if the tap was rejected.
-	for i := len(keys) - 2; i >= 0; i-- {
-		sendKeyUp(keys[i].vk, keys[i].scan, keys[i].ext)
-	}
-	if !okDown || !okUp {
-		return fmt.Errorf("SendInput rejected key %q", name)
-	}
-	return ctx.Err()
+	return sendChord(ctx, theMachine{}, name, keys, hold, chordHold, tapHold)
 }
 
 // keyDown presses and HOLDS a single key (no release) — the start of a hold. keyUp
