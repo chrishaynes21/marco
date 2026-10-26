@@ -7,6 +7,7 @@ package oshost
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"math/rand"
@@ -66,6 +67,10 @@ type Host struct {
 	// asked is how many input actions this run asked the machine for. Guarded by mu.
 	// See Host.InputActions for what the number is and is not.
 	asked int
+	// held is a key the machine would not release, which is a state this run LEFT rather
+	// than a thing it did not do — and the one account that has to survive a cancelled
+	// run discarding its error. Guarded by mu. See noteHeld and NotReleased.
+	held string
 	// heldKeys are keys pressed by a KeyDown without a matching KeyUp yet. Tracked so a
 	// route end (success, error, or Esc) can release any still down — a per-command process
 	// exiting with a key held would leave it STUCK down in the target app. Guarded by mu.
@@ -405,7 +410,11 @@ func (h *Host) doKey(c runtime.HostCall) (string, runtime.Value, error) {
 	// not happen — and the screen the steps after it act on is not the screen they were
 	// recorded against. Without this the status stopped the routine and the account held
 	// nothing, so the command reported success about a routine that did not run.
-	return h.delivered("the "+name+" key", h.b.key(c.Ctx, name, hold))
+	err := h.b.key(c.Ctx, name, hold)
+	// AND A KEY THE MACHINE WOULD NOT LET GO OF IS KEPT SEPARATELY, because it is not an
+	// account of something that did not happen. See noteHeld.
+	h.noteHeld("the "+name+" key", err)
+	return h.delivered("the "+name+" key", err)
 }
 
 // doKeyDown presses and HOLDS a key, tracking it so a route end always releases it. The
@@ -1832,6 +1841,39 @@ func (h *Host) didNotDo(why string) {
 	h.mu.Lock()
 	h.undone = append(h.undone, why)
 	h.mu.Unlock()
+}
+
+// noteHeld keeps a key the machine would not release, which is an account of its own.
+//
+// # Why it is not in `Unperformed`
+//
+// Because it is not a thing that did not happen. Every entry in that list is something the run
+// was going to do and did not, and a caller reads it to decide that the routine stopped. This is
+// the opposite shape: something that DID happen and has not finished — a modifier down on this
+// computer, modifying every keystroke typed after it.
+//
+// And it has to survive a cancellation. A stopped run discards its error on purpose, because a
+// stop is not a failure; the half of that error which is still happening must outlive the
+// discarding, and an account the host keeps is what outlives it. The identity comes from the
+// error rather than from its wording, so improving the sentence cannot quietly disconnect this.
+func (h *Host) noteHeld(what string, err error) {
+	var stuck notReleased
+	if !errors.As(err, &stuck) {
+		return
+	}
+	h.mu.Lock()
+	h.held = fmt.Sprintf("after %s, %s", what, stuck.Error())
+	h.mu.Unlock()
+}
+
+// NotReleased is the key this run may have left held down, or empty.
+//
+// Read by `marco` after the run, including — especially — after a run that was stopped. See
+// `noteHeld`, and `cmd/marco`'s performOnePlay for what it does with it.
+func (h *Host) NotReleased() string {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.held
 }
 
 // delivered reports a host call that sent input, keeping the sentence when the machine would not

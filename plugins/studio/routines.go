@@ -612,7 +612,15 @@ func saidOfRoutine(name, said, why string, active bool) string {
 		return fmt.Sprintf("Marco refused to perform %q, and pressed nothing.%s",
 			name, alsoSaid(why))
 	case outcome.Cancelled:
-		return fmt.Sprintf("%q was stopped part of the way through.", name)
+		// AND WHATEVER THE STOP LEFT BEHIND, which a cancelled run used to drop.
+		//
+		// A stop is not a failure and this sentence does not pretend otherwise. But a
+		// run stopped mid-chord can leave a modifier held down on the machine, and the
+		// executor now keeps that sentence in the record of a cancelled run — so a
+		// window that printed only "stopped part of the way through" would be the one
+		// place a person looks, not mentioning the key that is still down.
+		return fmt.Sprintf("%q was stopped part of the way through.%s", name,
+			alsoSaid(why))
 	case outcome.Unavailable:
 		return fmt.Sprintf("Nothing ran %q — it was never delivered.%s", name,
 			alsoSaid(why))

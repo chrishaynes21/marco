@@ -513,13 +513,74 @@ func performOnePlay(d orchestrator.Deps, p playInvocation) (Outcome, error) {
 	out, because := OutcomePerformed, ""
 	switch {
 	case cancelled:
-		// AND A CANCELLED RUN CARRIES NO ERROR OUT, as it never did.
-		out, err = OutcomeCancelled, nil
+		// AND A CANCELLED RUN CARRIES NO ERROR OUT, as it never did — EXCEPT THE PART
+		// OF IT THAT IS STILL HAPPENING.
+		//
+		// The outcome stays `cancelled`, and that is right: somebody pressed Escape and
+		// the record says so. But a chord that was stopped between its modifiers and
+		// its key can also report a modifier the machine would not RELEASE, and that is
+		// not an account of something that did not happen — it is a key held down on
+		// this computer now, modifying every keystroke typed after it. Discarding the
+		// whole error discarded that too, so the durable record read `cancelled` with
+		// nothing beside it while Ctrl was down, and the window that reads the record
+		// had nothing to show either.
+		//
+		// ASKED OF THE HOST AND NOT READ OUT OF THE ERROR. The error is flattened into
+		// a sentence on its way up — `runRoute` builds "<routine> stopped: <what>" out
+		// of the host's account, so nothing above it can recognise anything — and a
+		// cancelled run discards it anyway. The host keeps this one where neither can
+		// happen to it, which is the same shape as `Unperformed` and for the same
+		// reason: an account, not a returned value.
+		out = OutcomeCancelled
+		if warn := stillHeld(d); warn != "" {
+			because = warn
+			// AND SAID OUT LOUD, ON THE RUN.S OWN NARRATIVE. The record is read
+			// later and the person is here now — and it is how the window sees it
+			// at all: Studio keeps the last thing the child said before the
+			// outcome word. A warning that existed only in a file would be a
+			// warning nobody gets.
+			fmt.Println(warn)
+		}
+		err = nil
 	case err != nil:
 		out, because = OutcomeFailed, err.Error()
+		// AND A FAILED RUN SAYS IT TOO, IF IT IS NOT ALREADY IN THERE. The error for a
+		// refused keystroke carries the whole sentence, so this is usually a no-op; it
+		// is here for the delivery failure whose account was built before the release
+		// was attempted, which would otherwise read as a keystroke that did not happen
+		// and nothing about the key still down.
+		if warn := stillHeld(d); warn != "" && !strings.Contains(because, warn) {
+			because += " — " + warn
+			fmt.Println(warn)
+		}
 	}
 	// AND WHAT BECAME OF IT, INTO THE REFERENCE THAT WAS ALREADY PRINTED. The same
 	// identity the reservation was given, not a second reading of the file.
 	keepRoutineRun(res, began, p.rt, s.did, out, because, askedOf(d))
 	return out, err
+}
+
+// stillHolder is a host that can say whether this run left a key down.
+//
+// An interface rather than `*oshost.Host` for the reason `unperformer` is one: the concrete type
+// sends real input, so the only way to put a cleanup failure in front of this decision is a host
+// that reports one. See oshost.Host.NotReleased.
+type stillHolder interface {
+	// NotReleased is the key the machine would not let go of, or empty.
+	NotReleased() string
+}
+
+// stillHeld is what this run may have left held down on the computer, or empty.
+//
+// WHY A RUN ASKS AT ALL, including one that was stopped: a key the machine would not release is
+// not an account of something that did not happen. It is something that DID happen and has not
+// finished, and until it is released every keystroke anybody types arrives modified. A cancelled
+// run throws its error away on purpose — a stop is not a failure — and this is the half of it
+// that must not be thrown away with it.
+func stillHeld(d orchestrator.Deps) string {
+	h, ok := d.Hosts["*"].(stillHolder)
+	if !ok {
+		return ""
+	}
+	return h.NotReleased()
 }
