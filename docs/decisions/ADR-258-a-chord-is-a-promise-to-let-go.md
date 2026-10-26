@@ -146,6 +146,19 @@ Ctrl is stuck needs to be told.
 - **No retry on a release.** A modifier the machine refuses to release twice is a different
   problem — a different integrity level, a lock screen, a UIPI boundary — and a retry loop around
   input is a decision of its own rather than a consequence of this one. It is said loudly instead.
+- **A failed release is REPORTED, not recovered.** Worth stating in those words, because
+  everything above is machinery for saying so and none of it puts the key back up. The run
+  reports; the record keeps it; the card shows it; the key is still down. Whoever reads the
+  sentence is the recovery.
+- **And forced termination is outside the undertaking entirely.** The releases happen because
+  `sendChord` reaches them — on success, on a refusal, on a stop. A process killed between a
+  modifier going down and its release runs no more code, so nothing releases it: not this, and not
+  the driver's `ReleaseHeld`, which is a deferred call and covers only the keys an explicit
+  `KeyDown` hold is tracking (a chord's modifiers are not in that list, because `sendChord` owns
+  them for the few milliseconds they exist). `runs/a killed runner leaves an unfinished record` is
+  the harness scenario that kills a runner mid-run; it establishes that nobody can speak for such
+  an attempt, which is exactly the right claim and not a recovery either. The guarantee is: every
+  pressed key gets a release attempt **by code that gets to run**.
 - **`keyDown` / `keyUp` — the holds — are untouched.** They are a single key each and already
   report what the machine said.
 - **The timings are the timings.** `$MARCO_CHORD_HOLD_MS` and `$MARCO_KEY_HOLD_MS` mean what they

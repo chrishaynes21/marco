@@ -94,7 +94,12 @@ run's error deliberately, so the host keeps the key it could not release in an a
 — `Host.NotReleased`, beside `Host.Unperformed`, and separate on purpose: that list is things
 that did not happen, and this is something that did and has not finished. The outcome stays
 `cancelled`; the sentence reaches the durable record, the run's own output, and the card.
-[[ADR-258-a-chord-is-a-promise-to-let-go]]
+
+Two limits, in those words: a failed release is **reported, not recovered** — none of that
+machinery puts the key back up, and whoever reads the sentence is the recovery — and **forced
+termination is outside it**, because a process killed between a modifier going down and its
+release runs no more code. The guarantee is that every pressed key gets a release attempt by code
+that gets to run. [[ADR-258-a-chord-is-a-promise-to-let-go]]
 
 ## What this caught
 

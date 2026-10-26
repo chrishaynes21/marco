@@ -34,6 +34,15 @@ package oshost
 // around input is a decision of its own rather than a consequence of this one. It says so
 // loudly instead, and `HANDOFF` records the question.
 //
+// So a failed release is REPORTED AND NOT RECOVERED. Everything downstream of here — the host's
+// account, the run record, the sentence on the card — exists to say that a key is down. None of
+// it puts the key back up; the person reading the sentence is the recovery.
+//
+// And forced termination is outside all of it. These releases happen because this function
+// reaches them, on success, on a refusal and on a stop. A process killed between a modifier going
+// down and its release runs no more code, so nothing releases it. What is guaranteed is that
+// every pressed key gets a release attempt by code that gets to run.
+//
 // See [[ADR-258-a-chord-is-a-promise-to-let-go]].
 
 import (
