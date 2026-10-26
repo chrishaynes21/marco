@@ -416,11 +416,7 @@ func pressesAre(presses []fixtureEvent) string {
 	}
 	var parts []string
 	for _, e := range presses {
-		with := "nothing held"
-		if e.Watched != "" {
-			with = e.Watched + " held"
-		}
-		parts = append(parts, fmt.Sprintf("%s with %s", e.Control, with))
+		parts = append(parts, fmt.Sprintf("%s with %s held", e.Control, heldAt(e)))
 	}
 	return "landed on " + strings.Join(parts, ", then ")
 }

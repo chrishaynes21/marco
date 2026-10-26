@@ -100,28 +100,35 @@ type fixtureEvent struct {
 	DPI        int    `json:"dpi"`
 }
 
+// heldAt is what the window read as held at the instant of an event, in one phrase.
+//
+// BOTH accounts, and never one of them, because neither covers the other: `Mods` is the three the
+// system names for us and `Watched` is the keys the harness had to ask about. A line that showed
+// one of them is how the press inside a Ctrl hold came to be reported as holding nothing, in the
+// same run whose verdict rested on that press's `Mods` — the log contradicted the finding it was
+// the evidence for, and the reader has no way to tell "nothing was held" from "that was not
+// printed". So an empty reading says so.
+func heldAt(e fixtureEvent) string {
+	switch {
+	case e.Mods != "" && e.Watched != "":
+		return e.Mods + " and " + e.Watched
+	case e.Mods != "":
+		return e.Mods
+	case e.Watched != "":
+		return e.Watched
+	}
+	return "nothing"
+}
+
 func (e fixtureEvent) String() string {
 	switch e.Kind {
 	case "mouse":
-		held := ""
-		if e.Watched != "" {
-			held = fmt.Sprintf(" with %s held", e.Watched)
-		}
-		return fmt.Sprintf("#%d %s %s on %q at screen %d,%d (%d,%d into it)%s, window %s",
-			e.Seq, e.Kind, e.What, e.Control, e.ScreenX, e.ScreenY, e.OnControlX,
-			e.OnControlY, held, e.Window)
+		return fmt.Sprintf("#%d %s %s on %q at screen %d,%d (%d,%d into it) with %s "+
+			"held, window %s", e.Seq, e.Kind, e.What, e.Control, e.ScreenX,
+			e.ScreenY, e.OnControlX, e.OnControlY, heldAt(e), e.Window)
 	case "key":
-		held := "nothing held"
-		switch {
-		case e.Mods != "" && e.Watched != "":
-			held = e.Mods + " and " + e.Watched + " held"
-		case e.Mods != "":
-			held = e.Mods + " held"
-		case e.Watched != "":
-			held = e.Watched + " held"
-		}
-		return fmt.Sprintf("#%d key %s %s on %q with %s", e.Seq, e.What, e.Key,
-			e.Control, held)
+		return fmt.Sprintf("#%d key %s %s on %q with %s held", e.Seq, e.What, e.Key,
+			e.Control, heldAt(e))
 	default:
 		return fmt.Sprintf("#%d %s %s, window %s", e.Seq, e.Kind, e.What, e.Window)
 	}

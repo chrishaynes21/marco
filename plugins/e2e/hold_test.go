@@ -388,6 +388,11 @@ func TestTheStoppedHoldScenarioGuardsItsAbsenceClaim(t *testing.T) {
 // being guarded against is the one that was actually in the product: a demonstrated Ctrl+click
 // arriving as a plain click, with every message in the right order.
 
+// aModifiedKey is a key message the application read the keyboard as modified for.
+func aModifiedKey(seq int, what, key, mods string) fixtureEvent {
+	return fixtureEvent{Seq: seq, Kind: "key", What: what, Key: key, Mods: mods}
+}
+
 // aModifiedPress is a press the application read the keyboard as modified for.
 func aModifiedPress(seq int, control, mods string) fixtureEvent {
 	return fixtureEvent{Seq: seq, Kind: "mouse", What: "left_down", Control: control,
@@ -520,5 +525,84 @@ func TestTheModifiersTwoSpellingsAreBothRecognised(t *testing.T) {
 	if why := thePressWasNotModified([]fixtureEvent{aPress(10, "Name", ""),
 		aModifiedPress(12, "Save", "shift")}); why == "" {
 		t.Error("a press read as holding only Shift was accepted for a Ctrl+click")
+	}
+}
+
+// ── AND THE LOG A READER SEES SAYS WHAT THE VERDICT WAS DECIDED ON ────────────────────
+//
+// Found on the first green desktop run of these three scenarios. The Ctrl scenario passed, and
+// its own artifact trail said the press inside the hold arrived holding NOTHING — because the
+// line for a press printed `Watched` and silently left out `Mods`, which is the account that
+// scenario's verdict rests on. A reader comparing the two would have had to conclude one of them
+// was lying, and the trail is the only part of a desktop run that survives it.
+//
+// It is not a cosmetic bug and it is not a false pass: it is the failure direction that matters.
+// Had the press really arrived unmodified, the finding would have named the right thing while
+// every step above it showed a log in which nothing was held either way, and the next person
+// would have had no way to tell a product defect from a harness that forgot to ask.
+//
+// So: every reading the assertions can make is in the line, and an empty reading SAYS so, because
+// a missing phrase and a key nobody was holding have to look different.
+func TestTheLineAboutAnEventNamesWhatTheWindowRead(t *testing.T) {
+	for _, c := range []struct {
+		what         string
+		e            fixtureEvent
+		wantMentions []string
+	}{
+		{"a press the system named the modifier for",
+			fixtureEvent{Seq: 12, Kind: "mouse", What: "left_down",
+				Control: "Save", Mods: "ctrl"}, []string{"ctrl"}},
+		{"a press under a key the harness had to ask about",
+			fixtureEvent{Seq: 12, Kind: "mouse", What: "left_down",
+				Control: "Save", Watched: "q"}, []string{"q"}},
+		{"a press under both",
+			fixtureEvent{Seq: 12, Kind: "mouse", What: "left_down",
+				Control: "Save", Mods: "ctrl", Watched: "q"},
+			[]string{"ctrl", "q"}},
+		{"a press under neither",
+			fixtureEvent{Seq: 10, Kind: "mouse", What: "left_down",
+				Control: "Name"}, []string{"nothing held"}},
+		{"a key under a modifier", aModifiedKey(11, "down", "A", "ctrl"),
+			[]string{"ctrl"}},
+		{"a key under nothing", aKey(14, "up", "ControlKey"),
+			[]string{"nothing held"}},
+	} {
+		got := c.e.String()
+		for _, want := range c.wantMentions {
+			if !strings.Contains(got, want) {
+				t.Errorf("the line for %s does not mention %q, so the record a "+
+					"person reads is missing the reading an assertion "+
+					"makes:\n  %s", c.what, want, got)
+			}
+		}
+	}
+}
+
+// AND A PRESS THE SCENARIO ACCEPTS IS NOT PRINTED AS HOLDING NOTHING.
+//
+// The two halves tied together, which is the actual invariant: the field the verdict reads and the
+// field the line prints are the same field. Asserted through the production assertion rather than
+// by naming `Mods` twice, so changing which account decides the verdict breaks this unless the
+// line changes with it.
+func TestAPressTheVerdictAcceptsIsNotLoggedAsHoldingNothing(t *testing.T) {
+	_, presses := theCtrlClick()
+	if why := thePressWasNotModified(presses); why != "" {
+		t.Fatalf("the case this is built on no longer passes the reading "+
+			"assertion: %s", why)
+	}
+	line := presses[1].String()
+	if strings.Contains(line, "nothing held") {
+		t.Errorf("the harness accepted this press as modifier-held and logged it as "+
+			"holding nothing, so the trail contradicts the verdict it is the "+
+			"evidence for:\n  %s", line)
+	}
+	if !strings.Contains(line, theHeldModifier.reads) {
+		t.Errorf("the line for the press does not name %s, which is what the verdict "+
+			"was decided on:\n  %s", theHeldModifier.reads, line)
+	}
+	// AND pressesAre, which is what a FAILURE carries, reads the same way.
+	if said := pressesAre(presses); !strings.Contains(said, theHeldModifier.reads) {
+		t.Errorf("the failure detail does not name %s either: %s",
+			theHeldModifier.reads, said)
 	}
 }
