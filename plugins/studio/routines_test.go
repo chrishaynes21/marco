@@ -1193,3 +1193,63 @@ func TestSavingAgainKeepsWhatTheRoutineSaysItRecorded(t *testing.T) {
 		t.Error("the card carries the mode with nothing said about what it means")
 	}
 }
+
+// A STOPPED ROUTINE SHOWS WHAT IT LEFT HELD DOWN.
+//
+// A stop is not a failure and this window says so in its own words — *"ark graphics" was stopped
+// part of the way through.* But a run stopped between a chord's modifiers and its key can leave a
+// modifier down on the machine, and until it is released every keystroke anybody types arrives
+// modified. The executor now says that before it announces the outcome, and keeps it in the
+// durable record; a window that printed only the stop sentence would be the one place a person
+// looks, not mentioning it.
+//
+// The window does not parse the warning and must not: it keeps the last thing the child said and
+// shows it. So this is a test about the sentence reaching the surface, not about the surface
+// understanding it. The executor's half is `cmd/marco`
+// `TestAStoppedRunRecordsTheKeyItLeftHeldDown`; the sequence that produces it is
+// `internal/oshost` `TestARunStoppedMidChordLeavesNothingPressedAndSaysWhatIsStuck`.
+// See [[ADR-258-a-chord-is-a-promise-to-let-go]].
+func TestAStoppedRoutineShowsWhatItLeftHeldDown(t *testing.T) {
+	stuck := "after the ctrl+shift+a key, the machine would not release ctrl, which may " +
+		"still be held down on this computer — until it is, every keystroke anybody " +
+		"types arrives modified"
+	w := aRunThatSaid(t, "[route] ark graphics", stuck,
+		outcome.Line(outcome.Cancelled))
+
+	if w.Outcome != string(outcome.Cancelled) {
+		t.Fatalf("the run was stopped and the window shows %q", w.Outcome)
+	}
+	if w.Reason != stuck {
+		t.Errorf("the window kept %q as what the run said, and the run said %q",
+			w.Reason, stuck)
+	}
+	// AND IT IS IN THE SENTENCE SOMEBODY READS, not only in a field.
+	switch {
+	case !strings.Contains(w.Said, "stopped part of the way through"):
+		t.Errorf("the window no longer says a stopped routine was stopped: %q", w.Said)
+	case !strings.Contains(w.Said, "would not release ctrl"):
+		t.Errorf("the window says %q about a run that left Ctrl held down — the stop "+
+			"is reported and the key still down is not, which is the half "+
+			"somebody has to do something about", w.Said)
+	}
+}
+
+// AND AN ORDINARY STOP SAYS ONLY THAT IT STOPPED.
+//
+// The control. A window that appended whatever the child last said to every cancelled run would
+// satisfy the case above and would also show somebody a file path, a log line, or nothing at all
+// dressed up as a warning.
+func TestAnOrdinaryStopSaysOnlyThatItStopped(t *testing.T) {
+	w := aRunThatSaid(t, "[route] ark graphics", outcome.Line(outcome.Cancelled))
+
+	if w.Outcome != string(outcome.Cancelled) {
+		t.Fatalf("the window shows %q", w.Outcome)
+	}
+	if w.Reason != "" {
+		t.Errorf("a plain stop kept %q as a reason", w.Reason)
+	}
+	if !strings.Contains(w.Said, "stopped part of the way through") ||
+		strings.Contains(w.Said, "It said:") {
+		t.Errorf("a plain stop reads as %q", w.Said)
+	}
+}
