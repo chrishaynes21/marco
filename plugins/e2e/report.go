@@ -98,7 +98,7 @@ func verdictOf(results []result, selected int) (verdict string, code int) {
 // scenario leaned on them — printed on every run because a reader of a green summary is entitled
 // to know they were checked rather than assumed.
 func report(art *artifacts, m machine, checks []string, results []result, fatal error,
-	started time.Time) int {
+	started time.Time, unexercised ...scenario) int {
 	fmt.Printf("\n%s\n", strings.Repeat("─", 78))
 
 	if fatal != nil {
@@ -107,11 +107,11 @@ func report(art *artifacts, m machine, checks []string, results []result, fatal 
 			fmt.Printf("NOT RUN: %s\n", nr.why)
 			describe(m)
 			fmt.Printf("\n%s\n", notExercised)
-			keepSummary(art, m, checks, results, "not run", nr.why, started)
+			keepSummary(art, m, checks, results, "not run", nr.why, started, unexercised)
 			return 2
 		}
 		fmt.Printf("the harness could not start: %v\n", fatal)
-		keepSummary(art, m, checks, results, "broken", fatal.Error(), started)
+		keepSummary(art, m, checks, results, "broken", fatal.Error(), started, unexercised)
 		return 3
 	}
 
@@ -163,6 +163,19 @@ func report(art *artifacts, m machine, checks []string, results []result, fatal 
 		fmt.Println()
 	}
 	fmt.Printf("%s\n", notExercised)
+	// AND A SCENARIO THIS HARNESS OWNS AND HAS NEVER RUN GREEN IS SAID OUT LOUD.
+	//
+	// Beside the physical-capture limit, because it is the same kind of statement: a thing
+	// this harness does not establish, printed on a green run in the same words every time.
+	// A scenario held back quietly would make the summary mean more than it does — the
+	// reader counts the lines and concludes that the lines are all there is.
+	if len(unexercised) > 0 {
+		fmt.Printf("implemented and NOT EXERCISED: %s. Written, gated out of this "+
+			"selection, and waiting on one green desktop run before it joins "+
+			"the gate — run with -only %s.\n",
+			strings.Join(namesOf(unexercised), ", "),
+			selector(unexercised[0].name))
+	}
 
 	verdict, code := verdictOf(results, len(results))
 	// AND A PARTIAL RUN SAYS SO IN WORDS, not only in an exit code.
@@ -186,7 +199,7 @@ func report(art *artifacts, m machine, checks []string, results []result, fatal 
 	describe(m)
 	fmt.Printf("\nartifacts: %s\n", art.dir)
 
-	keepSummary(art, m, checks, results, verdict, "", started)
+	keepSummary(art, m, checks, results, verdict, "", started, unexercised)
 	return code
 }
 
@@ -231,7 +244,7 @@ func describe(m machine) {
 }
 
 func keepSummary(art *artifacts, m machine, checks []string, results []result,
-	verdict, why string, started time.Time) {
+	verdict, why string, started time.Time, unexercised []scenario) {
 
 	type line struct {
 		Name     string   `json:"name"`
@@ -259,6 +272,7 @@ func keepSummary(art *artifacts, m machine, checks []string, results []result,
 		"verdict":                    verdict,
 		"why":                        why,
 		"physical_recording_capture": "not exercised",
+		"implemented_not_exercised":  namesOf(unexercised),
 		"checks":                     checks,
 		"machine":                    m,
 		"scenarios":                  lines,
@@ -267,4 +281,13 @@ func keepSummary(art *artifacts, m machine, checks []string, results []result,
 	if err == nil {
 		art.keep("summary.json", out)
 	}
+}
+
+// namesOf is the names of a set of scenarios, for a summary line and for the JSON beside it.
+func namesOf(in []scenario) []string {
+	var out []string
+	for _, s := range in {
+		out = append(out, s.name)
+	}
+	return out
 }

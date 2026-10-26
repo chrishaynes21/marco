@@ -251,7 +251,12 @@ func TestEveryCountOfWhatArrivedIsTakenAfterTheBarrier(t *testing.T) {
 					if !barrier.IsValid() {
 						barrier = call.Pos()
 					}
-				case "presses":
+				// `keys` beside `presses` because the absence a key scenario
+				// asserts is an absence of KEY messages — a chord that left a
+				// modifier down, a hold whose release never arrived. Reading that
+				// log early reports a window that is merely behind as a product
+				// that did not send something.
+				case "presses", "keys":
 					if !counted.IsValid() {
 						counted = call.Pos()
 					}
@@ -262,7 +267,7 @@ func TestEveryCountOfWhatArrivedIsTakenAfterTheBarrier(t *testing.T) {
 				continue
 			}
 			if !barrier.IsValid() || barrier > counted {
-				t.Errorf("%s counts what the fixture received at %s without "+
+				t.Errorf("%s reads what the fixture received at %s without "+
 					"crossing the drain barrier first. Until the fixture's "+
 					"own loop has gone idle, that count is a lower bound — "+
 					"and a press still queued reads as a press that never "+

@@ -91,9 +91,8 @@ func aChordArrivesAsAChord(w *world) result {
 	rec, err := waitForRecord(60*time.Second, st.store, recordsBefore)
 	if err != nil {
 		st.fail()
-		got, _ := f.keys(seq)
 		return fail(started, fmt.Sprintf("Marco wrote no finished run record for the "+
-			"chord routine: %v. The application received %s", err, keysAre(got)))
+			"chord routine: %v. The application received %s", err, f.arrivedSoFar(seq)))
 	}
 	w.art.step("Marco recorded %s", rec)
 	w.art.copyIn("run-record.json", rec.file)
@@ -120,7 +119,7 @@ func aChordArrivesAsAChord(w *world) result {
 	s.keepRunView()
 
 	why := firstOf(
-		theFocusingPressDidNotLand(presses),
+		theFocusingPressDidNotLand(presses, "Name"),
 		theChordDidNotArrive(got),
 		theChordWasNotHeldWhenTheKeyArrived(got),
 		somethingWasLeftHeldDown(got),
@@ -192,15 +191,14 @@ func isAModifier(e fixtureEvent) bool {
 // Asserted rather than assumed, because a routine whose press missed would send its chord into
 // whatever had the keyboard instead — and the fixture's log would then be missing the keys for a
 // reason that has nothing to do with chords.
-func theFocusingPressDidNotLand(presses []fixtureEvent) string {
+func theFocusingPressDidNotLand(presses []fixtureEvent, onto string) string {
 	switch {
 	case len(presses) == 0:
 		return "the routine's press never arrived, so the keyboard was never put in " +
 			"the application and a chord sent afterwards went somewhere else"
-	case presses[0].Control != "Name":
-		return fmt.Sprintf("the routine's press landed on %q rather than the field it "+
-			"was aimed at, so the chord that followed went to the wrong control",
-			presses[0].Control)
+	case presses[0].Control != onto:
+		return fmt.Sprintf("the routine's press landed on %q rather than %q, so whatever "+
+			"it sent afterwards went to the wrong control", presses[0].Control, onto)
 	}
 	return ""
 }

@@ -77,7 +77,12 @@ type fixtureEvent struct {
 	// Mods is what the window believed was HELD at the instant of this key, read from the
 	// system by the application itself. See the fixture's ModifiersNow: the order of four
 	// messages is evidence that a chord arrived, and this is the fact itself.
-	Mods       string `json:"mods"`
+	Mods string `json:"mods"`
+	// Watched is the keys the fixture was TOLD to report on, that it read as held at the
+	// instant of this event — on presses as well as keys, which `Mods` is not. A hold is a
+	// claim about a key that is not a modifier, and `Control.ModifierKeys` cannot see one.
+	// See the fixture's WatchedNow.
+	Watched    string `json:"watched"`
 	OnControlX int    `json:"on_control_x"`
 	OnControlY int    `json:"on_control_y"`
 	ClientX    int    `json:"client_x"`
@@ -92,13 +97,22 @@ type fixtureEvent struct {
 func (e fixtureEvent) String() string {
 	switch e.Kind {
 	case "mouse":
-		return fmt.Sprintf("#%d %s %s on %q at screen %d,%d (%d,%d into it), window %s",
+		held := ""
+		if e.Watched != "" {
+			held = fmt.Sprintf(" with %s held", e.Watched)
+		}
+		return fmt.Sprintf("#%d %s %s on %q at screen %d,%d (%d,%d into it)%s, window %s",
 			e.Seq, e.Kind, e.What, e.Control, e.ScreenX, e.ScreenY, e.OnControlX,
-			e.OnControlY, e.Window)
+			e.OnControlY, held, e.Window)
 	case "key":
 		held := "nothing held"
-		if e.Mods != "" {
+		switch {
+		case e.Mods != "" && e.Watched != "":
+			held = e.Mods + " and " + e.Watched + " held"
+		case e.Mods != "":
 			held = e.Mods + " held"
+		case e.Watched != "":
+			held = e.Watched + " held"
 		}
 		return fmt.Sprintf("#%d key %s %s on %q with %s", e.Seq, e.What, e.Key,
 			e.Control, held)
@@ -326,4 +340,53 @@ func (f *fixtureRun) mustRead() fixtureState {
 		f.art.note("oracle", "unreadable: %v", err)
 	}
 	return s
+}
+
+// waitForKey waits until the window has received a DOWN for one named key after `after`.
+//
+// The name is the system's own spelling, which is what the fixture logs: `Q`, not `q`. Compared
+// case-insensitively so a scenario can go on saying what a Marco routine says.
+func (f *fixtureRun) waitForKey(bound time.Duration, after int, name string) (fixtureEvent, bool) {
+	var got fixtureEvent
+	ok, _ := until(bound, func() (bool, string) {
+		ks, err := f.keys(after)
+		if err != nil {
+			return false, "nothing received yet"
+		}
+		for _, e := range ks {
+			if e.What == "down" && strings.EqualFold(e.Key, name) {
+				got = e
+				return true, got.String()
+			}
+		}
+		return false, "no key down yet"
+	})
+	return got, ok
+}
+
+// arrivedSoFar is what the window has received by now, as a sentence and not as data.
+//
+// FOR A FAILURE THAT HAS ALREADY BEEN DECIDED FOR ANOTHER REASON. When Marco writes no run
+// record at all, the useful thing to put in the report is what the application had got — and that
+// read cannot cross the drain barrier, because the barrier is a question asked of a run that
+// finished and this one did not.
+//
+// So it returns PROSE. Nothing can be counted, indexed or compared, which is the point: a reading
+// taken without the barrier is a lower bound on what arrived, and a lower bound is evidence for a
+// reader and an unsound basis for a verdict. Making it unusable as data is a stronger rule than
+// remembering not to use it as data, and it is why the boundary test over this
+// harness can hold scenario reads of `keys` and `presses` strictly.
+func (f *fixtureRun) arrivedSoFar(after int) string {
+	all, err := f.received()
+	if err != nil {
+		return fmt.Sprintf("(what the application received cannot be read: %v)", err)
+	}
+	var got []fixtureEvent
+	for _, e := range all {
+		if e.Seq > after && e.Kind == "key" {
+			got = append(got, e)
+		}
+	}
+	return keysAre(got) + " so far (read without the drain barrier, so it is what had " +
+		"arrived and not necessarily all that was sent)"
 }

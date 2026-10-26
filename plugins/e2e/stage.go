@@ -52,8 +52,23 @@ func setUp(w *world, name string, gap time.Duration, controls ...string) (*stage
 // seeded. A scenario about keystrokes that built its own stage would be a second arrangement to
 // drift from this one.
 func setUpSeeded(w *world, seeding func(*fixtureRun) (seededRoutine, error)) (*stage, error) {
+	return setUpWatching(w, nil, seeding)
+}
+
+// setUpWatching is the same with the fixture told which keys to report the state of.
+//
+// One scenario needs it and it is a parameter rather than a default because of what the fixture
+// would otherwise be: a window that reports the state of every key is a keylogger, and the
+// scenario asking the question knows which key it is about. See the fixture's WatchedNow.
+func setUpWatching(w *world, watch []string,
+	seeding func(*fixtureRun) (seededRoutine, error)) (*stage, error) {
+
 	st := &stage{w: w, store: w.freshStore()}
-	f, err := startFixture(w.b, w.art, false)
+	var extra []string
+	for _, k := range watch {
+		extra = append(extra, "--watch", k)
+	}
+	f, err := startFixture(w.b, w.art, false, extra...)
 	if err != nil {
 		return nil, err
 	}

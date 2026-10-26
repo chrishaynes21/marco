@@ -63,7 +63,9 @@ type seededRoutine struct {
 	// chord is the key spec a chord-seeded routine asks for, empty for one that only
 	// presses. Kept so a scenario can assert the saved routine contains the chord it
 	// asked for rather than whatever simplify made of the events.
-	chord    string
+	chord string
+	// held is the key a hold-seeded routine keeps down across a press, empty otherwise.
+	held     string
 	window   rect
 	dpi      int
 	contract string
@@ -297,4 +299,120 @@ func seedChord(f *fixtureRun, art *artifacts, name, control string,
 			"the saved routine has no %s in it:\n%s", s.chord, want, s.source)
 	}
 	return s, nil
+}
+
+// seedHold writes a routine that holds one key down across a press and then lets it go.
+//
+// # The shape, and why each part of it is there
+//
+//	press the first control      puts the keyboard in the window, so the hold arrives here
+//	hold the key down            the thing being tested
+//	[gap]                        long enough to be INSIDE, for a scenario that interrupts
+//	press the second control     the press the hold is supposed to modify
+//	release the key              the promise
+//
+// The press in front is the same precondition the chord has: a key goes wherever the keyboard
+// is, so a routine sending one has to have put it somewhere, and the press is what a person
+// demonstrating this would have done. The press AFTER the release is deliberately absent — what a
+// refused release wrongly allows is covered headlessly in `internal/oshost`, and a desktop
+// scenario that needed a key to be stuck in order to assert anything would be arranging to leave
+// a key down on somebody's computer.
+//
+// # Why the key is not a modifier
+//
+// Two reasons, and the first is that it would not work. `simplify` tracks modifiers to fold them
+// into chords and never marks one as a hold — `markHolds` skips them by name — so Ctrl held
+// across a click produces no key step at all and the click would come out unmodified. The second
+// is the consequence of the test failing: a letter left down repeats itself into whatever has the
+// keyboard, and a modifier left down changes every keystroke anybody types on the machine until
+// somebody notices. If this scenario is going to break its own promise, it should break the
+// cheaper one.
+//
+// # And why the demonstration is a recording rather than a hand-written hold
+//
+// Because `markHolds` is what decides that a key spanning another action is a HOLD rather than a
+// tap, and that is production code with a rule of its own. A harness that wrote `KeyDown` itself
+// would be asserting against its own opinion of what a demonstration produces. So the events are
+// a key down, a press, and a key up, exactly as the hooks would have left them, and what comes
+// out the other end is checked against what was asked for.
+func seedHold(f *fixtureRun, art *artifacts, name, key string, gap time.Duration,
+	first, second string) (seededRoutine, error) {
+
+	s := seededRoutine{name: name, controls: []string{first, second}, held: key}
+	if err := s.measure(f); err != nil {
+		return s, err
+	}
+	press := func(i int, at time.Time) []recorder.RecordedEvent {
+		x, y := s.at[i][0], s.at[i][1]
+		return []recorder.RecordedEvent{
+			{Kind: recorder.EvClick, Button: "left", Down: true, X: x, Y: y,
+				App: s.app, PID: f.pid, RelTo: macroir.RelToWindow,
+				RelX: x - s.window.X, RelY: y - s.window.Y, WinRel: true,
+				WinW: s.window.W, WinH: s.window.H, Dpi: s.dpi,
+				Process: s.image, T: at},
+			{Kind: recorder.EvClick, Button: "left", Down: false, X: x, Y: y,
+				App: s.app, PID: f.pid, T: at.Add(40 * time.Millisecond)},
+		}
+	}
+
+	t0 := time.Now().Add(-time.Minute)
+	at := t0.Add(400 * time.Millisecond)
+	events := []recorder.RecordedEvent{{Kind: recorder.EvAppSwitch, KeyName: s.app, T: t0}}
+	events = append(events, press(0, at)...)
+
+	// THE HOLD, SPANNING THE SECOND PRESS. Both of `markHolds`'s reasons are true of it on
+	// purpose: the press between the edges is what the rule is for, and the duration is over
+	// the threshold as well, so a scenario that has to run on somebody's desktop does not
+	// turn on which of the two rules fired.
+	at = at.Add(600 * time.Millisecond)
+	events = append(events, recorder.RecordedEvent{Kind: recorder.EvKey, KeyName: key,
+		Down: true, App: s.app, PID: f.pid, T: at})
+	at = at.Add(gap)
+	events = append(events, press(1, at)...)
+	at = at.Add(800 * time.Millisecond)
+	events = append(events, recorder.RecordedEvent{Kind: recorder.EvKey, KeyName: key,
+		Down: false, App: s.app, PID: f.pid, T: at})
+
+	if err := s.save(art, events); err != nil {
+		return s, err
+	}
+	// AND THE SAVED ROUTINE HAS TO BE A HOLD, as two steps that bracket the press.
+	//
+	// Checked here because it is a precondition and not a finding: a demonstration that came
+	// out as one tap would make every assertion in the scenario below true of something that
+	// is not a hold, and the scenario would pass. The ORDER is checked too — a `KeyUp` before
+	// the press would be a tap written in two steps, which is the shape this is most likely
+	// to decay into.
+	down := fmt.Sprintf("do OS's KeyDown with %q", key)
+	up := fmt.Sprintf("do OS's KeyUp with %q", key)
+	di, ui := strings.Index(s.source, down), strings.Index(s.source, up)
+	switch {
+	case di < 0 || ui < 0:
+		return s, fmt.Errorf("the seeded demonstration of a held %q did not produce a "+
+			"hold: the saved routine needs both %s and %s and has %s:\n%s",
+			key, down, up, haveOf(s.source, down, up), s.source)
+	case ui < di:
+		return s, fmt.Errorf("the seeded routine releases %q before it holds it, so it "+
+			"is a tap in two steps rather than a hold:\n%s", key, s.source)
+	}
+	// AND THE PRESS HAS TO BE INSIDE IT, which is the whole claim.
+	if mid := strings.Index(s.source[di:ui], "do OS's Click"); mid < 0 {
+		return s, fmt.Errorf("the seeded routine holds %q and presses nothing while it "+
+			"is down, so there is no press for the hold to modify:\n%s", key, s.source)
+	}
+	return s, nil
+}
+
+// haveOf says which of two wanted lines a source actually has, for a failure to be specific.
+func haveOf(src string, want ...string) string {
+	var got []string
+	for _, w := range want {
+		if strings.Contains(src, w) {
+			got = append(got, w)
+		}
+	}
+	if len(got) == 0 {
+		return "neither"
+	}
+	return "only " + strings.Join(got, " and ")
 }

@@ -73,6 +73,28 @@ func scenarios() []scenario {
 				"held, and leaves nothing held down afterwards",
 			run: aChordArrivesAsAChord,
 		},
+		// THE TWO HOLD SCENARIOS, WRITTEN AND NOT YET RUN ON A DESKTOP.
+		//
+		// Under `hold/` rather than `keys/` deliberately: `-only keys` is the chord's
+		// regression gate, and sweeping two never-exercised scenarios into it would make
+		// the next ordinary chord change a debugging session. They come off
+		// `onlyWhenAsked` the first time they run green.
+		{
+			name:  "hold/a hold is held across the press",
+			layer: layerDesktop,
+			about: "a held key is down, by the application's own reading, when " +
+				"the press inside the hold arrives — and up afterwards",
+			run:           aHoldIsHeldAcrossThePress,
+			onlyWhenAsked: true,
+		},
+		{
+			name:  "hold/a stopped run lets go of the key",
+			layer: layerDesktop,
+			about: "Stop during a hold ends the run as cancelled, sends nothing " +
+				"more, and leaves no key down on the desktop",
+			run:           aStoppedRunLetsGoOfTheKey,
+			onlyWhenAsked: true,
+		},
 		{
 			name:  "runs/two runs are two records",
 			layer: layerDesktop,

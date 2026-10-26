@@ -273,13 +273,23 @@ var theModifiers = []struct {
 func heldModifiers() []string {
 	var down []string
 	for _, m := range theModifiers {
-		// The HIGH bit is "down now". The low bit is "pressed since last asked", which
-		// is a different question and the wrong one: it would report a key somebody
-		// finished pressing a moment ago as one that is stuck.
-		state, _, _ := procGetAsyncKeyState.Call(uintptr(m.vk))
-		if state&0x8000 != 0 {
+		if isHeldDown(m.vk) {
 			down = append(down, m.name)
 		}
 	}
 	return down
+}
+
+// isHeldDown is the same question asked about one key by number, for a hold rather than a chord.
+//
+// The HIGH bit is "down now". The low bit is "pressed since last asked", which is a different
+// question and the wrong one here: it would report a key somebody finished pressing a moment ago
+// as one that is stuck.
+//
+// Separated from `heldModifiers` when holds arrived, because a hold is not a modifier and the
+// list above is deliberately short — a harness that asked about every key would be reading the
+// whole keyboard to answer a question about one of them.
+func isHeldDown(vk int) bool {
+	state, _, _ := procGetAsyncKeyState.Call(uintptr(vk))
+	return state&0x8000 != 0
 }

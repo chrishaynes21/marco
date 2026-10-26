@@ -152,8 +152,20 @@ func main() {
 	// and read the previous one's files — and the first symptom was four refusals in a row
 	// about a window that had already closed.
 	w := &world{b: b, art: art, store: store, machine: m}
+	var unexercised []scenario
 	for i, s := range scenarios() {
 		if *only != "" && !strings.Contains(s.name, *only) {
+			continue
+		}
+		// A SCENARIO THAT HAS NEVER PASSED ON A DESKTOP RUNS ONLY WHEN NAMED, and the
+		// report says it exists either way. Collected rather than skipped silently:
+		// a harness quietly holding back a scenario it owns is a harness whose green
+		// summary means less than the reader thinks.
+		if s.onlyWhenAsked && *only == "" {
+			unexercised = append(unexercised, s)
+			fmt.Printf("\n%s — %s\n  NOT SELECTED: implemented, never yet run "+
+				"green on a desktop. Run it with -only %s\n",
+				s.name, s.about, selector(s.name))
 			continue
 		}
 		// THE SELECTED SET IS WHAT `results` HOLDS, which is what makes a selection
@@ -174,7 +186,7 @@ func main() {
 		}
 		fmt.Printf("  FAILED: %s\n", r.why)
 	}
-	finish(art, m, checks, results, nil, started, run, *keep)
+	finish(art, m, checks, results, nil, started, run, *keep, unexercised...)
 }
 
 // world is what a scenario is given: this run's binaries, store and machine.
@@ -197,6 +209,18 @@ type scenario struct {
 	layer string
 	about string
 	run   func(*world) result
+	// onlyWhenAsked keeps a scenario out of a run that did not name it.
+	//
+	// FOR A SCENARIO THAT HAS BEEN WRITTEN AND NEVER YET PASSED ON A DESKTOP. Adding one
+	// of those to the default set makes the next ordinary run a debugging session instead
+	// of a regression check: the first failure anybody sees is as likely to be the
+	// scenario's own as Marco's, and a gate that cries wolf once gets ignored twice.
+	//
+	// It is not a way to park something. A scenario carrying this is listed in every
+	// report as implemented and not exercised, which is a louder statement than a
+	// passing line and a quieter one than a failure — and the flag comes off the moment
+	// it has run green once, which is the only thing it is waiting for.
+	onlyWhenAsked bool
 }
 
 // result is what a scenario established, or why it did not.
@@ -255,9 +279,9 @@ func newRunDir() (string, error) {
 }
 
 func finish(art *artifacts, m machine, checks []string, results []result, err error,
-	started time.Time, run string, keep bool) {
+	started time.Time, run string, keep bool, unexercised ...scenario) {
 
-	code := report(art, m, checks, results, err, started)
+	code := report(art, m, checks, results, err, started, unexercised...)
 	if !keep {
 		// THE STORE GOES, THE ARTIFACTS STAY. The store held a library and some run
 		// records, and both have been copied into the artifacts if anything needed them;
@@ -281,4 +305,16 @@ func slug(name string) string {
 		}
 	}
 	return strings.Trim(b.String(), "-")
+}
+
+// selector is the shortest `-only` argument that names one scenario and nothing before it.
+//
+// The part before the slash: `hold`, `keys`, `runs`. Printed in the line that says a scenario was
+// not selected, because a reader who has to work out the argument for themselves is a reader who
+// runs the whole harness instead.
+func selector(name string) string {
+	if i := strings.Index(name, "/"); i > 0 {
+		return name[:i]
+	}
+	return name
 }
