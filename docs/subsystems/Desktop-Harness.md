@@ -135,7 +135,8 @@ which would flatten 2 and 3 into 1.
 
 ## What it establishes today
 
-Ten scenarios, about 45 seconds, one command.
+Ten scenarios, about 45 seconds, one command — and two more that are written and gated out of a
+default run until they have run green once (see below).
 
 | | |
 |---|---|
@@ -176,6 +177,11 @@ the failure would look exactly like a success.
 
 - `plugins/e2e` — the scenarios themselves, the barrier's own self-check, and the nine boundary
   tests beside them
+- `plugins/e2e/hold_test.go` — the hold scenario's ORACLE, without a desktop. Every assertion a
+  scenario makes is a function over a log, and a log is a value, so the half that decides whether
+  a green run means anything is exercised before the scenario has ever run: each case is fed a
+  log the fixture could really have written, in both directions — the right one must produce no
+  finding, the wrong one must produce one that names what was wrong. Eight mutations, eight killed
 - `internal/acceptance` `boundary_test.go` — the oracle rule and the input rule, over the tree
 - `plugins/fixture/Fixture.cs` — the witness, and the rule written at the top of it
 
@@ -194,6 +200,42 @@ read **from the system** at the instant the key arrived. The order of four messa
 that a chord happened; this is the fact itself, and it is what catches a sender whose modifier
 events the system never applied — same four messages, same order, a plain keystroke delivered.
 See [[ADR-258-a-chord-is-a-promise-to-let-go]].
+
+## And two scenarios that are written and have never run
+
+| | |
+|---|---|
+| `hold/a hold is held across the press` | a held key is DOWN, by the application's own reading of the keyboard, when the press inside the hold arrives — and up afterwards, by the desktop's |
+| `hold/a stopped run lets go of the key` | Stop during a hold ends the run as cancelled, sends nothing more, and leaves no key down |
+
+Both are **implemented, desktop execution pending**, and both are gated out of a default run by
+`onlyWhenAsked` until one green run takes the flag off. The reason for the gate is that adding an
+unexercised scenario to a regression gate makes the next ordinary run a debugging session: the
+first failure anybody sees is as likely to be the scenario's own as Marco's, and a gate that cries
+wolf once gets ignored twice. The reason they are not merely absent is that a harness holding back
+a scenario it owns and saying nothing makes its own green summary mean more than it should — so
+every report names them, beside the physical-capture limit and in the same spirit:
+
+> implemented and NOT EXERCISED: hold/… Written, gated out of this selection, and waiting on one
+> green desktop run before it joins the gate — run with `-only hold`.
+
+They are filed under `hold/` and not `keys/` on purpose, so `-only keys` — the chord's gate — does
+not sweep them into every chord change. `TestTheHoldScenariosAreAskedForByName` holds the gate,
+the prefix and the rule that nothing else wears the flag.
+
+**What the fixture had to learn.** `Control.ModifierKeys` answers for Ctrl, Shift and Alt, which is
+the whole question a chord asks and half of the one a hold asks: a held Q is not a modifier, so a
+window asked about one could only ever say "no modifiers". The fixture now reports the state of
+keys the harness NAMES — `--watch q` — read with `GetKeyState` at the instant the message is
+handled, and on PRESSES as well as on keys, because the claim is about what was held when the
+click arrived. Named rather than enumerated: a window reporting every key's state would be a
+keylogger, and the scenario knows which key it is about.
+
+**And what they deliberately do not do.** A refused delivery and a refused release are covered
+headlessly, in `internal/oshost`. A desktop scenario that needed a key to be STUCK in order to
+assert anything would be arranging to leave one down on somebody's computer — and when one of
+these does find a key held, the harness reports it and says to press and release the key, because
+it sends no input and will not put it up itself.
 
 ## The gate for a change to chords
 

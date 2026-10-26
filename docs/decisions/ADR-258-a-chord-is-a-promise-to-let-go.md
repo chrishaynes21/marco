@@ -217,6 +217,66 @@ stopped and nothing was skipped. The specific sentence arrives beside it through
 rewording the shipped sentence for every failure to suit this one case would cost more than it
 buys. Recorded rather than quietly changed.
 
+## And the desktop half of a hold, written before it could be run
+
+The chord has a desktop scenario and the hold did not, because the screen it needs was not
+available — which is a reason to defer EXECUTION and not a reason to defer writing. Two scenarios
+now exist, and neither has run:
+
+- `hold/a hold is held across the press` — a focusing press, a key held across a second press, a
+  release. Four questions: the key goes down before the press it brackets; the application read
+  the keyboard as holding that key WHEN THE PRESS ARRIVED; the application saw the release; and
+  the desktop is holding neither that key nor any modifier it was not already holding.
+- `hold/a stopped run lets go of the key` — Stop pressed while the key is down, waited for rather
+  than timed. The press inside the hold never arrives, the record says cancelled, and the key is
+  not down afterwards.
+
+**The second account needed the fixture to learn something.** `Control.ModifierKeys` answers for
+Ctrl, Shift and Alt, which is the whole of what a chord claims and half of what a hold claims: a
+held Q is not a modifier, so a window asked about one could only ever have answered "no
+modifiers". The fixture now reports the state of keys the harness NAMES — `--watch q` — read with
+`GetKeyState` at the instant the message is handled, on PRESSES as well as on keys, because the
+claim is about what was held when the click arrived. `GetKeyState` and not `GetAsyncKeyState`
+deliberately: the first is the keyboard as it stood for the message being processed, so a press's
+record says what was held when THAT PRESS arrived rather than what is held now that somebody is
+reading the log. The asynchronous question — is a key still down after the run — is the harness's
+to ask of the desktop, and the window could not answer it anyway. Named rather than enumerated: a
+window that reported every key's state would be a keylogger, which is not a thing to leave in a
+test fixture.
+
+**The key is Q and not a modifier, for two reasons.** A modifier would not work: `simplify` tracks
+modifiers to fold them into chords and `markHolds` skips them by name, so Ctrl held across a click
+produces no key step at all and the click comes out unmodified. And the consequence of the
+scenario failing is a key left down on a real desktop — a letter repeats itself into whatever has
+the keyboard, while a modifier changes every keystroke anybody types on the machine until somebody
+works out why. If a promise is going to be broken, it should be the cheaper one.
+
+**A refused delivery and a refused release are deliberately NOT on the desktop.** Both are covered
+headlessly, above. A desktop scenario that needed a key to be STUCK in order to assert anything
+would be arranging to leave one down on somebody's computer. And when one of these scenarios finds
+a key held, it reports it and says to press and release the key: the harness sends no input, by the
+rule that makes the fixture's log attributable in the first place, so it will not put the key up
+itself.
+
+**They are gated out of a default run and named in every report.** `onlyWhenAsked` keeps a
+scenario that has never passed on a desktop out of a run that did not ask for it, because adding
+an unexercised scenario to a regression gate makes the next ordinary run a debugging session — the
+first failure anybody sees is as likely to be the scenario's own as the product's. But a harness
+quietly holding back a scenario it owns would make its own green summary mean more than it should,
+so the report names them beside the physical-capture limit, in the same words every time:
+*implemented and NOT EXERCISED*. They are filed under `hold/` rather than `keys/` so that `-only
+keys`, the chord's gate, does not sweep them in. The flag comes off after one green run, and the
+first half of `TestTheHoldScenariosAreAskedForByName` comes off with it.
+
+**And the oracle is tested without a desktop.** A scenario is an arrangement and a set of questions
+asked of what came back; the arrangement needs a screen and the questions are functions over a
+log. So `plugins/e2e/hold_test.go` feeds each one a log the fixture could really have written, in
+both directions — the right log must produce no finding, the wrong one must produce one that names
+what was wrong — including the case no other account can see: the same messages in the same order
+with the system never having applied the key, which delivers a plain press. Six mutations, six
+killed, each by the test named for it. The half of a desktop scenario that decides whether a green
+run means anything is the half that was never checked before it ran.
+
 ## What did not move
 
 - **No retry on a release.** A modifier the machine refuses to release twice is a different
@@ -338,6 +398,24 @@ buys. Recorded rather than quietly changed.
   `TestAnOrdinaryStopSaysOnlyThatItStopped` — the card, both ways. The window does not understand
   the warning and must not; it shows what the run said.
 
+- `plugins/e2e` `hold_test.go` — the hold scenario's oracle, without a desktop, which is the only
+  thing about those two scenarios that any automated run can establish today. The case that
+  matters most is the one no other account can see: identical messages in an identical order with
+  the system never having applied the key, which delivers a plain press — the harness must notice,
+  and the order assertion must NOT fire, or the case is not isolating the reading. Beside it: a
+  key that arrived after the press it brackets, a key that never arrived, a hold the application
+  never saw released, a press that landed on the wrong control, a modifier somebody was already
+  leaning on (which must not be a finding), and a stuck key reported in words that say what to do
+  about it.
+- `plugins/e2e` `TestTheHoldScenariosAreAskedForByName` — the gate, the prefix, and the rule that
+  nothing else wears the flag. Half of it comes off when the scenarios have run green once.
+- `plugins/e2e` `TestEveryCountOfWhatArrivedIsTakenAfterTheBarrier` — now over key reads as well
+  as press reads, because the absence a key scenario asserts is an absence of KEY messages. The
+  two reads that could not cross the barrier — a failure already decided because no run record
+  appeared — return PROSE rather than events (`arrivedSoFar`), so nothing taken without the
+  barrier can be counted, indexed or compared. Structurally unusable beats remembering not to use
+  it.
+
 ## Mutations
 
 Four applied to `sendChord`, four killed, each by the test named for it and by no other: the
@@ -349,3 +427,16 @@ purpose — the stuck key, its precedence, and its survival through a stop.
 [[ADR-251-a-press-checks-the-window-it-was-recorded-in]] is why a chord in a routine is preceded
 by a guarded press. [[ADR-257-a-desktop-harness-that-says-what-it-did-not-prove]] is the harness
 this scenario runs in, including the drain barrier the key count crosses.
+
+Eight more for the hold scenarios, eight killed, each by the test named for it and by no other:
+the held-state reading never firing, a stuck key reported as nothing, the gate coming off one
+scenario, a late key accepted as a hold, `addedTo` ceasing to compare, a key read moved in front
+of the drain barrier, the stop scenario's guard on its own absence claim deleted, and that same
+guard left in place but moved after the claim it guards.
+
+Two of them taught something. The barrier one found a real gap: that test guarded press reads and
+not key reads, so every absence either key scenario asserts was unguarded. And the
+guard-deletion one SURVIVED the first attempt, because the tests beside it exercised the
+assertion functions and not the chain that calls them — a check nothing calls is a check that is
+not there, which is why `TestTheStoppedHoldScenarioGuardsItsAbsenceClaim` reads the chain off the
+syntax rather than exercising it.

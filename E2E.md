@@ -1554,6 +1554,14 @@ invisible to a green suite, and so was the stale window that hid its fix.
 > desktop is still holding anything down afterwards. That last one is the promise a chord makes,
 > and it is the only claim here that needs an account from outside both programs.
 >
+> It also has **two hold scenarios that have never run**: a key held down across a press, and a
+> Stop pressed while something is held. They are written, they are automated, and they are gated
+> out of an ordinary run until one green run takes the gate off — so every report names them as
+> *implemented and NOT EXERCISED*. `plugins\e2e\run.cmd -only hold` is how to run them, and the
+> only reason they are waiting is that a desktop was not available when they were written. If one
+> of them fails by leaving a key down, the report says which key and asks you to press and release
+> it: the harness sends no input, so it will not put it up for you.
+>
 > Two things it does deliberately, worth knowing if you read its output: a scenario that could not
 > ask its question is **NOT RUN and not a pass** — a partial run never exits 0 — and before any
 > scenario claims that nothing arrived, the fixture is asked, from inside its own message loop,
