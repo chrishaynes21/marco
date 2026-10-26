@@ -251,9 +251,10 @@ func TestTheHoldScenariosAreAskedForByName(t *testing.T) {
 			t.Errorf("%q is labelled %q and it needs a desktop", s.name, s.layer)
 		}
 	}
-	if found != 2 {
-		t.Errorf("%d hold scenarios are registered, want the two that were written: "+
-			"the press inside the hold, and the stop that lets go", found)
+	if found != 3 {
+		t.Errorf("%d hold scenarios are registered, want the three that were "+
+			"written: the press inside the hold, the stop that lets go, and the "+
+			"Ctrl-held press", found)
 	}
 }
 
@@ -377,5 +378,147 @@ func TestTheStoppedHoldScenarioGuardsItsAbsenceClaim(t *testing.T) {
 			"never landed sent its hold into whatever had the keyboard, and " +
 			"`anotherPressArrived` is content with no presses at all — so that " +
 			"absence would be the absence of a run rather than the effect of a stop")
+	}
+}
+
+// ── AND THE MODIFIER-CLICK SCENARIO'S ORACLE, BY THE SAME METHOD ──────────────────────
+//
+// The claim is different enough from the Q one to need its own cases. What the fixture reads is
+// different — `Control.ModifierKeys` rather than a key it was told to watch — and the defect
+// being guarded against is the one that was actually in the product: a demonstrated Ctrl+click
+// arriving as a plain click, with every message in the right order.
+
+// aModifiedPress is a press the application read the keyboard as modified for.
+func aModifiedPress(seq int, control, mods string) fixtureEvent {
+	return fixtureEvent{Seq: seq, Kind: "mouse", What: "left_down", Control: control,
+		Mods: mods}
+}
+
+// theCtrlClick is the log of a run that did what the routine says.
+//
+// `ControlKey` and not `ctrl`: the fixture logs the system's own name for the key and its own
+// spelling of the modifier state, and those are two different vocabularies in one record. The
+// assertions have to speak both, and this is the case that keeps that true.
+func theCtrlClick() (keys, presses []fixtureEvent) {
+	keys = []fixtureEvent{aKey(11, "down", "ControlKey"), aKey(14, "up", "ControlKey")}
+	presses = []fixtureEvent{aPress(10, "Name", ""), aModifiedPress(12, "Save", "ctrl")}
+	return keys, presses
+}
+
+func TestACtrlClickThatArrivedAsOneIsNotReportedAsAnything(t *testing.T) {
+	keys, presses := theCtrlClick()
+	if why := firstOf(
+		theTwoPressesDidNotLand(presses, aSeedOf("Name", "Save")),
+		theModifierDidNotArrive(keys, presses),
+		thePressWasNotModified(presses),
+		theModifierWasNeverReleased(keys),
+		theDesktopIsStillHoldingAKey(nil),
+	); why != "" {
+		t.Errorf("a run that held Ctrl across the press is reported as: %s", why)
+	}
+}
+
+// AND THE DEFECT ITSELF IS CAUGHT: every message in order, and the press unmodified.
+//
+// This is the shape the product actually produced — a plain click where a Ctrl+click was
+// demonstrated — except that here the modifier events are even sent. A harness reading only the
+// order of the messages would call it a success, which is the whole reason the application's own
+// reading of the keyboard is an account in its own right.
+func TestAPressTheModifierWasNotAppliedToIsCaught(t *testing.T) {
+	keys, presses := theCtrlClick()
+	presses[1].Mods = "" // the window read the keyboard as holding nothing
+	why := thePressWasNotModified(presses)
+	if why == "" {
+		t.Fatal("the press arrived with no modifier held and the harness reports " +
+			"nothing, so this scenario would pass against the exact defect it was " +
+			"written for")
+	}
+	if other := theModifierDidNotArrive(keys, presses); other != "" {
+		t.Errorf("the order assertion also fired (%s), so this case is not isolating "+
+			"the reading", other)
+	}
+	for _, want := range []string{"nothing", theHeldModifier.name} {
+		if !strings.Contains(why, want) {
+			t.Errorf("the finding does not say %q: %s", want, why)
+		}
+	}
+}
+
+// AND A ROUTINE THAT NEVER SENT THE MODIFIER AT ALL IS CAUGHT, with a different sentence.
+//
+// The other shape of the same defect, and the one a lost modifier produces: no key messages at
+// all, because the routine has no hold in it. Said differently from the case above because the
+// remedy is different — one is a routine that does not contain the gesture, the other is a system
+// that did not apply it.
+func TestAPressWithNoModifierSentAtAllIsCaught(t *testing.T) {
+	_, presses := theCtrlClick()
+	presses[1].Mods = ""
+	why := theModifierDidNotArrive(nil, presses)
+	if why == "" {
+		t.Fatal("a run that sent no modifier at all is reported as nothing")
+	}
+	for _, want := range []string{"plain press", theHeldModifier.name} {
+		if !strings.Contains(why, want) {
+			t.Errorf("the finding does not say %q: %s", want, why)
+		}
+	}
+	// AND A MODIFIER THAT ARRIVED LATE IS A DIFFERENT FINDING AGAIN.
+	keys, presses := theCtrlClick()
+	keys[0].Seq = 13 // down AFTER the press at 12
+	if late := theModifierDidNotArrive(keys, presses); !strings.Contains(late, "AFTER") {
+		t.Errorf("a modifier that went down after the press is reported as %q", late)
+	}
+}
+
+// AND A MODIFIER THE APPLICATION NEVER SAW RELEASED IS CAUGHT.
+//
+// Worse for a modifier than for a letter, which is why the sentence names it: until Ctrl comes up
+// every keystroke anybody types on the machine arrives as a shortcut.
+func TestAModifierWithNoReleaseIsCaught(t *testing.T) {
+	keys, _ := theCtrlClick()
+	if why := theModifierWasNeverReleased(keys); why != "" {
+		t.Errorf("a modifier that was released is reported as: %s", why)
+	}
+	why := theModifierWasNeverReleased(keys[:1])
+	if why == "" {
+		t.Fatal("the application received a press of the modifier and no release, and " +
+			"the harness reports nothing")
+	}
+	if !strings.Contains(why, theHeldModifier.name) {
+		t.Errorf("the finding does not name the modifier: %s", why)
+	}
+	// AND A RELEASE OF SOMETHING ELSE IS NOT THIS MODIFIER'S.
+	with := append(keys[:1], aKey(14, "up", "ShiftKey"))
+	if why := theModifierWasNeverReleased(with); why == "" {
+		t.Error("a release of Shift was accepted as Ctrl's")
+	}
+}
+
+// AND THE TWO VOCABULARIES IN ONE RECORD ARE BOTH UNDERSTOOD.
+//
+// The fixture names the KEY the way the system does (`ControlKey`, `LControlKey`) and names the
+// MODIFIER STATE the way a Marco routine does (`ctrl`). An assertion that confused the two would
+// read every record as being about some other key — and would report nothing, which is the
+// failure mode that looks like a pass.
+func TestTheModifiersTwoSpellingsAreBothRecognised(t *testing.T) {
+	for _, name := range []string{"ControlKey", "LControlKey", "RControlKey"} {
+		if !isTheHeldModifier(fixtureEvent{Key: name}) {
+			t.Errorf("the harness does not recognise %q as %s", name,
+				theHeldModifier.name)
+		}
+	}
+	for _, name := range []string{"ShiftKey", "A", "Q", ""} {
+		if isTheHeldModifier(fixtureEvent{Key: name}) {
+			t.Errorf("the harness reads %q as %s", name, theHeldModifier.name)
+		}
+	}
+	// AND THE STATE SPELLING IS WHAT THE READING ASSERTION COMPARES AGAINST.
+	if why := thePressWasNotModified([]fixtureEvent{aPress(10, "Name", ""),
+		aModifiedPress(12, "Save", "ctrl+shift")}); why != "" {
+		t.Errorf("a press read as %q was reported as unmodified: %s", "ctrl+shift", why)
+	}
+	if why := thePressWasNotModified([]fixtureEvent{aPress(10, "Name", ""),
+		aModifiedPress(12, "Save", "shift")}); why == "" {
+		t.Error("a press read as holding only Shift was accepted for a Ctrl+click")
 	}
 }

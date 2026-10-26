@@ -416,3 +416,107 @@ func haveOf(src string, want ...string) string {
 	}
 	return "only " + strings.Join(got, " and ")
 }
+
+// seedModifierClick writes a routine that holds a MODIFIER down across a press.
+//
+// # The gesture, and the defect it was written for
+//
+// Demonstrate Ctrl, click, release Ctrl, and `simplify` used to emit A PLAIN CLICK. The modifier
+// was tracked for chord-folding, found no key to fold into, and was discarded — so the routine
+// performed a different act from the one that was shown and read as a faithful recording of it.
+// Ctrl+click and click are different in most applications: one adds to a selection, one replaces
+// it. `markHolds` now makes a modifier spanning a pointer action a hold, and the lowering writes
+// it down.
+//
+// So this is the same shape as `seedHold` with one difference that matters: the key is a
+// MODIFIER, and everything after the simplifier had only ever carried a letter. What this
+// exercises on a desktop is the half the unit tests cannot — that the real `SendInput`, the real
+// scan code for Ctrl, and a real application agree that the press arrived with Ctrl down.
+//
+// # Why there is a focusing press first
+//
+// The same reason the chord has one, and one more. A key goes wherever the keyboard is, so the
+// routine has to have put it somewhere; the press makes the routine GUARDED, so the hold is a
+// link in a chain rather than a step merely attempted; and the fixture's log records which
+// control had focus, so the press inside the hold can be read as having landed somewhere.
+//
+// # And why the demonstration is recorded rather than written
+//
+// Because what is being tested IS the classification. A harness that wrote `KeyDown ctrl` itself
+// would be asserting against its own opinion of what a demonstrated Ctrl+click produces, which is
+// precisely the thing that was wrong. So the events are a modifier down, a press, and a modifier
+// up, exactly as the hooks would have left them, and what comes out is checked against the
+// gesture that was asked for.
+func seedModifierClick(f *fixtureRun, art *artifacts, name, mod string,
+	first, second string) (seededRoutine, error) {
+
+	s := seededRoutine{name: name, controls: []string{first, second}, held: mod}
+	if err := s.measure(f); err != nil {
+		return s, err
+	}
+	press := func(i int, at time.Time) []recorder.RecordedEvent {
+		x, y := s.at[i][0], s.at[i][1]
+		return []recorder.RecordedEvent{
+			{Kind: recorder.EvClick, Button: "left", Down: true, X: x, Y: y,
+				App: s.app, PID: f.pid, RelTo: macroir.RelToWindow,
+				RelX: x - s.window.X, RelY: y - s.window.Y, WinRel: true,
+				WinW: s.window.W, WinH: s.window.H, Dpi: s.dpi,
+				Process: s.image, T: at},
+			{Kind: recorder.EvClick, Button: "left", Down: false, X: x, Y: y,
+				App: s.app, PID: f.pid, T: at.Add(40 * time.Millisecond)},
+		}
+	}
+
+	t0 := time.Now().Add(-time.Minute)
+	at := t0.Add(400 * time.Millisecond)
+	events := []recorder.RecordedEvent{{Kind: recorder.EvAppSwitch, KeyName: s.app, T: t0}}
+	events = append(events, press(0, at)...)
+
+	// THE MODIFIER, DOWN BEFORE THE SECOND PRESS AND UP WELL AFTER IT.
+	//
+	// Both edges clear of the press on purpose: a modifier released between a mouse-down
+	// and its mouse-up is an ambiguous gesture that the simplifier refuses by name, and a
+	// seeding that strayed into it would report a refusal as a scenario failure.
+	at = at.Add(600 * time.Millisecond)
+	events = append(events, recorder.RecordedEvent{Kind: recorder.EvKey, KeyName: mod,
+		Down: true, App: s.app, PID: f.pid, T: at})
+	at = at.Add(400 * time.Millisecond)
+	events = append(events, press(1, at)...)
+	at = at.Add(600 * time.Millisecond)
+	events = append(events, recorder.RecordedEvent{Kind: recorder.EvKey, KeyName: mod,
+		Down: false, App: s.app, PID: f.pid, T: at})
+
+	if err := s.save(art, events); err != nil {
+		return s, err
+	}
+	// AND THE SAVED ROUTINE HAS TO BE A HOLD AROUND THE PRESS.
+	//
+	// A precondition and not a finding: a demonstration that came out as a plain click —
+	// which is exactly what it used to do — would make every assertion in the scenario
+	// true of something that is not a Ctrl+click, and the scenario would pass.
+	down := fmt.Sprintf("do OS's KeyDown with %q", mod)
+	up := fmt.Sprintf("do OS's KeyUp with %q", mod)
+	di, ui := strings.Index(s.source, down), strings.Index(s.source, up)
+	switch {
+	case di < 0 || ui < 0:
+		return s, fmt.Errorf("the seeded demonstration of a %s-held press did not come "+
+			"out as a hold: the saved routine needs both %s and %s and has %s:\n%s",
+			mod, down, up, haveOf(s.source, down, up), s.source)
+	case ui < di:
+		return s, fmt.Errorf("the seeded routine releases %s before it holds it:\n%s",
+			mod, s.source)
+	}
+	if mid := strings.Index(s.source[di:ui], "do OS's Click"); mid < 0 {
+		return s, fmt.Errorf("the seeded routine holds %s and presses nothing while it "+
+			"is down, so there is no press for the modifier to modify:\n%s",
+			mod, s.source)
+	}
+	// AND NOT AS A CHORD, which would press and release the modifier itself and leave the
+	// press outside it.
+	if strings.Contains(s.source, fmt.Sprintf("do OS's Key with %q+", mod)) ||
+		strings.Contains(s.source, "do OS's Key with \""+mod+"+") {
+		return s, fmt.Errorf("the seeded demonstration came out as a chord rather than "+
+			"a hold:\n%s", s.source)
+	}
+	return s, nil
+}

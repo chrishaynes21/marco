@@ -74,13 +74,19 @@ type fixtureEvent struct {
 	Control string `json:"control"`
 	Key     string `json:"key"`
 	VK      int    `json:"vk"`
-	// Mods is what the window believed was HELD at the instant of this key, read from the
-	// system by the application itself. See the fixture's ModifiersNow: the order of four
-	// messages is evidence that a chord arrived, and this is the fact itself.
+	// Mods is what the window believed was HELD at the instant of this event, read from
+	// the system by the application itself — on PRESSES as well as on keys. See the
+	// fixture's ModifiersNow.
+	//
+	// On a key: the order of four messages is evidence that a chord arrived, and this is
+	// the fact itself. On a press: whether a demonstrated Ctrl+click reached the
+	// application as one, which is a claim nothing else here can settle — the four
+	// messages of a chord and the two of a modified press look the same from outside.
 	Mods string `json:"mods"`
 	// Watched is the keys the fixture was TOLD to report on, that it read as held at the
-	// instant of this event — on presses as well as keys, which `Mods` is not. A hold is a
-	// claim about a key that is not a modifier, and `Control.ModifierKeys` cannot see one.
+	// instant of this event. The other half of `Mods`, and neither covers the other: that
+	// one is Ctrl, Shift and Alt, which the system names for us; this one is the keys the
+	// harness had to name itself, because nothing asks the system "is Q down" unprompted.
 	// See the fixture's WatchedNow.
 	Watched    string `json:"watched"`
 	OnControlX int    `json:"on_control_x"`

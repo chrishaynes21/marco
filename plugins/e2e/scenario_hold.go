@@ -424,3 +424,199 @@ func pressesAre(presses []fixtureEvent) string {
 	}
 	return "landed on " + strings.Join(parts, ", then ")
 }
+
+// ── AND THE SAME GESTURE WITH A MODIFIER, WHICH IS A DIFFERENT CLAIM ──────────────────
+//
+// `theHeldKey` is Q because a modifier could not have been used: `simplify` dropped every
+// modifier held across a click, so a modifier hold never reached a routine at all. That is fixed,
+// and this is the scenario for it.
+//
+// It is a different claim from the Q one and not a variation of it. What the fixture reads is
+// different — `Control.ModifierKeys` rather than a named key — and so is what goes wrong: a
+// letter left down repeats itself into whatever has the keyboard, while a modifier left down
+// makes every keystroke anybody types on the machine arrive as a shortcut. And the thing most
+// likely to be wrong is invisible to the unit tests: whether the real scan code for Ctrl, sent by
+// the real `SendInput`, is applied by the system in time for a press that follows it.
+//
+// Ctrl rather than Shift or Alt. Alt held over a press opens menus and moves windows; Shift held
+// over a press extends selections, which a fixture would not mind but a stuck one would make
+// every later drag in the harness a selection. Ctrl+click on a text field and a button does
+// nothing anywhere, which is what a harness wants of a gesture it is only there to observe.
+
+// theHeldModifier is the modifier these scenarios hold, by the name a routine uses, the number
+// Windows knows it by, and the spelling the fixture reports.
+var theHeldModifier = struct {
+	name, reads string
+	vk          int
+}{"ctrl", "ctrl", 0x11}
+
+func aCtrlHeldClickArrivesWithCtrlHeld(w *world) result {
+	started := time.Now()
+
+	// NOTHING MAY ALREADY BE HOLDING IT, for the same reason as the Q scenario: a
+	// modifier held by something else on this desktop could hide one Marco left down and
+	// report one Marco never touched. A fact about the desktop, so NOT RUN.
+	if held := heldModifiers(); len(held) > 0 {
+		return skip(started, fmt.Sprintf("this desktop is already holding %s down, so "+
+			"whether a run leaves %s held cannot be told from it",
+			strings.Join(held, " and "), theHeldModifier.name))
+	}
+
+	st, err := setUpSeeded(w, func(f *fixtureRun) (seededRoutine, error) {
+		return seedModifierClick(f, w.art, "fixture modifier click",
+			theHeldModifier.name, "Name", "Save")
+	})
+	if err != nil {
+		return ending(started, err)
+	}
+	defer st.down()
+	f, s := st.f, st.s
+	seq := f.lastSeq()
+	recordsBefore := countRecords(st.store)
+
+	if err := st.play(); err != nil {
+		return ending(started, err)
+	}
+	rec, err := waitForRecord(60*time.Second, st.store, recordsBefore)
+	if err != nil {
+		st.fail()
+		return fail(started, fmt.Sprintf("Marco wrote no finished run record for the "+
+			"modifier-click routine: %v. The application received %s", err,
+			f.arrivedSoFar(seq)))
+	}
+	w.art.step("Marco recorded %s", rec)
+	w.art.copyIn("run-record.json", rec.file)
+
+	if err := f.drained(30 * time.Second); err != nil {
+		st.fail()
+		return skip(started, err.Error())
+	}
+	presses, err := f.presses(seq)
+	if err != nil {
+		return fail(started, err.Error())
+	}
+	keys, err := f.keys(seq)
+	if err != nil {
+		return fail(started, err.Error())
+	}
+	for _, e := range append(append([]fixtureEvent{}, keys...), presses...) {
+		w.art.step("the fixture received %s", e)
+	}
+	stuck := heldModifiers()
+	s.keepRunView()
+
+	why := firstOf(
+		theTwoPressesDidNotLand(presses, st.seed),
+		theModifierDidNotArrive(keys, presses),
+		thePressWasNotModified(presses),
+		theModifierWasNeverReleased(keys),
+		theDesktopIsStillHoldingAKey(stuck),
+		marcoSaidSomethingElse(rec, st.seed),
+	)
+	if why != "" {
+		w.art.picture("failure.png", 0, 0, w.machine.ScreenW, w.machine.ScreenH)
+		return fail(started, why,
+			fmt.Sprintf("the application received %s", keysAre(keys)),
+			fmt.Sprintf("and the presses %s", pressesAre(presses)),
+			fmt.Sprintf("Marco recorded %s", rec))
+	}
+	return pass(started,
+		fmt.Sprintf("a demonstrated %s-held press arrived with %q held, by the "+
+			"application's own reading of the keyboard", theHeldModifier.name,
+			presses[1].Mods),
+		fmt.Sprintf("the modifier was pressed and released once: %s", keysAre(keys)),
+		"and this desktop is holding no modifier down afterwards",
+	)
+}
+
+// theModifierDidNotArrive is the ORDER: the modifier goes down before the press it modifies.
+//
+// About order and not count, like the chord's equivalent: Windows auto-repeat can deliver more
+// than one key-down for a held key and that is not a defect. What would be one is the modifier
+// arriving after the press, or never arriving — which is what a routine that lost it did.
+func theModifierDidNotArrive(keys, presses []fixtureEvent) string {
+	down := -1
+	for _, e := range keys {
+		if e.What == "down" && isTheHeldModifier(e) {
+			down = e.Seq
+			break
+		}
+	}
+	switch {
+	case down < 0:
+		return fmt.Sprintf("the application received no press of %s at all (%s), so "+
+			"the routine performed a plain press where a %s-held one was "+
+			"demonstrated", theHeldModifier.name, keysAre(keys),
+			theHeldModifier.name)
+	case len(presses) > 1 && down > presses[1].Seq:
+		return fmt.Sprintf("%s went down AFTER the press it was supposed to modify, "+
+			"so the application had already acted on an unmodified press by the "+
+			"time the modifier reached it", theHeldModifier.name)
+	}
+	return ""
+}
+
+// thePressWasNotModified is the fact itself, by the application's own reading of the keyboard.
+//
+// The order above is the trail; this is the claim. A sender whose modifier event the system did
+// not apply — a wrong scan code, a lost extended flag, a press that arrived too early — produces
+// the same messages in the same order and delivers an unmodified press, and the window is the
+// only one here that can tell: it asks the system what is held at the moment the press reaches
+// it. See the fixture's ModifiersNow.
+func thePressWasNotModified(presses []fixtureEvent) string {
+	if len(presses) < 2 {
+		return ""
+	}
+	if !strings.Contains(presses[1].Mods, theHeldModifier.reads) {
+		had := presses[1].Mods
+		if had == "" {
+			had = "nothing"
+		}
+		return fmt.Sprintf("the application read the keyboard as %q when the press "+
+			"inside the hold arrived, and the routine holds %s — so the modifier "+
+			"events were sent and the system did not apply them, which delivers a "+
+			"plain press rather than the gesture in the routine", had,
+			theHeldModifier.name)
+	}
+	return ""
+}
+
+// theModifierWasNeverReleased is the promise as the application saw it.
+func theModifierWasNeverReleased(keys []fixtureEvent) string {
+	down, up := false, false
+	for _, e := range keys {
+		if !isTheHeldModifier(e) {
+			continue
+		}
+		switch e.What {
+		case "down":
+			down = true
+		case "up":
+			up = true
+		}
+	}
+	if down && !up {
+		return fmt.Sprintf("the application received a press of %s and never a "+
+			"release, so as far as it is concerned the modifier is still down",
+			theHeldModifier.name)
+	}
+	return ""
+}
+
+// isTheHeldModifier matches the modifier by the names the window gives it.
+//
+// Both sides, because Windows reports a modifier by the specific key where it can: a left Ctrl
+// arrives as `LControlKey` and the generic name is what an injected one gets. Matched on the
+// spelling rather than a virtual-key number for the same reason the chord scenario does — the log
+// is a thing a person reads, and the name is what they read.
+func isTheHeldModifier(e fixtureEvent) bool {
+	switch e.Key {
+	case "ControlKey", "LControlKey", "RControlKey":
+		return theHeldModifier.name == "ctrl"
+	case "ShiftKey", "LShiftKey", "RShiftKey":
+		return theHeldModifier.name == "shift"
+	case "Menu", "LMenu", "RMenu":
+		return theHeldModifier.name == "alt"
+	}
+	return false
+}

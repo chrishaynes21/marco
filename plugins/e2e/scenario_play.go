@@ -88,6 +88,14 @@ func scenarios() []scenario {
 			onlyWhenAsked: true,
 		},
 		{
+			name:  "hold/a ctrl-held click arrives with ctrl held",
+			layer: layerDesktop,
+			about: "a demonstrated Ctrl+click reaches the application as one, " +
+				"by its own reading of the keyboard, and lets go after",
+			run:           aCtrlHeldClickArrivesWithCtrlHeld,
+			onlyWhenAsked: true,
+		},
+		{
 			name:  "hold/a stopped run lets go of the key",
 			layer: layerDesktop,
 			about: "Stop during a hold ends the run as cancelled, sends nothing " +

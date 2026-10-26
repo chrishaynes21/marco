@@ -724,8 +724,14 @@ namespace MarcoFixture
             Field(b, "what", button + (down ? "_down" : "_up")); b.Append(",");
             Field(b, "control", NameOf(c)); b.Append(",");
             // AND WHAT WAS HELD WHEN THIS PRESS ARRIVED, which is what makes a click inside a
-            // hold a different act from the same click outside one. Empty unless the harness
-            // named a key to watch; the modifiers have their own field on key records.
+            // hold a different act from the same click outside one.
+            //
+            // Both fields, because they answer for different keys and neither covers the other.
+            // `mods` is Ctrl, Shift and Alt, which the system names for us and which a Marco
+            // routine spells the same way; `watched` is the keys the harness had to name itself,
+            // because nothing asks the system for "is Q down" on your behalf. A Ctrl+click is a
+            // claim about the first and a Q-held click is a claim about the second.
+            Field(b, "mods", ModifiersNow()); b.Append(",");
             Field(b, "watched", WatchedNow()); b.Append(",");
             b.Append("\"on_control_x\":").Append(N(onControl.X)).Append(",");
             b.Append("\"on_control_y\":").Append(N(onControl.Y)).Append(",");
