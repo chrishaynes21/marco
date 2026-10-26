@@ -8510,3 +8510,25 @@ frame tree when it fires — and the real `settle` waits, so it sees it. The sta
 the cancellation to arrive, bounded so a wrong arrangement fails rather than hangs. It cost an
 afternoon of suspecting working code, which is the second time this week a stand-in that did not
 wait made a correct implementation look broken.
+
+### §40b — the gate for chords, and two questions that are not one question
+
+Closed at `2aa5d21`. Three notes from the review worth keeping:
+
+**The gate.** `plugins\e2e\run.cmd -only keys` is the regression check for an executable change to
+the chord path, and it needs no owner walkthrough. A documentation change needs no run.
+
+**A foreground interruption stays a failure or a NOT RUN.** It fails safe, and a harness that
+re-ran until green would convert the one honest answer into noise. What is genuinely about this
+desktop rather than about Marco is declined BY NAME — a modifier already held, an unmeasurable
+fixture, a remote session — which is a different thing from retrying.
+
+**And a correction to my own summary:** I listed the refused-release question and
+`internal/stopsignal.Raise`'s unretried *Access is denied* side by side as "the same question of
+whether a refused Windows call deserves one retry". They are not the same question. A refused
+release leaves a key down on somebody's desktop and the consequence is continuous — every
+keystroke after it arrives modified — so the answer has to weigh a retry against making an input
+path do more work while something is already wrong. A refused stop signal fails to deliver one
+message, and the consequence is that one thing did not happen, which is an ordinary delivery
+failure with ordinary answers. Grouping them by the shape of the call rather than by what happens
+next is how two unrelated decisions get made together and neither gets thought about.

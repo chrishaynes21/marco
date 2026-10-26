@@ -195,6 +195,18 @@ that a chord happened; this is the fact itself, and it is what catches a sender 
 events the system never applied — same four messages, same order, a plain keystroke delivered.
 See [[ADR-258-a-chord-is-a-promise-to-let-go]].
 
+## The gate for a change to chords
+
+`plugins\e2e\run.cmd -only keys` is the regression gate for an executable change to the chord
+path, and it needs nobody at the keyboard. Run it for a change to the sequence, to the key
+resolution, or to what a stopped run reports; a documentation change needs no run at all.
+
+**A foreground interruption is a FAILURE or a NOT RUN, and never a retry.** It fails safe — the
+window Marco was going to press is not in front, so it refuses rather than pressing into whatever
+is — and a harness that re-ran until green would be turning the one honest answer into noise. The
+cases that are genuinely about this desktop rather than about Marco are declined by name: a
+modifier already held before the run, a fixture that could not be measured, a remote session.
+
 ## Three flakes it had, and the two that are fixed
 
 A gate that fails for its own reasons is a gate people learn to ignore, so these are written down
