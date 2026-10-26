@@ -88,6 +88,104 @@ func TestTheHookPumpIsWokenForShutdown(t *testing.T) {
 	}
 }
 
+// AND THE WAKE IS RETRIED, AT EVERY SITE THAT WAKES ONE.
+//
+// # The bug this is the test for
+//
+// A Windows thread has no message queue until it first calls a message function, and
+// `PostThreadMessage` to a thread that has not got one FAILS. Every pump here publishes its thread
+// id before installing its hooks, deliberately, so that a stop racing a start still has somewhere
+// to aim — and that leaves a window in which the wakeup lands nowhere. A single unchecked post
+// into that window is lost; `GetMessage` then waits for a message that will never arrive, and the
+// caller waiting for the pump to finish waits with it. Forever.
+//
+// It happened twice, in two packages, and cost about eighteen minutes of test time before either
+// was understood: this package's suite ran 495s before being killed, and `cmd/marco` hit its
+// 600-second limit twice — recorded both times as an unexplained timeout with contention as the
+// hypothesis, which it was not.
+//
+// # Why it is tree-wide and why THIS is the shape of it
+//
+// The blocking half above is tree-wide and was written that way on purpose: the defect existed in
+// two places at once, and a test naming files would have been written against the two that were
+// wrong. The shutdown half was NOT, and that is exactly how the second site kept the bug after the
+// first was fixed — the fix, the diagnosis and the comment explaining it all existed, in a file
+// this test did not look at.
+//
+// So the rule is structural and applies to whoever wakes a pump: the post must sit inside a loop.
+// A retry is the only thing that closes the window, because the window is a race and the caller
+// cannot tell from the outside whether the post it just made was delivered. Sites that never stop
+// their pump — plugins/overlay installs one hook for the life of the process — post nothing and
+// are not asked to.
+func TestAPumpWakeupIsRetriedRatherThanPostedOnce(t *testing.T) {
+	var waking []string
+	for _, name := range hookSites(t) {
+		if !callsIn(t, name)["procPostThreadMessageW"] {
+			continue // nothing here stops a pump
+		}
+		waking = append(waking, name)
+		if !postIsRetried(t, name) {
+			t.Errorf("%s posts its wakeup once and then waits for the pump to "+
+				"finish. A thread with no message queue yet refuses the post, and "+
+				"the wait that follows never ends: the pump is asleep in "+
+				"GetMessage and the message that would wake it was never queued. "+
+				"Post it in a loop until the pump answers, with a bound so a pump "+
+				"that has already died cannot wedge the caller either", name)
+		}
+	}
+	if len(waking) < 2 {
+		t.Errorf("only %d hook site(s) wake a pump (%v); two are known to, so this test "+
+			"is checking less than it reads as", len(waking), waking)
+	}
+}
+
+// postIsRetried reports whether every PostThreadMessage in a file is inside a loop.
+//
+// Every one, not any one: a site that retries in one place and posts once in another has the bug
+// in the second place, and the second place is the one that will be waited on.
+func postIsRetried(t *testing.T, name string) bool {
+	t.Helper()
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, name, nil, 0)
+	if err != nil {
+		t.Fatalf("parsing %s: %v", name, err)
+	}
+	// The loops, by the span of source they cover, so a call can be placed inside one.
+	type span struct{ from, to token.Pos }
+	var loops []span
+	ast.Inspect(file, func(n ast.Node) bool {
+		switch v := n.(type) {
+		case *ast.ForStmt:
+			loops = append(loops, span{v.Pos(), v.End()})
+		case *ast.RangeStmt:
+			loops = append(loops, span{v.Pos(), v.End()})
+		}
+		return true
+	})
+	retried := true
+	ast.Inspect(file, func(n ast.Node) bool {
+		sel, ok := n.(*ast.SelectorExpr)
+		if !ok {
+			return true
+		}
+		id, ok := sel.X.(*ast.Ident)
+		if !ok || id.Name != "procPostThreadMessageW" {
+			return true
+		}
+		inside := false
+		for _, l := range loops {
+			if sel.Pos() > l.from && sel.End() < l.to {
+				inside = true
+			}
+		}
+		if !inside {
+			retried = false
+		}
+		return true
+	})
+	return retried
+}
+
 // hookSites is every file in the repository that installs a low-level Windows hook.
 //
 // Found by looking for the call, not by a list somebody maintains. plugins/overlay is a separate

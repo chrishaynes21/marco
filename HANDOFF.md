@@ -8621,6 +8621,10 @@ recorded here rather than quietly changed.
 
 ### §41b — closing §41a, and an observed timeout with a hypothesis about its cause
 
+> **Since explained, and the hypothesis was wrong.** The timeout recurred on 2026-10-26, the
+> panic dump was kept, and it named a deadlock in `recorder.Stop` — not contention. §41j has it.
+> This section is left as written, because how the guess was recorded is the part worth keeping.
+
 Approved through `a637996`. Two limits came with the approval and belong next to the work rather
 than in a message: **existing saved routines are not automatically regenerated** (recorded in
 [[ADR-258-a-chord-is-a-promise-to-let-go]] under what did not move), and **the desktop hold
@@ -8878,3 +8882,122 @@ known-good version. Not by asking the rewriter how it went.
 double-encoding and PREDATE this session — different cause, same shape. They are deliberately left
 alone so what I broke stays distinguishable from what I found, and they are repairable on request
 with the method above.
+
+### §41i — the hold gate, run
+
+The screen became available, so the three scenarios written in §41c and §41e ran:
+`plugins\e2e\run.cmd -only hold`, **3 of 3, exit 0**, on a 1920x1080 96-dpi desktop. Then the
+whole suite with them in it: **12 of 12 desktop and 1 of 1 recording, exit 0**, with no
+NOT SELECTED line anywhere in it, which is the part that says the gate is empty rather than
+merely quiet.
+
+The claim worth naming is the Ctrl one, because it is the one nothing headless can make. A
+demonstrated Ctrl+click arrived at the application **with Ctrl held by the application's own
+reading of the keyboard at the instant the press was processed**. What was in doubt was never the
+step list — the unit tests settle that — but whether the real scan code, sent by the real
+`SendInput`, is applied by the system in time for the press that follows it. It is.
+
+`onlyWhenAsked` came off all three. They are ordinary members of a default run now, still filed
+under `hold/` and not `keys/` so the chord's selector does not sweep them in — a separate decision
+that outlives the gate. The machinery stays for drags, which is the next thing that will be
+written before it can be run; `TestAGatedScenarioIsNamedInTheSummary` tests it against scenarios
+of its own, so it does not depend on anything actually being gated. And
+`TestTheHoldScenariosAreAskedForByName` is now `TestTheHoldScenariosRunLikeAnyOther`, asserting
+the inverse of what it used to: re-gating one of the three would quietly remove the regression
+check it was written to be, and the only trace would be a line in a report nobody reads twice.
+
+**And the run found a defect — in the harness.** The Ctrl scenario passed, and its own artifact
+trail said the press inside the hold arrived holding NOTHING:
+
+```
+· the fixture received #4 key down ControlKey on "Name" with ctrl held
+· the fixture received #5 mouse left_down on "Save" at screen 258,372 (45,14 into it), window …
+```
+
+The verdict read `presses[1].Mods` and was right. The LINE printed `Watched` and left `Mods` out,
+so the one account the verdict rests on was missing from the evidence beside it — and for a press
+there is no other reading, since `Watched` is only populated when a scenario names a key to watch
+and this one names none.
+
+In the passing direction that is cosmetic. The failing direction is why it is a defect: had the
+press really arrived unmodified, the finding would have named the right thing while every step
+above it showed a log in which nothing was held either way, and the next person would have had no
+way to tell a product defect from a harness that forgot to ask. **A reader could not tell "nothing
+was held" from "that was not printed",** which is the same shape as §38X and §38Z — a harness
+whose output is ambiguous about its own silence.
+
+Both kinds of line go through one `heldAt` now, both accounts in every line, and an empty reading
+says `nothing held` out loud. `pressesAre`, which is what a FAILURE carries, had the same bug and
+reads the same way. Two tests hold it, and the second is the one that matters:
+`TestAPressTheVerdictAcceptsIsNotLoggedAsHoldingNothing` reaches the verdict through the
+production assertion, so moving the claim to a different account fails it unless the line moves
+with it.
+
+Which is the small lesson from a green run: **the first thing to read on a passing scenario is
+whether its own trail says what its verdict says.** This one did not, and nothing was failing.
+
+### §41j — the timeout was a deadlock, and the fix for it was already in the tree
+
+§41b recorded a 600s `cmd/marco` timeout as an observation with contention as the hypothesis, and
+said what to do if it recurred: **keep the panic dump, do not re-run the package alone.** It
+recurred on the root suite after the hold gate passed. The dump was kept. It took about four
+minutes to read and the hypothesis was wrong.
+
+```
+panic: test timed out after 10m0s
+  running tests:
+    TestAHotkeyResolvesInTheScopeItWasBoundIn/the_binding_lands_in_the_application_it_was_made_in (9m53s)
+
+goroutine 305 [chan receive, 9 minutes]:
+  recorder.(*winRecorder).Stop(…)        recorder_windows.go:371
+  cmd/marco.withPanicStop(…)             panicstop.go:78
+  cmd/marco.performOnePlay(…)            intake.go:499
+  …
+goroutine 288 [syscall, 3 minutes, locked to thread]:
+  recorder.(*winRecorder).Start.func3()  recorder_windows.go:345   ← GetMessage
+```
+
+Not contention: a deadlock, in the shutdown of the recorder, on the path **every real-input run
+takes**. `withPanicStop` starts a recording to watch for the stop key and stops it when the play
+ends, so this is `marco do`, and every Play in Studio, and not only a test.
+
+**The mechanism.** `Stop` wakes the hook pump by posting WM_QUIT to the thread that installed the
+hooks, because only that thread may remove them and it is asleep in `GetMessage` until a message
+arrives. A Windows thread has **no message queue until it first calls a message function**, and a
+post to a thread without one fails. The pump publishes its thread id *before* installing its
+hooks — deliberately, so a Stop racing a Start still has somewhere to aim — and that is the
+window. A single unchecked post into it is lost; `GetMessage` waits for a message that will never
+come, and `Stop` waits with it, unbounded. A SHORT play is the shape that posts into the window,
+which is why a test suite found it and a person demonstrating for thirty seconds did not.
+
+**And the fix was already in the tree.** `internal/platform/navsource` had the identical bug, found
+earlier, fixed with a retried post and a bounded wait, and commented with the mechanism spelled out
+— including that its own suite "ran 495s before being killed". It was never carried to
+`internal/recorder`. Two packages, one defect, eighteen minutes of wall clock between them, and the
+second one was diagnosable by reading a comment in the first.
+
+The reason it was not caught is worth more than the fix. `TestTheHookPumpBlocksRatherThanPolls`
+walks every hook site in the repository, on explicit reasoning written into it: *the defect existed
+in two places at once, and a test naming the files it knew about would have been written against
+exactly the two that were wrong.* The shutdown half, `TestTheHookPumpIsWokenForShutdown`, named ONE
+FILE. So the half that was generalised held, and the half that was not is where a fixed bug
+survived next door. **A test that names a file is a test about that file, however general the rule
+it is checking.**
+
+So the correction is three things:
+
+| | |
+|---|---|
+| the retry | the post goes in a loop until the pump answers, bounded at 5s so a pump that already died cannot wedge a caller either |
+| the report | an expired bound is a different outcome, not a success: it stops recording and says in plain words that the hooks are installed until the process exits, because the hooks can only be removed by a thread that is not answering, and closing the capture queue while a callback could still send into it would panic inside a hook. Reported, not recovered, and not forced — the same rule the holds follow |
+| the rule, generalised | `TestAPumpWakeupIsRetriedRatherThanPostedOnce` walks the tree like its sibling, requires every wake to sit inside a loop, and skips sites that never stop a pump (the overlay installs one hook for the life of the process). It fails if fewer than two sites wake one, so it cannot quietly end up checking nothing |
+
+Both directions verified rather than asserted: moving the post out of its loop fails the structural
+test and names the file; posting the wake to thread 0 makes the behavioural test fail in 5.01s with
+the report printed, which is what proves the bound is real and that the duration assertion is not
+decoration. `cmd/marco` then ran `ok … 12.237s`.
+
+**What this does not establish.** The race is microseconds wide and scheduling-dependent, so
+neither green run proves it is gone — the structural test is the one that does not depend on
+catching it. And the harness's unexplained foreground refusal (§40b) is still open and is a
+separate anomaly; one answered question is not two.

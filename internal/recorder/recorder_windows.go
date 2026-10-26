@@ -364,12 +364,62 @@ func (r *winRecorder) Stop() []RecordedEvent {
 		return nil
 	}
 	close(r.done)
-	// Wake the blocking pump so it can unhook what it installed — only the installing
-	// thread may do that, and it is asleep in GetMessage until something arrives.
+	// WAKE THE BLOCKING PUMP, AND KEEP KNOCKING UNTIL IT ANSWERS.
+	//
+	// Only the installing thread may unhook what it installed, and it is asleep in
+	// GetMessage until a message arrives — so shutdown is a message rather than a flag.
+	//
+	// THE POST CAN LAND NOWHERE. A Windows thread has no message queue until it first
+	// calls a message function, and PostThreadMessage to a thread without one fails. The
+	// id is published before the hooks exist so that a Stop racing a Start still has
+	// somewhere to aim, and that is the window: a single unchecked post into it is lost,
+	// GetMessage waits forever for a message that will never come, and so does this.
+	//
+	// It is not hypothetical and it was not cheap. `cmd/marco` hit its 600-second limit
+	// twice on this, both times recorded as an unexplained timeout with contention as the
+	// guess — and the same defect had already been found and fixed in
+	// `internal/platform/navsource`, whose own suite ran 495s before being killed. This
+	// is that fix carried to the site that still had it. Every real-input run goes through
+	// it: `withPanicStop` starts a recording to watch for the stop key and stops it when
+	// the play ends, so a short play is exactly the shape that posts into the window.
+	//
+	// Bounded, because a pump that has somehow already died must not wedge the caller
+	// either, and because a shutdown that cannot be completed is a thing to SAY.
 	<-r.ready
-	procPostThreadMessageW.Call(uintptr(r.threadID.Load()), wmQuit, 0, 0)
-	<-r.stopped // hook pump unhooked — no more mouseProc, so no more capture sends
-	<-r.pollStopped
+	woken := false
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		procPostThreadMessageW.Call(uintptr(r.threadID.Load()), wmQuit, 0, 0)
+		select {
+		case <-r.stopped: // hook pump unhooked — no more mouseProc, so no more capture sends
+			woken = true
+		case <-time.After(20 * time.Millisecond):
+		}
+		// The deadline is checked HERE and not in the select's case, where a `break`
+		// would leave the select and go round the loop again forever.
+		if woken || time.Now().After(deadline) {
+			break
+		}
+	}
+	<-r.pollStopped // watches r.done, so it finishes either way
+	if !woken {
+		// REPORTED, NOT RECOVERED, and deliberately not forced. The hooks can only be
+		// removed by a thread that is not answering, and closing captureReqs while a
+		// callback can still send into it would panic inside a hook — which is a worse
+		// end to a run than a hook that outlives it. So: stop recording, say what is
+		// left behind, and hand back what was captured.
+		recActive.Store(false)
+		fmt.Fprintf(os.Stderr, "\n[marco: this recording's keyboard and mouse hooks could "+
+			"not be taken off — the thread that installed them did not answer. They stay "+
+			"installed until this process exits. Nothing more is being recorded.]\n")
+		r.done = nil
+		recMu.Lock()
+		out := recBuf
+		recBuf = nil
+		recMu.Unlock()
+		resolveImages(out, winctx.ImageOf)
+		return out
+	}
 	close(captureReqs) // safe now: nothing sends after the hooks are gone
 	<-r.captureStopped // let queued templates finish writing back before we read recBuf
 	recActive.Store(false)

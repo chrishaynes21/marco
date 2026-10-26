@@ -69,9 +69,15 @@ and generated routes are checked against Core's vocabulary.
   keystroke and every mouse move **on the whole desktop** up to a ~15.6ms quantum. It
   never looks like a bug — the hooks keep working, Windows only unhooks past its 300ms
   timeout — so it survived in two of three hook sites. Shutdown must WAKE the pump (post
-  `WM_QUIT`) and unhook from the installing thread. Enforced by
+  `WM_QUIT`) and unhook from the installing thread, **and the wake must be RETRIED and the
+  wait BOUNDED**: a thread has no message queue until it first calls a message function, so
+  a post into that window is refused and lost, `GetMessage` then waits for a message that
+  will never come, and whoever waits for the pump waits forever. That cost 495s in
+  `navsource` and two 600s timeouts in `cmd/marco`, the second only because the fix was
+  made at one site and not carried to the other. Enforced by
   `internal/platform/navsource/pump_test.go`, which walks the whole tree for hook sites
-  rather than naming them. **This is a correctness rule, not a measured latency win**: it
+  rather than naming them — including the shutdown half, which named one file and is why
+  the second site kept the bug. **This is a correctness rule, not a measured latency win**: it
   was found while chasing a desktop hitch whose root cause was never established, and no
   clean measurement has yet attributed any perceived input latency to it.
 - **Secrets never land in a route or a recording.** Passwords resolve via

@@ -77,7 +77,8 @@ that drifted by one character would exclude nothing and say nothing about it.
 
 **Shutdown.** A live capture ends with the window, and is waited for. Leaving it would leave
 low-level keyboard and mouse hooks installed on somebody's desktop with nothing left to unhook
-them — a sharper version of the rule that already abandons a running visual recording.
+them — a sharper version of the rule that already abandons a running visual recording. **And the
+wait itself turned out to be able to never end**; see below.
 
 **One predicate for two recorders.** Four places must refuse while the screen is being watched: a
 run, a Scene deleted, everything forgotten, and a second recording. Each asked
@@ -89,6 +90,49 @@ question, asked in all four places.
 A draft in review is deliberately NOT a recording: the hooks are gone and the screen is free, so
 a run is allowed again. It does still block a second capture, because there is one draft and
 taking another would drop it unasked.
+
+## And the wait for the pump could never end, which is the shutdown's own defect
+
+Found on 2026-10-26, from a test timeout — and it is not confined to Studio: **every real-input run
+goes through it**, because `withPanicStop` starts a recording to watch for the stop key and stops
+it when the play ends.
+
+`Stop` wakes the pump by posting WM_QUIT to the thread that installed the hooks, since only that
+thread may remove them and it is asleep in `GetMessage` until a message arrives. But a Windows
+thread **has no message queue until it first calls a message function**, and a post to a thread
+without one fails. The pump publishes its thread id BEFORE installing its hooks, deliberately, so
+that a Stop racing a Start still has somewhere to aim — and that is the window. A single unchecked
+post into it is lost. `GetMessage` then waits for a message that will never come, and `Stop`,
+waiting for the pump to finish, waits with it, with no bound at all.
+
+A short play is exactly the shape that posts into the window, which is why the first place it
+showed was a test: `cmd/marco` hit its 600-second limit on it **twice**, both times recorded as an
+unexplained timeout with contention as the hypothesis. It was not contention. The stack said so
+plainly once one was kept — `Stop` blocked on the pump's channel for nine minutes, the pump itself
+sitting in `GetMessage`.
+
+**The same bug had already been found and fixed, in `internal/platform/navsource`,** whose own
+suite ran 495s before being killed, with a comment in the fix explaining the mechanism exactly. The
+fix was never carried to `internal/recorder`. So the correction is two things, and the second
+matters more than the first:
+
+- The post is **retried** until the pump answers, and the wait is **bounded**: a pump that has
+  already died cannot wedge a caller either.
+- The rule is now **structural and tree-wide**. `TestTheHookPumpBlocksRatherThanPolls` always
+  walked every hook site in the repository, on the explicit reasoning that a test naming files
+  would be written against the files that were wrong. Its shutdown counterpart named ONE file —
+  and that is precisely how the second site kept a bug the first had already fixed.
+
+**And a bounded wait that expires is a different outcome, not a success.** The hooks can only be
+removed by a thread that is not answering, and closing the capture queue while a callback could
+still send into it would panic inside a hook — a worse end to a run than a hook that outlives it.
+So `Stop` stops recording, says in plain words that the hooks are still installed until the process
+exits, and hands back what it captured. Reported, not recovered, and not forced: the same rule the
+holds follow.
+
+This is also why "finishing cannot fail" above is about REFUSAL and not about completion. Finishing
+cannot refuse — there is nothing to tell a person at Stop that should have been said at Record. It
+could, until now, fail to finish.
 
 ## What review shows, and what it does not
 
@@ -103,6 +147,16 @@ that drifts from what gets saved is worse than words.
 
 ## Enforced by
 
+- `internal/platform/navsource` `TestAPumpWakeupIsRetriedRatherThanPostedOnce` — the wake is
+  retried at EVERY hook site in the repository that wakes a pump, found by walking the tree rather
+  than by a list, because a list is what let one site keep the bug after the other was fixed. It
+  reads the source, since the failure is a race a behavioural test cannot be relied on to catch:
+  moving the post out of its loop fails it and names the file.
+- `internal/recorder` `TestAStopRightAfterAStartDoesNotHang` — the behavioural half, twenty
+  start-then-stop cycles with nothing in between, which is the shape that posts into the window.
+  It asserts the DURATION and not merely that `Stop` returned, because `Stop` is bounded now: a
+  lost wakeup ends in five seconds with a report instead of never, and that must not pass as a
+  success. Posting the wake to thread 0 fails it in 5.01s with that message.
 - `plugins/studio` `TestStopOpensReviewAndWritesNothing` — through `StartRecording` and
   `StopRecording`, asserting the routes directory is still empty and that review is open.
 - `plugins/studio` `TestPressingStopInStudioDoesNotBecomeAStep` — the Architect's case, with
