@@ -201,7 +201,7 @@ that a chord happened; this is the fact itself, and it is what catches a sender 
 events the system never applied — same four messages, same order, a plain keystroke delivered.
 See [[ADR-258-a-chord-is-a-promise-to-let-go]].
 
-## And three scenarios that are written and have never run
+## And three hold scenarios, written before a desktop was available and run on one since
 
 | | |
 |---|---|
@@ -209,20 +209,35 @@ See [[ADR-258-a-chord-is-a-promise-to-let-go]].
 | `hold/a stopped run lets go of the key` | Stop during a hold ends the run as cancelled, sends nothing more, and leaves no key down |
 | `hold/a ctrl-held click arrives with ctrl held` | a demonstrated Ctrl+click reaches the application as one, by its own reading of the keyboard, and lets go after |
 
-Both are **implemented, desktop execution pending**, and both are gated out of a default run by
-`onlyWhenAsked` until one green run takes the flag off. The reason for the gate is that adding an
-unexercised scenario to a regression gate makes the next ordinary run a debugging session: the
-first failure anybody sees is as likely to be the scenario's own as Marco's, and a gate that cries
-wolf once gets ignored twice. The reason they are not merely absent is that a harness holding back
-a scenario it owns and saying nothing makes its own green summary mean more than it should — so
-every report names them, beside the physical-capture limit and in the same spirit:
+**All three ran green on a desktop on 2026-10-26** (`plugins\e2e\run.cmd -only hold`, 3 of 3,
+exit 0), so they are ordinary members of a default run from then on and `onlyWhenAsked` is off
+them. Until that run they carried it, because adding an unexercised scenario to a regression gate
+makes the next ordinary run a debugging session: the first failure anybody sees is as likely to be
+the scenario's own as Marco's, and a gate that cries wolf once gets ignored twice. They were not
+merely absent in the meantime, because a harness holding back a scenario it owns and saying
+nothing makes its own green summary mean more than it should — so every report named them, beside
+the physical-capture limit and in the same spirit:
 
 > implemented and NOT EXERCISED: hold/… Written, gated out of this selection, and waiting on one
 > green desktop run before it joins the gate — run with `-only hold`.
 
+**The machinery stays, unused.** Drags are the next thing that will be written before it can be
+run, and `TestAGatedScenarioIsNamedInTheSummary` keeps the line honest against scenarios of its
+own rather than whichever ones happen to be gated today.
+
 They are filed under `hold/` and not `keys/` on purpose, so `-only keys` — the chord's gate — does
-not sweep them into every chord change. `TestTheHoldScenariosAreAskedForByName` holds the gate,
-the prefix and the rule that nothing else wears the flag.
+not sweep them into every chord change. That is a separate decision and outlives the gate.
+`TestTheHoldScenariosRunLikeAnyOther` holds the prefix, the layer, the count, and the inverse of
+what it used to: re-gating one would take it out of default runs, and the only trace would be a
+line in a report nobody reads twice.
+
+**What the first green run found was in the harness, not the product.** The Ctrl scenario passed
+while its own artifact trail said the press inside the hold arrived holding nothing: the line for
+a mouse event printed `Watched` and left out `Mods`, which is the account that verdict rests on.
+The verdict was right and the evidence beside it was unreadable — and in the failing direction a
+reader would have had no way to tell a product defect from a harness that forgot to ask. Both
+kinds of line go through one `heldAt` now, and an empty reading says `nothing held`, because a
+missing phrase and a key nobody was holding have to look different.
 
 **What the fixture had to learn.** `Control.ModifierKeys` answers for Ctrl, Shift and Alt, which is
 the whole question a chord asks and half of the one a hold asks: a held Q is not a modifier, so a

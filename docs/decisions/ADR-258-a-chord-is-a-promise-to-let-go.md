@@ -244,12 +244,16 @@ to ask of the desktop, and the window could not answer it anyway. Named rather t
 window that reported every key's state would be a keylogger, which is not a thing to leave in a
 test fixture.
 
-**The key is Q and not a modifier, for two reasons.** A modifier would not work: `simplify` tracks
-modifiers to fold them into chords and `markHolds` skips them by name, so Ctrl held across a click
-produces no key step at all and the click comes out unmodified. And the consequence of the
-scenario failing is a key left down on a real desktop — a letter repeats itself into whatever has
-the keyboard, while a modifier changes every keystroke anybody types on the machine until somebody
-works out why. If a promise is going to be broken, it should be the cheaper one.
+**The key is Q and not a modifier, for two reasons** — and only the second one still holds. A
+modifier could not be used when this scenario was written: `simplify` tracked modifiers to fold
+them into chords and `markHolds` skipped them by name, so Ctrl held across a click produced no key
+step at all and the click came out unmodified. That turned out to be a defect rather than a
+limit — it is fixed, and there is a Ctrl scenario beside this one now (below). What has not
+changed is the cost of this scenario failing: it leaves a key down on a real desktop, and a letter
+repeats itself into whatever has the keyboard while a modifier changes every keystroke anybody
+types on the machine until somebody works out why. If a promise is going to be broken, it should
+be the cheaper one — which is why the plain-key scenario is still the one that holds a key for the
+longest, and the Ctrl one holds a modifier only across a single click.
 
 **A refused delivery and a refused release are deliberately NOT on the desktop.** Both are covered
 headlessly, above. A desktop scenario that needed a key to be STUCK in order to assert anything
@@ -258,15 +262,18 @@ a key held, it reports it and says to press and release the key: the harness sen
 rule that makes the fixture's log attributable in the first place, so it will not put the key up
 itself.
 
-**They are gated out of a default run and named in every report.** `onlyWhenAsked` keeps a
-scenario that has never passed on a desktop out of a run that did not ask for it, because adding
-an unexercised scenario to a regression gate makes the next ordinary run a debugging session — the
-first failure anybody sees is as likely to be the scenario's own as the product's. But a harness
-quietly holding back a scenario it owns would make its own green summary mean more than it should,
-so the report names them beside the physical-capture limit, in the same words every time:
-*implemented and NOT EXERCISED*. They are filed under `hold/` rather than `keys/` so that `-only
-keys`, the chord's gate, does not sweep them in. The flag comes off after one green run, and the
-first half of `TestTheHoldScenariosAreAskedForByName` comes off with it.
+**They were gated out of a default run and named in every report, and they ran green on
+2026-10-26.** `onlyWhenAsked` keeps a scenario that has never passed on a desktop out of a run
+that did not ask for it, because adding an unexercised scenario to a regression gate makes the
+next ordinary run a debugging session — the first failure anybody sees is as likely to be the
+scenario's own as the product's. But a harness quietly holding back a scenario it owns would make
+its own green summary mean more than it should, so the report named them beside the
+physical-capture limit, in the same words every time: *implemented and NOT EXERCISED*. They are
+filed under `hold/` rather than `keys/` so that `-only keys`, the chord's gate, does not sweep
+them in — a separate decision, and the one that outlived the gate. The flag came off with that
+green run and the first half of the test that held it came off with it; what the renamed
+`TestTheHoldScenariosRunLikeAnyOther` asserts now is the inverse, that none of the three is gated
+again, since re-gating one would quietly remove the regression check it was written to be.
 
 **And the oracle is tested without a desktop.** A scenario is an arrangement and a set of questions
 asked of what came back; the arrangement needs a screen and the questions are functions over a
@@ -415,8 +422,9 @@ run means anything is the half that was never checked before it ran.
   never saw released, a press that landed on the wrong control, a modifier somebody was already
   leaning on (which must not be a finding), and a stuck key reported in words that say what to do
   about it.
-- `plugins/e2e` `TestTheHoldScenariosAreAskedForByName` — the gate, the prefix, and the rule that
-  nothing else wears the flag. Half of it comes off when the scenarios have run green once.
+- `plugins/e2e` `TestTheHoldScenariosRunLikeAnyOther` — the prefix, the layer, the count, and that
+  none of the three is gated out of a default run again. Named `…AreAskedForByName` while the gate
+  was on, and half of it came off with the gate.
 - `plugins/e2e` `TestEveryCountOfWhatArrivedIsTakenAfterTheBarrier` — now over key reads as well
   as press reads, because the absence a key scenario asserts is an absence of KEY messages. The
   two reads that could not cross the barrier — a failure already decided because no run record
@@ -448,3 +456,40 @@ guard-deletion one SURVIVED the first attempt, because the tests beside it exerc
 assertion functions and not the chain that calls them — a check nothing calls is a check that is
 not there, which is why `TestTheStoppedHoldScenarioGuardsItsAbsenceClaim` reads the chain off the
 syntax rather than exercising it.
+
+## And then they ran
+
+All three passed on a desktop on 2026-10-26 — `plugins\e2e\run.cmd -only hold`, 3 of 3, exit 0,
+on a 1920x1080 96-dpi machine. The Ctrl scenario is the one that mattered most: a demonstrated
+Ctrl+click arrived at the application with Ctrl held **by the application's own reading of the
+keyboard at the instant the press was processed**, which is the claim no unit test can make,
+because the thing in doubt was whether the real scan code sent by the real `SendInput` is applied
+by the system in time for the press that follows it. It is.
+
+`onlyWhenAsked` came off all three with that run, and they are ordinary members of a default run
+now. [[Desktop-Harness]] has what changed in the harness.
+
+**What the run found was in the harness.** The Ctrl scenario passed while its own trail said the
+press inside the hold held nothing: the line printed for a mouse event carried `Watched` and left
+out `Mods`, the account that verdict rests on. The verdict was right; the evidence beside it
+contradicted it. That is only a cosmetic defect in the passing direction — in the failing one, the
+finding would have named the right thing while every step above it showed a log in which nothing
+was held either way, and nobody could have told a product defect from a harness that forgot to
+ask. Both kinds of line go through one reading now, and an empty reading says `nothing held`,
+because a missing phrase and a key nobody was holding have to look different.
+
+- `plugins/e2e` `hold/a hold is held across the press` — a key held across a press, by the
+  application's reading during the press and the desktop's afterwards.
+- `plugins/e2e` `hold/a ctrl-held click arrives with ctrl held` — the gesture that used to be
+  dropped, end to end: demonstration, simplifier, generator, Studio's Play, `oshost`, Windows, and
+  a window that says what it read.
+- `plugins/e2e` `hold/a stopped run lets go of the key` — Stop during a hold: cancelled, nothing
+  more sent, no key left down. It waits for the hold to actually arrive first, so stopping before
+  the hold began cannot pass it.
+- `plugins/e2e` `TestTheLineAboutAnEventNamesWhatTheWindowRead` /
+  `TestAPressTheVerdictAcceptsIsNotLoggedAsHoldingNothing` — the report defect above, in both
+  directions: every reading an assertion can make appears in the line, an empty one says so, and
+  a press the reading assertion accepts is not printed as holding nothing. The second reaches the
+  verdict through the production assertion, so moving the claim to another account breaks it
+  unless the line moves too.
+- `plugins/e2e` `TestTheHoldScenariosRunLikeAnyOther` — and none of the three is gated again.

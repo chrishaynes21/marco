@@ -73,35 +73,35 @@ func scenarios() []scenario {
 				"held, and leaves nothing held down afterwards",
 			run: aChordArrivesAsAChord,
 		},
-		// THE TWO HOLD SCENARIOS, WRITTEN AND NOT YET RUN ON A DESKTOP.
+		// THE THREE HOLD SCENARIOS, which ran green on a desktop on 2026-10-26 and are
+		// ordinary members of a default run from then on.
 		//
-		// Under `hold/` rather than `keys/` deliberately: `-only keys` is the chord's
-		// regression gate, and sweeping two never-exercised scenarios into it would make
-		// the next ordinary chord change a debugging session. They come off
-		// `onlyWhenAsked` the first time they run green.
+		// They kept `onlyWhenAsked` until that run, so a scenario nobody had exercised
+		// could not turn the next ordinary run into a debugging session. Still under
+		// `hold/` rather than `keys/`, which is a separate decision and outlives the
+		// gate: `-only keys` is the chord's regression gate, and a hold scenario filed
+		// under that name would be swept into every chord change by a flag somebody
+		// typed for a different reason.
 		{
 			name:  "hold/a hold is held across the press",
 			layer: layerDesktop,
 			about: "a held key is down, by the application's own reading, when " +
 				"the press inside the hold arrives — and up afterwards",
-			run:           aHoldIsHeldAcrossThePress,
-			onlyWhenAsked: true,
+			run: aHoldIsHeldAcrossThePress,
 		},
 		{
 			name:  "hold/a ctrl-held click arrives with ctrl held",
 			layer: layerDesktop,
 			about: "a demonstrated Ctrl+click reaches the application as one, " +
 				"by its own reading of the keyboard, and lets go after",
-			run:           aCtrlHeldClickArrivesWithCtrlHeld,
-			onlyWhenAsked: true,
+			run: aCtrlHeldClickArrivesWithCtrlHeld,
 		},
 		{
 			name:  "hold/a stopped run lets go of the key",
 			layer: layerDesktop,
 			about: "Stop during a hold ends the run as cancelled, sends nothing " +
 				"more, and leaves no key down on the desktop",
-			run:           aStoppedRunLetsGoOfTheKey,
-			onlyWhenAsked: true,
+			run: aStoppedRunLetsGoOfTheKey,
 		},
 		{
 			name:  "runs/two runs are two records",

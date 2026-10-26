@@ -213,35 +213,32 @@ func TestAModifierHeldBeforeTheRunIsNotAFinding(t *testing.T) {
 	}
 }
 
-// THE HOLD SCENARIOS ARE GATED, AND THEY ARE NOT UNDER THE CHORD'S SELECTOR.
+// THE HOLD SCENARIOS RUN ORDINARILY, AND THEY ARE NOT UNDER THE CHORD'S SELECTOR.
 //
-// Two claims in one test because they are one decision. The gate keeps a scenario that has never
-// run green on a desktop out of a default run, so the next ordinary run is a regression check
-// rather than a debugging session. The NAME keeps it out of `-only keys`, which is the chord's
-// gate — a hold scenario filed under `keys/` would be swept into every chord change by a flag
-// somebody typed for a different reason, and the gate above would not stop it, because `-only`
-// is exactly what turns the gate off.
+// The gate half of this test is gone, and its going is the point: the three ran green on a
+// desktop on 2026-10-26, so they are regression checks now and belong in every default run.
+// `onlyWhenAsked` was the thing that kept a never-exercised scenario from turning the next
+// ordinary run into a debugging session, and a scenario that has passed no longer needs it. What
+// is asserted instead is the inverse — re-gating one would take it out of default runs, and the
+// only evidence anybody would see of that is a line in a report nobody reads twice.
 //
-// This test comes off with the flag: when the scenarios have run green and `onlyWhenAsked` goes,
-// the first half must be deleted and the second half kept.
-func TestTheHoldScenariosAreAskedForByName(t *testing.T) {
+// The NAME claim is a separate decision and outlives the gate: `-only keys` is the chord's
+// regression gate, and a hold scenario filed under `keys/` would be swept into every chord
+// change by a flag somebody typed for a different reason.
+//
+// The gate MACHINERY stays, tested by TestAGatedScenarioIsNamedInTheSummary against scenarios of
+// its own — drags are the next thing written before it can be run, and that is what it is for.
+func TestTheHoldScenariosRunLikeAnyOther(t *testing.T) {
 	var found int
 	for _, s := range scenarios() {
 		if !strings.HasPrefix(s.name, "hold/") {
-			// AND NOTHING ELSE IS GATED. A flag that spread would quietly empty
-			// the default run one scenario at a time.
-			if s.onlyWhenAsked {
-				t.Errorf("%q is gated out of a default run and is not a hold "+
-					"scenario; the gate is for something written and not "+
-					"yet exercised", s.name)
-			}
 			continue
 		}
 		found++
-		if !s.onlyWhenAsked {
-			t.Errorf("%q runs in a default run and has never run green on a "+
-				"desktop, so the next ordinary run of this harness would be "+
-				"a debugging session", s.name)
+		if s.onlyWhenAsked {
+			t.Errorf("%q has run green on a desktop and is gated out of a default "+
+				"run again, so the regression it was written to catch is only "+
+				"checked when somebody remembers to name it", s.name)
 		}
 		if strings.Contains(s.name, "keys") {
 			t.Errorf("%q contains %q, so `-only keys` — the chord's gate — would "+
