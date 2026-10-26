@@ -373,7 +373,10 @@ window that had inherited `$MARCO_CV=on` rebuilt the routine with its pauses cap
 to wait on in their place. The mode now travels with the recording rather than with whichever
 `Deps` is holding it — read from the source of the file being replaced, and used for the
 simplification as well as for the line. Nothing is versioned and nothing is migrated: a repair
-writes what the file already said.
+writes what the file already said. **The repair, and not every path that regenerates a routine:**
+`SimplifyRoute` — `marco simplify` — rebuilds from the same stored recording and still drops the
+line and caps the gaps, and is recorded as an open sibling rather than fixed alongside, because
+writing a mode line in a path that never wrote one is a decision of its own.
 [[ADR-254-what-a-recording-captures-is-stated]]
 
 ## Readiness is what has been checked, and it says what it has not
