@@ -1548,6 +1548,12 @@ invisible to a green suite, and so was the stale window that hid its fix.
 > **Report a problem** on the run it performed and keeps the file, so the child's own output is
 > retained by the window that gathers it.
 >
+> It also plays a **chord** — `ctrl+shift+a` into the field the routine clicked into first — and
+> asserts it three ways: the order of the key messages the application received, the modifier
+> state the application read from the system at the instant the key arrived, and whether this
+> desktop is still holding anything down afterwards. That last one is the promise a chord makes,
+> and it is the only claim here that needs an account from outside both programs.
+>
 > Two things it does deliberately, worth knowing if you read its output: a scenario that could not
 > ask its question is **NOT RUN and not a pass** — a partial run never exits 0 — and before any
 > scenario claims that nothing arrived, the fixture is asked, from inside its own message loop,

@@ -71,6 +71,31 @@ The same boundary is what a **dry** rehearsal uses: `internal/director/rehearse`
 authorized step through `marcoexec` exactly as a live one will, and the composition root installs
 `recordhost.Host` instead of `oshost.Host`. There is no second path — that is the point.
 
+## A chord is a sequence, and the releases are a promise
+
+`do OS's Key with "ctrl+shift+a"` is one line of Marco and six events at the boundary: hold Ctrl,
+hold Shift, settle, tap A, hold, then release all three in reverse. The releases are of a
+different kind from the rest — a modifier this process pressed stays down on somebody's computer
+until this process lets go of it, nothing else cleans that up, and the application cannot see
+that it is happening.
+
+Three defects lived in the middle of that sequence, inside the function that calls `SendInput`
+where no test could reach them: a refused modifier returned leaving the earlier ones held, a stop
+during the settle tapped the key anyway, and a release the machine refused was discarded entirely
+— so the worst outcome of the three reported success. The sequencing is now `sendChord` against a
+machine that takes one key event at a time, every key pressed gets a release ATTEMPT before it
+returns — an attempt, because the machine can refuse one and that refusal is the point — and
+a stuck key outranks a refused keystroke in what a caller is told — except that a stop keeps its
+identity, because a stop that read as a failure would turn a person pressing Escape into a
+routine that failed.
+
+And a stopped run may not carry a stuck key away with it. `performOnePlay` discards a cancelled
+run's error deliberately, so the host keeps the key it could not release in an account of its own
+— `Host.NotReleased`, beside `Host.Unperformed`, and separate on purpose: that list is things
+that did not happen, and this is something that did and has not finished. The outcome stays
+`cancelled`; the sentence reaches the durable record, the run's own output, and the card.
+[[ADR-258-a-chord-is-a-promise-to-let-go]]
+
 ## What this caught
 
 Lowering revealed three capabilities that worked from `oshost` but that **no line of Marco
@@ -95,6 +120,7 @@ direct-invoke design would never have noticed.
 - [[ADR-029-resolution-is-not-permission]]
 - [[ADR-030-a-play-says-where-it-begins]]
 - [[ADR-031-the-user-names-the-stage]]
+- [[ADR-258-a-chord-is-a-promise-to-let-go]]
 
 ## Validated by
 

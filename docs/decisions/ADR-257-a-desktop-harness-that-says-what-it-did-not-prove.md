@@ -342,6 +342,13 @@ Nine scenarios, eight desktop and one recording, in about 36 seconds.
   read one pass before the answer was decided. A fixture that caught up before being checked is NOT
   RUN. Not a scenario: it is a claim about the harness, and the layer totals are claims about
   Marco. Its sentence is printed in every report.
+- `plugins/e2e` `keys/a chord arrives as a chord` — the first scenario here whose claim needs an
+  account from outside both programs: a modifier nobody released is invisible to the application,
+  because no message arrives to tell it about a key it never saw pressed. Three channels — the
+  order of the key messages, the modifier state the window read from the system at the instant the
+  key arrived, and what the desktop is still holding afterwards — and the last is read before the
+  run too, so a modifier already held is NOT RUN rather than a failure.
+  See [[ADR-258-a-chord-is-a-promise-to-let-go]].
 - `plugins/e2e` `TestTheSelfCheckLooksAfterTheFixtureHasDecided` — the ORDER inside
   `checkTheBarrier`, read off the syntax, because this has been got wrong twice in twenty lines and
   both times the code looked right. Nothing may read whether the fixture acknowledged the barrier,

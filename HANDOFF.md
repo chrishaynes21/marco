@@ -8396,3 +8396,117 @@ and writes through `codegen.Route` rather than `RouteAs`, so it drops the mode l
 gaps exactly as the repair did. It was out of the scope the Architect bounded this to, and it is a
 second behaviour change in a second user-facing path (it would start writing a line where it never
 wrote one), so it is recorded here rather than folded in quietly.
+
+## §40 — chords: three defects in six events, and the promise nobody was keeping
+
+`do OS's Key with "ctrl+shift+a"` is one line of Marco and six events at the boundary. The last
+two are a promise: a modifier this process pressed stays down on somebody's computer until this
+process lets go of it. Windows does not clean that up, the application cannot see that it is
+happening, and the person's next keystroke — and every one after it — arrives as something else.
+
+Three defects lived in the middle of that sequence, inside the function that calls `SendInput`,
+which is why none of them was reachable by a test:
+
+1. **A rejected modifier left the earlier ones down.** The loop returned its error from the middle
+   of itself. `ctrl+shift+esc` with the Shift rejected returned *SendInput rejected key "shift"*
+   with Ctrl still held on the desktop, and the reported half was the smaller half.
+2. **A stop during the modifier settle stopped nothing.** `sleepCtx` returns early when the run is
+   cancelled — that early return IS the signal — and the next line pressed the key regardless. So
+   Escape or the panic key, pressed in the one window where a chord was in flight, sent the chord.
+   It had never fired, which is its own argument for a test.
+3. **A release the machine refused was discarded.** The reverse loop ignored every return value, so
+   the worst of the three outcomes reported success: nothing in the run record, nothing in the exit
+   status, and a modifier held down.
+
+The sequencing moved to `sendChord`, written against a `keyMachine` that takes one key event at a
+time — `down`, `up`, `settle`, three methods and no state — so a refused modifier, a stop
+mid-flight and a release the machine will not take are all arrangeable without a desktop. Every
+key pressed is released before the function returns, in reverse, whatever happened; a key the
+machine would not press is not released, because there is nothing down to undo; a stuck key
+outranks a refused keystroke in what the caller is told, EXCEPT that a cancellation keeps its
+identity, since a stop that stopped reading as a stop would turn a person pressing Escape into a
+routine that failed. And the failure names the part and the chord — *the machine refused the "c"
+in "ctrl+c"* — rather than the whole spec.
+
+Ten tests, four mutations, each killed by the test named for it and by no other: the bare return
+from the modifier loop, the missing context check after the settle, the missing one at the
+entrance, and the discarded release failures (that one fails three tests, which is the single
+place the tests overlap on purpose).
+
+**And the desktop half, which those cannot reach.** `plugins/e2e` `keys/a chord arrives as a
+chord` plays `ctrl+shift+a` into the field the routine clicked into first, on three accounts: the
+order of the key messages the application received; the modifier state the application read from
+the SYSTEM at the instant the key arrived, which is new in the fixture and is the fact rather than
+the evidence — a sender whose modifier events the system never applied produces the same four
+messages in the same order and delivers a plain A; and what the desktop is still holding
+afterwards, read through `GetAsyncKeyState`, because no message tells an application about a key
+nobody released. The last is read before the run too: a modifier already held is a fact about the
+desktop, so the scenario declines rather than fails. The demonstration is RECORDED as a chord, not
+written as one — `simplify` folds the held modifiers, and a harness that wrote `ctrl+shift+a`
+itself would be asserting against its own opinion of what a demonstration produces.
+
+It passed first time, which is worth saying because the three unit-level defects were real: the
+chord path has always worked when the machine took every event. What it could not do was fail
+safely.
+
+### Three flakes the new scenario shook out, two of them fixed
+
+Three consecutive full runs each failed a DIFFERENT scenario, and chasing it mattered more than
+re-running until green — a gate that fails for its own reasons is a gate people learn to ignore.
+(I briefly concluded the chord change had caused the first one, on a two-fail/two-pass bisect;
+three more runs showed it passing 3 of 3 with the change in. The bisect was too small.)
+
+- **Done was pressed before the window offered it.** `waitForRecord` returns when the child has
+  written its account; Done becomes pressable when the window has noticed the child exit. Two
+  instants, a real gap. It waits for the button now, in the same shape `play` already used.
+- **The fixture's snapshot could not be read while it was being replaced.** The fixture wrote a
+  temp file, deleted the real one, and moved the temp over it — so a reader arriving in the gap
+  was told *Access is denied*, which is Windows's answer for a deletion-pending file and not a
+  sentence anybody would connect to a file being rewritten. `File.Replace` now, which is atomic
+  and keeps the file always present, with the other exception it can throw caught beside the one
+  that was; and the harness retries a transient read anyway, because a reader of another process's
+  file does not get to assume how that process writes it.
+- **Not fixed:** once in about ten runs, the first scenario failed with Marco's own refusal — *the
+  fixture window is no longer in front, so a press would land in whatever is*. Marco was right to
+  refuse and the harness was right to report it; what took the foreground between the activation
+  and the press is not established. It fails SAFE, so it is recorded rather than worked around.
+
+### §40a — and the stop was still taking the stuck key with it
+
+Found in review of §40. `sendChord` reports a cancellation and a refused release together, with
+both identities intact — and then `performOnePlay` sets the outcome to `cancelled`, clears the
+error, and leaves `because` empty, because a stop is not a failure and never carried an error out.
+So the durable record said `cancelled` with nothing beside it while Ctrl was down, and
+`saidOfRoutine` had the same gap one layer on: *"X" was stopped part of the way through.* and no
+more.
+
+**The error could not be the channel.** Two things happen to it on the way up: `runRoute` flattens
+the host's account into the sentence *"X" stopped: …*, so nothing above it can recognise anything
+inside it, and `performOnePlay` then throws it away. So the host keeps this one the way it already
+keeps what it did not do — `Host.NotReleased` beside `Host.Unperformed`, and two lists rather than
+one on purpose: everything in `Unperformed` is something that did not happen, and this is the
+opposite shape, something that DID happen and has not finished. `cmd/marco` asks the host after
+the run, through a `stillHolder` interface for the same reason `unperformer` is one.
+
+From there: into `because`, onto the run's own output as the LAST thing it says (which is how the
+window sees it at all — Studio keeps the final sentence before the outcome word and does not parse
+it), and through `alsoSaid` into the card's sentence. The outcome stays `cancelled` throughout.
+
+Six tests across the three layers, each mutation-checked: the production-host cancellation path
+with the machine refusing to release Ctrl (and its control, which is what stops the
+implementation from warning after every stop), the record and the said-out-loud half and the
+ordering in `cmd/marco`, and the card both ways in `plugins/studio`.
+
+**One wording correction carried through the record:** "everything pressed is released" is
+narrowed everywhere to "every pressed key gets a release ATTEMPT". The machine can refuse a
+release — that refusal is the entire subject here — so the stronger sentence was a promise the
+code cannot make.
+
+**A debugging note worth keeping.** The first version of the production-host test looked like the
+sequence was ignoring stops: the stand-in machine cancelled the context and returned at once, and
+`sendChord` then read a context that had not been cancelled yet. A stop reaches a host call by
+TRAVELLING — the runtime watches the entry context from a goroutine of its own and cancels the
+frame tree when it fires — and the real `settle` waits, so it sees it. The stand-in now waits for
+the cancellation to arrive, bounded so a wrong arrangement fails rather than hangs. It cost an
+afternoon of suspecting working code, which is the second time this week a stand-in that did not
+wait made a correct implementation look broken.

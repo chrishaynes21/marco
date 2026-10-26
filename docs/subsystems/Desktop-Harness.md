@@ -135,13 +135,14 @@ which would flatten 2 and 3 into 1.
 
 ## What it establishes today
 
-Nine scenarios, about 36 seconds, one command.
+Ten scenarios, about 45 seconds, one command.
 
 | | |
 |---|---|
 | a seeded routine presses the application | all three channels: what the fixture received, what the record says, and what the window itself says — and it presses Report a problem, which is how the child's transcript is kept |
 | a moved window still gets the press | a guarded press re-bases onto the window where it is now |
 | a resized window is refused | and the application receives NOTHING, which only the event log can establish |
+| a chord arrives as a chord | `ctrl+shift+a`, on three accounts: the order of the key messages, the modifier state the application read from the system when the key arrived, and what this desktop is still holding down afterwards |
 | two runs are two records | distinct references, both accounted for |
 | Stop ends a run as cancelled | and the press after the stop never arrives |
 | a killed runner leaves an unfinished record | `started` with no `ended`, and only the runner this run owns is killed |
@@ -177,3 +178,40 @@ the failure would look exactly like a success.
   tests beside them
 - `internal/acceptance` `boundary_test.go` — the oracle rule and the input rule, over the tree
 - `plugins/fixture/Fixture.cs` — the witness, and the rule written at the top of it
+
+## A chord is the one thing here asserted against the desktop itself
+
+Every other scenario asks the fixture and the run record. A chord needs a third account, because
+the thing that can go wrong with one is invisible to both: a modifier nobody released stays down
+on the machine, and no message arrives to tell an application about a key it never saw pressed.
+So `keys/a chord arrives as a chord` reads `GetAsyncKeyState` — a read, like every other thing
+this harness asks Windows directly — before the run and after it. Before, because a modifier
+already held is a fact about this desktop rather than about Marco, and the scenario declines
+rather than fails. After, because that is the promise a chord makes.
+
+The fixture supplies the middle account: every key record now carries the modifiers the window
+read **from the system** at the instant the key arrived. The order of four messages is evidence
+that a chord happened; this is the fact itself, and it is what catches a sender whose modifier
+events the system never applied — same four messages, same order, a plain keystroke delivered.
+See [[ADR-258-a-chord-is-a-promise-to-let-go]].
+
+## Three flakes it had, and the two that are fixed
+
+A gate that fails for its own reasons is a gate people learn to ignore, so these are written down
+rather than re-run until green.
+
+- **Done was pressed before the window offered it.** `waitForRecord` returns when the CHILD has
+  written its account; Done becomes pressable when the WINDOW has noticed the child exit. The
+  two-runs scenario pressed in the gap and reported *the window would not go back to the
+  routines*. It waits for the button now, in the same shape `play` already waited for Play.
+- **The fixture's own snapshot could not be read while it was being replaced.** The fixture wrote
+  a temp file, deleted the real one and moved the temp over it — so a reader arriving in the gap
+  was told *Access is denied*, which is Windows's answer for a file whose deletion is pending and
+  not a sentence anybody would connect to a file being rewritten. The swap is `File.Replace` now,
+  which is atomic, and the harness retries a transient read anyway: a reader of another process's
+  file does not get to assume how that process writes it.
+- **Not fixed, and recorded as observed:** once in about ten full runs, the first scenario failed
+  with Marco's own refusal — *the fixture window is no longer in front, so a press would land in
+  whatever is*. Marco was right to refuse and the harness was right to report it; what took the
+  foreground between the activation and the press is not established. It fails SAFE, which is why
+  it is recorded rather than worked around.
