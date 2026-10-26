@@ -19,6 +19,13 @@ How a change to Marco is checked against a real desktop without a person operati
 
 There are two harnesses, they answer different questions, and both run only when asked.
 
+`plugins/e2e` is the **automated regression gate for the scenarios below** — reviewed and closed at
+`5eccbcb`, and a change to Studio's product path is expected to be run against it. It does not
+replace a person at the keyboard for what it cannot reach, and the two things it cannot reach are
+stated in every report and in their own sections here: physical recording capture is NOT EXERCISED,
+and the drain barrier establishes that the fixture's queue was empty rather than that Windows had
+finished handing input to it.
+
 | | question | entrance |
 |---|---|---|
 | `internal/acceptance` | can **Marco** use a computer — perceive, interpret, ground, authorise, perform and verify | a gated Go test (`MARCO_ACCEPT_DESKTOP`) |

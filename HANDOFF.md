@@ -8338,3 +8338,12 @@ correct.
 The lesson is the one worth keeping: **a self-check has to be aimed at the instant the wrong
 implementation does the wrong thing, and that instant is easy to miss by one pass of a loop.** Three
 versions of this check; the first two passed for reasons unrelated to what they claimed.
+
+The Architect approved `5eccbcb` and **closed the harness review for this scope**: `plugins/e2e` is
+now the automated regression gate for the scenarios it covers, and no further owner walkthrough is
+needed for it. Both limits stay explicit by instruction, which is also how they are already held —
+`TestTheReportAlwaysSaysPhysicalCaptureWasNotExercised` prints physical capture as NOT EXERCISED on
+a green run in the same words as on a red one, and the barrier's own definition says in the code
+that a drained fixture queue is not proof that Windows had finished handing input to it. What the
+harness still cannot do is the demonstration half — Record, Stop, review, Save, Record again, and
+the replacement refusals — which `E2E.md` §63 keeps as a person's job on purpose.
