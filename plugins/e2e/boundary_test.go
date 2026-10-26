@@ -304,6 +304,83 @@ func TestOnlyTheBarrierSelfCheckStagesAPress(t *testing.T) {
 	}
 }
 
+// AND THE SELF-CHECK LOOKS AFTER THE FIXTURE HAS DECIDED, NOT AFTER IT HAS READ.
+//
+// The barrier reads a drain request on one pass of the fixture's loop and decides what to do
+// about it on a later one. So "the request file is gone" is the FIRST of those, and a self-check
+// that asserted silence there — and then released the held loop — would be releasing an
+// implementation that answers on receipt before it had reached the line where it answers. Its
+// acknowledgement would then land after the staged press was dispatched, which is exactly what a
+// correct barrier looks like. The check would pass on the implementation it exists to reject.
+//
+// This has now been the mistake twice in the same twenty lines, in two different places, so the
+// ORDER is held here rather than left to the next person reading the function: nothing is
+// asserted about silence, and above all nothing is released, before the fixture has said which
+// way it decided about this very token.
+func TestTheSelfCheckLooksAfterTheFixtureHasDecided(t *testing.T) {
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, "barrier.go", nil, 0)
+	if err != nil {
+		t.Fatalf("parsing barrier.go: %v", err)
+	}
+	var fn *ast.FuncDecl
+	for _, decl := range file.Decls {
+		if d, ok := decl.(*ast.FuncDecl); ok && d.Name.Name == "checkTheBarrier" {
+			fn = d
+		}
+	}
+	if fn == nil {
+		t.Fatal("barrier.go no longer has a checkTheBarrier, so the barrier every " +
+			"absence here depends on is not proved against a fixture that is behind")
+	}
+	var decided, asserted, released token.Pos
+	ast.Inspect(fn, func(n ast.Node) bool {
+		switch node := n.(type) {
+		case *ast.CallExpr:
+			sel, ok := node.Fun.(*ast.SelectorExpr)
+			if !ok {
+				return true
+			}
+			switch sel.Sel.Name {
+			case "considered":
+				if !decided.IsValid() {
+					decided = node.Pos()
+				}
+			case "answered":
+				if !asserted.IsValid() {
+					asserted = node.Pos()
+				}
+			}
+		case *ast.BasicLit:
+			if node.Value == `".release"` && !released.IsValid() {
+				released = node.Pos()
+			}
+		}
+		return true
+	})
+	switch {
+	case !decided.IsValid():
+		t.Error("the barrier's self-check no longer waits for the fixture to say it has " +
+			"DECIDED what to do about the drain request. Waiting for the request to " +
+			"be consumed instead would let an acknowledgement-on-receipt answer " +
+			"after the staged press had been dispatched, which is indistinguishable " +
+			"from the barrier working")
+	case !asserted.IsValid() || asserted < decided:
+		t.Errorf("the self-check reads whether the fixture acknowledged the barrier at "+
+			"%s, before it has said it decided. An implementation that answers on "+
+			"receipt has not reached that line yet, so the silence found there is "+
+			"not evidence of anything", fset.Position(asserted))
+	case !released.IsValid():
+		t.Error("the self-check no longer releases the fixture's held loop, so the half " +
+			"that proves the barrier does answer once the queue drains is gone")
+	case released < decided:
+		t.Errorf("the self-check releases the fixture's held loop at %s, before the "+
+			"fixture has said what it decided. Once the loop runs the press is "+
+			"dispatched, and an answer after that looks exactly like a correct one",
+			fset.Position(released))
+	}
+}
+
 // AND EVERY SCENARIO SAYS WHICH LAYER IT BELONGS TO.
 //
 // Because the layers are the report, and a scenario with no layer would be counted in neither

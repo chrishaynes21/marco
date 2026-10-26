@@ -8296,3 +8296,45 @@ Removing the `Drain` call from the holding loop does not quietly weaken the chec
 harness waits for the request to be taken while the fixture is behind, so a fixture that cannot
 take it there reports NOT RUN and the whole run exits 2. That is enforced by the behaviour of every
 single invocation rather than by a source scan.
+
+## §38Z — and the silence was read one pass before the answer was decided
+
+The Architect accepted the fixture's new state and found the race still open: **`Drain` evaluates
+whether to acknowledge on a LATER call than the one that reads the request, and the harness waited
+only for the deletion.** With the idle requirement mutated out, this schedule still passed — the
+fixture consumes the request and returns without answering; the harness sees the deletion, finds no
+answer, releases the loop; the press is dispatched; a later `Drain` answers; the final log check
+passes. The exit 3 in §38Y demonstrated detection on those runs without eliminating the schedule.
+
+They were right, and the §38Y report was one pass too optimistic in the same way the §38X report
+had been.
+
+**Why it passed anyway, and what that was worth.** Two arbitrary constants: the holding loop called
+`Drain` every 25ms and `until` polls files every 100ms, so the harness usually noticed the deletion
+only after the reply had been written. Caught 3 runs out of 3 — on the strength of a poll interval.
+Slow the fixture's reply evaluation to 400ms, which is exactly the deliberately delayed processing
+this kind of check is meant to survive, and the previous self-check printed `drain barrier: checked
+against a fixture holding a queued press` in its usual words and exited 0, with an
+acknowledge-on-receipt barrier standing in front of it. 2 runs out of 2.
+
+The fix is a fixture-owned checkpoint for the DECISION rather than the question. `Drain` now reports
+what it did — nothing, took the question, declined for want of an idle, or answered — and the
+holding loop publishes that to `<state>.considered` with the token in it. The harness waits for a
+decision about ITS token, then asserts silence and releases. What it is looking at has already had
+its chance to answer, and a checkpoint from a previous barrier cannot stand in because the token is
+per-question.
+
+Measured both ways, under the 400ms delay that defeated the old check: the new one ends the run at
+exit 3 (*what it decided was to acknowledge it*, and the window's own word for it quoted back), 2 of
+2. And removing the checkpoint from the fixture, with the barrier itself correct, makes the run NOT
+RUN at exit 2 — *the request has been read and not yet decided* — rather than passing quietly.
+
+`TestTheSelfCheckLooksAfterTheFixtureHasDecided` is the ninth boundary test: nothing in
+`checkTheBarrier` may read whether the fixture acknowledged the barrier, and above all nothing may
+release its held loop, before the fixture has said which way it decided. Held off the syntax
+because this instant has now been missed twice in twenty lines and both times the code read as
+correct.
+
+The lesson is the one worth keeping: **a self-check has to be aimed at the instant the wrong
+implementation does the wrong thing, and that instant is easy to miss by one pass of a loop.** Three
+versions of this check; the first two passed for reasons unrelated to what they claimed.

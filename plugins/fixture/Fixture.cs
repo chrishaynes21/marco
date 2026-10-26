@@ -63,7 +63,10 @@
 //
 //	--selftest   stage a press in this window's own queue and stop processing until
 //	             released, so a harness can prove its barrier against a window that
-//	             really is behind. Never used by an acceptance.
+//	             really is behind. Never used by an acceptance. It writes <p>.blocked
+//	             when the press is queued and unprocessed, and <p>.considered once it
+//	             has DECIDED what to do about a drain request while still holding its
+//	             loop — which is the instant the barrier can be told from an echo.
 //
 // Build:  powershell -File plugins/fixture/build.ps1
 // Run:    plugins/fixture/fixture.exe --state <path> [--stubborn] [--view second]
@@ -191,6 +194,21 @@ namespace MarcoFixture
         private string drainToken;
         private int drainAt;
 
+        // AND WHAT `Drain` DID, WHICH THE SELF-CHECK NEEDS AND NOTHING ELSE READS.
+        //
+        // The answer is DECIDED on a later call than the one that reads the question: the
+        // request arrives, the idle it must get past is written down, and a subsequent call
+        // compares. So "the request has been consumed" is not the same as "the acknowledgement
+        // decision has been made", and a self-check that waited for the first would be looking
+        // at an implementation which had not yet had the chance to answer wrongly.
+        //
+        // Reporting it is what lets the self-check wait for the second. It says what this call
+        // did and nothing about what the window received: the two oracles stay where they are.
+        private const int DrainNothing = 0;   // no question outstanding, or the file would not read
+        private const int DrainTook = 1;      // the question was read; the answer is not decided yet
+        private const int DrainWaiting = 2;   // DECIDED: no idle since the question, so no answer
+        private const int DrainAnswered = 3;  // DECIDED: the loop had gone idle, and it is answered
+
         // ── AND THE MODE THAT PROVES THE BARRIER IS ONE ──
         //
         // A barrier nobody has seen hold is an assumption with a function name. This mode makes
@@ -214,6 +232,11 @@ namespace MarcoFixture
         private readonly string selftestRequest;
         private readonly string selftestBlocked;
         private readonly string selftestRelease;
+        // AND THE CHECKPOINT THAT SAYS THE DECISION HAS BEEN MADE, not merely scheduled. Named
+        // for the token it was made about, so an answer about a previous question cannot stand
+        // in for this one. See the note on Stage for why waiting on the request's disappearance
+        // was not enough.
+        private readonly string selftestConsidered;
 
         private readonly TextBox name = new TextBox();
         private readonly TextBox notes = new TextBox();
@@ -265,6 +288,7 @@ namespace MarcoFixture
             selftestRequest = statePath + ".selftest";
             selftestBlocked = statePath + ".blocked";
             selftestRelease = statePath + ".release";
+            selftestConsidered = statePath + ".considered";
 
             // THE TITLE IS FIXED AND UNIQUE. Marco finds its application by name, and a title
             // carrying a document, a count or a dirty marker would make "which window" a moving
@@ -842,39 +866,65 @@ namespace MarcoFixture
         /// What this does NOT establish, said here because the harness quotes it: input the
         /// system has accepted but not yet placed in this queue. That handoff is done by a system
         /// thread and is not observable from inside this process at all.
-        private void Drain()
+        private int Drain()
         {
             if (drainToken == null)
             {
                 string token;
                 try
                 {
-                    if (!File.Exists(drainRequest)) { return; }
+                    if (!File.Exists(drainRequest)) { return DrainNothing; }
                     token = File.ReadAllText(drainRequest).Trim();
                     File.Delete(drainRequest);
                 }
                 catch (IOException)
                 {
-                    return;
+                    return DrainNothing;
                 }
-                if (token.Length == 0) { return; }
+                if (token.Length == 0) { return DrainNothing; }
                 drainToken = token;
                 // THE IDLE THIS ANSWER WAITS FOR IS A LATER ONE. Read inside a tick, so the
                 // pump is demonstrably not idle now, and the next increment can only come
                 // from the loop emptying after this moment.
                 drainAt = idles + 1;
-                return;
+                // AND NOTHING IS DECIDED YET, which is the whole reason this says so. The
+                // comparison happens on a later call; a reader that stopped here would be
+                // looking at a window which had not yet had the chance to answer early.
+                return DrainTook;
             }
-            if (idles < drainAt) { return; }
+            if (idles < drainAt) { return DrainWaiting; }
             try
             {
                 File.WriteAllText(drainAnswer, drainToken, new UTF8Encoding(false));
             }
             catch (IOException)
             {
-                return;
+                // The decision was made and could not be written down. Reported as nothing
+                // rather than as either answer, so a retry can say which it was.
+                return DrainNothing;
             }
             drainToken = null;
+            return DrainAnswered;
+        }
+
+        /// <summary>Publishes, in the self-test only, that the drain decision has been made.</summary>
+        ///
+        /// Named for the token, because the question this was decided about is the thing a
+        /// harness needs to know: a checkpoint left over from a previous barrier would satisfy
+        /// the next one instantly, which is how a synchronisation primitive becomes a no-op that
+        /// still passes. Written after the decision, so its existence means the window has
+        /// already done whatever it was going to do about that request.
+        private void Considered(string token, string what)
+        {
+            if (token == null) { return; }
+            try
+            {
+                File.WriteAllText(selftestConsidered, token + " " + what,
+                    new UTF8Encoding(false));
+            }
+            catch (IOException)
+            {
+            }
         }
 
         [DllImport("user32.dll")]
@@ -907,6 +957,22 @@ namespace MarcoFixture
         /// here, and that silence is what the harness asserts. The one that acknowledges on
         /// receipt writes its answer with the log still empty, in front of a harness looking
         /// straight at it.
+        ///
+        /// # And the checkpoint, because consuming the question is not deciding it
+        ///
+        /// `Drain` reads the request on one call and compares idles on a LATER one. So the
+        /// request file disappearing means only that the question has been consumed — and a
+        /// harness that released this loop at that moment would have released it before the
+        /// implementation had done the thing it is suspected of. The acknowledgement would then
+        /// land after the press was dispatched, and look exactly like a correct one.
+        ///
+        /// That is not an unlikely schedule: the loop sleeps 25ms between calls, and the harness
+        /// is polling files. It is the ordinary one.
+        ///
+        /// So this loop drives `Drain` until it has DECIDED — answered, or declined for want of
+        /// an idle — and publishes that, named for the token. The harness waits for the
+        /// checkpoint, not for the deletion, and only then asserts silence and releases. What it
+        /// is looking at is an implementation that has already had its chance.
         private void Stage()
         {
             if (!selftest) { return; }
@@ -943,8 +1009,18 @@ namespace MarcoFixture
             while (!File.Exists(selftestRelease) && waited.ElapsedMilliseconds < 60000)
             {
                 // THE BARRIER IS PUT TO THE QUESTION HERE, with a press pending and nothing
-                // being dispatched. A correct one takes the request and says nothing.
-                Drain();
+                // being dispatched. A correct one takes the request and says nothing — and
+                // keeps saying nothing, which is what the checkpoint lets a harness see.
+                string asked = drainToken;
+                int did = Drain();
+                if (did == DrainWaiting)
+                {
+                    Considered(asked, "decided: no idle since the question, so no answer");
+                }
+                else if (did == DrainAnswered)
+                {
+                    Considered(asked, "decided: ANSWERED while the press was pending");
+                }
                 System.Threading.Thread.Sleep(25);
             }
             try

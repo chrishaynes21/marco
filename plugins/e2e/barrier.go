@@ -73,8 +73,9 @@ func (f *fixtureRun) askDrain() (string, error) {
 	return token, nil
 }
 
-// taken reports whether the fixture has READ a request, which is not the same as having answered
-// it — and telling those two apart is the whole of what the self-check is for.
+// taken reports whether the fixture has READ a request, which is neither having decided what to
+// do about it nor having answered it. Those three being different is the whole of what the
+// self-check is about, and this one is here to say which of them a stuck fixture stopped at.
 func (f *fixtureRun) taken() bool {
 	_, err := os.Stat(f.state + ".drain")
 	return os.IsNotExist(err)
@@ -85,6 +86,31 @@ func (f *fixtureRun) taken() bool {
 func (f *fixtureRun) behind() bool {
 	_, err := os.Stat(f.state + ".blocked")
 	return err == nil
+}
+
+// considered is the fixture's own statement that it has DECIDED what to do about one question,
+// which is the thing the self-check has to wait for.
+//
+// Not the question's disappearance. The fixture reads a request on one pass of its loop and
+// compares idles on a later one, so the request file going away says the question was consumed
+// and says nothing about the answer. A check that asserted silence at that moment would be
+// asking an implementation to have already done the thing it is suspected of, and releasing the
+// loop before it could — after which an acknowledgement lands past the dispatched press and is
+// indistinguishable from a correct one.
+//
+// Matched on the token, so a checkpoint left from a previous barrier cannot stand in for this
+// one. The rest of the line is the fixture's own word for what it decided, which is worth
+// quoting back in a failure.
+func (f *fixtureRun) considered(token string) (string, bool) {
+	data, err := os.ReadFile(f.state + ".considered")
+	if err != nil {
+		return "", false
+	}
+	said := strings.TrimSpace(string(data))
+	if !strings.HasPrefix(said, token+" ") {
+		return said, false
+	}
+	return strings.TrimSpace(strings.TrimPrefix(said, token)), true
 }
 
 func behindness(behind bool) string {
@@ -150,26 +176,35 @@ func (f *fixtureRun) drained(bound time.Duration) error {
 //
 //	a press is queued and the loop is stopped      the fixture says so
 //	the log does not mention it                    THE FALSE GREEN, on purpose
-//	the request is TAKEN while the press is pending the fixture deletes it
-//	and NOTHING is acknowledged                    which is the step that has teeth
+//	the request is DECIDED, press still pending    the fixture says which it decided
+//	and the decision was NOT to acknowledge        which is the step that has teeth
 //	the loop is released and the barrier answers
 //	the log mentions it                            which is what the barrier is for
 //
-// # Why the fourth step is the one that has teeth
+// # Why the fourth step is the one that has teeth, and it took two goes to aim it
 //
-// Because the barrier has to be put in the position where answering would be WRONG, and the first
-// version of this never did. `Drain` was only reached from the fixture's timer, which could not
-// run until the holding loop returned — by which time the pump had dispatched the staged press. A
-// barrier that acknowledged the moment it read the request would still have acknowledged after the
-// press was written down, and this check passed. It passed for that reason until the fixture's
-// holding loop was made to call `Drain` itself.
+// Because the barrier has to be put in the position where answering would be WRONG, and this has
+// twice been checked somewhere else.
 //
-// Now the request is read with the press still pending and nothing being dispatched, so no idle
-// can occur: a correct barrier is SILENT, and the silence is asserted. A barrier that
-// acknowledged on receipt writes its answer with the log still empty, and is caught here.
+// First, `Drain` was only reached from the fixture's timer, which could not run until the holding
+// loop returned — by which time the pump had dispatched the staged press. A barrier that
+// acknowledged the moment it read the request would still have acknowledged after the press was
+// written down. Fixed by having the holding loop call `Drain` itself.
 //
-// Both halves are observable and neither is an interval. "The fixture has taken the request" is
-// the request file being gone; "the fixture is still behind" is its own blocked marker still
+// Then, with the question being read in the right place, the ANSWER was still decided elsewhere:
+// `Drain` reads the request on one pass and compares idles on a later one. The harness waited for
+// the request file to disappear, which is the first pass — so it could assert silence and release
+// the loop before the implementation had reached the line where it answers, after which an
+// acknowledgement lands past the dispatched press and reads as correct. Not an unlikely schedule;
+// the ordinary one. Fixed by having the fixture say when it has DECIDED, naming the question, and
+// waiting for that.
+//
+// Both of those were checks that passed for a reason unrelated to what they claimed. The lesson
+// written here rather than in a commit message: a self-check has to be aimed at the instant the
+// wrong implementation does the wrong thing, and the instant is easy to miss by one pass.
+//
+// Everything waited on is a file the fixture wrote and none of it is an interval. "It has
+// decided" is the checkpoint naming this token; "it is still behind" is its blocked marker still
 // being there with no press in the log.
 func checkTheBarrier(b *bundle, into *artifacts) (string, error) {
 	art := into.scope("00-barrier")
@@ -209,37 +244,56 @@ func checkTheBarrier(b *bundle, into *artifacts) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	// ── THE QUESTION IS TAKEN, AND MUST NOT BE ANSWERED ──────────────────────
+	// ── THE QUESTION IS DECIDED, AND THE DECISION MUST BE SILENCE ────────────
 	//
-	// Waited for rather than assumed: until the fixture has taken the request there is
-	// nothing to be silent about, and a check that asserted silence before the question had
-	// been read would pass against a fixture that was not listening at all.
+	// Waited for rather than assumed, and waited for at the instant that means something.
+	// `Drain` reads a request on one pass and compares idles on a later one, so the request
+	// file disappearing says the question was consumed and nothing about the answer. A check
+	// that looked there would pass against a fixture that was not listening at all — and
+	// would release the loop before an implementation that answers on receipt had reached
+	// the line where it does, after which its answer lands past the dispatched press and
+	// cannot be told from a correct one.
+	//
+	// So the fixture says when it has decided, naming the question, and the harness waits
+	// for THAT. What it is then looking at has already had its chance to answer.
+	var decided string
 	if ok, saw := until(20*time.Second, func() (bool, string) {
-		if f.taken() {
-			return true, "the fixture has taken the request"
+		said, mine := f.considered(token)
+		switch {
+		case mine:
+			decided = said
+			return true, said
+		case said != "":
+			return false, fmt.Sprintf("the only decision on record is about "+
+				"another question (%q)", said)
+		case f.taken():
+			return false, "the request has been read and not yet decided"
 		}
 		return false, "the request is still sitting there unread"
 	}); !ok {
-		return "", notRun{why: fmt.Sprintf("the fixture never read the drain request "+
-			"while it was behind (%s), so whether it answers one too early could "+
-			"not be put to it", saw)}
+		return "", notRun{why: fmt.Sprintf("the fixture never decided what to do about "+
+			"the drain request while it was behind (%s), so whether it answers one "+
+			"too early could not be put to it", saw)}
 	}
-	// AND NOW THE THREE FACTS THAT MAKE THE SILENCE MEAN SOMETHING, read at one instant:
-	// the fixture is still inside its holding loop, the press is still not in the log, and
-	// it has said nothing. No idle can have happened — the pump is not running — so a reply
-	// at this moment is a reply to the request's ARRIVAL and not to the queue emptying.
+	// AND NOW THE FACTS THAT MAKE THE SILENCE MEAN SOMETHING, read at one instant: the
+	// decision above was made, the fixture is still inside its holding loop, the press is
+	// still not in the log, and nothing has been acknowledged. No idle can have happened —
+	// the pump is not running — so a reply here is a reply to the request's ARRIVAL and not
+	// to the queue emptying.
 	pending, err := f.presses(seq)
 	if err != nil {
 		return "", err
 	}
 	stillBehind := f.behind()
 	if said, ok := f.answered(); ok {
-		return "", fmt.Errorf("the fixture acknowledged the barrier (%q) while a press "+
-			"was still pending in its own queue — its log holds %d press(es) and it "+
-			"is %s. An acknowledgement on receipt rather than on the queue emptying "+
-			"would let every scenario that asserts nothing arrived pass with a press "+
-			"waiting, which is the one failure that looks exactly like a success",
-			said, len(pending), behindness(stillBehind))
+		return "", fmt.Errorf("the fixture decided what to do about the barrier while a "+
+			"press was still pending in its own queue, and what it decided was to "+
+			"acknowledge it (%q; the window called it %q) — its log holds %d "+
+			"press(es) and it is %s. An acknowledgement on receipt rather than on "+
+			"the queue emptying would let every scenario that asserts nothing "+
+			"arrived pass with a press waiting, which is the one failure that looks "+
+			"exactly like a success",
+			said, decided, len(pending), behindness(stillBehind))
 	}
 	if len(pending) > 0 || !stillBehind {
 		// THE QUESTION COULD NOT BE HELD OPEN. The fixture caught up before the harness
@@ -250,7 +304,8 @@ func checkTheBarrier(b *bundle, into *artifacts) (string, error) {
 			"log), so an answer at that moment could not be told from a correct "+
 			"one", behindness(stillBehind), len(pending))}
 	}
-	art.step("the request was taken with the press still pending, and nothing was answered")
+	art.step("the fixture decided about the request with the press still pending (%s), and "+
+		"nothing was answered", decided)
 
 	if err := os.WriteFile(f.state+".release", []byte("carry on"), 0o644); err != nil {
 		return "", err
@@ -271,6 +326,6 @@ func checkTheBarrier(b *bundle, into *artifacts) (string, error) {
 	}
 	art.step("after the barrier the fixture's log holds %s", late[0])
 	return fmt.Sprintf("drain barrier: checked against a fixture holding a queued press — "+
-		"invisible to its log, no acknowledgement while it was pending, and %s once "+
-		"the loop drained", late[0].String()), nil
+		"invisible to its log, decided while it was pending and not acknowledged, and "+
+		"%s once the loop drained", late[0].String()), nil
 }

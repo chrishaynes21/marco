@@ -93,12 +93,23 @@ nothing in user mode orders against it. The barrier closes the gap a slow fixtur
 the one a harness can be slower than, and the code says so where it is defined.
 
 `checkTheBarrier` proves it before the first scenario, against a fixture holding a press its own
-loop has not seen: invisible before, present after — and in between, the request is **taken while
-the press is still pending and nothing is acknowledged**, which is the step that tells a barrier
-apart from an echo. Mutating the idle requirement out of the fixture ends the run at exit 3; the
-version of this check without that middle step passed the same mutation.
-`TestEveryCountOfWhatArrivedIsTakenAfterTheBarrier` reads the rule off the syntax, because the
-mistake is an omission.
+loop has not seen: invisible before, present after — and in between, the fixture **decides what to
+do about the request while the press is still pending, and decides not to acknowledge it**, which
+is the step that tells a barrier apart from an echo. Mutating the idle requirement out of the
+fixture ends the run at exit 3.
+
+That middle step took three goes to aim, and both misses are worth knowing about because both
+looked right. The first read the request somewhere answering it would have been harmless — from
+the fixture's timer, which cannot run while the loop is held, so the press had already been
+dispatched. The second read the silence one pass before the answer was decided: `Drain` consumes
+the request on one pass and compares idles on a later one, so waiting for the request file to
+disappear released the held loop before an acknowledge-on-receipt barrier had reached the line
+where it answers. Both passed the mutation in their usual words — the second one measurably, as
+soon as the fixture's reply evaluation was slowed past the harness's poll interval. The fixture now
+publishes its DECISION, naming the token, and the harness waits for that.
+`TestEveryCountOfWhatArrivedIsTakenAfterTheBarrier` and
+`TestTheSelfCheckLooksAfterTheFixtureHasDecided` read both rules off the syntax, because the
+mistake in each case is an omission or an order and no reviewer catches those by reading.
 
 ## A partial run is not a pass
 
@@ -152,7 +163,7 @@ the failure would look exactly like a success.
 
 ## Validated by
 
-- `plugins/e2e` — the scenarios themselves, the barrier's own self-check, and the eight boundary
+- `plugins/e2e` — the scenarios themselves, the barrier's own self-check, and the nine boundary
   tests beside them
 - `internal/acceptance` `boundary_test.go` — the oracle rule and the input rule, over the tree
 - `plugins/fixture/Fixture.cs` — the witness, and the rule written at the top of it

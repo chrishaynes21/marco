@@ -2,7 +2,7 @@
 type: adr
 status: accepted
 date: 2026-10-25
-decision: "ACCEPTED — STUDIO'S PRODUCT PATH IS EXERCISED BY AN UNATTENDED HARNESS THAT DRIVES THE REAL WINDOW ON A REAL DESKTOP, AND THE ONE THING IT CANNOT ESTABLISH IS PRINTED IN EVERY REPORT. Studio's flow was testable in two places and provable in neither: the browser tests render the real page with the Go bindings STUBBED, and the backend tests drive the real backend with the recorder and the desktop REPLACED. Between them sat the whole product path — page, binding, backend, library, generated Marco, child executor, native input, window guard, run record — and the only thing that had ever exercised it was a person working through E2E.md by hand, eighteen bullets at a time. `plugins/e2e` is that path, run by one command: a bundle of binaries built fresh into a directory of its own, an isolated store, `plugins/fixture` as the application, and the real `studio.exe` driven through UI AUTOMATION so that every press runs the page's own handler and therefore the real binding and the real backend. It asserts two accounts that are never crossed — the fixture's own log of what it RECEIVED, which Marco may never read, against the run record Marco wrote — and reports the FIRST place they disagree. THE LIMIT IS STRUCTURAL AND IS STATED RATHER THAN WORKED AROUND: Marco's recorder discards injected input in both hooks, on purpose, because attributing Marco's own presses to a person would let a replay be learned as a demonstration. So no unattended run can establish that Windows captured a physical gesture, and no door was added to pretend otherwise. Routines are SEEDED through the production generator and labelled seeded, never recorded; the report carries three lines — passed desktop scenarios, passed recording-integration scenarios, and `physical recording capture: NOT EXERCISED` — and the third is printed on a green run in the same words, because a limit mentioned only beside a failure is a limit nobody reads. TWO FALSE-GREEN PATHS WERE FOUND IN REVIEW AND CLOSED. A partially skipped run exited 0, so the scenario most able to decline — the resized-window refusal — could go unrun while the harness reported success; a skip is now an ending of its own, and no shape of partial run exits 0. And a run finishing established only that nothing more would be SENT, not that the fixture had processed what it already had: every absence now crosses a DRAIN BARRIER the fixture answers from inside its own message loop, demonstrated before the first scenario against a fixture holding a press it has not seen, with what the barrier cannot establish — the system's own delivery to that queue — stated rather than implied."
+decision: "ACCEPTED — STUDIO'S PRODUCT PATH IS EXERCISED BY AN UNATTENDED HARNESS THAT DRIVES THE REAL WINDOW ON A REAL DESKTOP, AND THE ONE THING IT CANNOT ESTABLISH IS PRINTED IN EVERY REPORT. Studio's flow was testable in two places and provable in neither: the browser tests render the real page with the Go bindings STUBBED, and the backend tests drive the real backend with the recorder and the desktop REPLACED. Between them sat the whole product path — page, binding, backend, library, generated Marco, child executor, native input, window guard, run record — and the only thing that had ever exercised it was a person working through E2E.md by hand, eighteen bullets at a time. `plugins/e2e` is that path, run by one command: a bundle of binaries built fresh into a directory of its own, an isolated store, `plugins/fixture` as the application, and the real `studio.exe` driven through UI AUTOMATION so that every press runs the page's own handler and therefore the real binding and the real backend. It asserts two accounts that are never crossed — the fixture's own log of what it RECEIVED, which Marco may never read, against the run record Marco wrote — and reports the FIRST place they disagree. THE LIMIT IS STRUCTURAL AND IS STATED RATHER THAN WORKED AROUND: Marco's recorder discards injected input in both hooks, on purpose, because attributing Marco's own presses to a person would let a replay be learned as a demonstration. So no unattended run can establish that Windows captured a physical gesture, and no door was added to pretend otherwise. Routines are SEEDED through the production generator and labelled seeded, never recorded; the report carries three lines — passed desktop scenarios, passed recording-integration scenarios, and `physical recording capture: NOT EXERCISED` — and the third is printed on a green run in the same words, because a limit mentioned only beside a failure is a limit nobody reads. TWO FALSE-GREEN PATHS WERE FOUND IN REVIEW AND CLOSED. A partially skipped run exited 0, so the scenario most able to decline — the resized-window refusal — could go unrun while the harness reported success; a skip is now an ending of its own, and no shape of partial run exits 0. And a run finishing established only that nothing more would be SENT, not that the fixture had processed what it already had: every absence now crosses a DRAIN BARRIER the fixture answers from inside its own message loop, demonstrated before the first scenario against a fixture holding a press it has not seen, with what the barrier cannot establish — the system's own delivery to that queue — stated rather than implied. THE BARRIER'S OWN SELF-CHECK TOOK THREE GOES TO AIM, and both corrections are recorded as corrections: a check that asks a barrier a question it can answer harmlessly, or reads its silence one pass before the answer is decided, passes on exactly the implementation it exists to reject — which both earlier versions did, measurably, in their usual words."
 supersedes: []
 affects:
   - interface
@@ -166,16 +166,43 @@ previous self-check reported `drain barrier: checked against a fixture holding a
 exactly its usual words and the run exited 0.
 
 So the fixture's holding loop now calls `Drain` itself. The request is read with the press still
-pending and nothing being dispatched, so no idle can occur, and a correct barrier is **silent** —
-which is what the harness asserts, at one instant and on three observable facts: the request file
-is gone, so the question was taken; the fixture's own blocked marker is still there; and the log
-still has no press. An implementation that answered on receipt writes its reply in front of a
-harness looking straight at it, and the same mutation now ends the run at exit 3 with the sentence
-*the fixture acknowledged the barrier while a press was still pending in its own queue*.
+pending and nothing being dispatched, so no idle can occur, and a correct barrier is **silent**.
+
+### And the silence has to be read after the decision, not after the question
+
+That was still the wrong instant — the second correction to this record inside the same twenty
+lines. `Drain` reads a request on one pass of a loop and compares idle counts on a LATER one, and
+the harness waited for the request file to disappear, which is the first of those. So it could
+assert silence and release the held loop before an implementation that acknowledges on receipt had
+reached the line where it does. The reply would land after the pump dispatched the staged press,
+and read as correct.
+
+**Measured, not reasoned about, again.** The schedule was two arbitrary constants apart: the
+fixture's holding loop called `Drain` every 25ms and the harness polls files every 100ms, so the
+harness usually noticed the deletion only after the reply had already been written, and the
+mutation was caught on 3 runs out of 3. Slow the fixture's reply evaluation to 400ms — the
+deliberately delayed processing a check like this is supposed to survive — and the previous
+self-check printed `drain barrier: checked against a fixture holding a queued press` in exactly its
+usual words and exited 0, with an acknowledge-on-receipt barrier standing in front of it.
+
+So the fixture now says when it has DECIDED, naming the question it decided about. `Drain` reports
+whether it read a request, declined to answer for want of an idle, or answered; the holding loop
+publishes that decision to `<state>.considered` with the token in it. The harness waits for a
+decision about ITS token and only then asserts silence and releases, so what it is looking at has
+already had its chance to answer. Under the same 400ms delay the new check ends the run at exit 3 —
+*what it decided was to acknowledge it* — and removing the checkpoint from the fixture makes the
+run NOT RUN at exit 2 rather than passing quietly, because the harness then has nothing to wait
+for.
+
+Recorded as two corrections rather than tidied into one design, because the general shape is worth
+more than the fix: **a self-check has to be aimed at the instant the wrong implementation does the
+wrong thing, and that instant is easy to miss by one pass of a loop.** Both earlier versions passed
+for reasons unrelated to what they claimed.
 
 A fixture that caught up before the harness could look is NOT RUN rather than passed: silence that
-was not under pressure establishes nothing either way. Nothing here waits an interval — "the
-question was taken" and "the fixture is still behind" are both files somebody else wrote.
+was not under pressure establishes nothing either way. Nothing here waits an interval — "it has
+decided", "the question was taken" and "the fixture is still behind" are all files somebody else
+wrote.
 
 ## A scenario that did not run is not a success
 
@@ -306,13 +333,20 @@ Nine scenarios, eight desktop and one recording, in about 36 seconds.
   never totalled with it.
 - `plugins/e2e` `checkTheBarrier` — **the harness's own precondition, run before the first
   scenario and fatal if it cannot be met.** A press queued in a fixture whose loop is stopped must
-  be invisible to the log; the drain request must be TAKEN while that press is still pending and
-  **nothing acknowledged**, which is the step that distinguishes a barrier from an echo; and the
-  press must be there once the barrier answers after the release. Mutating the idle requirement out
-  of the fixture ends the run at exit 3 — and the version of this check without the middle step
-  passed that same mutation, in its usual words. A fixture that caught up before being checked is
-  NOT RUN. Not a scenario: it is a claim about the harness, and the layer totals are claims about
+  be invisible to the log; the fixture must DECIDE what to do about the drain request while that
+  press is still pending and the decision must be **not to acknowledge**, which is the step that
+  distinguishes a barrier from an echo; and the press must be there once the barrier answers after
+  the release. Mutating the idle requirement out of the fixture ends the run at exit 3. Both
+  earlier versions of this check passed that mutation in their usual words — the first because the
+  request was read where answering it would have been harmless, the second because the silence was
+  read one pass before the answer was decided. A fixture that caught up before being checked is NOT
+  RUN. Not a scenario: it is a claim about the harness, and the layer totals are claims about
   Marco. Its sentence is printed in every report.
+- `plugins/e2e` `TestTheSelfCheckLooksAfterTheFixtureHasDecided` — the ORDER inside
+  `checkTheBarrier`, read off the syntax, because this has been got wrong twice in twenty lines and
+  both times the code looked right. Nothing may read whether the fixture acknowledged the barrier,
+  and above all nothing may release its held loop, before it has said which way it decided about
+  that token.
 - `plugins/e2e` `TestASkippedScenarioIsNotASuccess` — the whole table, including the two cases
   easiest to leave out: a selection that matched nothing, and a failure beside a skip where the
   failure has to win. Four shapes of partial run are asserted separately not to exit 0.
