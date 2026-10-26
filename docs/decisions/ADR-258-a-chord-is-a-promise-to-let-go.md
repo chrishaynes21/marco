@@ -2,7 +2,7 @@
 type: adr
 status: accepted
 date: 2026-10-25
-decision: "ACCEPTED — A CHORD IS A SEQUENCE OF KEY EVENTS AND A PROMISE TO UNDO IT, AND THE PROMISE IS NOW KEPT, CHECKABLE AND CHECKED. `ctrl+shift+a` is not one thing the machine does: it is hold Ctrl, hold Shift, settle, tap A, hold, release A, release Shift, release Ctrl — and the releases are the promise, because a modifier this process pressed stays down on somebody's computer until this process lets go of it and nothing else will clean that up. Three defects lived in the middle of that sequence, inside the function that calls `SendInput`, where no test could reach them: a REJECTED modifier returned from the middle of the loop leaving the earlier modifiers held down, so a refused Shift left a stuck Ctrl and reported only the failed keystroke; a STOP during the modifier settle stopped nothing, because `sleepCtx` returns early on cancellation and the next line tapped the key regardless, so Escape pressed over a chord in flight sent the chord; and a RELEASE the machine refused was discarded entirely, so the one outcome a person most needs to hear about — a modifier still down, every keystroke afterwards arriving modified — was the one outcome that reported success. The sequencing now lives in `sendChord` against a `keyMachine` that takes one key event at a time, so a refused modifier, a stop mid-flight and a release the machine will not take are all arrangeable without a desktop; every key pressed gets a RELEASE ATTEMPT before the function returns, in reverse, whether the chord worked, was refused or was stopped — an attempt and not a release, because the machine can refuse one and that refusal is the whole point; a stuck key outranks a refused keystroke in what a caller is told, EXCEPT that a cancellation keeps its identity so a person pressing Escape does not become a routine that failed. AND A STOPPED RUN MAY NOT CARRY A STUCK KEY AWAY WITH IT: `performOnePlay` discards a cancelled run's error on purpose, so the key still held down is kept by the HOST in an account of its own — the error is flattened into a sentence on its way up and discarded at the top, and an account survives both — and from there into the durable record and onto the run's own output, where the window shows it beside "was stopped part of the way through". The outcome stays `cancelled`: a stop is not a failure. And the desktop half is held by `plugins/e2e` `keys/a chord arrives as a chord`, on three accounts that no unit test can supply: the order of the messages the application received, the modifier state the application read from the system at the instant the key arrived — which is what tells a chord from four keystrokes, and catches a sender whose modifier events the system never applied — and what this desktop is still holding down afterwards, asked of Windows directly, because no message arrives to tell an application about a key nobody released. IT DOES NOT RETRY A RELEASE: a modifier the machine refuses twice is a different problem and a retry loop around input is a decision of its own."
+decision: "ACCEPTED — A CHORD IS A SEQUENCE OF KEY EVENTS AND A PROMISE TO UNDO IT, AND THE PROMISE IS NOW KEPT, CHECKABLE AND CHECKED. `ctrl+shift+a` is not one thing the machine does: it is hold Ctrl, hold Shift, settle, tap A, hold, release A, release Shift, release Ctrl — and the releases are the promise, because a modifier this process pressed stays down on somebody's computer until this process lets go of it and nothing else will clean that up. Three defects lived in the middle of that sequence, inside the function that calls `SendInput`, where no test could reach them: a REJECTED modifier returned from the middle of the loop leaving the earlier modifiers held down, so a refused Shift left a stuck Ctrl and reported only the failed keystroke; a STOP during the modifier settle stopped nothing, because `sleepCtx` returns early on cancellation and the next line tapped the key regardless, so Escape pressed over a chord in flight sent the chord; and a RELEASE the machine refused was discarded entirely, so the one outcome a person most needs to hear about — a modifier still down, every keystroke afterwards arriving modified — was the one outcome that reported success. The sequencing now lives in `sendChord` against a `keyMachine` that takes one key event at a time, so a refused modifier, a stop mid-flight and a release the machine will not take are all arrangeable without a desktop; every key pressed gets a RELEASE ATTEMPT before the function returns, in reverse, whether the chord worked, was refused or was stopped — an attempt and not a release, because the machine can refuse one and that refusal is the whole point; a stuck key outranks a refused keystroke in what a caller is told, EXCEPT that a cancellation keeps its identity so a person pressing Escape does not become a routine that failed. AND A STOPPED RUN MAY NOT CARRY A STUCK KEY AWAY WITH IT: `performOnePlay` discards a cancelled run's error on purpose, so the key still held down is kept by the HOST in an account of its own — the error is flattened into a sentence on its way up and discarded at the top, and an account survives both — and from there into the durable record and onto the run's own output, where the window shows it beside "was stopped part of the way through". The outcome stays `cancelled`: a stop is not a failure. And the desktop half is held by `plugins/e2e` `keys/a chord arrives as a chord`, on three accounts that no unit test can supply: the order of the messages the application received, the modifier state the application read from the system at the instant the key arrived — which is what tells a chord from four keystrokes, and catches a sender whose modifier events the system never applied — and what this desktop is still holding down afterwards, asked of Windows directly, because no message arrives to tell an application about a key nobody released. THE SAME RULES THEN GOT A SECOND SLICE: A HOLD — `hold Q, click, release Q` — is a key held down on purpose for as long as the routine says, and the thing that cleans up after one is the END OF A RUN, so a hold whose release goes wrong goes wrong when nobody is watching. Four of the same defects were there one layer up, plus a fifth: `doKeyUp` forgot the key before asking whether the release worked, so the sweep that could have tried again was told it had come up; the sweep discarded every answer, making the one path whose purpose is "nothing is left down" the one that could not say otherwise; the keys were held in a MAP and released in whatever order Go produced; `keyDown` reported a stop after a successful send, so a run cancelled in that instant pressed a key, called the hold failed, never wrote it down as held, and left it down for ever invisible to everything; and nothing stopped a stopped run from starting a hold at all. Holds are an ordered list now, released in reverse, a refused release stays on the list for the sweep to retry once, and whatever the sweep still cannot release goes into the same account — record, output, card. IT DOES NOT RETRY A RELEASE MORE THAN THAT: a modifier the machine refuses twice is a different problem and a retry loop around input is a decision of its own."
 supersedes: []
 affects:
   - execution
@@ -141,6 +141,39 @@ before the outcome word), and through `alsoSaid` into the sentence on the card. 
 `cancelled` throughout. A person who pressed Escape did not break anything, and a person whose
 Ctrl is stuck needs to be told.
 
+## And a HOLD is the same promise, kept by the end of a run
+
+A hold — `hold Q, click, release Q` — is a key held down on somebody's computer deliberately, for
+as long as the routine says. `simplify` produces one whenever a key stays down across something
+else. So it is the same promise as a chord's modifiers, with one difference that makes it worse:
+the thing that cleans up after a hold is the END OF A RUN, so a hold whose release goes wrong
+goes wrong at the moment nobody is watching any more.
+
+Five defects, four of them the shapes above, one layer up:
+
+- **`doKeyUp` forgot the key before finding out whether the release worked.** The route-end sweep
+  is the one thing that could try again, and it was being told the key had come up. A refused
+  release left a key down with nothing tracking it.
+- **The sweep discarded every answer** — `_ = h.b.keyUp(...)` — which made the one path whose
+  entire purpose is "nothing is left down" the one path that could not say otherwise.
+- **The keys were held in a MAP**, so they were released in whatever order Go produced. An
+  application reading the keyboard while a pile of holds comes apart sees a different thing
+  depending on which goes first, and nothing could pin it. They are a list now, released in the
+  reverse of the order they went down — the same rule `sendChord` follows.
+- **`keyDown` reported a stop after a successful send.** `return ctx.Err()` at the end of the
+  primitive, so a run cancelled in that instant pressed the key, reported the hold as failed, and
+  was therefore never written down as holding anything: a key down for ever, invisible to the
+  sweep, the record and the person. A send the machine took is now reported as having happened,
+  because it did; whether the run goes on is decided where the run is.
+- **And nothing stopped a stopped run from starting a hold**, which is a key pressed down by a
+  routine that is already over.
+
+A refused release is kept on the list, so the sweep tries once more — one refusal then success is
+the ordinary transient, and that recovery is the only one here. Everything the sweep still cannot
+release goes into the same account a chord's does, so it reaches the record, the run's output and
+the card by the path that was already built. Releasing is gated on nothing: a stopped run is
+exactly when a key most needs to come up.
+
 ## What did not move
 
 - **No retry on a release.** A modifier the machine refuses to release twice is a different
@@ -218,6 +251,23 @@ Ctrl is stuck needs to be told.
 - `cmd/marco` `TestTheHeldKeyWarningIsTheLastThingTheRunSays` — the ordering, which is what makes
   the sentence the window's: Studio keeps the last line before the outcome word and does not parse
   it, so a warning with anything printed after it is one the window silently replaces.
+- `internal/oshost` `heldkeys_test.go` — eight cases over the hold path through the production
+  host, each one of the five defects with its own, plus the controls: a hold and its release leave
+  the sweep nothing to do, a hold nobody released is released at the end, holds come up in the
+  reverse of the order they went down, a refused release is tried again by the sweep (and reports
+  nothing when the second attempt works), one that will not come up at all is reported by name,
+  one stuck hold does not strand the others, and a stopped run starts no hold. Five mutations,
+  five killed, each by the case named for it.
+- `internal/oshost` `TestTheHoldPrimitivesDoNotReportAStop` — read off the source, because this
+  one cannot be reached any other way: from above the backend, "the machine took it and the run
+  was cancelled" and "the machine refused it" are the same error, and the only way to exercise the
+  real primitive is to send real input into somebody's desktop. The rule is that the hold
+  primitives do not consult the run's context at all — pressing is gated one layer up in
+  `doKeyDown`, releasing is gated nowhere.
+- `cmd/marco` `TestAKeyTheRouteEndSweepCouldNotReleaseReachesTheRecord` — an ORDERING claim: the
+  sweep is a deferred call inside the run, and the account is read after it, so a key only the
+  sweep discovered still reaches the record. The stand-in says nothing until its sweep has run, so
+  a reader that asked too early would get the empty string.
 - `plugins/studio` `TestAStoppedRoutineShowsWhatItLeftHeldDown` /
   `TestAnOrdinaryStopSaysOnlyThatItStopped` — the card, both ways. The window does not understand
   the warning and must not; it shows what the run said.

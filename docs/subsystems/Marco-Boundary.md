@@ -95,6 +95,12 @@ run's error deliberately, so the host keeps the key it could not release in an a
 that did not happen, and this is something that did and has not finished. The outcome stays
 `cancelled`; the sentence reaches the durable record, the run's own output, and the card.
 
+The same rules then got a second slice: a **hold** is a key held down on purpose for as long as
+the routine says, and the thing that cleans up after one is the end of a run — so a hold whose
+release goes wrong goes wrong when nobody is watching. Holds are an ordered list released in
+reverse, a refused release stays on the list for the route-end sweep to try once more, and what
+the sweep still cannot release goes into the same account. The sweep used to discard every answer.
+
 Two limits, in those words: a failed release is **reported, not recovered** — none of that
 machinery puts the key back up, and whoever reads the sentence is the recovery — and **forced
 termination is outside it**, because a process killed between a modifier going down and its

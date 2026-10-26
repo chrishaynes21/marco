@@ -8532,3 +8532,49 @@ path do more work while something is already wrong. A refused stop signal fails 
 message, and the consequence is that one thing did not happen, which is an ordinary delivery
 failure with ordinary answers. Grouping them by the shape of the call rather than by what happens
 next is how two unrelated decisions get made together and neither gets thought about.
+
+## §41 — held keys: the same promise, kept by the end of a run
+
+The next slice after chords, and the same decision (ADR-258) rather than a new one. A hold —
+`hold Q, click, release Q`, which `simplify` produces whenever a key stays down across something
+else — is a key held down on somebody's computer deliberately. The difference from a chord is who
+cleans up: the END OF A RUN does, so a hold whose release goes wrong goes wrong at the moment
+nobody is watching any more.
+
+Four of the chord defects were there one layer up, and a fifth of its own:
+
+1. **`doKeyUp` forgot the key before finding out whether the release worked.** `delete` came
+   before the call. The route-end sweep is the one thing that could try again, and it was being
+   told the key had already come up.
+2. **The sweep discarded every answer** — `_ = h.b.keyUp(...)` — so the one path whose entire
+   purpose is "nothing is left down" was the one path that could not say otherwise.
+3. **The keys were held in a map**, released in whatever order Go produced. A pile of holds coming
+   apart in no order is a different keyboard state every run, and nothing could pin it. A list
+   now, released in the reverse of the order they went down.
+4. **`keyDown` returned `ctx.Err()` after a successful send.** The worst of the five: a run
+   cancelled in that instant pressed the key, reported the hold as FAILED, and was therefore never
+   written down as holding anything. A key down for ever, invisible to the sweep, the record and
+   the person. A send the machine took is now reported as having happened, because it did.
+5. **And nothing stopped a stopped run from starting a hold** — a key pressed down by a routine
+   that is already over, whose release has already happened.
+
+A refused release stays on the list so the sweep tries once more; one refusal then success is the
+ordinary transient and that retry is the only recovery here. Whatever the sweep still cannot
+release goes into `Host.NotReleased`, so it reaches the record, the run's own output and the card
+by the path the chord slice already built — and `Host.held` is a list now, because a chord's stuck
+modifier and a sweep's stuck hold are two different sentences and a single field let the second
+replace the first.
+
+Ten tests. Five mutations over the five fixes, each killed by the case named for it and no other
+except where they overlap on purpose. One of the five is held by reading the SOURCE —
+`TestTheHoldPrimitivesDoNotReportAStop` — because from above the backend "the machine took it and
+the run was cancelled" and "the machine refused it" are the same error, and the only way to
+exercise the real primitive is to send real input into somebody's desktop. And one is an ORDERING
+claim at the command layer: the sweep is a deferred call inside the run, so a key only the sweep
+discovered has to reach the record, which it does because the account is read afterwards.
+
+**Not done, and it is the remaining piece of this slice:** a desktop scenario for a hold. The
+harness can seed one — `simplify` already produces the steps — and the fixture's key log, with
+the modifier state it now records, is the right oracle. It is left unwritten rather than written
+and unrun: adding an unexercised scenario to a gate makes that gate's first run a debugging
+session instead of a regression check, and the owner's screen was not available.
