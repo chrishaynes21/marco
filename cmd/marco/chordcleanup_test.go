@@ -107,6 +107,15 @@ func stoppedMidRun(t *testing.T, machine *aHostStoppedMidChord) (Outcome, map[st
 	string, string) {
 
 	t.Helper()
+	return stoppedMidRunWith(t, machine, machine)
+}
+
+// stoppedMidRunWith is the same with the host the run is given told apart from the one the case
+// arranges, for a stand-in that wraps another.
+func stoppedMidRunWith(t *testing.T, machine *aHostStoppedMidChord,
+	host runtime.Host) (Outcome, map[string]any, string, string) {
+
+	t.Helper()
 	t.Setenv("MARCO_HOME", t.TempDir())
 	reg, rt := aSavedRoute(t, aGuardedRoutineWithAKey)
 	t.Setenv("MARCO_ROUTES", reg.Dir)
@@ -126,7 +135,7 @@ func stoppedMidRun(t *testing.T, machine *aHostStoppedMidChord) (Outcome, map[st
 	t.Cleanup(func() { stopper = prevStop })
 
 	d := orchestrator.Deps{Reg: reg, Out: &strings.Builder{},
-		Hosts: map[string]runtime.Host{"*": machine}}
+		Hosts: map[string]runtime.Host{"*": host}}
 	said, out, ref := aRunOf(t, d, rt)
 	if ref.ID == "" {
 		t.Fatalf("the run cited no reference, so there is no record to read:\n%s", said)
@@ -219,5 +228,51 @@ func TestTheHeldKeyWarningIsTheLastThingTheRunSays(t *testing.T) {
 		t.Errorf("the last thing the run said was %q, and the window keeps that as "+
 			"the sentence beside the routine — so the key it left held down is not "+
 			"what anybody is shown:\n%s", kept, said)
+	}
+}
+
+// AND THE ROUTE-END SWEEP'S OWN WARNING REACHES THE RECORD, WHICH IS A QUESTION OF ORDER.
+//
+// A hold is released by the end of a run: the driver calls `ReleaseHeld` on its way out, and a
+// key the machine refuses THERE is discovered after everything else about the run is over. So the
+// account has to be read later than the sweep, and nothing about the code says it is — the sweep
+// is a deferred call inside `RunSourceWithHostsCtx`, inside `runRoute`, inside the stopper, and
+// `performOnePlay` asks afterwards.
+//
+// This host says nothing until its sweep has run, so a reader that asked too early gets the empty
+// string and the record says only `cancelled`. The ordering is the whole claim.
+type aHostWhoseSweepFoundAStuckKey struct {
+	aHostStoppedMidChord
+	swept bool
+}
+
+func (h *aHostWhoseSweepFoundAStuckKey) ReleaseHeld() { h.swept = true }
+
+func (h *aHostWhoseSweepFoundAStuckKey) NotReleased() string {
+	if !h.swept {
+		return ""
+	}
+	return fmt.Sprintf("after the run, %s", oshost.KeyNotReleased("q"))
+}
+
+func TestAKeyTheRouteEndSweepCouldNotReleaseReachesTheRecord(t *testing.T) {
+	machine := &aHostWhoseSweepFoundAStuckKey{}
+	out, m, said, raw := stoppedMidRunWith(t, &machine.aHostStoppedMidChord, machine)
+
+	if !machine.swept {
+		t.Fatal("the driver never swept the run's held keys, so this case is about " +
+			"nothing — a hold would be left down with no attempt to release it")
+	}
+	if out != OutcomeCancelled {
+		t.Errorf("the run reported %q", out)
+	}
+	because, _ := m["because"].(string)
+	if !strings.Contains(because, "q") || !strings.Contains(because, "still be held") {
+		t.Errorf("the record says %q about a run whose route-end sweep could not "+
+			"release q — the account was read before the sweep had anything to "+
+			"say:\n%s", because, raw)
+	}
+	if !strings.Contains(said, "still be held down") {
+		t.Errorf("the run said nothing about the key its sweep left down:\n%s", said)
 	}
 }
