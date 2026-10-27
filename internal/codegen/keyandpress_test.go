@@ -72,6 +72,11 @@ type watcher struct {
 	refuseActivate bool // refuse the preparation, as an application that is not there does
 	presses        int
 	keys           int
+	// refuseTyped is the 1-based typing to refuse (0 refuses none), counting Types and
+	// Secrets together in the order they are reached — which is the order a mixed text
+	// is emitted in, and the thing a case about mixed text needs to name.
+	refuseTyped int
+	typings     int
 }
 
 func (w *watcher) Invoke(c runtime.HostCall) (string, runtime.Value, error) {
@@ -93,6 +98,19 @@ func (w *watcher) Invoke(c runtime.HostCall) (string, runtime.Value, error) {
 		if w.presses == w.refusePress {
 			return refusedBy("the window this was recorded in was 1920x1080 " +
 				"and is now 1280x720")
+		}
+	case "Type":
+		w.typings++
+		w.did = append(w.did, "Type "+strings.Trim(c.Input.String(), `"`))
+		if w.typings == w.refuseTyped {
+			return refusedBy("SendInput was blocked: 2 of 5 characters " +
+				"were submitted")
+		}
+	case "Secret":
+		w.typings++
+		w.did = append(w.did, "Secret "+strings.Trim(c.Input.String(), `"`))
+		if w.typings == w.refuseTyped {
+			return refusedBy("the machine would not take all of this secret")
 		}
 	default:
 		w.did = append(w.did, c.Action)

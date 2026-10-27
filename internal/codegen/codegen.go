@@ -111,11 +111,16 @@ func RouteAs(rec Recorded, name, app string, steps []macroir.Step, assetDir stri
 		// regardless, which is the guard's promise broken by the one step nobody
 		// could wrap. Writing the file anyway would be writing a routine that reads
 		// as checked and is not.
+		// AND IT NAMES WHAT CANNOT BE WRAPPED AND NOT WHAT TO DO INSTEAD. It used
+		// to end "record it again using ordinary left-clicks and the keyboard",
+		// which named the wrong thing even when a right-click was on the list —
+		// and what remains unwrappable is a press found by matching a picture or
+		// by reading words, and a repeated block. None of those is a hand somebody
+		// chose to use.
 		return "", nil, fmt.Errorf("this recording contains %s, and a routine "+
 			"whose presses are checked against the window they were made in "+
 			"has to stop when one of them does not happen — which this "+
-			"version cannot make %s do. Record it again using ordinary "+
-			"left-clicks and the keyboard", why, why)
+			"version cannot make %s do", why, why)
 	}
 	var body, tail string
 	var links []link
@@ -129,7 +134,7 @@ func RouteAs(rec Recorded, name, app string, steps []macroir.Step, assetDir stri
 			prepared = append([]macroir.Step{{Kind: macroir.StepActivate, Text: app}},
 				steps...)
 		}
-		links, tail, err = chainOf(keyByKey(prepared), g)
+		links, tail, err = chainOf(textBySegment(keyByKey(prepared), declared), g)
 	} else {
 		body, err = emit(steps, g, 1)
 	}
@@ -467,17 +472,8 @@ func emit(steps []macroir.Step, g *gen, depth int) (string, error) {
 			// text to be filled at run time; any other {{name}} becomes a Secret lookup
 			// so passwords are never written into the route.
 			for _, seg := range splitSecrets(s.Text, g.declared) {
-				if seg.secret {
-					// A declared secret arg (password/pin/…) is route-qualified so each
-					// route remembers its own — "<route>:password" — while a plain typed
-					// {{name}} secret keeps its global name.
-					sname := seg.text
-					if seg.qualified {
-						sname = g.base + ":" + seg.text
-					}
-					fmt.Fprintf(&b, "%sdo OS's Secret with \"%s\".\n", pad, escape(sname))
-				} else if seg.text != "" {
-					fmt.Fprintf(&b, "%sdo OS's Type with \"%s\".\n", pad, escape(seg.text))
+				if seg.secret || seg.text != "" {
+					fmt.Fprintf(&b, "%sdo %s.\n", pad, g.typeSentence(seg))
 				}
 			}
 		case macroir.StepDrag:
@@ -961,6 +957,28 @@ func (g *gen) propagating(s macroir.Step) (guard, follow string, ok bool) {
 		// gesture, and the click is a different gesture entirely without the Q. The
 		// window guard cannot see the difference: the window is the same window.
 		return fmt.Sprintf("OS's KeyDown with %q", s.Key), "", true
+	case s.Kind == macroir.StepType:
+		// TYPED TEXT IS A LINK, for the keystroke's reason and one of its own.
+		//
+		// It can fail to be DELIVERED — `SendInput` is blocked by an elevated
+		// foreground window, by UIPI, by a game with raw input — and what follows it
+		// then acts on a screen the text never reached. The window guard cannot see the
+		// difference, because the window is the same window.
+		//
+		// And its own reason: typing is the one input that can go in PART WAY. A field
+		// holding `he` of `hello` is not the field the next step was written for, and
+		// the step after a password that stopped half way is a Save pressed on a form
+		// that will be rejected — or worse, accepted with the wrong value. See
+		// `internal/oshost`'s typing.go for what the account says about it.
+		//
+		// One segment per step by the time this is reached: `textBySegment` has already
+		// split a mixed text into its Types and Secrets, so there is one sentence here
+		// to wrap. A step carrying several would be a link around the first of them.
+		segs := splitSecrets(s.Text, g.declared)
+		if len(segs) != 1 {
+			return "", "", false
+		}
+		return g.typeSentence(segs[0]), "", true
 	case s.Kind == macroir.StepKeyUp:
 		// AND THE END OF ONE, which is the half that is easy to think does not matter.
 		//
@@ -1003,6 +1021,69 @@ func (g *gen) propagating(s macroir.Step) (guard, follow string, ok bool) {
 		// failure for the arm to stop at. See `buttonTerm`.
 		return "OS's Click with " + g.pts.clickPoint(s), "", true
 	}
+}
+
+// typeSentence is the `do` sentence one segment of typed text is emitted as, and the one place
+// that decision is made.
+//
+// A declared secret arg (password/pin/…) is route-qualified, so each route remembers its own —
+// `<route>:password` — while a plain typed `{{name}}` secret keeps its global name.
+//
+// ONE FUNCTION BECAUSE THERE ARE TWO CALLERS NOW. An ordinary block writes these with `emit` and
+// a chain writes them as link guards, and a second place deciding which sentence a segment gets
+// is a second place for the two to disagree — about the qualification above, most of all, where
+// disagreeing means looking up a secret nobody stored.
+func (g *gen) typeSentence(seg segment) string {
+	if seg.secret {
+		name := seg.text
+		if seg.qualified {
+			name = g.base + ":" + seg.text
+		}
+		return fmt.Sprintf("OS's Secret with \"%s\"", escape(name))
+	}
+	return fmt.Sprintf("OS's Type with \"%s\"", escape(seg.text))
+}
+
+// textBySegment expands one typed step into the steps it is emitted as, for a chain only.
+//
+// `splitSecrets` turns `"user{{password}}"` into THREE sentences — a Type, a Secret, a Type — out
+// of ONE `StepType`. A link is built around one `do` sentence, so a step that emits three would
+// put two of them somewhere nobody can stop at: whichever one the chain wrapped, the other two
+// ran whether it went in or not. Wrapping only the first or only the last leaves exactly the
+// defect this is about, and leaves it in the place where it matters most — a password typed into
+// a field after the username it was supposed to follow did not arrive.
+//
+// So the split happens HERE, before the chain is built, and every segment becomes its own step
+// and its own link. The segment's own text is what the step carries, so the sentence is reached
+// through `typeSentence` either way.
+//
+// A legacy route keeps its single step, because this is only reached when something in the
+// recording asked to be checked. `keyByKey` does the same thing for a repeated key and for the
+// same reason.
+func textBySegment(steps []macroir.Step, declared map[string]bool) []macroir.Step {
+	out := make([]macroir.Step, 0, len(steps))
+	for _, s := range steps {
+		if s.Kind != macroir.StepType {
+			out = append(out, s)
+			continue
+		}
+		for _, seg := range splitSecrets(s.Text, declared) {
+			if !seg.secret && seg.text == "" {
+				continue
+			}
+			one := s
+			one.Text = seg.text
+			if seg.secret {
+				// WRITTEN BACK AS THE PLACEHOLDER IT CAME FROM, so the
+				// step says what it is: re-reading it through
+				// `splitSecrets` is how the sentence is chosen, and a
+				// bare name would be read as a literal to type.
+				one.Text = "{{" + seg.text + "}}"
+			}
+			out = append(out, one)
+		}
+	}
+	return out
 }
 
 // keyByKey expands a repeated key into the presses it stands for, for a chain only.
