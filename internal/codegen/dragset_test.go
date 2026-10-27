@@ -79,21 +79,3 @@ func TestADragThatCouldNotBeMeasuredStillSaysWhichWindow(t *testing.T) {
 		}
 	}
 }
-
-// AND A GUARDED DRAG CANNOT BE SAVED YET, which is this increment's safety property rather than
-// an accident of where it stopped.
-//
-// Asserted, because "nothing can run a partly-built guard" is a claim about the door being shut
-// and an increment that quietly opened it would look exactly like this one. When the chain learns
-// to stop at a drag, THIS test is the one that has to change, by name, in that commit.
-func TestAGuardedDragIsStillRefusedAtSave(t *testing.T) {
-	why := Unpropagatable([]macroir.Step{aMeasuredDrag()})
-	if why == "" {
-		t.Fatal("a recording containing a guarded drag can now be saved, and the " +
-			"chain has not been taught to stop at one — so a drag whose guard " +
-			"refuses would be followed by every step after it")
-	}
-	if !strings.Contains(why, "drag") {
-		t.Errorf("the refusal does not name the drag: %q", why)
-	}
-}

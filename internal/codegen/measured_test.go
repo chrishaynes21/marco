@@ -242,7 +242,13 @@ func TestAPressThatCouldNotBeMeasuredStillDeclaresItsWindow(t *testing.T) {
 // smaller promise — it is the promise broken, because the action after it runs regardless.
 //
 // A right-click is the live case: an aim and then a press, where wrapping the aim leaves the
-// press unwrapped. A drag is the other: it resolves no offset, so it is checked against nothing.
+// press unwrapped.
+//
+// A DRAG USED TO BE THE OTHER, and is not any more. It was refused because "it resolves no
+// offset, so it is checked against nothing" — a statement about what the recorder measured rather
+// than about the gesture, since a drag is already ONE `do` sentence. It has a measurement now, so
+// it propagates. What is still refused is a drag that ASKED to be checked and cannot be, which is
+// the case below and a different sentence.
 func TestAStepThatCannotStopTheRoutineIsRefused(t *testing.T) {
 	for _, c := range []struct {
 		what string
@@ -254,9 +260,15 @@ func TestAStepThatCannotStopTheRoutineIsRefused(t *testing.T) {
 			s.Button = "right"
 			return s
 		}(), "a right-click"},
-		{"a drag beside a measured press", macroir.Step{
+		{"a drag whose window could not be measured", macroir.Step{
 			Kind: macroir.StepDrag, X: 10, Y: 20, X2: 30, Y2: 40,
-			Button: "left"}, "a drag"},
+			Button: "left", RelTo: macroir.RelToWindow},
+			"a drag whose window could not be measured"},
+		{"a drag missing one of the window's terms", func() macroir.Step {
+			s := aMeasuredDragStep()
+			s.Dpi = 0
+			return s
+		}(), "a drag missing part of the window"},
 	} {
 		t.Run(c.what, func(t *testing.T) {
 			steps := []macroir.Step{aMeasuredPress(), c.step}
@@ -331,5 +343,79 @@ func TestAnUnmeasuredDragIsUnchanged(t *testing.T) {
 			t.Errorf("%q is in a route generated from a drag that measured "+
 				"nothing:\n%s", term, src)
 		}
+	}
+}
+
+// aMeasuredDragStep is a drag whose two edges agreed about one window — the only kind `simplify`
+// lets through with measurements on it, and now the only kind that can be saved in a guarded
+// routine.
+func aMeasuredDragStep() macroir.Step {
+	return macroir.Step{
+		Kind: macroir.StepDrag, Button: "left", X: 300, Y: 200, X2: 760, Y2: 540,
+		WinRel: true, RelX: 180, RelY: 136, ToRelX: 640, ToRelY: 476,
+		RelTo: macroir.RelToWindow, WinW: 1920, WinH: 1080, Dpi: 144,
+		Process: "arkascended.exe",
+	}
+}
+
+// A MEASURED DRAG IS SAVED IN A GUARDED ROUTINE, AND IS A LINK IN THE CHAIN.
+//
+// The increment that opens the door, and the two halves of what that means. It is GENERATED,
+// which it was not before; and it is a LINK, which is the part that matters — the chain works by
+// wrapping one `do` sentence in arms that both end, so a drag that is written but not wrapped
+// would be a drag whose refusal is followed by every step after it. That is the promise broken
+// rather than a smaller promise.
+//
+// Checked by running it: `generated` compiles AND runs the route, which is the only way new
+// fields on a set are shown to be assignable rather than merely parseable.
+func TestAMeasuredDragIsAGuardedLink(t *testing.T) {
+	src := generated(t, aMeasuredPress(), aMeasuredDragStep())
+
+	want := "the drag1 is a Drag with FromX 300, FromY 200, ToX 760, ToY 540, " +
+		"Button \"left\", FromRelX 180, FromRelY 136, ToRelX 640, ToRelY 476, " +
+		"RelTo \"window\", WinW 1920, WinH 1080, Dpi 144, " +
+		"Process \"arkascended.exe\"."
+	if !strings.Contains(src, want) {
+		t.Errorf("the saved route does not carry what the drag measured.\n"+
+			"  want: %s\n--- source ---\n%s", want, src)
+	}
+	// AND IT IS THE GUARD OF A LINK, not a bare `do` in a block. The chain's shape is
+	// `when ... did not happen` arms around each capability, so a drag inside one has
+	// its own capability — asserted on the sentence that performs it being the thing a
+	// link is built around.
+	// A LINK'S GUARD IS `do … ...` FOLLOWED BY `when ok?`; AN ORDINARY STEP IS `do … .`
+	//
+	// That is the whole difference and the only thing worth asserting here. A drag written
+	// as an ordinary step inside a chain contains the same words, performs the same
+	// gesture and reads the same to a person — and everything after it runs whether the
+	// gesture happened or not. Asserting that the drag is "in the route" passed with the
+	// admission mutated out.
+	if !strings.Contains(src, "do OS's Drag with drag1...\n") {
+		t.Errorf("the drag is not the guard of a link — it is written as an "+
+			"ordinary step, so whatever follows it runs whether the gesture "+
+			"happened or not:\n%s", src)
+	}
+	if strings.Contains(src, "do OS's Drag with drag1.\n") {
+		t.Errorf("the drag is performed as a plain step:\n%s", src)
+	}
+	if !strings.Contains(src, "calling the next only when its own press went through") {
+		t.Errorf("the route is not a chain, so nothing stops at the drag:\n%s", src)
+	}
+	// AND ITS SET IS DECLARED INSIDE THE CAPABILITY THAT PERFORMS IT. A declaration
+	// hoisted above the chain would be declared whether or not the drag happened, which
+	// is harmless for a set and wrong as a shape: a link's locals belong to the link.
+	lines := strings.Split(src, "\n")
+	var declAt, doAt int
+	for i, l := range lines {
+		switch {
+		case strings.Contains(l, "is a Drag with"):
+			declAt = i
+		case strings.Contains(l, "do OS's Drag with"):
+			doAt = i
+		}
+	}
+	if declAt == 0 || doAt == 0 || declAt > doAt {
+		t.Errorf("the Drag is declared at line %d and performed at line %d:\n%s",
+			declAt, doAt, src)
 	}
 }

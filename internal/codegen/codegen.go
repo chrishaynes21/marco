@@ -350,21 +350,26 @@ func measured(s macroir.Step) string {
 // One `measured(s)` for both ends, because there is one window. Two sets of window terms on one
 // gesture would be inviting it to be checked against two windows, which is not a gesture; what
 // makes one set honest is that `simplify` has already shown both edges agreed about it.
-func (g *gen) dragSet(b *strings.Builder, pad string, s macroir.Step) string {
+// It returns the declaration rather than placing it, because the two callers put it in different
+// places and both are right where they are. An ordinary block writes it immediately before the
+// `do`, which is where every drag ever generated has had it; a CHAIN puts it in the link's own
+// locals, so the set is declared inside the capability that performs the drag and a gesture whose
+// guard refused leaves nothing declared and nothing after it run.
+func (g *gen) dragSet(s macroir.Step) (name, decl string) {
 	btn := s.Button
 	if btn == "" {
 		btn = "left"
 	}
 	g.dragN++
-	name := fmt.Sprintf("drag%d", g.dragN)
+	name = fmt.Sprintf("drag%d", g.dragN)
 	rel := ""
 	if s.WinRel {
 		rel = fmt.Sprintf(", FromRelX %d, FromRelY %d, ToRelX %d, ToRelY %d",
 			s.RelX, s.RelY, s.ToRelX, s.ToRelY)
 	}
-	fmt.Fprintf(b, "%sthe %s is a Drag with FromX %d, FromY %d, ToX %d, ToY %d, "+
-		"Button %q%s%s.\n", pad, name, s.X, s.Y, s.X2, s.Y2, btn, rel, measured(s))
-	return name
+	return name, fmt.Sprintf("the %s is a Drag with FromX %d, FromY %d, ToX %d, "+
+		"ToY %d, Button %q%s%s.", name, s.X, s.Y, s.X2, s.Y2, btn, rel,
+		measured(s))
 }
 
 // clickPoint declares the Point for a click step — window-relative when the
@@ -436,7 +441,8 @@ func emit(steps []macroir.Step, g *gen, depth int) (string, error) {
 		case macroir.StepDrag:
 			// A real press-hold-release drag (OS's Drag primitive): press at the start, glide to
 			// the end, release. The Drag set type comes from os.marco.
-			name := g.dragSet(&b, pad, s)
+			name, decl := g.dragSet(s)
+			fmt.Fprintf(&b, "%s%s\n", pad, decl)
 			fmt.Fprintf(&b, "%sdo OS's Drag with %s.\n", pad, name)
 		case macroir.StepLoop:
 			fmt.Fprintf(&b, "%srepeat %d times...\n", pad, s.Count)
@@ -806,7 +812,8 @@ func guardedStep(s macroir.Step) bool {
 	if s.RelTo == "" || cannotPropagate(s) != "" {
 		return false
 	}
-	return s.Kind == macroir.StepClick || s.Kind == macroir.StepMove
+	return s.Kind == macroir.StepClick || s.Kind == macroir.StepMove ||
+		s.Kind == macroir.StepDrag
 }
 
 // cannotPropagate names what a step is, when its failure cannot be made to stop a guarded
@@ -822,11 +829,23 @@ func guardedStep(s macroir.Step) bool {
 //     unwrapped, and the press is the thing that acts. One guarded operation would need a
 //     button beside the point — a permanent word in the language for a case the owner's
 //     recordings have not needed yet, so it waits for a recording that needs it.
-//   - a DRAG resolves no offset, so it carries no window and is checked against nothing.
 //   - an ANCHORED press is a ladder of locators with a click in each arm.
 //   - a REPEATED block runs its body again, which is the one thing a stop cannot survive.
 //
-// Unreachable from a recorder-first recording today except the first two: anchors are off unless
+// A DRAG USED TO BE ON THAT LIST, and the entry read "a drag resolves no offset, so it carries no
+// window and is checked against nothing". That was a true statement about the recorder rather than
+// about the gesture: a drag is ALREADY one `do` sentence, which is the property this needs, and
+// what it lacked was a measurement. It has one now — both edges, shown to agree about one window
+// — so it propagates like a click.
+//
+// What stays refused is a drag that ASKED to be checked and cannot be, and it is two sentences
+// rather than one because they are two different recordings and the person reading the refusal is
+// the one who has to tell them apart. A missing measurement is something the machine would not
+// report; `simplify` has already refused the recording outright for anything the PERSON did (a
+// gesture across two windows, a window that moved, a drag out of the window), with a sentence
+// naming it.
+//
+// Unreachable from a recorder-first recording today except the first one: anchors are off unless
 // computer vision is turned on, and loop folding is off for a recording with a guarded press.
 func cannotPropagate(s macroir.Step) string {
 	switch {
@@ -836,8 +855,16 @@ func cannotPropagate(s macroir.Step) string {
 		return "a press found by reading words on the screen"
 	case s.Kind == macroir.StepClick && s.Button != "" && s.Button != "left":
 		return "a " + s.Button + "-click"
-	case s.Kind == macroir.StepDrag:
-		return "a drag"
+	case s.Kind == macroir.StepDrag && s.RelTo != "" && !s.WinRel:
+		// THE BASIS WITHOUT THE OFFSETS. `simplify` writes exactly this when a
+		// drag's two edges agreed about the window and a measurement would not
+		// come, and it is the one case that must not be mistaken for an ordinary
+		// drag: an ordinary drag runs at its recorded coordinates, and this one
+		// asked not to.
+		return "a drag whose window could not be measured"
+	case s.Kind == macroir.StepDrag && s.RelTo != "" &&
+		(s.WinW == 0 || s.WinH == 0 || s.Dpi == 0 || s.Process == ""):
+		return "a drag missing part of the window it was made in"
 	case s.Kind == macroir.StepLoop:
 		return "a repeated block"
 	}
@@ -907,6 +934,24 @@ func (g *gen) propagating(s macroir.Step) (guard, follow string, ok bool) {
 		return "", "", false
 	case s.Kind == macroir.StepMove:
 		return "OS's Move with " + g.pts.clickPoint(s), "", true
+	case s.Kind == macroir.StepDrag:
+		// A DRAG IS ONE SENTENCE, which is the whole reason it can be here and the
+		// reason a non-left click and an anchored press cannot.
+		//
+		// Its declaration goes in `before` rather than beside the action, because that
+		// is where a link's own locals belong: the set is declared inside the capability
+		// that performs the drag, so a drag whose guard refused leaves nothing declared
+		// and nothing after it runs. `chainOf` collects Points the same way.
+		//
+		// And a drag is a link for the same reason a keystroke is, over and above its
+		// own window check: it can fail to be DELIVERED, and what follows it then acts
+		// on a screen the gesture never changed — the thing that was dragged is where it
+		// was, the press after it lands on whatever is still under that coordinate, and
+		// the window guard cannot see the difference because the window is the same
+		// window.
+		name, decl := g.dragSet(s)
+		g.pts.decls = append(g.pts.decls, decl)
+		return "OS's Drag with " + name, "", true
 	case s.Button != "" && s.Button != "left":
 		// A press that is not left-handed is an AIM and then a press, and the aim is
 		// what carries the window — the click that follows takes the cursor's

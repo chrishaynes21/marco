@@ -694,13 +694,24 @@ func inWindow(s macroir.Step) string {
 // failed — turned the press into an ordinary point, and an ordinary point is pressed at its
 // recorded coordinate having checked nothing. A failed measurement means guarded replay is
 // unavailable for that press, so the person has to be told, here, before they keep it.
+// A DRAG IS ASKED THE SAME QUESTION, because it declares the same contract now. It was a
+// `StepClick`-only test while a drag measured nothing, and leaving it that way would have made
+// a drag the one gesture whose missing measurements are invisible at review — refused at Save
+// with a sentence, after the person had read a page that said nothing was wrong.
 func notMeasured(s macroir.Step) []string {
-	if s.Kind != macroir.StepClick || s.RelTo == "" {
+	if s.RelTo == "" || (s.Kind != macroir.StepClick && s.Kind != macroir.StepDrag) {
 		return nil
 	}
 	var out []string
 	if !s.WinRel {
-		out = append(out, "where in the window the press went")
+		// The same missing fact in both cases, said in the words of the gesture it
+		// is about: a drag has two ends and "where the press went" would be a
+		// sentence about something the person did not do.
+		if s.Kind == macroir.StepDrag {
+			out = append(out, "where in the window the drag began and ended")
+		} else {
+			out = append(out, "where in the window the press went")
+		}
 	}
 	if s.WinW <= 0 || s.WinH <= 0 {
 		out = append(out, "how big the window was")
@@ -741,6 +752,7 @@ func whyItWillNotRun(steps []macroir.Step) string {
 	var missing []string
 	for _, one := range []string{
 		"where in the window the press went",
+		"where in the window the drag began and ended",
 		"how big the window was",
 		"what scale it was drawn at",
 		"which program owned it",
