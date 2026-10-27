@@ -9262,3 +9262,21 @@ Root suite clean, `plugins/studio` ok (70s), `plugins/e2e` vet and tests ok, `go
 `docscheck` no problems, `wiringcheck` green. The flag tests are Windows-only by build tag and ran
 on this machine. **Still no desktop acceptance run**, and the drag's own harness scenario does not
 exist — that is the contract's fifth requirement, and the fixture still does not log movement.
+
+**Closed at `9290a93`.** The Architect reviewed the source and accepted all three: stuck-button
+warnings survive a cancellation, a cancellation after the aim prevents the mouse-down, and the
+native button batches carry the positioning. Reviewed by reading, not by running the gates — which
+is how all six findings in §41l and §41m were found, and worth keeping in the record beside them.
+
+**The backend correction is closed. Three things are explicitly NOT**, and none of them is a defect
+in what is now there:
+
+- **guarded drags** — §41k's contract, PROPOSED and NOT AGREED. Nothing implemented.
+- **the button ledger** — a button that goes down is in no list the route-end sweep reads, so an
+  exit between the press and the release leaves it down. Needs the backend's `drag` split into
+  `mouseDown` → movement → `mouseUp` so something outside it can release. Part of the contract.
+  **The warning channel is NOT this**: a release the machine refuses is reported now, everywhere a
+  stuck key is. What is missing is an attempt by code that runs after an exit nothing else reaches.
+- **desktop acceptance** — there is no drag scenario in `plugins/e2e`, and the fixture still does
+  not log mouse movement (`WmMouseMove: break`). That is the contract's fifth requirement, and
+  until it exists no run outside this process has seen a drag arrive as one.
