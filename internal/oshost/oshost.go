@@ -33,7 +33,10 @@ type backend interface {
 	key(ctx context.Context, name string, hold time.Duration) error // hold<=0 → default linger
 	keyDown(ctx context.Context, name string) error                 // press and hold
 	keyUp(ctx context.Context, name string) error                   // release
-	typeText(ctx context.Context, text string) error
+	// typeText submits a text and says how far it got. See typing.go: the progress
+	// comes back BESIDE the error because the caller needs both for every outcome —
+	// a refused typing and a stopped typing leave the same partly filled field.
+	typeText(ctx context.Context, text string, kind textKind) (typingProgress, error)
 	click(ctx context.Context, button string) error
 	clickAt(ctx context.Context, button string, x, y int) error
 	drag(ctx context.Context, button string, x1, y1, x2, y2 int, host dragHost) error
@@ -71,10 +74,20 @@ type Host struct {
 	// rather than a thing it did not do — and the one account that has to survive a
 	// cancelled run discarding its error. Guarded by mu. See noteHeld and NotReleased.
 	//
+	// `partial` is the same shape for text that was not all submitted, and it is a
+	// SECOND list rather than more of this one on purpose: a held key and a half-typed
+	// field are two different states of somebody's computer, and the account that says
+	// "every keystroke you type now arrives modified" must not be the one that says
+	// "half a value is in a field". See noteTyped.
+	//
 	// More than one, because there is more than one way to be left holding something: a
 	// chord whose modifier would not come up, and a hold the route-end sweep could not
 	// release. A single field let the second quietly replace the first.
 	held []string
+	// partial is text the machine did not take all of — a field with part of a value in
+	// it, which is a state this run LEFT and not a thing it did not do. Guarded by mu.
+	// See noteTyped and PartlyTyped.
+	partial []string
 	// heldKeys are keys pressed by a KeyDown without a matching KeyUp yet, IN THE ORDER
 	// THEY WENT DOWN. Tracked so a route end (success, error, or Esc) can release any still
 	// down — a per-command process exiting with a key held would leave it STUCK down in the
@@ -218,7 +231,7 @@ func (h *Host) Invoke(c runtime.HostCall) (string, runtime.Value, error) {
 	case "navigate":
 		return h.doNavigate(c)
 	case "type":
-		return ok(h.b.typeText(c.Ctx, c.Input.AsText()))
+		return h.doType(c)
 	case "click":
 		return h.doClick(c)
 	case "move":
@@ -354,6 +367,83 @@ func parseHandle(s string) (uintptr, error) {
 	return uintptr(n), nil
 }
 
+// doType submits a literal text and keeps an account of how far it got.
+//
+// IT USED TO GO OUT THROUGH `ok`, which turns an error into a failed step and records it nowhere.
+// So a rejected send left `Unperformed` empty, `marco do` reported success about typing that did
+// not happen, and nothing anywhere said how much of the text was sitting in the application.
+// Both halves had to go: the account, and a progress to put in it.
+func (h *Host) doType(c runtime.HostCall) (string, runtime.Value, error) {
+	text := c.Input.AsText()
+	if text == "" {
+		// NOTHING TO TYPE IS NOT A FAILURE. A route can carry an empty segment —
+		// an argument that was filled with nothing — and an empty text submitted
+		// nothing, which is exactly what it asked for.
+		return "ok", runtime.Absent(), nil
+	}
+	p, err := h.b.typeText(c.Ctx, text, asLiteral)
+	mlog.Debug("type", "characters", p.total, "submitted", p.submitted,
+		"partial", p.partial)
+	return h.typed("typing this text", asLiteral, p, err)
+}
+
+// typed is the account both kinds of typing go through.
+//
+// Three things happen here and they are three different claims:
+//
+//   - WHAT DID NOT HAPPEN goes to `Unperformed`, so the command fails and says why. That is
+//     `delivered`'s job for every other input send and this is the same rule.
+//   - WHAT IS LEFT ON THE SCREEN goes to an account of its own, which a CANCELLED run cannot
+//     discard. A stop mid-text carries no error out — `performOnePlay` throws it away on purpose,
+//     because a stop is not a failure — and the half-filled field it leaves behind is exactly
+//     the part that must survive that.
+//   - A CANCELLATION KEEPS ITS IDENTITY on the way out. The sentence about the partial text is
+//     put in the account, not returned in place of the stop: a run that stopped looking like a
+//     run that failed would turn somebody pressing Escape into a defect report.
+func (h *Host) typed(what string, kind textKind, p typingProgress, err error) (string,
+	runtime.Value, error) {
+
+	if !p.whole() {
+		// THE SENTENCE IS BUILT FROM THE PROGRESS AND NOT FROM THE ERROR, because
+		// a stop's error says nothing about the text and is the case this exists for.
+		h.noteTyped(notAllSubmitted(p, kind, err != nil && !errors.Is(err, context.Canceled)))
+	}
+	if err != nil && !errors.Is(err, context.Canceled) {
+		h.didNotDo(fmt.Sprintf("%s did not happen: %v", what, err))
+	}
+	return ok(err)
+}
+
+// noteTyped keeps one sentence about text this run did not finish submitting.
+//
+// AN ACCOUNT OF ITS OWN, and deliberately not the held-key one. `NotReleased` is for something
+// the computer has not finished doing — a key down, a button down, every keystroke after it
+// arriving modified — and incomplete text is not that: nothing is held, and somebody told their
+// keyboard might be stuck would be told something untrue. What they are owed is the other thing:
+// a field with part of a value in it.
+func (h *Host) noteTyped(err error) {
+	said := err.Error()
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for _, already := range h.partial {
+		if already == said {
+			return
+		}
+	}
+	h.partial = append(h.partial, said)
+}
+
+// PartlyTyped is the text this run may have left half-entered, or empty.
+//
+// Read by `marco` after the run, including — especially — after a run that was stopped, for the
+// reason `NotReleased` is read there: the outcome word says what became of the RUN, and this says
+// what became of the application.
+func (h *Host) PartlyTyped() string {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return strings.Join(h.partial, " — and ")
+}
+
 // doSecret types the value of a named secret from the OS credential store. The
 // value is never logged or returned — only typed. Resolves failed if the secret
 // isn't set, so the route surfaces a clear error instead of typing nothing.
@@ -376,7 +466,7 @@ func (h *Host) doSecret(c runtime.HostCall) (string, runtime.Value, error) {
 	if has && provided != "" {
 		mlog.Debug("secret: using inline arg, remembering", "argname", argname)
 		_ = h.sec.Set(name, provided) // remember for next time
-		return ok(h.b.typeText(c.Ctx, provided))
+		return h.typedSecret(c, name, provided)
 	}
 	val, found, err := h.sec.Get(name)
 	if err != nil {
@@ -388,7 +478,25 @@ func (h *Host) doSecret(c runtime.HostCall) (string, runtime.Value, error) {
 		return fail(fmt.Sprintf("secret %q is not set — pass %s:<value> once, or run: marco secret set %s", name, argname, name))
 	}
 	mlog.Debug("secret: store hit", "key", name)
-	return ok(h.b.typeText(c.Ctx, val))
+	return h.typedSecret(c, name, val)
+}
+
+// typedSecret submits a secret and accounts for it WITHOUT MEASURING IT.
+//
+// The name is said and nothing else is. The name is already in the route — somebody can read
+// `do OS's Secret "ark:password"` in the file — so naming it exposes nothing new; the length and
+// the position it stopped at are facts about the VALUE, and a failure position is a prefix whose
+// size somebody now knows. So no number about a secret is computed anywhere: the kind travels
+// into the gesture, which never counts, rather than a count being redacted afterwards by whoever
+// remembers to.
+//
+// The log line is the same discipline. `mlog.Debug` above prints the KEY, which is how a person
+// debugs a missing secret; nothing here prints how much of the value went in.
+func (h *Host) typedSecret(c runtime.HostCall, name, value string) (string, runtime.Value,
+	error) {
+
+	p, err := h.b.typeText(c.Ctx, value, asSecret)
+	return h.typed(fmt.Sprintf("typing the secret %q", name), asSecret, p, err)
 }
 
 // doKey presses a key or chord. Input is either the key text ("alt+tab") or a set

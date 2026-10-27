@@ -8,6 +8,7 @@ import (
 	"sync"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/chaynes-simpleclouds/marco/internal/runtime"
 	"github.com/chaynes-simpleclouds/marco/internal/screen"
@@ -69,6 +70,11 @@ type recBackend struct {
 	// until this existed only one of them could be tested.
 	refuseFrom int
 	sends      int
+	// typeRefuseAfter is how many CODE POINTS the machine takes before it refuses the
+	// rest of a text (0 takes everything), and typePartly says the character it refused
+	// went in part way — the two states a partly submitted text can be in.
+	typeRefuseAfter int
+	typePartly      bool
 	// refuseHolds names keys the machine will not press and hold.
 	refuseHolds map[string]bool
 	// refuseReleases names keys the machine will not let go of, and how many times: a
@@ -150,11 +156,33 @@ func (r *recBackend) keyUp(_ context.Context, name string) error {
 	}
 	return nil
 }
-func (r *recBackend) typeText(_ context.Context, t string) error {
+
+// typeText stands in for the keyboard, and can be told to stop taking characters part way.
+//
+// `typeRefuseAfter` is in CODE POINTS, the unit the production account uses, so a case can put a
+// refusal after the third character of a five-character text and read what the run says about it.
+// It records what it was ASKED to type before deciding, because a refused typing is still a
+// typing somebody asked for.
+func (r *recBackend) typeText(_ context.Context, t string, kind textKind) (typingProgress,
+	error) {
+
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.typed = append(r.typed, t)
-	return nil
+	r.calls = append(r.calls, "type "+t)
+	p := typingProgress{total: utf8.RuneCountInString(t)}
+	if err := r.sending(); err != nil {
+		// THE MACHINE REFUSED THE WHOLE SEND, which is what `refuseFrom` means for
+		// every other input: nothing of it went in.
+		return p, notAllSubmitted(p, kind, true)
+	}
+	if n := r.typeRefuseAfter; n > 0 && n < p.total {
+		p.submitted = n
+		p.partial = r.typePartly
+		return p, notAllSubmitted(p, kind, true)
+	}
+	p.submitted = p.total
+	return p, nil
 }
 func (r *recBackend) click(_ context.Context, b string) error {
 	r.mu.Lock()

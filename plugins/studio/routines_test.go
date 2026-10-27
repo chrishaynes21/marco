@@ -24,6 +24,7 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/director/runref"
 	"github.com/chaynes-simpleclouds/marco/internal/macroir"
 	"github.com/chaynes-simpleclouds/marco/internal/orchestrator"
+	"github.com/chaynes-simpleclouds/marco/internal/oshost"
 	"github.com/chaynes-simpleclouds/marco/internal/outcome"
 	"github.com/chaynes-simpleclouds/marco/internal/recorder"
 	"github.com/chaynes-simpleclouds/marco/internal/routes"
@@ -1296,6 +1297,66 @@ func TestAStoppedRoutineShowsTheButtonItLeftHeldDown(t *testing.T) {
 			"stop is reported and the button still held is not, which is the "+
 			"half that is still happening to everything the pointer touches",
 			w.Said)
+	}
+}
+
+// AND A STOPPED ROUTINE SHOWS A FIELD IT LEFT HALF FILLED, WHICH IS NOT A KEY AT ALL.
+//
+// The same channel, a third device, and the first one that is not about something held down. A
+// typing stopped between two characters leaves part of a value in a field — nothing is pressed,
+// nothing afterwards arrives modified, and the thing somebody has to know is that the field they
+// are looking at is not what the routine was going to put there.
+//
+// The window does not parse this sentence either; it keeps the last thing the child said. So what
+// is tested is that a warning about TEXT reaches the surface through the path built for keys, that
+// the stop still reads as a stop, and that what reaches the card does not describe a half-typed
+// field as a stuck key.
+//
+// The sentence is `oshost.PartlyTypedText`'s, as a person receives it. The executor's half is
+// `cmd/marco` `TestAStoppedRunRecordsTheTextItLeftHalfSubmitted`; the gesture that produces it is
+// `internal/oshost` `TestAStoppedTypingIsKeptWhereACancelledRunCannotDiscardIt`.
+// See [[ADR-261-typed-text-is-a-sequence-of-submissions]].
+func TestAStoppedRoutineShowsTheTextItLeftHalfSubmitted(t *testing.T) {
+	half := oshost.PartlyTypedText(4, 11, false).Error()
+	w := aRunThatSaid(t, "[route] ark graphics", half,
+		outcome.Line(outcome.Cancelled))
+
+	if w.Outcome != string(outcome.Cancelled) {
+		t.Fatalf("the run was stopped and the window shows %q", w.Outcome)
+	}
+	if w.Reason != half {
+		t.Errorf("the window kept %q as what the run said, and the run said %q",
+			w.Reason, half)
+	}
+	switch {
+	case !strings.Contains(w.Said, "stopped part of the way through"):
+		t.Errorf("the window no longer says a stopped routine was stopped: %q", w.Said)
+	case !strings.Contains(w.Said, "4 of 11"):
+		t.Errorf("the window says %q about a run that left part of a value in a "+
+			"field — the stop is reported and the field is not, which is the "+
+			"half somebody is looking at", w.Said)
+	case strings.Contains(w.Said, "held down"):
+		t.Errorf("the window describes a half-filled field as something still held "+
+			"down: %q", w.Said)
+	}
+}
+
+// AND A SECRET SHOWS NO NUMBER ON THE CARD EITHER.
+//
+// The last layer the suppression has to hold at, and the one a person actually reads. A length is
+// a fact about a password, and a failure position is a prefix whose size somebody now knows.
+func TestAStoppedRoutineShowsNoNumberAboutASecret(t *testing.T) {
+	half := oshost.PartlyTypedSecret(false).Error()
+	w := aRunThatSaid(t, "[route] ark graphics", half,
+		outcome.Line(outcome.Cancelled))
+
+	if !strings.Contains(w.Said, "secret") {
+		t.Errorf("the window says %q and does not mention the secret that was left "+
+			"unfinished", w.Said)
+	}
+	if strings.ContainsAny(w.Reason, "0123456789") {
+		t.Errorf("the card carries %q, and a number about a secret is a fact about "+
+			"the value", w.Reason)
 	}
 }
 

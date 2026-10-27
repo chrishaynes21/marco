@@ -143,24 +143,59 @@ func splitChord(name string) []string {
 	return out
 }
 
-func (winBackend) typeText(ctx context.Context, text string) error {
-	for i, ch := range text {
-		if ctx.Err() != nil {
-			return ctx.Err()
-		}
-		if !sendUnicodeChar(ch) {
-			return fmt.Errorf("SendInput rejected character %q", string(ch))
-		}
-		// Pace the keystrokes so fast apps/games don't drop characters.
-		if typeCadence > 0 && i < len(text)-1 {
-			select {
-			case <-time.After(typeCadence):
-			case <-ctx.Done():
-				return ctx.Err()
-			}
-		}
+// typeText runs the production typing sequence against the real keyboard.
+//
+// THE SEQUENCE IS NOT HERE, for the reason the chord's and the drag's are not: it is what had
+// the defects in it, and it could not be reached by a test while it sat beside the `SendInput`
+// call. What lived here before was a loop that stopped at the first refusal, returned an error
+// naming NOTHING about how far it had got — and QUOTED THE REJECTED CHARACTER into that error,
+// which for a secret put one character of somebody's password into a log line. See typing.go.
+func (winBackend) typeText(ctx context.Context, text string, kind textKind) (typingProgress,
+	error) {
+
+	return typeOut(ctx, theKeyboard{}, text, kind)
+}
+
+// theKeyboard is the real machine for typing: one code point per call, counted.
+type theKeyboard struct{}
+
+// submit sends a down and an up for each of the code point's UTF-16 code units, IN ONE CALL, and
+// returns how many of those events Windows took.
+//
+// One call because the halves of a surrogate pair must not be separated by anybody else's input:
+// an application assembles one character out of two consecutive `WM_CHAR`s, and what it does with
+// half a pair followed by something else is its own business. The same reason `clickAt` positions
+// and presses in one batch.
+func (theKeyboard) submit(units []uint16) int {
+	inps := make([]inputT, 0, 2*len(units))
+	for _, u := range units {
+		inps = append(inps, unicodeInput(u, 0), unicodeInput(u, _KEYEVENTF_KEYUP))
 	}
-	return nil
+	return sentInputs(inps)
+}
+
+// release attempts the up for a unit whose down went in without it.
+//
+// Through the same counting call as `submit`, so the typing path has ONE place where it hands
+// Windows anything: a release that went through a different one would be a release no test of
+// this adapter could see, which is how the adapter came to be untested in the first place.
+func (theKeyboard) release(unit uint16) bool {
+	return sentInputs([]inputT{unicodeInput(unit, _KEYEVENTF_KEYUP)}) == 1
+}
+
+// unicodeInput is one `KEYEVENTF_UNICODE` keyboard event carrying one UTF-16 code unit.
+//
+// `wScan` IS A UTF-16 CODE UNIT AND NOT A RUNE, which is the whole of the defect it replaces:
+// `sendUnicodeChar` cast the rune to `uint16`, so every code point above U+FFFF was truncated —
+// an emoji at U+1F600 arrived as U+F600, a private-use character, silently and as a successful
+// send. A routine that typed one was a routine that typed something else.
+func unicodeInput(unit uint16, flags uint32) inputT {
+	var inp inputT
+	inp.inputType = _INPUT_KEYBOARD
+	kb := (*keybdInput)(unsafe.Pointer(&inp.union[0]))
+	kb.wScan = unit
+	kb.dwFlags = _KEYEVENTF_UNICODE | flags
+	return inp
 }
 
 func (winBackend) click(ctx context.Context, button string) error {
@@ -437,18 +472,6 @@ func sendKeyUp(vk, scan uint16, extended bool) bool {
 	return sendInput(&inp)
 }
 
-func sendUnicodeChar(ch rune) bool {
-	var inp inputT
-	inp.inputType = _INPUT_KEYBOARD
-	kb := (*keybdInput)(unsafe.Pointer(&inp.union[0]))
-	kb.wScan = uint16(ch)
-	kb.dwFlags = _KEYEVENTF_UNICODE
-	okDown := sendInput(&inp)
-	kb.dwFlags = _KEYEVENTF_UNICODE | _KEYEVENTF_KEYUP
-	okUp := sendInput(&inp)
-	return okDown && okUp
-}
-
 func sendMouseInput(dx, dy int32, mouseData uint32, flags uint32) bool {
 	inp := mouseInputT(dx, dy, mouseData, flags)
 	return sendInput(&inp)
@@ -478,11 +501,23 @@ func mouseInputT(dx, dy int32, mouseData uint32, flags uint32) inputT {
 // the adapter is where `MOUSEEVENTF_MOVE` was missing from a button event that was documented as
 // repositioning the pointer.
 var sendInputs = func(inps []inputT) bool {
+	return sentInputs(inps) == len(inps)
+}
+
+// sentInputs is the same call, reporting HOW MANY events Windows took rather than whether it took
+// all of them.
+//
+// The count is the progress a typing reports, and `sendInputs` threw it away: a batch that went
+// in half way was indistinguishable from one that was refused outright. Two names over one
+// syscall rather than two syscalls, so a gesture that only needs "all of it or not" keeps saying
+// so — and a test that replaces one of them is replacing the one its callers use, which is worth
+// knowing before wondering why a mouse test saw nothing.
+var sentInputs = func(inps []inputT) int {
 	if len(inps) == 0 {
-		return true
+		return 0
 	}
 	n, _, _ := procSendInput.Call(uintptr(len(inps)), uintptr(unsafe.Pointer(&inps[0])), unsafe.Sizeof(inps[0]))
-	return int(n) == len(inps)
+	return int(n)
 }
 
 func mouseButtonFlags(button string) (down, up uint32) {

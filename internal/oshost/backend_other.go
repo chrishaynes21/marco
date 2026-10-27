@@ -23,10 +23,12 @@ func unsupported(op string) error {
 func (stubBackend) key(context.Context, string, time.Duration) error {
 	return unsupported("key")
 }
-func (stubBackend) keyDown(context.Context, string) error  { return unsupported("keydown") }
-func (stubBackend) keyUp(context.Context, string) error    { return unsupported("keyup") }
-func (stubBackend) typeText(context.Context, string) error { return unsupported("type") }
-func (stubBackend) click(context.Context, string) error    { return unsupported("click") }
+func (stubBackend) keyDown(context.Context, string) error { return unsupported("keydown") }
+func (stubBackend) keyUp(context.Context, string) error   { return unsupported("keyup") }
+func (stubBackend) typeText(context.Context, string, textKind) (typingProgress, error) {
+	return typingProgress{}, unsupported("type")
+}
+func (stubBackend) click(context.Context, string) error { return unsupported("click") }
 func (stubBackend) clickAt(context.Context, string, int, int) error {
 	return unsupported("click")
 }

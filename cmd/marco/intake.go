@@ -532,7 +532,7 @@ func performOnePlay(d orchestrator.Deps, p playInvocation) (Outcome, error) {
 		// happen to it, which is the same shape as `Unperformed` and for the same
 		// reason: an account, not a returned value.
 		out = OutcomeCancelled
-		if warn := stillHeld(d); warn != "" {
+		if warn := leftBehind(d); warn != "" {
 			because = warn
 			// AND SAID OUT LOUD, ON THE RUN.S OWN NARRATIVE. The record is read
 			// later and the person is here now — and it is how the window sees it
@@ -549,7 +549,7 @@ func performOnePlay(d orchestrator.Deps, p playInvocation) (Outcome, error) {
 		// is here for the delivery failure whose account was built before the release
 		// was attempted, which would otherwise read as a keystroke that did not happen
 		// and nothing about the key still down.
-		if warn := stillHeld(d); warn != "" && !strings.Contains(because, warn) {
+		if warn := leftBehind(d); warn != "" && !strings.Contains(because, warn) {
 			because += " — " + warn
 			fmt.Println(warn)
 		}
@@ -568,6 +568,24 @@ func performOnePlay(d orchestrator.Deps, p playInvocation) (Outcome, error) {
 		// run's own output, and shown on the card, by the path the chord slice built.
 		if warn := stillHeld(d); warn != "" {
 			out, because = OutcomeFailed, warn
+			fmt.Println(warn)
+		}
+		// AND TEXT LEFT HALF-SUBMITTED IS SAID WITHOUT CHANGING THE WORD.
+		//
+		// Which run reaches here holding one: a LEGACY route whose typing the machine
+		// refused. Its contract is that a step that did not happen does not stop the
+		// run — that is what every route saved before the chain existed promises, and
+		// the one thing that must not happen to those routes is acquiring half of a
+		// guarantee. A guarded route never gets here: the chain stops at the typing and
+		// the account above fails the command.
+		//
+		// So the word stays `performed`, because the routine did run to its end, and
+		// the field with part of a value in it is said beside it. That is a smaller
+		// claim than the held-key branch above makes, and the difference is the
+		// difference between the two: a key still down changes every keystroke anybody
+		// types next, and this does not change anything — it is simply not finished.
+		if warn := partlyTyped(d); warn != "" && !strings.Contains(because, warn) {
+			because = alsoSay(because, warn)
 			fmt.Println(warn)
 		}
 	}
@@ -600,4 +618,47 @@ func stillHeld(d orchestrator.Deps) string {
 		return ""
 	}
 	return h.NotReleased()
+}
+
+// partialTyper is a host that can say whether this run left text half entered.
+//
+// A SECOND INTERFACE AND NOT A SECOND METHOD ON THE FIRST. A held key and a half-filled field are
+// two different states of somebody's computer, and keeping the accounts apart is what lets each
+// be reported in its own words — and what stops a routine that typed half a value being described
+// as one that may have left a key down.
+type partialTyper interface {
+	// PartlyTyped is the text the machine did not take all of, or empty.
+	PartlyTyped() string
+}
+
+// partlyTyped is what this run may have left half entered, or empty.
+func partlyTyped(d orchestrator.Deps) string {
+	h, ok := d.Hosts["*"].(partialTyper)
+	if !ok {
+		return ""
+	}
+	return h.PartlyTyped()
+}
+
+// leftBehind is everything this run may have left on the computer: a key still down, text not all
+// submitted, or both.
+//
+// BOTH, AND NEVER ONE OF THEM. A run stopped between a modifier and its key can also have been
+// stopped between two characters, and a report that showed one of those would be a report whose
+// silence about the other reads as "that did not happen". The same reasoning the drag harness
+// wrote down for its two accounts: a line that shows one of them is how a press inside a hold came
+// to be reported as holding nothing.
+func leftBehind(d orchestrator.Deps) string {
+	return alsoSay(stillHeld(d), partlyTyped(d))
+}
+
+// alsoSay joins two warnings, either of which may be empty.
+func alsoSay(said, more string) string {
+	switch {
+	case more == "" || strings.Contains(said, more):
+		return said
+	case said == "":
+		return more
+	}
+	return said + " — and " + more
 }

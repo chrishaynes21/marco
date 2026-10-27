@@ -149,3 +149,114 @@ func TestThePointersAimIsAMovementAndNoButton(t *testing.T) {
 			mi.dwFlags, _MOUSEEVENTF_MOVE|absDesk)
 	}
 }
+
+// AND A CHARACTER'S EVENTS CARRY ITS CODE UNITS, IN ONE CALL, COUNTED.
+//
+// The adapter under the typing gesture, and the reason it needs a test of its own: the sequence is
+// checkable without a desktop because it was lifted out of this file, and that establishes
+// NOTHING about what this hands Windows. The same gap the pointer's had, and the typing's was
+// worse — `sendUnicodeChar` cast the rune to `uint16`, so a code point above U+FFFF was truncated
+// into a private-use character and `SendInput` took it, which is a successful send of the wrong
+// character.
+//
+// Three claims, each a different way to be wrong: the UNITS are what the code point decomposes to
+// (not a truncation), every event of one character is in ONE SendInput call (so nobody else's
+// input can arrive between the halves of a surrogate pair, which is how a character becomes a
+// replacement glyph), and the COUNT comes back from the machine rather than being assumed — the
+// count is the progress the whole account is built on, and a `bool` collapses "took half of it"
+// into "refused".
+func TestACharactersEventsCarryItsCodeUnitsInOneCall(t *testing.T) {
+	var batches [][]inputT
+	taking := 0
+	was := sentInputs
+	t.Cleanup(func() { sentInputs = was })
+	sentInputs = func(inps []inputT) int {
+		batches = append(batches, append([]inputT(nil), inps...))
+		if taking >= 0 {
+			return taking
+		}
+		return len(inps)
+	}
+	kb := func(batch []inputT, i int) *keybdInput {
+		return (*keybdInput)(unsafe.Pointer(&batch[i].union[0]))
+	}
+
+	for _, c := range []struct {
+		what  string
+		units []uint16
+	}{
+		{"a character in the BMP", []uint16{'h'}},
+		{"one above it, as a surrogate pair", []uint16{0xD83D, 0xDE00}},
+	} {
+		t.Run(c.what, func(t *testing.T) {
+			batches, taking = nil, -1
+			took := theKeyboard{}.submit(c.units)
+
+			if len(batches) != 1 {
+				t.Fatalf("one character went in %d SendInput call(s): the "+
+					"halves of a surrogate pair must not be separated "+
+					"by anybody else's input", len(batches))
+			}
+			batch := batches[0]
+			if len(batch) != 2*len(c.units) {
+				t.Fatalf("the character is %d event(s), want a down and an "+
+					"up for each of its %d code unit(s)", len(batch),
+					len(c.units))
+			}
+			if took != len(batch) {
+				t.Errorf("submit reported %d of %d events taken", took,
+					len(batch))
+			}
+			for i, unit := range c.units {
+				for j, flags := range []uint32{
+					_KEYEVENTF_UNICODE,
+					_KEYEVENTF_UNICODE | _KEYEVENTF_KEYUP,
+				} {
+					e := kb(batch, 2*i+j)
+					if e.wScan != unit {
+						t.Errorf("event %d carries %#04x, want "+
+							"%#04x — a code point cast to one "+
+							"unit is a different character "+
+							"that sends successfully",
+							2*i+j+1, e.wScan, unit)
+					}
+					if e.dwFlags != flags {
+						t.Errorf("event %d carries flags %#x, want "+
+							"%#x", 2*i+j+1, e.dwFlags, flags)
+					}
+					// AND NO VIRTUAL KEY. A UNICODE event is a
+					// character and not a key; a vk on it is a
+					// different event entirely.
+					if e.wVk != 0 {
+						t.Errorf("event %d carries virtual key %#x",
+							2*i+j+1, e.wVk)
+					}
+				}
+			}
+		})
+	}
+
+	// AND WHAT THE MACHINE TOOK IS WHAT COMES BACK. The count is the whole account: a
+	// batch half taken is a character half submitted, and a bool cannot say so.
+	for _, taken := range []int{0, 1, 3} {
+		batches, taking = nil, taken
+		if took := (theKeyboard{}).submit([]uint16{0xD83D, 0xDE00}); took != taken {
+			t.Errorf("the machine took %d event(s) and submit reported %d",
+				taken, took)
+		}
+	}
+
+	// AND A RELEASE IS ONE UP EVENT FOR THAT UNIT, which is what is owed after a down
+	// the machine took without its up.
+	batches, taking = nil, -1
+	if !(theKeyboard{}).release('l') {
+		t.Fatal("the machine refused the release")
+	}
+	if len(batches) != 1 || len(batches[0]) != 1 {
+		t.Fatalf("the release went in %d call(s)", len(batches))
+	}
+	if e := kb(batches[0], 0); e.wScan != 'l' ||
+		e.dwFlags != _KEYEVENTF_UNICODE|_KEYEVENTF_KEYUP {
+		t.Errorf("the release carries %#04x with flags %#x", e.wScan, e.dwFlags)
+	}
+}
