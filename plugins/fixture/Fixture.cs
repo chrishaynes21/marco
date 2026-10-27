@@ -333,6 +333,13 @@ namespace MarcoFixture
         private int collapseEvents;
         private bool documentsExpanded;
 
+        /// <summary>How many mouse buttons this window has seen go down and not come up.</summary>
+        ///
+        /// The one thing that decides whether a pointer movement is logged: movement with a
+        /// button held is the travel of a drag, and movement without one is somebody's cursor
+        /// crossing the window. See NoteMove.
+        private int buttonsDown;
+
         internal FixtureForm(string statePath, bool stubborn, string eventsPath, bool selftest,
             int[] watchVk, string[] watchName)
         {
@@ -634,7 +641,7 @@ namespace MarcoFixture
                     case WmSysKeyDown: form.NoteKey(m, true, true); break;
                     case WmKeyUp: form.NoteKey(m, false, false); break;
                     case WmSysKeyUp: form.NoteKey(m, false, true); break;
-                    case WmMouseMove: break; // Deliberately not logged: see NoteClick.
+                    case WmMouseMove: form.NoteMove(m); break; // ONLY while a button is down.
                 }
                 return false;
             }
@@ -699,10 +706,14 @@ namespace MarcoFixture
 
         /// <summary>Logs one mouse button edge: where it landed, on what, and in what window.</summary>
         ///
-        /// MOVES ARE NOT LOGGED. A replay sends a move before every click and a person moves the
-        /// pointer continuously, so logging them would bury the presses in thousands of records
-        /// and make the log useless as evidence. What a press needs is where it ARRIVED, and that
-        /// is on the press.
+        /// A MOVE IS LOGGED ONLY WHILE A BUTTON IS DOWN, and the reason for each half is
+        /// different. A replay sends a move before every click and a person moves the pointer
+        /// continuously, so logging all of them would bury the presses in thousands of records
+        /// and make the log useless as evidence — what a PRESS needs is where it arrived, and
+        /// that is on the press. But a DRAG is not its two ends: the travel between them is the
+        /// whole of what makes it a drag rather than two clicks, and it is the one part no
+        /// account outside this process could see. Movement with a button held is exactly drag
+        /// motion and is bounded by the gesture, so it is logged and nothing else is.
         ///
         /// Three coordinate spaces, because they answer three different questions and a harness
         /// that conflated them would be unable to say which one disagreed:
@@ -714,6 +725,16 @@ namespace MarcoFixture
         ///                screen. The only space a replayed coordinate can be compared against.
         private void NoteClick(Message m, string button, bool down)
         {
+            // WHAT IS HELD, COUNTED FROM THE EDGES THIS WINDOW ACTUALLY RECEIVED.
+            //
+            // Not from `MouseButtons`, which is the state of the mouse NOW and would answer
+            // about an instant after the one being logged; and not from a bool, because two
+            // buttons can be down at once and a release of one of them is not the end of the
+            // gesture. Floored at zero so a release this window saw without its press — the
+            // press having gone to somebody else — cannot leave the count negative and make
+            // every later move invisible.
+            buttonsDown += down ? 1 : -1;
+            if (buttonsDown < 0) { buttonsDown = 0; }
             int lp = (int)(long)m.LParam;
             var onControl = new Point((short)(lp & 0xffff), (short)((lp >> 16) & 0xffff));
             Control c = Control.FromHandle(m.HWnd);
@@ -742,6 +763,45 @@ namespace MarcoFixture
             // AND WHAT THE WINDOW WAS AT THE INSTANT IT ARRIVED. Stamped on the record rather
             // than left to be looked up: a harness that read the geometry afterwards would be
             // describing the window as it is now and attributing it to a press from before.
+            Geometry(b);
+            b.Append("}");
+            WriteEvent(b.ToString());
+        }
+
+        /// <summary>Logs one pointer movement, and only while a button is down.</summary>
+        ///
+        /// WHICH IS THE TRAVEL OF A DRAG AND NOTHING ELSE. A drag is not its two ends — those are
+        /// two clicks — and the travel between them is the one part of the gesture that no
+        /// account outside this process can see. Marco's own record says what it asked for; this
+        /// says what arrived.
+        ///
+        /// The same three coordinate spaces as a press, and the window stamped at the same
+        /// instant, because the question asked of a drag's path is the same question asked of its
+        /// ends: was it inside this window, and where.
+        ///
+        /// The volume is the gesture's own: a drag is tens of moves, and it is bounded by the
+        /// release. An idle pointer logs nothing, and a replay's aim-before-every-click logs
+        /// nothing, which is what keeps the log readable as evidence.
+        private void NoteMove(Message m)
+        {
+            if (buttonsDown <= 0) { return; }
+            int lp = (int)(long)m.LParam;
+            var onControl = new Point((short)(lp & 0xffff), (short)((lp >> 16) & 0xffff));
+            Control c = Control.FromHandle(m.HWnd);
+            Point screen = c != null ? c.PointToScreen(onControl) : onControl;
+            Point client = PointToClient(screen);
+            var b = new StringBuilder();
+            Head(b, "mouse");
+            Field(b, "what", "move"); b.Append(",");
+            Field(b, "control", NameOf(c)); b.Append(",");
+            Field(b, "mods", ModifiersNow()); b.Append(",");
+            Field(b, "watched", WatchedNow()); b.Append(",");
+            b.Append("\"on_control_x\":").Append(N(onControl.X)).Append(",");
+            b.Append("\"on_control_y\":").Append(N(onControl.Y)).Append(",");
+            b.Append("\"client_x\":").Append(N(client.X)).Append(",");
+            b.Append("\"client_y\":").Append(N(client.Y)).Append(",");
+            b.Append("\"screen_x\":").Append(N(screen.X)).Append(",");
+            b.Append("\"screen_y\":").Append(N(screen.Y)).Append(",");
             Geometry(b);
             b.Append("}");
             WriteEvent(b.ToString());
