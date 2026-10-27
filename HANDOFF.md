@@ -9272,11 +9272,22 @@ is how all six findings in §41l and §41m were found, and worth keeping in the 
 in what is now there:
 
 - **guarded drags** — §41k's contract, PROPOSED and NOT AGREED. Nothing implemented.
-- **the button ledger** — a button that goes down is in no list the route-end sweep reads, so an
-  exit between the press and the release leaves it down. Needs the backend's `drag` split into
-  `mouseDown` → movement → `mouseUp` so something outside it can release. Part of the contract.
+- **the button ledger** — a button that goes down is in no list the route-end sweep reads, so a
+  return that leaves the gesture by a path it does not own — a panic unwinding past it — leaves it
+  down. The contract PROPOSES a ledger, and proposes splitting the backend's `drag` into
+  `mouseDown` → movement → `mouseUp` so something outside it can release. **Both are proposed
+  designs, not agreed requirements**, and the paragraph above said otherwise.
   **The warning channel is NOT this**: a release the machine refuses is reported now, everywhere a
-  stuck key is. What is missing is an attempt by code that runs after an exit nothing else reaches.
+  stuck key is. What is missing is an attempt by code that runs after an exit the gesture does not
+  reach.
+
+  **And a ledger would not recover from the runner being killed**, which this had widened past what
+  the chord's own limit says. A ledger lives inside the runner: it reaches ordinary returns, and
+  the unwinding where deferred code still runs, and nothing in a terminated process runs at all.
+  That needs an owner which OUTLIVES the runner, and it is outside this scope — not a thing a
+  ledger is being deferred on. The sentence that has been right since the chord is the one to keep:
+  a release attempt **by code that gets to run**. §41l's "a panic, a kill, a stop that unwinds past
+  the call" is left as written; this is the correction to it.
 - **desktop acceptance** — there is no drag scenario in `plugins/e2e`, and the fixture still does
   not log mouse movement (`WmMouseMove: break`). That is the contract's fifth requirement, and
   until it exists no run outside this process has seen a drag arrive as one.

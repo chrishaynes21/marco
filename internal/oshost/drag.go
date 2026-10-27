@@ -36,12 +36,18 @@ package oshost
 // # What it does not do
 //
 // It does not put the button in the host's held list. A key that goes down is written into an
-// account the route-end sweep reads ([Host.holding]), and a button is not, so an exit between
-// the press and the release — a panic, a kill, an unwinding stop — leaves the button down with
-// nothing in the process that knows to lift it. Covering that needs the backend's `drag` split
-// so that something outside it can release, and the ledger taught about a button; both are the
-// guarded-drag contract's business and neither is a defect in this gesture. What is fixed here
-// is every exit THIS function reaches, which is all three above.
+// account the route-end sweep reads ([Host.holding]), and a button is not, so a return that
+// leaves this function by a path it does not own — a panic unwinding past it, a caller that
+// abandons it — leaves the button down with nothing else in the process that knows to lift it.
+// A ledger would cover that, and the guarded-drag contract proposes one; it is not agreed, it is
+// not a defect in this gesture, and what is fixed here is every exit THIS function reaches, which
+// is all three above.
+//
+// AND A LEDGER WOULD NOT COVER A KILL, which is the chord's limit and has to be said the same way
+// here: a ledger lives inside the runner, so it reaches ordinary returns and the unwinding where
+// deferred code still runs, and nothing in a process that has been terminated runs at all.
+// Recovering from that needs an owner that OUTLIVES the runner, which is a different undertaking
+// and outside this one.
 //
 // And a failed release is REPORTED AND NOT RECOVERED, the chord's rule unchanged: no retry, no
 // forced anything, a sentence saying what the computer is now like.

@@ -363,13 +363,21 @@ passed in now.
 was not, and was wrong about that one clause.
 
 **What is NOT fixed here, and is not a defect in this gesture.** The button is in no LEDGER. A key
-that goes down is written into a list the route-end sweep reads and retries; a button is not, so an
-exit between the press and the release — a panic, a kill, a stop that unwinds past the call —
-leaves the button down with nothing in the process that knows to lift it. Covering that needs the
-backend's `drag` split so something outside it can release, and the ledger taught about a button:
-both belong to the guarded-drag contract, which is proposed and not agreed. What is fixed is every
-exit this function reaches, which is all three above. The two limits are unchanged — a failed
-release is reported, not recovered, and forced termination is outside all of it.
+that goes down is written into a list the route-end sweep reads and retries; a button is not, so a
+return that leaves the gesture by a path it does not own — a panic unwinding past it, a caller that
+abandons it — leaves the button down with nothing else in the process that knows to lift it. A
+ledger would cover that, and the guarded-drag contract proposes one, along with splitting the
+backend's `drag` so something outside it can release. **Both are proposed designs and neither is an
+agreed requirement.** What is fixed is every exit this function reaches, which is all three above.
+
+**And the scope of a ledger has a hard edge, which is the chord's limit and holds here in the same
+words.** A ledger lives inside the runner. It reaches ordinary returns, and it reaches the
+unwinding where deferred code still runs — and **nothing in a process that has been terminated
+runs at all**, so a ledger cannot recover from the runner being killed. Doing that needs an owner
+that OUTLIVES the runner, which is a different undertaking and outside this one. The sentence that
+has been right since the chord is still the one that is right: what is guaranteed is a release
+attempt **by code that gets to run**. The other limit is unchanged too — a failed release is
+reported, not recovered.
 
 ## And three things review found that the first cut had wrong
 

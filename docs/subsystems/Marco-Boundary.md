@@ -113,9 +113,13 @@ was absent from the account a command reads. The order now lives in `dragGesture
 machine that takes one pointer event at a time; every event carries its own point, which is what
 lets a release be aimed at where the pointer IS, and the gesture tracks the last point the machine
 accepted so a stop, a refused move and a refused landing all release there. The button is still in
-no ledger — an exit between the press and the release leaves it down — and closing that needs the
-backend's `drag` split so something outside it can release; that belongs to the guarded-drag
-contract and is not yet agreed.
+no ledger, so a return that leaves the gesture by a path it does not own — a panic unwinding past
+it — leaves it down; the guarded-drag contract proposes a ledger and a split of the backend's
+`drag` so something outside it can release, and both are proposed designs rather than agreed
+requirements. A ledger would have the same hard edge the chord's has: it lives inside the runner,
+so it reaches ordinary returns and the unwinding where deferred code still runs, and nothing in a
+terminated process runs at all. Recovering from a kill needs an owner that outlives the runner and
+is outside this.
 
 Review of that found three more, and two of them were in the half the extraction does not reach.
 The **warning channel ended at the keyboard**: `Host.NotReleased` is the account a cancelled run
