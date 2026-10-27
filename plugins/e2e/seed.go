@@ -65,7 +65,14 @@ type seededRoutine struct {
 	// asked for rather than whatever simplify made of the events.
 	chord string
 	// held is the key a hold-seeded routine keeps down across a press, empty otherwise.
-	held     string
+	held string
+	// buttons is which button each press used, one per control, in the same order.
+	//
+	// Kept because a scenario about a right or middle press has to say which button it
+	// asked for, and a routine's own demonstration is the only honest source for that:
+	// a scenario holding the word itself would be comparing the fixture's log with its
+	// own opinion rather than with what was demonstrated.
+	buttons  []string
 	window   rect
 	dpi      int
 	contract string
@@ -86,8 +93,38 @@ type seededRoutine struct {
 func seedPresses(f *fixtureRun, art *artifacts, name string, gap time.Duration,
 	controls ...string) (seededRoutine, error) {
 
-	s := seededRoutine{name: name, controls: controls}
-	if len(controls) == 0 {
+	with := make([]demonstratedPress, 0, len(controls))
+	for _, c := range controls {
+		with = append(with, demonstratedPress{control: c, button: "left"})
+	}
+	return seedButtonPresses(f, art, name, gap, with...)
+}
+
+// demonstratedPress is one press of a seeded demonstration: what it lands on and which button
+// went down on it.
+type demonstratedPress struct {
+	control string
+	button  string
+}
+
+// seedButtonPresses is `seedPresses` with the button said out loud.
+//
+// ONE BUILDER FOR EVERY PRESS, which is the whole point of putting it here rather than beside the
+// scenarios that need it. The recorder measures a right press exactly as it measures a left one —
+// `newClick` takes the button as a parameter and reads the window the same way for all three —
+// so a seeding that built non-left presses its own way would be describing a stream the recorder
+// does not produce, and every scenario resting on it would be testing the harness. That mistake
+// has been made twice in this file, both times by stamping a drag's edges differently from the
+// recorder.
+func seedButtonPresses(f *fixtureRun, art *artifacts, name string, gap time.Duration,
+	with ...demonstratedPress) (seededRoutine, error) {
+
+	s := seededRoutine{name: name}
+	for _, p := range with {
+		s.controls = append(s.controls, p.control)
+		s.buttons = append(s.buttons, p.button)
+	}
+	if len(with) == 0 {
 		return s, fmt.Errorf("a seeded routine has to press something")
 	}
 	if err := s.measure(f); err != nil {
@@ -106,15 +143,16 @@ func seedPresses(f *fixtureRun, art *artifacts, name string, gap time.Duration,
 	t0 := time.Now().Add(-time.Minute)
 	events := []recorder.RecordedEvent{{Kind: recorder.EvAppSwitch, KeyName: app, T: t0}}
 	at := t0.Add(400 * time.Millisecond)
-	for _, p := range s.at {
+	for i, p := range s.at {
 		x, y := p[0], p[1]
+		button := s.buttons[i]
 		events = append(events,
-			recorder.RecordedEvent{Kind: recorder.EvClick, Button: "left",
+			recorder.RecordedEvent{Kind: recorder.EvClick, Button: button,
 				Down: true, X: x, Y: y,
 				App: app, PID: f.pid, RelTo: macroir.RelToWindow,
 				RelX: x - left, RelY: y - top, WinRel: true,
 				WinW: w, WinH: h, Dpi: dpi, Process: image, T: at},
-			recorder.RecordedEvent{Kind: recorder.EvClick, Button: "left",
+			recorder.RecordedEvent{Kind: recorder.EvClick, Button: button,
 				Down: false, X: x, Y: y,
 				App: app, PID: f.pid, T: at.Add(40 * time.Millisecond)})
 		at = at.Add(gap)
@@ -123,7 +161,33 @@ func seedPresses(f *fixtureRun, art *artifacts, name string, gap time.Duration,
 	if err := s.save(art, events); err != nil {
 		return s, err
 	}
+	if err := s.buttonsReachedTheFile(); err != nil {
+		return s, err
+	}
 	return s, nil
+}
+
+// buttonsReachedTheFile is the precondition every seeding of a non-left press shares.
+//
+// A precondition and not a finding, the shape `seedDrag` uses and for the same reason: a
+// demonstration that came out as a LEFT press — which is what the generator did with every one of
+// these until a Point could carry a button — would make every assertion in the scenarios true of
+// a gesture nobody is testing, and they would pass. Read back off the file, because the file is
+// what runs; and asked by both seeders through one method, because the second one to be written
+// is where a precondition gets forgotten.
+func (s *seededRoutine) buttonsReachedTheFile() error {
+	for _, button := range s.buttons {
+		if button == "left" {
+			continue
+		}
+		if !strings.Contains(s.source, fmt.Sprintf("Button %q", button)) {
+			return fmt.Errorf("the seeded demonstration of a %s press did not "+
+				"come out as one: the saved routine states no %s button, so "+
+				"it would be performed as a left press:\n%s", button, button,
+				s.source)
+		}
+	}
+	return nil
 }
 
 // measure is where the fixture's window is, by both accounts, and what its program is called.
@@ -447,22 +511,26 @@ func haveOf(src string, want ...string) string {
 // precisely the thing that was wrong. So the events are a modifier down, a press, and a modifier
 // up, exactly as the hooks would have left them, and what comes out is checked against the
 // gesture that was asked for.
-func seedModifierClick(f *fixtureRun, art *artifacts, name, mod string,
+// `button` is which button the press INSIDE the hold uses. The one in front is always left: it
+// is there to put the keyboard in the application, not to be the gesture under test, and a
+// scenario that varied it would be varying its own precondition.
+func seedModifierClick(f *fixtureRun, art *artifacts, name, mod, button string,
 	first, second string) (seededRoutine, error) {
 
-	s := seededRoutine{name: name, controls: []string{first, second}, held: mod}
+	s := seededRoutine{name: name, controls: []string{first, second}, held: mod,
+		buttons: []string{"left", button}}
 	if err := s.measure(f); err != nil {
 		return s, err
 	}
 	press := func(i int, at time.Time) []recorder.RecordedEvent {
 		x, y := s.at[i][0], s.at[i][1]
 		return []recorder.RecordedEvent{
-			{Kind: recorder.EvClick, Button: "left", Down: true, X: x, Y: y,
+			{Kind: recorder.EvClick, Button: s.buttons[i], Down: true, X: x, Y: y,
 				App: s.app, PID: f.pid, RelTo: macroir.RelToWindow,
 				RelX: x - s.window.X, RelY: y - s.window.Y, WinRel: true,
 				WinW: s.window.W, WinH: s.window.H, Dpi: s.dpi,
 				Process: s.image, T: at},
-			{Kind: recorder.EvClick, Button: "left", Down: false, X: x, Y: y,
+			{Kind: recorder.EvClick, Button: s.buttons[i], Down: false, X: x, Y: y,
 				App: s.app, PID: f.pid, T: at.Add(40 * time.Millisecond)},
 		}
 	}
@@ -517,6 +585,9 @@ func seedModifierClick(f *fixtureRun, art *artifacts, name, mod string,
 		strings.Contains(s.source, "do OS's Key with \""+mod+"+") {
 		return s, fmt.Errorf("the seeded demonstration came out as a chord rather than "+
 			"a hold:\n%s", s.source)
+	}
+	if err := s.buttonsReachedTheFile(); err != nil {
+		return s, err
 	}
 	return s, nil
 }

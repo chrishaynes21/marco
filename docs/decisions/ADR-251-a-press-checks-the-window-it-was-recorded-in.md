@@ -533,9 +533,12 @@ there IS matching to do, and refusing there would refuse to go looking.
   — the same host, the same rejection, the other contract, asserting the press after the key was
   still attempted rather than merely that no error came back. A simulated host inside one package
   cannot establish that a reason reaches the window; the command's error is the wire.
-- `plugins/studio` `TestARecordingWithAStepThatCannotBeStoppedAtIsNotSaved`,
-  `TestAnOrdinaryRecordingIsSavedWithoutComplaint`,
-  `TestARightClickInALegacyRecordingIsStillSaved`.
+- `plugins/studio` `TestAnOrdinaryRecordingIsSavedWithoutComplaint`,
+  `TestARightClickInALegacyRecordingIsStillSaved`. A third test stood here, posed with a
+  right-click and a middle-click, and it asserts the opposite now, under a name of its own: see
+  [[ADR-260-a-press-is-a-button-and-a-place]], which did not change this decision. A press that
+  cannot be stopped at is still refused before Save, and a right press is no longer one of them;
+  Studio's remaining case of that refusal is `TestADragMissingAMeasurementIsNamedAtReview`.
 - `internal/simplify` `TestGuardedPressesAreNotFoldedIntoARepeat`,
   `TestUnmeasuredPressesAreStillFolded`.
 - `plugins/studio` `TestAGuardedRecordingIsSavedToBringItsApplicationForward`,

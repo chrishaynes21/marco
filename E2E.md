@@ -1583,6 +1583,18 @@ invisible to a green suite, and so was the stale window that hid its fix.
 > raise Studio's button makes — and Studio's Stop button stays covered by the hold scenario, which
 > lasts long enough to afford the press.
 >
+> And **four button scenarios**: a right and a middle press arriving as themselves, a right press
+> following an app that moved, a resized app refusing one with nothing sent, and a Ctrl-held right
+> press arriving with Ctrl held. **They ran green on 2026-10-27**, 4 of 4 on the first run, and
+> `plugins\e2e\run.cmd -only button` runs just those four.
+>
+> What they rest on is the fixture's own log, and it has to be: nothing inside Marco knows which
+> button went down. `SendInput` with the wrong flag is a successful send, so a left press
+> delivered where a right one was demonstrated is a run that worked by every account Marco has.
+> The application's own counters cannot help either — a WinForms button raises Click for a left
+> press and not for the other two — so the count that corroborates every left-handed scenario here
+> is silent for these on purpose.
+>
 > Two things it does deliberately, worth knowing if you read its output: a scenario that could not
 > ask its question is **NOT RUN and not a pass** — a partial run never exits 0 — and before any
 > scenario claims that nothing arrived, the fixture is asked, from inside its own message loop,

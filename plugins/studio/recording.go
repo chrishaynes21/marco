@@ -192,11 +192,11 @@ type Recording struct {
 	// Unsupported says this recording cannot be saved as a routine at all, and why.
 	//
 	// Different from Incomplete, which is a routine that saves and then refuses: this one
-	// does not save. A step whose failure cannot be made to stop the routine — a
-	// right-click, a drag — would leave whatever follows it running after a press that
-	// did not happen, which is the guard's promise broken by the one step nobody could
-	// wrap. Said here because a generator error arriving at a button press is a worse way
-	// to learn it.
+	// does not save. A step whose failure cannot be made to stop the routine — a press
+	// found by matching a picture, a repeated block — would leave whatever follows it
+	// running after a press that did not happen, which is the guard's promise broken by
+	// the one step nobody could wrap. Said here because a generator error arriving at a
+	// button press is a worse way to learn it.
 	Unsupported string `json:"unsupported,omitempty"`
 }
 
@@ -517,11 +517,18 @@ func (a *Acts) Recording() Recording {
 	}
 	// AND WHETHER IT CAN BE SAVED AT ALL. Before Save, for the same reason as above.
 	if why := codegen.Unpropagatable(dr.Steps); why != "" {
+		// WHAT TO DO INSTEAD IS NOT SPELT OUT ANY MORE, and that is the honest shape
+		// of it. It used to end "record it again using ordinary left-clicks and the
+		// keyboard", which named the wrong thing even then — a right-click was on the
+		// list and left-clicks were the advice — and right and middle presses are
+		// saved now. What remains unsaveable is a press found by matching a picture or
+		// by reading words, and a repeated block, and none of those is a hand
+		// somebody chose to use: telling them to click differently would send them to
+		// change the one thing that is not the problem.
 		out.Unsupported = fmt.Sprintf("This recording contains %s. A routine whose "+
 			"presses are checked against the window they were made in has to "+
 			"stop when one of them does not happen, and this version cannot "+
-			"make %s do that — so it cannot be saved yet. Record it again "+
-			"using ordinary left-clicks and the keyboard.", why, why)
+			"make %s do that — so it cannot be saved yet.", why, why)
 	}
 	// AND HOW IT WILL BE PERFORMED, when that is not a choice. See Recording.Scope.
 	if only := orchestrator.ScopeFor(dr); only != "" {

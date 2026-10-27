@@ -133,7 +133,7 @@ func played(t *testing.T, at string) (*recBackend, *Host, string) {
 // the one thing that has to be able to fail before any press is reached.
 func playedPreparing(t *testing.T, at string, bind func(string) (uintptr, error)) (*recBackend, *Host, string) {
 	t.Helper()
-	onADesktopLike(t, steady(sameWindowMoved), "arkascended.exe")
+	onADesktopLike(t, steady(playedOnTheDesktop), "arkascended.exe")
 	wasBind, wasLog := bindWindow, mlog.Default
 	t.Cleanup(func() { bindWindow, mlog.Default = wasBind, wasLog })
 	// ACTIVATE SUCCEEDS AND BINDS THE GAME'S WINDOW, so a press is refused for the
@@ -284,6 +284,15 @@ func TestAContextScopedRecordingHasNoWindowToCheckAgainst(t *testing.T) {
 		})
 	}
 }
+
+// playedOnTheDesktop is the window a played run finds in front of it.
+//
+// A var for the reason `refuseSendsFrom` below is one. Every case this helper was written for
+// changes the RECORDING — a measurement that did not arrive — so the desktop was a healthy
+// window written in here, and a case about a window that CHANGED could not be posed through it
+// at all: installing one before the call is undone by the call itself. See
+// TestANonLeftPressIntoAWindowOfAnotherSizeSendsNothing, which is that case.
+var playedOnTheDesktop = sameWindowMoved
 
 // refuseSendsFrom is which input send the machine starts rejecting at, for the one case that is
 // about delivery rather than about checking. 0 — the ordinary case — means it takes everything.

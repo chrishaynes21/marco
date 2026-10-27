@@ -971,54 +971,72 @@ func recorded(t *testing.T, lose func(*recorder.RecordedEvent)) *Acts {
 	return a
 }
 
-// A RECORDING WITH A STEP THAT CANNOT BE STOPPED AT IS NOT SAVED, AND SAYS SO FIRST.
+// A RIGHT OR MIDDLE PRESS IS SAVED, AND THE REVIEW SAYS WHICH BUTTON IT IS.
 //
-// A routine whose presses are checked has to stop when one of them does not happen, and the chain
-// that makes that true works by wrapping ONE `do` sentence in arms that both end. A right-click
-// is an aim and then a press: wrap the aim and the press is still unwrapped, so a press the
-// machine refused would be followed by the next step anyway — the guard's promise broken by the
-// one step nobody could wrap. A drag is checked against nothing at all.
+// THIS TEST USED TO ASSERT THE OPPOSITE, and what changed is the generator rather than the
+// standard. A guarded routine has to stop when a press does not happen, and the chain that makes
+// that true wraps ONE `do` sentence in arms that both end — so a press emitted as an aim and then
+// a click at the cursor had nothing to wrap, and Studio refused the recording before Save with a
+// sentence naming the button. The Point carries the button now: one sentence, one guard, one
+// failure for the arm to stop at.
 //
-// So it is refused, and refused HERE rather than at the button: a generator error arriving when
-// somebody presses Save is a worse way to learn it. Supporting it would need a button beside the
-// point, which is a permanent word in the language for a case no recording has needed yet.
-func TestARecordingWithAStepThatCannotBeStoppedAtIsNotSaved(t *testing.T) {
-	for _, c := range []struct {
-		what string
-		make func(*recorder.RecordedEvent)
-		says string
-	}{
-		{"a right-click", func(e *recorder.RecordedEvent) { e.Button = "right" },
-			"a right-click"},
-		{"a middle-click", func(e *recorder.RecordedEvent) { e.Button = "middle" },
-			"a middle-click"},
-	} {
-		t.Run(c.what, func(t *testing.T) {
+// What the window owes somebody is unchanged and is what is asserted here: the review says what
+// each press IS, because "click at 722, 210 in the window" for a right-click would be a review of
+// a routine they are not about to save. And the saved file carries the button beside the place
+// with the window terms intact, which is what makes it the guarded contract rather than a legacy
+// press that happens to name a button.
+func TestARightOrMiddlePressIsSavedAndTheReviewSaysWhichButton(t *testing.T) {
+	for _, button := range []string{"right", "middle"} {
+		t.Run(button, func(t *testing.T) {
 			t.Setenv("MARCO_CV", "off")
 			t.Setenv("MARCO_ROUTES", t.TempDir())
-			a := recorded(t, c.make)
+			a := recorded(t, func(e *recorder.RecordedEvent) { e.Button = button })
 
 			r := a.Recording()
-			if !strings.Contains(r.Unsupported, c.says) {
-				t.Errorf("review says %q and does not name what cannot be "+
-					"stopped at", r.Unsupported)
+			if r.Unsupported != "" {
+				t.Errorf("the window says a %s press cannot be saved: %s",
+					button, r.Unsupported)
 			}
-			if !strings.Contains(r.Unsupported, "cannot be saved yet") {
-				t.Errorf("review says %q and does not say it cannot be "+
-					"saved", r.Unsupported)
+			if r.Incomplete {
+				t.Errorf("the window says it will not run: %s", r.Missing)
 			}
-			// AND SAVE REFUSES IT, so the page not offering the button is the
-			// second line of defence rather than the only one.
-			why := a.SaveDraft("app-anywhere", "arkascended")
-			if why == "" {
-				t.Fatal("it was saved, so a press after one the machine " +
-					"refused would happen anyway")
+			// THE REVIEW NAMES THE BUTTON, in the line for that press.
+			said := strings.Join(r.Steps, " | ")
+			if !strings.Contains(said, button+"-click at 722, 210 in the window") {
+				t.Errorf("the review reads %q, and does not say the press is "+
+					"a %s one at the place it was measured", said, button)
 			}
-			if !strings.Contains(why, c.says) {
-				t.Errorf("the refusal says %q", why)
+			// AND IT SAVES, and what was written is a guarded press of that
+			// button: the button beside the place, with the window it was
+			// measured in. Read off the file, because the file is the only
+			// thing that runs.
+			if why := a.SaveDraft("app-anywhere", "arkascended"); why != "" {
+				t.Fatalf("a %s press was refused: %s", button, why)
 			}
-			if a.Recording().Saved != "" {
-				t.Error("something was written anyway")
+			at := a.Recording().Saved
+			if at == "" {
+				t.Fatal("nothing was written")
+			}
+			src, err := os.ReadFile(at)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, want := range []string{
+				"Button \"" + button + "\"",
+				"RelX 722", "RelTo \"window\"", "WinW", "Dpi", "Process",
+			} {
+				if !strings.Contains(string(src), want) {
+					t.Errorf("the saved routine does not state %q:\n%s",
+						want, src)
+				}
+			}
+			// AND THE CONTRACT IT IS READ BACK AS IS THE GUARDED ONE, which is
+			// the word Studio prints on the card and `marco do` records. A new
+			// guarded shape that read back as legacy would be described to a
+			// person as a press that checks nothing — which is what happened
+			// to the first guarded drag.
+			if got, _ := orchestrator.ContractOf(string(src)); got != orchestrator.Guarded {
+				t.Errorf("a saved %s press reads back as %q", button, got)
 			}
 		})
 	}

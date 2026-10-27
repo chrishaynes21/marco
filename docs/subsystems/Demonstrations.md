@@ -129,7 +129,9 @@ that control, though a saved play still cannot say it (`cannot_say_pointer`, fol
   handler is compulsory in Marco and a routine that did not happen therefore ends tidily — and the
   account covers a press the machine would not DELIVER as well as one it could not check, which
   are the same outcome and were not the same record. A step whose failure cannot stop the routine
-  — a non-left press — is refused at generation and said at review. **A KEYSTROKE IS A
+  is refused at generation and said at review — a press found by matching a picture or by reading
+  words, and a repeated block; a non-left press was on that list until
+  [[ADR-260-a-press-is-a-button-and-a-place]]. **A KEYSTROKE IS A
   LINK TOO**, and not because anything checks it: it is a link because it can fail to be
   DELIVERED, and what follows it then acts on a screen the key never changed — an Escape that did
   not arrive leaves the menu open, and geometry cannot detect that, because the window is the same
@@ -192,6 +194,26 @@ that control, though a saved play still cannot say it (`cannot_say_pointer`, fol
   than re-bases. Cleanup is a defer inside the gesture that ARMS ON AN ACCEPTED PRESS and not on
   entry, so a panic during the aim reports nothing; a ledger would only buy the sweep's second
   attempt, and forced termination is outside all of it
+- [[ADR-260-a-press-is-a-button-and-a-place]] — and the press that mechanism refused to save, for
+  the same kind of reason one slice later. A right or middle press was refused because it was an
+  aim and then a click at the cursor: two sentences, where a chain can only stop at one. That
+  described the EMISSION. The recorder had measured these all along — `newClick` takes the button
+  as a parameter and reads the window the same way for all three — and what was missing was
+  somewhere in the saved route to put the button. `Point` carries `Button` now, absent meaning
+  left so that not one saved file changes, and it sits with the COORDINATES rather than among the
+  window terms because nothing about it is compared with the desktop: the contract reader's list
+  of terms is unchanged by it, so a right press reads back as guarded with no new shape for any
+  reader to learn. A host-module change and not a Core one. AN UNKNOWN BUTTON NAME IS NOW A
+  REFUSAL, which is a defect this found rather than one it introduced: the flag lookup answered
+  LEFT for anything it did not recognise, so a route naming a button that does not exist pressed
+  the left one at a correctly guarded point — every safeguard doing its whole job while the act
+  was the wrong act. It is asked FIRST, before the window, because a button nothing can press is a
+  fact about the route and not about the desktop. AND THE PRESS READS THE STOP, TWICE, HAVING
+  READ IT NOWHERE: on entry, so a stopped run neither presses nor interrogates a desktop it was
+  never going to press in, and again immediately before the button goes down, because confirming
+  the window takes time of its own and whatever is last before the press is what has to be read
+  there. A press that measured nothing is unchanged, Director's own lowering is unchanged, and no
+  saved routine is regenerated
 - [[ADR-058-a-demonstrated-target-may-keep-its-name]]
 - [[ADR-074-one-demonstration-every-leg-reviewed]] — every leg of one demonstration is reviewed,
 - [[ADR-075-a-learn-episode-outlives-its-sessions]] — session boundaries are not Audience workflow

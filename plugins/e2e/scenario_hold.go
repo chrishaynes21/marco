@@ -460,7 +460,7 @@ func aCtrlHeldClickArrivesWithCtrlHeld(w *world) result {
 
 	st, err := setUpSeeded(w, func(f *fixtureRun) (seededRoutine, error) {
 		return seedModifierClick(f, w.art, "fixture modifier click",
-			theHeldModifier.name, "Name", "Save")
+			theHeldModifier.name, "left", "Name", "Save")
 	})
 	if err != nil {
 		return ending(started, err)

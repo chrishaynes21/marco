@@ -305,8 +305,27 @@ func (p *points) addRel(x, y int, in macroir.Step) string {
 		rel = fmt.Sprintf(", RelX %d, RelY %d", in.RelX, in.RelY)
 	}
 	p.decls = append(p.decls, fmt.Sprintf(
-		"the %s is a Point with X %d, Y %d%s%s.", name, x, y, rel, measured(in)))
+		"the %s is a Point with X %d, Y %d%s%s%s.", name, x, y, buttonTerm(in),
+		rel, measured(in)))
 	return name
+}
+
+// buttonTerm is the button a press uses, as a Point field, and "" for a left-handed one.
+//
+// WRITTEN ONLY WHEN IT IS NOT LEFT, which is not tidiness. Every Point ever generated is a
+// left-click and says nothing about a button; writing `Button "left"` onto them would change the
+// text of every guarded routine in existence for no change in meaning, and each of those files is
+// something somebody can read and diff. Silence already means left, in the host and in os.marco.
+//
+// It goes beside the COORDINATES rather than among the window terms because it is not a
+// measurement: nothing about it is compared with the desktop before pressing, and the contract
+// reader's list of terms a guarded press must state is unchanged by it. Same place `Drag` has
+// carried its button since it existed.
+func buttonTerm(s macroir.Step) string {
+	if s.Button == "" || s.Button == "left" {
+		return ""
+	}
+	return fmt.Sprintf(", Button %q", s.Button)
 }
 
 // measured is the window a press was made in, as Point fields, or "" for a point that is about no
@@ -379,10 +398,24 @@ func (g *gen) dragSet(s macroir.Step) (name, decl string) {
 // not be measured in it came out as a bare absolute point — indistinguishable from a route saved
 // before any of this existed, and pressed with the same unchecked trust.
 func (p *points) clickPoint(s macroir.Step) string {
-	if s.WinRel || s.RelTo != "" {
+	if aboutAPlaceInAWindow(s) {
 		return p.addRel(s.X, s.Y, s)
 	}
 	return p.add(s.X, s.Y)
+}
+
+// aboutAPlaceInAWindow reports whether a press knows where in a window it goes — either because
+// it states the window it was measured in, or because it carries an offset into one.
+//
+// ONE PREDICATE AND TWO CALLERS, which is the point of it. `clickPoint` asks it to choose between
+// the window-relative Point and a bare absolute one; `emit` asks it to choose between a Point and
+// the button alone, which presses wherever the cursor is. Those are the same question — does this
+// press know a place — and they were the same question written twice, in opposite directions, one
+// of them by hand for a button. Written twice they can disagree: a non-left press that knew its
+// offset would have gone to the cursor while the left press beside it went to the offset, for no
+// reason either file states.
+func aboutAPlaceInAWindow(s macroir.Step) bool {
+	return s.WinRel || s.RelTo != ""
 }
 
 // emit renders steps at the given indent depth.
@@ -397,7 +430,16 @@ func emit(steps []macroir.Step, g *gen, depth int) (string, error) {
 			switch {
 			case len(s.Template) > 0 || s.AnchorText != "":
 				g.emitAnchoredClick(&b, s, depth) // image/colour gate and/or text locator
-			case s.Button != "" && s.Button != "left":
+			case s.Button != "" && s.Button != "left" &&
+				!aboutAPlaceInAWindow(s):
+				// A PRESS THAT KNOWS NO PLACE KEEPS THE FORM IT HAS ALWAYS
+				// HAD: the button alone, pressed where the cursor is. Every
+				// legacy route says this and means it, and the contract it
+				// was saved under is that a click is attempted and the run
+				// carries on. A press that knows a place falls through to
+				// the Point below, which carries the button WITH it —
+				// including one that knows an offset and no window, which
+				// is what the left button beside it has always done.
 				fmt.Fprintf(&b, "%sdo OS's Click with %q.\n", pad, s.Button)
 			default:
 				name := g.pts.clickPoint(s)
@@ -784,11 +826,15 @@ type link struct {
 // in. It is the only thing that turns a route into a chain.
 // It asks whether a press ASKED to be checked, and not whether this can wrap it. Those came out
 // as one question first, and that was a hole with the shape of every other hole here: a recording
-// whose only press was a right-click had no step this could wrap, so it was not a guarded route,
-// so the refusal below never fired and it was generated as an ordinary block — a press that
-// declared the window it was made in, pressed without any of it being looked at. Whether a
-// demonstration asked for the contract and whether this version can honour it are two questions,
-// and conflating them answers "no" to the first whenever the second is "no".
+// whose only press was one this version could not wrap had no step to find, so it was not a
+// guarded route, so the refusal below never fired and it was generated as an ordinary block — a
+// press that declared the window it was made in, pressed without any of it being looked at.
+// Whether a demonstration asked for the contract and whether this version can honour it are two
+// questions, and conflating them answers "no" to the first whenever the second is "no".
+//
+// The press that found it was a RIGHT-CLICK, which is now wrapped like any other; the hole it
+// found is not about any particular step, and the list of steps this cannot wrap has only ever
+// got shorter.
 func guardsAnything(steps []macroir.Step) bool {
 	for _, s := range steps {
 		if s.RelTo != "" {
@@ -825,10 +871,6 @@ func guardedStep(s macroir.Step) bool {
 //
 // Each of these could be supported and none is supported now:
 //
-//   - a NON-LEFT CLICK is an aim and then a press. Wrapping the aim leaves the press
-//     unwrapped, and the press is the thing that acts. One guarded operation would need a
-//     button beside the point — a permanent word in the language for a case the owner's
-//     recordings have not needed yet, so it waits for a recording that needs it.
 //   - an ANCHORED press is a ladder of locators with a click in each arm.
 //   - a REPEATED block runs its body again, which is the one thing a stop cannot survive.
 //
@@ -853,8 +895,6 @@ func cannotPropagate(s macroir.Step) string {
 		return "a press found by matching a picture"
 	case s.Kind == macroir.StepClick && s.AnchorText != "":
 		return "a press found by reading words on the screen"
-	case s.Kind == macroir.StepClick && s.Button != "" && s.Button != "left":
-		return "a " + s.Button + "-click"
 	case s.Kind == macroir.StepDrag && s.RelTo != "" && !s.WinRel:
 		// THE BASIS WITHOUT THE OFFSETS. `simplify` writes exactly this when a
 		// drag's two edges agreed about the window and a measurement would not
@@ -936,7 +976,7 @@ func (g *gen) propagating(s macroir.Step) (guard, follow string, ok bool) {
 		return "OS's Move with " + g.pts.clickPoint(s), "", true
 	case s.Kind == macroir.StepDrag:
 		// A DRAG IS ONE SENTENCE, which is the whole reason it can be here and the
-		// reason a non-left click and an anchored press cannot.
+		// reason an anchored press cannot.
 		//
 		// Its declaration goes in `before` rather than beside the action, because that
 		// is where a link's own locals belong: the set is declared inside the capability
@@ -952,18 +992,15 @@ func (g *gen) propagating(s macroir.Step) (guard, follow string, ok bool) {
 		name, decl := g.dragSet(s)
 		g.pts.decls = append(g.pts.decls, decl)
 		return "OS's Drag with " + name, "", true
-	case s.Button != "" && s.Button != "left":
-		// A press that is not left-handed is an AIM and then a press, and the aim is
-		// what carries the window — the click that follows takes the cursor's
-		// position. So the Move is what gets checked and what stops the routine, and
-		// the button press belongs with it once it has gone through.
-		//
-		// It also used to be emitted with no point at all, which sent a recorded
-		// right-click to wherever the cursor happened to be.
-		name := g.pts.clickPoint(s)
-		return "OS's Move with " + name,
-			fmt.Sprintf("do OS's Click with %q.\n", s.Button), true
 	default:
+		// EVERY PRESS, WHICHEVER BUTTON, IS THIS ONE SENTENCE.
+		//
+		// A right or middle press used to be refused here, and the refusal's reason
+		// was true of how it was GENERATED rather than of the press: an aim and then a
+		// click at the cursor is two sentences, and wrapping the first leaves the
+		// second — the one that acts — unwrapped. The Point carries the button now, so
+		// there is one operation to wrap, one thing to check before it, and one
+		// failure for the arm to stop at. See `buttonTerm`.
 		return "OS's Click with " + g.pts.clickPoint(s), "", true
 	}
 }

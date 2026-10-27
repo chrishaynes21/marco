@@ -42,9 +42,17 @@ this exports WindowState.   // maximise / minimise / restore a window: a WindowS
 // A Point that carries them asks the host to find that same window again and check it still
 // matches before pressing, rather than adding a remembered offset to whatever happens to be in
 // front. A Point without them is pressed the way Marco has always pressed one.
+//
+// Button is which button a press at this point uses — "left" when it says nothing, which is
+// every Point ever saved and every left-handed press generated since. A press is a button AND a
+// place, and it is ONE operation: an aim followed by a separate click would be a guarded move and
+// then a press at wherever the cursor is, with nothing checked between them and nothing to stop
+// the routine if the aim refused. `Drag` has carried its button for the same reason since it
+// existed. An unknown button name is REFUSED rather than pressed as a left-click.
 the Point is a set.
 this's X is a number.
 this's Y is a number.
+this's Button is a text.    // "left" | "right" | "middle" (default left)
 this's RelX is a number.    // the same place, measured inside the window
 this's RelY is a number.
 this's RelTo is a text.     // which rectangle RelX,RelY are measured from: "window"

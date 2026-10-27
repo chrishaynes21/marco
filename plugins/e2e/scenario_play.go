@@ -154,6 +154,56 @@ func scenarios() []scenario {
 				"pointer reached, not at the destination it was heading for",
 			run: aStoppedDragLetsGoWhereItGotTo,
 		},
+		// THE FOUR BUTTON SCENARIOS, which ran green on a desktop on 2026-10-27 and
+		// are ordinary members of every run from then on.
+		//
+		// They carried `onlyWhenAsked` until that run, for the reason the holds and the
+		// drags carried it: a scenario nobody has exercised must not turn the next
+		// ordinary run into a debugging session. The gate came off in the commit where
+		// they passed, which is the shape the holds set.
+		//
+		// THEY PASSED 4 OF 4 ON THE FIRST RUN, which the two families before them did
+		// not — the holds took two and the drags four. What that says is about the
+		// slice and not about the harness: the press, the guard, the window check, the
+		// stop and the fixture's own log were all exercised by this harness already,
+		// and what this contract added was a button on a Point. The arrangement was
+		// not new; the fact being asserted was.
+		//
+		// Under `button/` and never `window/`, although two of them are about a window
+		// that moved or was resized and that is how they want to be named. `-only
+		// window` is the guarded press's own regression gate; a right press filed
+		// there would be swept into every press change by a flag somebody typed for a
+		// different reason. The same reasoning as the drags, which is why their names
+		// say `app` where the geometry scenarios say `window`.
+		{
+			name:  "button/a right and a middle press arrive as themselves",
+			layer: layerDesktop,
+			about: "two presses, two buttons, two controls — each arriving as " +
+				"the button it was demonstrated with, by the application's " +
+				"own account of what it received",
+			run: aRightAndAMiddlePressArriveAsThemselves,
+		},
+		{
+			name:  "button/a moved app still gets the right press",
+			layer: layerDesktop,
+			about: "a guarded right press re-bases onto the window where it is " +
+				"now, and arrives as a right press",
+			run: aMovedWindowStillGetsTheRightPress,
+		},
+		{
+			name:  "button/a resized app refuses the right press, sending nothing",
+			layer: layerDesktop,
+			about: "a guarded right press refuses a window of another size, and " +
+				"the application receives nothing at all",
+			run: aResizedWindowRefusesTheRightPress,
+		},
+		{
+			name:  "button/a ctrl-held right press arrives with ctrl held",
+			layer: layerDesktop,
+			about: "a demonstrated Ctrl+right-click reaches the application as " +
+				"one, by its own reading of the keyboard, and lets go after",
+			run: aCtrlHeldRightPressArrivesWithCtrlHeld,
+		},
 		{
 			name:  "runs/two runs are two records",
 			layer: layerDesktop,

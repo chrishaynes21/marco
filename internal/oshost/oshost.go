@@ -222,9 +222,12 @@ func (h *Host) Invoke(c runtime.HostCall) (string, runtime.Value, error) {
 	case "click":
 		return h.doClick(c)
 	case "move":
-		// RESOLVED THE SAME WAY A CLICK IS, guard included. A right or middle
-		// click is a Move followed by a Click, so a guard that covered only the
-		// click would leave every press that is not left-handed unchecked.
+		// RESOLVED THE SAME WAY A CLICK IS, guard included. A Move is aiming,
+		// and a route that aims is a route about to press: a guard here is what
+		// stops a recorded Move from re-basing an offset onto a window nobody
+		// checked. A right or middle press no longer comes through here —
+		// it is one guarded `Click` carrying its own button — and this stays
+		// guarded for its own sake rather than as that press's only check.
 		x, y, present, why := h.clickTarget(c.Input)
 		if why != "" {
 			return fail(why)
@@ -1546,6 +1549,32 @@ func (h *Host) doName() (string, runtime.Value, error) {
 // doClick: a Point input moves there first; a text input names the button;
 // absent input clicks left at the current position.
 func (h *Host) doClick(c runtime.HostCall) (string, runtime.Value, error) {
+	// WHICH BUTTON, AND IT IS THE FIRST QUESTION ASKED.
+	//
+	// Before the window, because a button nothing can press is a fact about the ROUTE and
+	// not about the desktop: whatever is on screen, this press cannot be performed as it is
+	// written, and a refusal naming the window would send somebody to look at their
+	// application for a defect that is in a file.
+	button, why := pressButton(c.Input)
+	if why != "" {
+		mlog.Info("click: refused", "why", why)
+		// AND IT IS KEPT, like a press the guard refused. A routine that asked for a
+		// button this cannot press did not do what it was asked, and `marco do` reads
+		// that account rather than the output. Without it the step fails, the chain's
+		// own arm ends the routine, and the COMMAND reports success.
+		h.didNotDo(why)
+		return fail(why)
+	}
+	// NOTHING IS PRESSED BY A RUN THAT HAS ALREADY STOPPED, and this is the first of two
+	// places that says so.
+	//
+	// Here for `doKeyDown`'s reason — it holds for every backend, including the ones a test
+	// can drive, so "a stopped run presses nothing" is a claim about the host rather than
+	// about Windows — and for one of its own: everything below this reads the live desktop,
+	// so a stopped run that got past here would be told its window had changed.
+	if err := c.Ctx.Err(); err != nil {
+		return fail(err.Error())
+	}
 	x, y, present, why := h.clickTarget(c.Input)
 	// THE REFUSAL IS THE OUTCOME, and it says which term disagreed. A guarded press
 	// that could not be checked does not quietly become an unguarded one.
@@ -1553,8 +1582,18 @@ func (h *Host) doClick(c runtime.HostCall) (string, runtime.Value, error) {
 		mlog.Info("click: refused", "why", why)
 		return fail(why)
 	}
+	// ── AND THE STOP AGAIN, IMMEDIATELY BEFORE THE BUTTON GOES DOWN ──
+	//
+	// Because the check above TAKES TIME: it reads a rectangle, a scale and a program name
+	// off a live desktop, and a stop raised while it ran would have found nothing between
+	// its own answer and the press. That is the ordering ADR-259 settled for a drag, and
+	// the press had no second reading at all — whatever is last before the press is what
+	// has to be read there.
+	if err := c.Ctx.Err(); err != nil {
+		return fail(err.Error())
+	}
 	if present {
-		mlog.Debug("click: at point", "x", x, "y", y, "button", "left")
+		mlog.Debug("click: at point", "x", x, "y", y, "button", button)
 		// Position and click in ONE atomic SendInput batch (move+down+up, all carrying
 		// the absolute target). A separate SetCursorPos-then-click races: the injected
 		// down/up can register before the move settles (a game's raw-input loop, an
@@ -1563,12 +1602,11 @@ func (h *Host) doClick(c runtime.HostCall) (string, runtime.Value, error) {
 		// AND A DELIVERY FAILURE IS KEPT. The guard passing and the machine then
 		// refusing the input are the same thing from where a person is standing:
 		// the press did not happen. See `Unperformed`.
-		return h.delivered(fmt.Sprintf("a press at %d,%d", x, y),
-			h.b.clickAt(c.Ctx, "left", x, y))
-	}
-	button := "left"
-	if t := c.Input.AsText(); t != "" {
-		button = t
+		// AND THE ACCOUNT NAMES THE BUTTON. A record that called every press "a
+		// press" would describe a right-click that did not happen as a click that
+		// did not happen, and those are two different things to have missed.
+		return h.delivered(fmt.Sprintf("a %s press at %d,%d", button, x, y),
+			h.b.clickAt(c.Ctx, button, x, y))
 	}
 	mlog.Debug("click: at cursor", "button", button)
 	return h.delivered("a "+button+" press where the cursor is",
@@ -1663,6 +1701,46 @@ func ok(err error) (string, runtime.Value, error) {
 
 func fail(msg string) (string, runtime.Value, error) {
 	return "failed", runtime.ErrVal(&runtime.Err{Message: msg}), nil
+}
+
+// pressButton is which button a press uses, or the refusal when it names one nothing can press.
+//
+// # Why an unknown name is a refusal
+//
+// Because the alternative is what this used to do, one layer down: `mouseButtonFlags` answers
+// LEFT for anything it does not recognise, so a route asking for a button that does not exist —
+// a hand-edited file, a typo, a term from some future recorder — sent a LEFT click at the target
+// instead. A press at the right place with the wrong button is a different act in most
+// applications: one opens a menu and the other chooses something in it. "Could not tell which
+// button" is not "left".
+//
+// # Two shapes of input, and the same question of both
+//
+// A Point carrying `Button` is the guarded form: one operation, a place and a button together.
+// A bare TEXT is the form every legacy route uses — `do OS's Click with "right"` — which clicks
+// wherever the cursor happens to be and is what a recording that measured nothing still
+// produces. Both name a button and both are checked here, so a route cannot reach the machine
+// with a button name nobody read.
+func pressButton(v runtime.Value) (button, why string) {
+	name := ""
+	if set := v.AsSet(); set != nil {
+		name = strings.TrimSpace(textOf(set, "Button"))
+	} else {
+		name = strings.TrimSpace(v.AsText())
+	}
+	if name == "" {
+		// SILENT MEANS LEFT, and that is the whole of the compatibility promise: every
+		// Point ever saved carries no button, and every one of them is a left-click.
+		return "left", ""
+	}
+	switch lower := strings.ToLower(name); lower {
+	case "left", "right", "middle":
+		return lower, ""
+	default:
+		return "", fmt.Sprintf("this press asks for the %q button and a press can use "+
+			"three — left, right and middle — so it cannot be performed as it is "+
+			"written", name)
+	}
 }
 
 // clickTarget reads a click's target pixel from its Point. The DEFAULT is the

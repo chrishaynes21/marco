@@ -354,6 +354,48 @@ nothing:
 
 See [[ADR-259-a-guarded-drag-is-two-points-in-one-window]].
 
+## And four button scenarios, run green on a desktop the day they were written
+
+| | |
+|---|---|
+| `button/a right and a middle press arrive as themselves` | two presses, two buttons, two controls, each arriving as the button it was demonstrated with |
+| `button/a moved app still gets the right press` | a guarded right press re-bases onto the window where it is now, and is still a right press when it lands |
+| `button/a resized app refuses the right press, sending nothing` | the routine refuses before the button goes down, so the application receives nothing at all |
+| `button/a ctrl-held right press arrives with ctrl held` | a demonstrated Ctrl+right-click reaches the application as one, by its own reading of the keyboard, and lets go after |
+
+**All four ran green on 2026-10-27** (`plugins\e2e\run.cmd -only button`, 4 of 4, exit 0), so they
+are ordinary members of a default run from then on and `onlyWhenAsked` is off them. They carried
+it until that run for the holds' and the drags' reason — a scenario nobody has exercised must not
+turn the next ordinary run into a debugging session — and the gate came off in the commit where
+they passed, with `TestTheButtonScenariosRunLikeAnyOther` asserting the inverse by name.
+
+**They passed 4 of 4 on the first run**, which the two families before them did not: the holds
+took two runs and the drags four. That is a fact about the slice rather than about the harness.
+Everything the arrangement needed — the press, the guard, the window check, the stop, the drain
+barrier, the fixture's log — was already exercised here; what the contract added was a button on
+a Point.
+
+They are filed under `button/` and never `window/`, although two of them are about a window that
+moved or was resized — `-only window` is the guarded press's own regression gate, and a right
+press filed there would be swept into every press change by a flag somebody typed for a different
+reason. The drags' reasoning, which is why their names say `app` where the geometry scenarios say
+`window`.
+
+**Why the fixture's log is the whole evidence here.** No account inside Marco knows which button
+went down. The run record says a routine performed and the host's own count says how many input
+actions it asked the machine for; `SendInput` with the wrong flag is a successful send. So a left
+press delivered where a right one was demonstrated is, from every account Marco has, a run that
+worked — and the application's log of what it RECEIVED is the only thing that can tell them apart.
+
+**And the application's own state cannot corroborate them.** `save_presses` is the fixture's count
+of its Save button being CLICKED, which WinForms raises for a left press and not for the other
+two. The oracle that confirms every left-handed scenario in this harness is therefore silent for
+these BY DESIGN: asserting it would be asserting something that cannot change, and asserting its
+absence would be asserting that WinForms is WinForms. Each scenario says so where it uses the log
+instead.
+
+See [[ADR-260-a-press-is-a-button-and-a-place]].
+
 ## The gate for a change to chords
 
 `plugins\e2e\run.cmd -only keys` is the regression gate for an executable change to the chord

@@ -64,9 +64,15 @@ func (o Operation) body() (string, error) {
 
 	switch o.Kind {
 	case KindClick:
-		// OS's Click takes EITHER a Point (always left) OR a button name (always at
-		// the cursor). This is the language's actual shape, not a limitation being
-		// worked around: a non-left click at a point is a Move followed by Clicks.
+		// AIM, THEN PRESS, AND THIS PATH IS UNCHANGED ON PURPOSE.
+		//
+		// A Point can carry a `Button` now — one operation, a place and a button
+		// together — which is what a routine somebody DEMONSTRATED is generated as,
+		// because a guarded press has to be one sentence an arm can stop at. Nothing
+		// here is guarded: these Points carry no window, so there is no check to
+		// leave on the wrong side of the aim, and a repeated click is several presses
+		// after one move either way. Folding this onto the new form is a change to
+		// Director's lowering with its own tests and no defect behind it.
 		if o.Button != "" && o.Button != "left" {
 			fmt.Fprintf(&b, "    the at is a Point with X %d, Y %d.\n", o.At.X, o.At.Y)
 			b.WriteString("    do OS's Move with at.\n")

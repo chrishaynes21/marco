@@ -9858,3 +9858,121 @@ of mistake — a number and a claim that read better than the evidence:
   these runs found no defect in the drag path: every claim and every mutation test came through
   them unchanged. A gate passing is evidence about the gate's questions, and the smallest version
   of a finding is the one worth writing down.
+
+### §41s — a press is a button and a place
+
+The relay asked for guarded right- and middle-click support through Studio's existing recording
+path, with one instruction that decided the shape of it: **inspect the smallest representation
+that carries the button and target together in one guarded operation, and do not generate a
+guarded aim followed by an unchecked click at the cursor.**
+
+#### The refusal described the emission, not the press
+
+A right-click could not be saved in a routine whose presses are checked, and the entry in
+`cannotPropagate` said why: *an aim and then a press. Wrapping the aim leaves the press unwrapped,
+and the press is the thing that acts.* True of two generated sentences — `do OS's Move with p1`
+then `do OS's Click with "right"`, which presses wherever the cursor has got to — and never true
+of a right-click. **Everything else was already there.** `newClick` takes the button as a
+parameter and measures the window the same way for all three; `simplify` has carried `Button` on a
+click step since before any of this; `clickAt(ctx, button, x, y)` has always taken a button; and
+the guard is about a Point and knows nothing about buttons. The missing piece was somewhere in the
+saved file to put it.
+
+So: `Point` gains `Button`, beside the coordinates, written only when it is not left.
+
+- **Beside the coordinates and not among the window terms**, because nothing about it is compared
+  with the desktop. That is what keeps `ContractOf`'s term list unchanged — a right press reads
+  back as guarded with no new shape for any reader of the contract to learn, which is the lesson
+  §41r paid for.
+- **Absent means left**, so not one saved routine changes text. Writing `Button "left"` onto every
+  guarded press in existence would be a diff in every file a person keeps, for no change in
+  meaning.
+- **A host-module change and not a Core one.** One field on a set `os.marco` already declares,
+  where `Drag` has carried its own button since it existed. Reported before implementing, per the
+  relay's instruction; no Core change was needed.
+
+#### Two defects found while building it, neither about right or middle
+
+- **An unknown button name was pressed as LEFT.** `mouseButtonFlags` returns the left flags for
+  anything it does not recognise, so a route naming a button that does not exist — a hand-edited
+  file, a typo, a term from a later recorder — pressed the left button at a point the guard had
+  just resolved and checked. Every safeguard doing its whole job while the act was the wrong act:
+  in most applications one of those opens a menu and the other chooses something in it. It is a
+  refusal now, naming the value, kept in the account `marco do` reads, and asked FIRST — before
+  the window, because a button nothing can press is a fact about the route, and a refusal naming
+  the window would send somebody to look at their application for a defect that is in a file.
+- **The press read the stop nowhere.** The hold reads it, the keystroke reads it, the drag reads
+  it twice — and a click dispatched into a cancelled run went to the machine, with `clickAt`
+  returning the cancellation AFTER the send, so it was reported as a press that failed having
+  happened. It is read twice now: on entry, so a stopped run neither presses nor interrogates a
+  desktop it was never going to press in; and again immediately before the button goes down,
+  because confirming the window reads a rectangle, a scale and a program name off a live desktop
+  and takes time of its own. ADR-259's ordering, applied one instant earlier.
+
+#### What was deliberately left alone
+
+A press that measured nothing still emits `do OS's Click with "right"` and still presses where the
+cursor is: that is the contract every legacy route was saved under. Director's own lowering
+(`internal/marcoexec`) still aims and then clicks — those Points carry no window, so nothing there
+is guarded and there is no check to leave on the wrong side of the aim — and its two comments
+claiming the language could not do better were corrected rather than its behaviour. No routine is
+regenerated.
+
+#### Four desktop scenarios, run green the day they were written
+
+`button/` — two buttons arriving as themselves, a moved app, a resized app refusing with nothing
+sent, and a Ctrl-held right press. **4 of 4, exit 0, on the first run**
+(`plugins\e2e\run.cmd -only button`, artifacts at `%LOCALAPPDATA%\marco-e2e\20261027-114450`):
+
+| | |
+|---|---|
+| two buttons | `right_down` on Save at 258,372, then `middle_down` on Cancel at 358,372 |
+| moved app | the window moved +220,+130 and the right press still landed 45,14 into Save |
+| resized app | 626x469 → 706x519, stopped as `failed`, **nothing sent at all** |
+| ctrl-held | `right_down` on Save **with ctrl held**, by the application's own reading of the keyboard, and nothing held afterwards |
+
+They carried `onlyWhenAsked` until that run and the gate came off in the same commit, with
+`TestTheButtonScenariosRunLikeAnyOther` asserting the inverse by name.
+
+**Passing first time is worth noting because the two families before them did not** — the holds
+took two runs and the drags four, and §41r is the story of the drags'. That is a fact about this
+slice rather than about the harness: the press, the guard, the window check, the stop, the drain
+barrier and the fixture's log were all exercised here already, and what this contract added was a
+button on a Point. The arrangement was not new; only the fact being asserted was.
+
+**The fixture's log is the whole evidence, and that is not a preference.** Nothing inside Marco
+knows which button went down — `SendInput` with the wrong flag is a successful send — so a left
+press delivered where a right one was demonstrated is a run that worked by every account Marco
+has. And `save_presses` cannot corroborate them: WinForms raises Click for a left press and not
+for the other two, so the oracle that confirms every left-handed scenario in that harness is
+silent for these by design. Said out loud in the scenarios, in the subsystem note and in the ADR,
+because a reader who expects the counter to move would read its stillness as a finding.
+
+**Physical recording capture remains NOT EXERCISED.**
+
+#### Verification
+
+Root `go build ./...` and `go test ./...` exit 0 (111 packages, 0 FAIL); `plugins/e2e`,
+`plugins/studio` and `plugins/fixture` ok; `gofmt -l internal cmd plugins` clean; `docscheck` no
+problems; `wiringcheck` green — it caught ADR-251 citing the Studio test this slice renamed, and
+then caught the replacement prose for naming the dead test in backticks, which is the same lesson
+§41q recorded one slice earlier.
+
+**Mutations: 17 applied, 16 killed on the first pass and one survivor fixed.** The survivor is
+worth the paragraph. M3 widened `emit`'s cursor-click case back to every non-left press and the
+suite stayed green — because a MEASURED press makes the route a chain, so that case is never
+reached for one. The condition I had written there was a hand-copied negation of the question
+`clickPoint` already asks, and the shape it protected turned out to be real and untested: a press
+carrying an offset and no basis, which the left button has always emitted as a Point and the
+non-left branch beside it sent to the cursor. Two answers to one question, with nothing in either
+file saying why they differed. `aboutAPlaceInAWindow` is that question now, asked once by both
+callers, and `TestAPressThatKnowsAnOffsetIsAPointWhicheverButtonItUses` holds the second one. Both
+mutations of it are killed.
+
+The other sixteen: the button never reaching the file; a left press acquiring one; the non-left
+refusal coming back; an unknown button pressed as left; silence refused rather than read as left;
+the press going down with the left button whatever was asked; the refusal not kept in the account
+`marco do` reads; each of the two stop readings removed separately; the seeding precondition never
+refusing; the button claim never firing; the count claim never firing; one scenario dropping the
+claim from its `firstOf`; the gate re-applied after the green run; and Studio's review line
+dropping the button. Each killed exactly the tests that are about it.

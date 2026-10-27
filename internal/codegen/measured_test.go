@@ -241,25 +241,27 @@ func TestAPressThatCouldNotBeMeasuredStillDeclaresItsWindow(t *testing.T) {
 // something else cannot be stopped at, and in a routine whose presses are checked that is not a
 // smaller promise — it is the promise broken, because the action after it runs regardless.
 //
-// A right-click is the live case: an aim and then a press, where wrapping the aim leaves the
-// press unwrapped.
+// An ANCHORED press is the live case: a ladder of locators with a click in each arm, so there is
+// no one sentence to wrap.
 //
-// A DRAG USED TO BE THE OTHER, and is not any more. It was refused because "it resolves no
-// offset, so it is checked against nothing" — a statement about what the recorder measured rather
-// than about the gesture, since a drag is already ONE `do` sentence. It has a measurement now, so
-// it propagates. What is still refused is a drag that ASKED to be checked and cannot be, which is
-// the case below and a different sentence.
+// TWO ENTRIES HAVE LEFT THIS LIST, and both for the same kind of reason — the refusal described
+// how the step was GENERATED and was read as a fact about the step. A drag was refused because
+// "it resolves no offset, so it is checked against nothing", when a drag was already one `do`
+// sentence and what it lacked was a measurement. A right-click was refused because it was an aim
+// and then a press at the cursor, which was true of the emission and not of the press: a Point
+// carries its button now. What is still refused is a drag that ASKED to be checked and cannot be,
+// which is the case below and a different sentence.
 func TestAStepThatCannotStopTheRoutineIsRefused(t *testing.T) {
 	for _, c := range []struct {
 		what string
 		step macroir.Step
 		says string
 	}{
-		{"a right-click", func() macroir.Step {
+		{"a press found by reading words on the screen", func() macroir.Step {
 			s := aMeasuredPress()
-			s.Button = "right"
+			s.AnchorText = "Graphics"
 			return s
-		}(), "a right-click"},
+		}(), "a press found by reading words on the screen"},
 		{"a drag whose window could not be measured", macroir.Step{
 			Kind: macroir.StepDrag, X: 10, Y: 20, X2: 30, Y2: 40,
 			Button: "left", RelTo: macroir.RelToWindow},
@@ -308,12 +310,17 @@ func TestARightClickAndADragAreGeneratedWhenNothingAsksToBeChecked(t *testing.T)
 // AND A RECORDING WHOSE ONLY PRESS CANNOT BE WRAPPED IS STILL REFUSED.
 //
 // The hole this nearly had. "Does any press ask to be checked" and "can this version wrap it"
-// came out as one question, so a recording whose only press was a right-click had no step to
-// wrap, was therefore not a guarded route, and was generated as an ordinary block: a press that
-// declared the window it was made in, pressed without any of it being looked at.
+// came out as one question, so a recording whose only press was one this version could not wrap
+// had no step to wrap, was therefore not a guarded route, and was generated as an ordinary block:
+// a press that declared the window it was made in, pressed without any of it being looked at.
+//
+// The press that found it was a right-click, which is wrapped like any other now. The hole was
+// never about which step it was, so the case is posed with a press this version still cannot
+// wrap — and if the day comes when nothing is unwrappable, this test has to be deleted rather
+// than quietly made vacuous.
 func TestARecordingOfOnlyAnUnwrappablePressIsRefused(t *testing.T) {
 	only := aMeasuredPress()
-	only.Button = "right"
+	only.AnchorText = "Graphics"
 
 	if _, _, err := codegen.Route("ark graphics", "arkascended",
 		[]macroir.Step{only}, t.TempDir()); err == nil {

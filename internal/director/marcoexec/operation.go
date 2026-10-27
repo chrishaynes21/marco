@@ -205,9 +205,10 @@ func (o Operation) Capabilities() ([]string, bool) {
 	switch o.Kind {
 	case KindClick:
 		if o.Button != "" && o.Button != "left" {
-			// OS's Click takes EITHER a Point (always left) OR a button name (always
-			// at the cursor). A right-click at a point is therefore Move then Click —
-			// two capabilities, which is what the language actually offers.
+			// MOVE THEN CLICK, which is what `body` emits for this case and the
+			// reason this table has to agree with it. A Point carrying a `Button`
+			// would be one capability; see the comment in `body` for why this path
+			// still aims first.
 			caps := []string{"OS's Move"}
 			for i := 0; i < o.clicks(); i++ {
 				caps = append(caps, "OS's Click")
