@@ -9745,9 +9745,10 @@ established nothing; `physical recording capture: NOT EXERCISED` is unchanged.
 ### §41r — the drag gate ran: one product defect, two harness defects, and a green fourth run
 
 The screen became available and `plugins\e2e\run.cmd -only drag` ran for the first time. **It took
-three runs to get a result, and not one of the three findings was in the drag path.** Every claim
-these four scenarios make was correct and mutation-tested before any of them ran; what stopped
-them was everything around the claims.
+four runs to get a result, and not one of the three findings was in the drag path.** What that
+supports is that these runs found no defect in the drag path: every claim and every mutation test
+came through them unchanged. It is not the broader statement that the drag path is correct, which
+four runs of four scenarios do not establish. What stopped them was everything around the claims.
 
 #### Run one: 0 of 4, and the defect was in a reader
 
@@ -9838,3 +9839,22 @@ gesture.
 
 Preserved artifacts: `20261027-050109` (0 of 4), `20261027-051215` and `20261027-051618` (3 of 3,
 1 not run), `20261027-052006` (4 of 4) under `%LOCALAPPDATA%\marco-e2e`.
+
+#### What the review ruled, and two things this section had to correct about itself
+
+Approved at `38d90f1`: the contract reader recognises guarded drags and checks both endpoints'
+terms, and the direct stop-signal exception is accepted for what this scenario tests —
+cancellation DURING drag playback — on the condition that the distinction stays explicit, which
+is where it lives: `studioRun.stopNow`, [[Desktop-Harness]], and ADR-259's decision line all say
+that Studio's Stop button is exercised by the hold scenario and not by this one. Source reviewed,
+harness not run, physical recording capture still NOT EXERCISED.
+
+Two corrections to the reporting, both in this section's own first draft, and both the same kind
+of mistake — a number and a claim that read better than the evidence:
+
+- **It was FOUR runs, not three.** The 0-of-4 that found the contract reader is a run. A count of
+  the runs that found something is not a count of the runs it took.
+- **"The drag path was correct" is broader than four runs establish.** What they support is that
+  these runs found no defect in the drag path: every claim and every mutation test came through
+  them unchanged. A gate passing is evidence about the gate's questions, and the smallest version
+  of a finding is the one worth writing down.

@@ -1572,7 +1572,7 @@ invisible to a green suite, and so was the stale window that hid its fix.
 > least one point that is neither end, and a release, with no assertion about how many — Windows
 > coalesces mouse moves, and a count would be an assertion about the machine's load.
 >
-> **It took three runs to get a first result, and nothing they found was in the drag path.** The
+> **It took four runs to get a first result, and none of the three findings was in the drag path.** The
 > first failed all four before a gesture was sent: a guarded drag read back as *legacy*, because
 > the reader that says what a saved routine checks knew only the press's shape — so Studio was
 > describing the one routine that does check its window as the kind that cannot. The next two were

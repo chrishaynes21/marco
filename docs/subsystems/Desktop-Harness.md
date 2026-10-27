@@ -275,9 +275,10 @@ not turn the next ordinary run into a debugging session — and the gate came of
 where they passed, with `TestTheDragScenariosRunLikeAnyOther` asserting the inverse by name, the
 shape `TestTheHoldScenariosRunLikeAnyOther` set.
 
-**It took three runs to get a first result, and not one of the three findings was in the drag
-path.** Every claim these scenarios make was correct and tested before the first run; what stopped
-them was everything around the claims.
+**It took four runs to get a first result, and not one of the three findings was in the drag
+path.** No run found a defect in the drag path: the scenarios' claims and their mutation tests came
+through all four unchanged. That is narrower than saying the drag path is correct, which these runs
+did not establish. What stopped them was everything around the claims.
 
 - **A guarded drag read back as `legacy`** and all four failed on their own precondition, before
   a gesture was sent. `orchestrator.ContractOf` knew one guarded shape, `is a Point with`, so the

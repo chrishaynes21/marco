@@ -404,5 +404,5 @@ feature. A seeded routine's precondition caught it on the first run.
   the moved window was followed +240,+120; the resized one was refused with nothing sent at all;
   and the stopped drag let go at 295,238, on the travel toward 258,372 and not at it, with the
   stop ordered before the release by the fixture's own counter (#5 when it was requested, #6 once
-  it had been). Three runs were needed to get there and all three findings were outside the drag
+  it had been). Four runs were needed to get there and all three findings were outside the drag
   path: see the section above and [[Desktop-Harness]].
