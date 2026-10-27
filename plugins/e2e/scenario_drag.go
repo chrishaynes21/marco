@@ -289,19 +289,43 @@ func aStoppedDragLetsGoWhereItGotTo(w *world) result {
 	// not when the application was told. Two readings of the fixture's counter bound the
 	// request, and what falls between them is an ambiguity this run reports rather than
 	// resolves. See [stopBracket].
+	// AND THE STOP IS RAISED RATHER THAN PRESSED, which is this scenario's one departure
+	// from "the harness presses the buttons a person presses" — and it is here because of
+	// what the gesture is.
+	//
+	// A drag's travel is 24 steps of 8ms. About 190ms, and fixed however far the drag goes,
+	// so everything this scenario does while the gesture is in flight has to fit inside
+	// that. Pressing a control takes a fresh four-thousand-node snapshot of Studio's window
+	// first, which is about a quarter of a second BEFORE the invoke: the first desktop run
+	// measured the request at 277ms against that 190ms travel and reported, correctly, that
+	// nothing ordered the stop against the release. No faster asking fixes that; the
+	// request itself was longer than the thing it was interrupting.
+	//
+	// It is the same stop — `Acts.Cancel` is that one raise and nothing else — and what it
+	// does not exercise is Studio's BUTTON, which `hold/a stopped run lets go of the key`
+	// presses because a hold can afford the snapshot. See [studioRun.stopNow].
 	br := stopBracket{before: st.f.lastSeq()}
-	if err := st.s.press("cancelBtn2"); err != nil {
+	asked := time.Now()
+	if err := st.s.stopNow(); err != nil {
 		// A STOP THAT CANNOT BE RAISED IS NOT A FINDING ABOUT DRAGS, and this says
 		// which of the two it is rather than reporting a gesture that ignored Stop.
 		// `internal/stopsignal.Raise` has been seen to fail with Access is denied on
 		// this platform and has never been reproduced as a test failure.
 		st.fail()
-		return fail(started, fmt.Sprintf("Studio's Stop could not be pressed while "+
-			"the drag was in flight, so what the stop would have done with the "+
+		return fail(started, fmt.Sprintf("the stop could not be raised while the "+
+			"drag was in flight, so what the stop would have done with the "+
 			"gesture is not established: %v", err))
 	}
 	br.after = st.f.lastSeq()
-	w.art.step("Stop was requested: %s", br)
+	// AND HOW LONG THE REQUEST TOOK, in the artifact and not in any claim.
+	//
+	// The bracket's width is the whole of why this scenario can come out NOT RUN, and a
+	// reader looking at an ambiguous result needs to see what consumed the gesture: a drag
+	// lasts about 190ms whatever its length, so a request that takes longer than the travel
+	// left cannot be ordered against the release by anything. It is evidence about the
+	// arrangement, so it is a step and not a sentence in a verdict.
+	w.art.step("Stop was requested: %s, and the request took %s of a travel that lasts "+
+		"about 190ms", br, time.Since(asked).Round(time.Millisecond))
 	rec, err := waitForRecord(60*time.Second, st.store, records)
 	if err != nil {
 		st.fail()

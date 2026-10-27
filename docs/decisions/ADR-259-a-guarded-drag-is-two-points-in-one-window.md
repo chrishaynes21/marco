@@ -2,7 +2,7 @@
 type: adr
 status: accepted
 date: 2026-10-26
-decision: "ACCEPTED — A GUARDED DRAG IS TWO POINTS IN ONE WINDOW, MEASURED AT BOTH ENDS AND RESOLVED FROM ONE ANSWER. A drag already worked and was already one `do` sentence; what it lacked was a measurement, so `codegen.cannotPropagate` refused to SAVE any recording containing one in a guarded routine — truthfully, and with a sentence that described the recorder rather than the gesture. The recorder now measures BOTH EDGES of a click: a release used to carry no geometry at all, which was right while the only two-edged gesture was a click, whose release lands where its press did. A drag ends somewhere else, and the alternative — subtracting the PRESS's rectangle from a point captured later — is an offset into the window as it WAS attributed to a point from after, with nothing able to tell whether the window moved in between and no way for replay to notice. Each edge also carries the WINDOW HANDLE and its owner and the rectangle's ORIGIN, as recording evidence that never reaches a route and is never a replay target: geometry and a program name cannot say WHICH window, because two windows of one executable at one size on one display satisfy every comparison of those and are two different windows. `simplify` then has six outcomes and they are six different recordings: both edges agreeing gets the full contract; two different windows, a window that MOVED, or one that was RESIZED between the edges REFUSES the recording with a sentence naming which; a drag that ended OUTSIDE the window refuses with its own sentence, because that is something the person did and can do differently; a term the machine would not report gets the BASIS ALONE and no sentence, because telling somebody to demonstrate it again cannot help when the program had exited, and Save names the missing term instead; and a drag that declared no window at all is untouched and runs exactly as every drag saved before this does. The `Drag` set gains nine scalar fields in the host module — `FromRelX`, `FromRelY`, `ToRelX`, `ToRelY`, `RelTo`, `WinW`, `WinH`, `Dpi`, `Process` — with ONE set of window terms for both ends, because they are two points in the same window and a second set would invite a gesture to be checked against two. At replay both ends resolve from ONE `confirmWindow` answer: asking the desktop twice would let a window that moved between the answers relocate the destination, so the gesture would start where it was demonstrated and end somewhere nobody chose, each half correct against a different rectangle. AND THE WINDOW IS ASKED AGAIN IMMEDIATELY BEFORE THE BUTTON GOES DOWN, against the SNAPSHOT those two points were computed for and not merely against the recorded terms — because between resolving and pressing the gesture AIMS, an injected pointer move changes applications, and `confirmWindow` compares the live window with what was DEMONSTRATED while nothing was demonstrated about where the window would be. A change there is a REFUSAL and not a re-base, because re-basing would move the gesture after it had been planned. The order is the stop, the window, THE STOP AGAIN, then the press, with no input sent anywhere in that sequence: the confirmation reads a rectangle, a scale and a process name off a live desktop and takes time of its own, so a stop arriving while it ran found nothing between its own answer and the button going down. Whatever is last before the press is what has to be read there, including a check that was itself the fix for the instant before. Cleanup is a DEFER inside the gesture and needs no ledger and no split backend: a panic unwinding past it runs the deferred release, because the gesture is still on the stack while the unwinding happens — and WHAT IT ARMS ON IS AN ACCEPTED PRESS, not entry, so there are four states (nothing accepted, down and a release owed, released, refused) and a panic during the AIM reports nothing. A stuck button is reported through a CALLBACK and not a return value, because the path it exists for does not return. Forced termination stays outside all of it: a ledger lives inside the runner, and nothing in a terminated process runs. The fixture logs movement ONLY while a button is down — the travel of a drag, bounded by the gesture, and the one part of it no account outside the application can see — counted from the edges the window RECEIVED rather than read from the mouse's state now. Acceptance requires A RECEIVED POINT THAT IS NEITHER END and endpoint ORDER and never a COUNT, because Windows coalesces mouse moves and a number would be an assertion about the scheduler — and 'a move arrived' is weaker than it reads, since a replay that jumped to the far end and let go there sends a move of its own, at the destination. A STOP IS ORDERED AGAINST THE RELEASE BY THE FIXTURE'S OWN COUNTER, read on both sides of the request, because an outcome word is what Marco concluded and not when the application was told: read as a timestamp it excuses a stop that was IGNORED and convicts a drag nothing interrupted. So a release logged before the request is NOT RUN, one that falls inside the bracket is AMBIGUOUS and reported as neither, and an ignored stop is a finding of its own. A stopped drag's release must be ON THE TRAVEL, inside the demonstrated ends and on the line between them, because a release at a point the pointer never visited is not 'where it got to' either. And a refused release stays a headless case rather than a real button left down on somebody's desktop."
+decision: "ACCEPTED — A GUARDED DRAG IS TWO POINTS IN ONE WINDOW, MEASURED AT BOTH ENDS AND RESOLVED FROM ONE ANSWER. A drag already worked and was already one `do` sentence; what it lacked was a measurement, so `codegen.cannotPropagate` refused to SAVE any recording containing one in a guarded routine — truthfully, and with a sentence that described the recorder rather than the gesture. The recorder now measures BOTH EDGES of a click: a release used to carry no geometry at all, which was right while the only two-edged gesture was a click, whose release lands where its press did. A drag ends somewhere else, and the alternative — subtracting the PRESS's rectangle from a point captured later — is an offset into the window as it WAS attributed to a point from after, with nothing able to tell whether the window moved in between and no way for replay to notice. Each edge also carries the WINDOW HANDLE and its owner and the rectangle's ORIGIN, as recording evidence that never reaches a route and is never a replay target: geometry and a program name cannot say WHICH window, because two windows of one executable at one size on one display satisfy every comparison of those and are two different windows. `simplify` then has six outcomes and they are six different recordings: both edges agreeing gets the full contract; two different windows, a window that MOVED, or one that was RESIZED between the edges REFUSES the recording with a sentence naming which; a drag that ended OUTSIDE the window refuses with its own sentence, because that is something the person did and can do differently; a term the machine would not report gets the BASIS ALONE and no sentence, because telling somebody to demonstrate it again cannot help when the program had exited, and Save names the missing term instead; and a drag that declared no window at all is untouched and runs exactly as every drag saved before this does. The `Drag` set gains nine scalar fields in the host module — `FromRelX`, `FromRelY`, `ToRelX`, `ToRelY`, `RelTo`, `WinW`, `WinH`, `Dpi`, `Process` — with ONE set of window terms for both ends, because they are two points in the same window and a second set would invite a gesture to be checked against two. At replay both ends resolve from ONE `confirmWindow` answer: asking the desktop twice would let a window that moved between the answers relocate the destination, so the gesture would start where it was demonstrated and end somewhere nobody chose, each half correct against a different rectangle. AND THE WINDOW IS ASKED AGAIN IMMEDIATELY BEFORE THE BUTTON GOES DOWN, against the SNAPSHOT those two points were computed for and not merely against the recorded terms — because between resolving and pressing the gesture AIMS, an injected pointer move changes applications, and `confirmWindow` compares the live window with what was DEMONSTRATED while nothing was demonstrated about where the window would be. A change there is a REFUSAL and not a re-base, because re-basing would move the gesture after it had been planned. The order is the stop, the window, THE STOP AGAIN, then the press, with no input sent anywhere in that sequence: the confirmation reads a rectangle, a scale and a process name off a live desktop and takes time of its own, so a stop arriving while it ran found nothing between its own answer and the button going down. Whatever is last before the press is what has to be read there, including a check that was itself the fix for the instant before. Cleanup is a DEFER inside the gesture and needs no ledger and no split backend: a panic unwinding past it runs the deferred release, because the gesture is still on the stack while the unwinding happens — and WHAT IT ARMS ON IS AN ACCEPTED PRESS, not entry, so there are four states (nothing accepted, down and a release owed, released, refused) and a panic during the AIM reports nothing. A stuck button is reported through a CALLBACK and not a return value, because the path it exists for does not return. Forced termination stays outside all of it: a ledger lives inside the runner, and nothing in a terminated process runs. The fixture logs movement ONLY while a button is down — the travel of a drag, bounded by the gesture, and the one part of it no account outside the application can see — counted from the edges the window RECEIVED rather than read from the mouse's state now. Acceptance requires A RECEIVED POINT THAT IS NEITHER END and endpoint ORDER and never a COUNT, because Windows coalesces mouse moves and a number would be an assertion about the scheduler — and 'a move arrived' is weaker than it reads, since a replay that jumped to the far end and let go there sends a move of its own, at the destination. A STOP IS ORDERED AGAINST THE RELEASE BY THE FIXTURE'S OWN COUNTER, read on both sides of the request, because an outcome word is what Marco concluded and not when the application was told: read as a timestamp it excuses a stop that was IGNORED and convicts a drag nothing interrupted. So a release logged before the request is NOT RUN, one that falls inside the bracket is AMBIGUOUS and reported as neither, and an ignored stop is a finding of its own. A stopped drag's release must be ON THE TRAVEL, inside the demonstrated ends and on the line between them, because a release at a point the pointer never visited is not 'where it got to' either. And a refused release stays a headless case rather than a real button left down on somebody's desktop. A NEW GUARDED SHAPE IS A NEW SHAPE TO EVERY READER OF THE CONTRACT: `ContractOf` knew only `is a Point with`, so a guarded drag read back as LEGACY — the one routine that does check its window described to a person as the kind that cannot — and a term is now matched as the term after a `with ` or a `, ` rather than as a name followed by a space, because `FromRelX 193` ends in `RelX 193` and a drag measured at one end only would have read as complete. The four desktop scenarios RAN GREEN on 2026-10-27, 4 of 4, and all three findings that took were outside the drag path: that reader, and twice the harness's own latency against a gesture that lasts about 190ms however far it goes. The stopped drag therefore RAISES the product's one stop rather than pressing the button that raises it — a four-thousand-node snapshot precedes every press and took 277ms of a 190ms travel — and Studio's Stop BUTTON stays exercised by the hold scenario, which can afford it. Nothing about the bracket, the ordering rule or any claim was changed to get them green."
 supersedes: []
 affects:
   - execution
@@ -238,6 +238,45 @@ What the scenarios deliberately do not assert, and what review found they had to
 so every scenario seeds a demonstration and plays it. What they establish is that a drag ARRIVED
 as one.
 
+## A new guarded shape is a new shape to every reader of the contract
+
+The first desktop run of the four drag scenarios failed all four before anything about a drag was
+exercised: *the seeded routine came out legacy rather than guarded*. The routine was guarded —
+`RelTo "window"`, both ends' offsets, the size, the scale, the program, all written into the file
+the generator produced. What was legacy was the **reading** of it.
+
+`orchestrator.ContractOf` reads a route's contract off the saved Marco, which is right: the file
+is the only executable truth about a route, and a second record of its contract beside it is a
+second record to disagree with it. But it recognised one shape — `is a Point with` — because when
+ADR-251 wrote it a guarded action was a press. A guarded DRAG matched nothing, so the route read
+as **legacy**: *its presses are not checked; each one happens at the point it was recorded at,
+whatever is there now.* Studio prints that on the routine card somebody reads before pressing
+Play, and `cmd/marco` records it with a stopped run. **The one routine that does check its window
+was described to a person as the kind that cannot** — a false statement about a safety property,
+in the surface whose job is to say which routines are safe to press.
+
+Two readers, then, and the rule the fix is: **what the guard asks of a shape is what the contract
+reads of that shape, and the shape is what says which list applies.** A drag's terms are not a
+press's — `internal/oshost` asks for `FromRelX`/`FromRelY` and `ToRelX`/`ToRelY`, each pair
+required — so a drag has its own list, and a line's set declaration chooses between them. Reading
+whatever measurements happen to be present would call every shape complete, because "is this
+complete" has no answer until something says what complete would be.
+
+And a term is now matched as **the term and its value after a `with ` or a `, `**, not as a name
+followed by a space anywhere in the line. `FromRelX 193` ends in `RelX 193`: a drag measured at
+one end only would have read as carrying both of a press's offsets and been listed as ready for
+the guard to refuse. That cost nothing while a Point was the only guarded shape and no two of its
+terms shared an ending, and it was load-bearing the moment a second shape arrived.
+
+The same oversight twice: Studio's `saidTerms` had no reading for a drag's four offsets either, so
+a person whose recording was incomplete would have read `FromRelX` off their own card. The list it
+has to cover is read back from `ContractOf` rather than written beside it.
+
+**This is what a desktop gate is for.** Nothing headless asked the contract reader about a drag,
+so nothing failed; the generator, the guard, the executor, the scenarios and their claims were all
+correct and all tested, and the product still told a person the opposite of the truth about the
+feature. A seeded routine's precondition caught it on the first run.
+
 ## What this does not change
 
 - **Existing saved Marco.** A saved `the drag1 is a Drag with FromX … Button "left"` has no
@@ -308,10 +347,12 @@ as one.
   `ok (cached)`.
 - `plugins/e2e` `TestTheHarnessReadsAMoveRecord` — the reading half, through the production record
   type and its printer.
-- `plugins/e2e` `TestTheDragScenariosAreGatedUntilTheyHaveRun` — the arrangement, including that
-  no other family's `-only` selector sweeps them up. It FAILED on the first names, which contained
+- `plugins/e2e` `TestTheDragScenariosRunLikeAnyOther` — the arrangement, including that no other
+  family's `-only` selector sweeps them up. It FAILED on the first names, which contained
   "window", and it asks about every registered family now rather than the one that was obviously
-  a risk.
+  a risk. It held the gate until the four passed and asserts the inverse now, renamed in that
+  commit: re-gating one would take it out of default runs, and the only evidence anybody would see
+  is a line in a report nobody reads twice.
 - `plugins/e2e` `TestTheGestureShapeIsAskedOfTheWholeLog` /
   `TestTheTravelIsRequiredAndNotCounted` / `TestEveryPointOfTheGestureIsHeldInsideTheWindow` /
   `TestARefusedDragIsAssertedOnNotOneEvent` — what three of the four scenarios' verdicts rest on,
@@ -336,12 +377,32 @@ as one.
   turn every NOT RUN into a failure, and one that called only `skip` would turn a held button into
   nothing happened. A bracket taken at the wrong moment is not a bracket, and no headless test can
   run that function body.
+- `internal/orchestrator` `TestAGuardedDragIsGuardedAndNotLegacy` /
+  `TestADragThatStatesNoWindowIsLegacy` / `TestEveryTermTheGuardNeedsOfADragIsOneThisReads` /
+  `TestTheTermsReadOfADragAreTheWholeList` / `TestATermIsReadAsATermAndNotAsAnEnding` /
+  `TestTheReportedTermsAreTheUnionOfTheShapes` — the contract reader, which called a guarded drag
+  legacy until the desktop gate said so. The eight terms are removed one at a time from a route
+  the generator really wrote, the END pair most of all: `FromRelX 193` ends in `RelX 193`, so a
+  reader using a press's names would call a drag missing its destination complete.
+- `plugins/studio` `TestEveryMeasurementADragCanLackIsSaidInWords` — that every term `ContractOf`
+  can report has a reading a person can read, with the list taken from that reader rather than
+  written beside it.
 - `plugins/studio` `TestADemonstratedDragIsOfferedAndSaved` /
   `TestADragWhoseWindowMovedIsRefusedWithTheReason` /
   `TestADragThatEndedOutsideTheWindowSaysSo` / `TestADragMissingAMeasurementIsNamedAtReview` —
   the review, through the production recorder, simplifier and generator, which is where a person
   finds out before the button.
+- `plugins/e2e` `TestTheHarnessNoticesAMouseEventInsideAGesture` — that the harness notices a
+  moment inside a gesture rather than a poll tick later, which is the difference between a
+  stopped-drag scenario that can order its stop and one that reports an ambiguity forever. The
+  mutation says what it is for: *it took 102ms to notice an event written 10ms in*, against a
+  travel of about 190ms.
 - `plugins/e2e` `drag/a drag arrives as a drag`, `drag/it follows an app that moved`,
   `drag/a resized app is refused with nothing sent`, `drag/a stopped drag lets go where it got to`
-  — **WRITTEN AND NEVER RUN.** Gated with `onlyWhenAsked`, for the holds' reason. Until they pass
-  on a desktop, nothing here is established about what an application receives.
+  — **RAN GREEN ON A DESKTOP ON 2026-10-27**, 4 of 4, exit 0 (`plugins\e2e\run.cmd -only drag`).
+  The gesture arrived as 26 events — a press, 24 movements with the button held, and a release;
+  the moved window was followed +240,+120; the resized one was refused with nothing sent at all;
+  and the stopped drag let go at 295,238, on the travel toward 258,372 and not at it, with the
+  stop ordered before the release by the fixture's own counter (#5 when it was requested, #6 once
+  it had been). Three runs were needed to get there and all three findings were outside the drag
+  path: see the section above and [[Desktop-Harness]].

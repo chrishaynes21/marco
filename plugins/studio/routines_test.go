@@ -257,6 +257,33 @@ func TestARoutineMissingAMeasurementIsNotOfferedForPlay(t *testing.T) {
 	}
 }
 
+// AND EVERY MEASUREMENT A DRAG CAN LACK IS SAID IN WORDS.
+//
+// The card names what a recording is missing, and the saved Marco spells those as `FromRelX` and
+// `Dpi` — terms in a file, not things anybody says. A drag's four offsets had no reading at all
+// when guarded drags landed, so a person would have read the field name off their own card; the
+// same oversight that had the contract reader calling a guarded drag legacy.
+//
+// The list is read off `ContractOf` rather than written here, because a second list of the terms
+// is a second list to fall behind: a drag that asks to be checked and states nothing else lacks
+// every one of them, and each one has to come back as a sentence.
+func TestEveryMeasurementADragCanLackIsSaidInWords(t *testing.T) {
+	bare := `    the drag1 is a Drag with FromX 1, FromY 2, ToX 3, ToY 4, ` +
+		`Button "left", RelTo "window".`
+	contract, lacks := orchestrator.ContractOf(bare)
+	if contract != orchestrator.Incomplete || len(lacks) == 0 {
+		t.Fatalf("a drag that asks to be checked and measures nothing reads as %q "+
+			"missing %v", contract, lacks)
+	}
+	said := saidTerms(lacks)
+	for i := range lacks {
+		if said[i] == lacks[i] {
+			t.Errorf("a routine missing %s shows a person the term out of the "+
+				"file rather than what it means", lacks[i])
+		}
+	}
+}
+
 // AND SOMETHING NOBODY SAVED SAYS WHICH LIBRARY WAS LOOKED IN.
 //
 // Which is the whole of the other half of this work: "there is no routine called that" with no

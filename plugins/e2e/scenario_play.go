@@ -103,14 +103,23 @@ func scenarios() []scenario {
 				"more, and leaves no key down on the desktop",
 			run: aStoppedRunLetsGoOfTheKey,
 		},
-		// THE FOUR DRAG SCENARIOS, which have never run on a desktop.
+		// THE FOUR DRAG SCENARIOS, which ran green on a desktop on 2026-10-27 and are
+		// ordinary members of every run from then on.
 		//
-		// `onlyWhenAsked` for the reason the holds had it: a scenario nobody has
-		// exercised must not turn the next ordinary run into a debugging session, and
-		// what these are about — the travel of a gesture, as the application received
-		// it — is a thing no run of this harness has ever read. The gate comes off
-		// when they have passed, which is the same sentence the holds' gate carried and
-		// the same commit shape: remove it, and change the test that holds it by name.
+		// They carried `onlyWhenAsked` until that run, for the reason the holds had it:
+		// a scenario nobody has exercised must not turn the next ordinary run into a
+		// debugging session. The gate came off in the commit where they passed, which
+		// is the shape the holds set.
+		//
+		// WHAT THE FIRST THREE RUNS FOUND WAS NOT IN THE DRAG PATH, and that is what
+		// the first run of a scenario is for. One product defect: the contract reader
+		// knew only `is a Point with`, so a guarded drag read back as LEGACY and all
+		// four failed on their own precondition before a gesture was sent. Two in the
+		// harness, both about a 190ms gesture: noticing the press cost a 100ms poll
+		// tick, and pressing a button takes a four-thousand-node snapshot first — 277ms
+		// against a travel of 190ms, so the stop could not be ordered against the
+		// release by anything. See `studioRun.stopNow` for what that scenario does
+		// instead and what it therefore stops exercising.
 		//
 		// Under `drag/` rather than `window/`, although two of them are about a window
 		// that moved or resized. `-only window` is the guarded press's regression gate,
@@ -118,33 +127,29 @@ func scenarios() []scenario {
 		// flag somebody typed for a different reason — the holds' reasoning, one slice
 		// over.
 		{
-			name:          "drag/a drag arrives as a drag",
-			layer:         layerDesktop,
-			onlyWhenAsked: true,
+			name:  "drag/a drag arrives as a drag",
+			layer: layerDesktop,
 			about: "a seeded drag reaches the application as a press, movement " +
 				"with the button held, and a release — not two clicks",
 			run: aDragArrivesAsADrag,
 		},
 		{
-			name:          "drag/it follows an app that moved",
-			layer:         layerDesktop,
-			onlyWhenAsked: true,
+			name:  "drag/it follows an app that moved",
+			layer: layerDesktop,
 			about: "both ends of a guarded drag re-base onto the window as it " +
 				"is now, and the whole gesture stays inside it",
 			run: aDragFollowsItsMovedWindow,
 		},
 		{
-			name:          "drag/a resized app is refused with nothing sent",
-			layer:         layerDesktop,
-			onlyWhenAsked: true,
+			name:  "drag/a resized app is refused with nothing sent",
+			layer: layerDesktop,
 			about: "a guarded drag into a resized window refuses before the " +
 				"button goes down, so the application receives nothing at all",
 			run: aDragIntoAResizedWindowIsRefused,
 		},
 		{
-			name:          "drag/a stopped drag lets go where it got to",
-			layer:         layerDesktop,
-			onlyWhenAsked: true,
+			name:  "drag/a stopped drag lets go where it got to",
+			layer: layerDesktop,
 			about: "Stop with the button demonstrably down releases where the " +
 				"pointer reached, not at the destination it was heading for",
 			run: aStoppedDragLetsGoWhereItGotTo,

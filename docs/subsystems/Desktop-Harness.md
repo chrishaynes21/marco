@@ -259,7 +259,7 @@ assert anything would be arranging to leave one down on somebody's computer — 
 these does find a key held, the harness reports it and says to press and release the key, because
 it sends no input and will not put it up itself.
 
-## And four drag scenarios, written and NEVER RUN
+## And four drag scenarios, written before a desktop was available and run green on one since
 
 | | |
 |---|---|
@@ -268,10 +268,48 @@ it sends no input and will not put it up itself.
 | `drag/a resized app is refused with nothing sent` | the routine refuses before the button goes down, so the application receives nothing at all |
 | `drag/a stopped drag lets go where it got to` | Stop with the button demonstrably down releases on the travel, short of the destination, after the stop was asked for |
 
-**All four carry `onlyWhenAsked`**, for the holds' reason: a scenario nobody has exercised must
-not turn the next ordinary run into a debugging session. Run them with `-only drag`; the gate comes
-off when they pass, and `TestTheDragScenariosAreGatedUntilTheyHaveRun` is the test that changes, by
-name, in that commit — the shape `TestTheHoldScenariosRunLikeAnyOther` set.
+**All four ran green on a desktop on 2026-10-27** (`plugins\e2e\run.cmd -only drag`, 4 of 4,
+exit 0), so they are ordinary members of a default run from then on and `onlyWhenAsked` is off
+them. They carried it until that run for the holds' reason — a scenario nobody has exercised must
+not turn the next ordinary run into a debugging session — and the gate came off in the commit
+where they passed, with `TestTheDragScenariosRunLikeAnyOther` asserting the inverse by name, the
+shape `TestTheHoldScenariosRunLikeAnyOther` set.
+
+**It took three runs to get a first result, and not one of the three findings was in the drag
+path.** Every claim these scenarios make was correct and tested before the first run; what stopped
+them was everything around the claims.
+
+- **A guarded drag read back as `legacy`** and all four failed on their own precondition, before
+  a gesture was sent. `orchestrator.ContractOf` knew one guarded shape, `is a Point with`, so the
+  routine that carries both ends' offsets, the window's size, its scale and the program was
+  described as one whose presses are not checked at all — on the Studio card somebody reads before
+  pressing Play. A product defect, and the reason the seeded routine's precondition exists. See
+  [[ADR-259-a-guarded-drag-is-two-points-in-one-window]].
+- **Noticing the press cost a 100ms poll tick** against a gesture that lasts about 190ms — 24
+  steps of 8ms, fixed however far the drag goes. Half the gesture was spent before the stop was
+  requested. `waitForMouse` asks every 5ms now, which is affordable because the fixture's log is a
+  file it reads: asking more often cannot perturb what is being measured. A wait on a window or a
+  process keeps the 100ms cadence.
+- **Pressing a button costs longer than the gesture.** `uia.press` takes a fresh four-thousand-node
+  snapshot of Studio's window before invoking anything, because a UIA runtime id goes stale on a
+  repaint and that page repaints on a poll. Measured at 277ms against a 190ms travel, so the stop
+  arrived while the drag was already over and the scenario reported — correctly — that nothing
+  ordered the two.
+
+**So the stopped drag RAISES the stop rather than pressing it**, which is this harness's one
+departure from "the presses are the presses a person makes", and it is recorded where it happens
+(`studioRun.stopNow`). It is the same stop: `Acts.Cancel` is `stopsignal.Raise(stopsignal.Home())`
+and nothing else, F9 and `director stop` raise the same generation file, and `marco do` watches it.
+What it therefore does NOT exercise is Studio's Stop **button** — on the surface, enabled at the
+right moment, wired to that call — which `hold/a stopped run lets go of the key` presses, because
+a hold lasts long enough to afford the snapshot. The coverage moved to the scenario that can pay
+for it. And the raise checks that the generation advanced, because a raise into the wrong home
+would leave the run finishing normally and be reported as Marco ignoring a stop — a finding about
+the product manufactured by a mistake in the arrangement.
+
+**What was NOT changed to get them green:** the bracket, the ordering rule, and every claim. An
+unorderable result is still NOT RUN. Making the harness quick enough to land a stop inside a
+gesture is not the same act as widening what counts as having landed one.
 
 They are filed under `drag/` and not `window/`, although two of them are about a window that moved
 or was resized and that is how they want to be named. `-only window` is the guarded press's gate,

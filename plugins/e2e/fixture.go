@@ -434,11 +434,19 @@ func (f *fixtureRun) mouse(after int) ([]fixtureEvent, error) {
 // can act at a moment the APPLICATION has reached rather than at one a sleep guessed: a stop sent
 // before the button went down stops nothing, and a stop sent after the release has exercised
 // nothing. Both of those are scenarios about nothing that pass.
+//
+// AND IT ASKS OFTEN, because what it is waiting for happens inside something short. A drag's
+// travel is 24 steps of 8ms — about 190ms, fixed however far the drag goes — so a scenario that
+// means to act while the gesture is in flight has that long for everything it does. The ordinary
+// 100ms cadence spends half of it before the moment is even noticed, which is what left the first
+// desktop run of the stopped drag unable to order its Stop against the release. Reading the
+// fixture's log is one read of a local file, so asking more often costs the application nothing
+// and cannot perturb the thing being measured — see `untilEvery`.
 func (f *fixtureRun) waitForMouse(bound time.Duration, after int, what string) (fixtureEvent,
 	bool) {
 
 	var got fixtureEvent
-	ok, _ := until(bound, func() (bool, string) {
+	ok, _ := untilEvery(bound, 5*time.Millisecond, func() (bool, string) {
 		evs, err := f.mouse(after)
 		if err != nil {
 			return false, err.Error()

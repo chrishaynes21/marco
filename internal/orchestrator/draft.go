@@ -789,6 +789,62 @@ const (
 // guarded route, removes one term at a time, and requires each removal to read as Incomplete.
 var measuredTerms = []string{"RelX", "RelY", "WinW", "WinH", "Dpi", "Process"}
 
+// draggedTerms is that list for a DRAG, which is two points in one window: two pairs of offsets,
+// and one set of window terms because there is one window — see
+// [[ADR-259-a-guarded-drag-is-two-points-in-one-window]].
+//
+// Its own list rather than the press's, because the saved Marco spells a drag's offsets
+// differently and `internal/oshost` asks for them by those names: `FromRelX`/`FromRelY` for the
+// start and `ToRelX`/`ToRelY` for the end, each pair required and each refused when absent. A
+// drag measured against the press's list would be a listing that contradicts the run in both
+// directions — and `FromRelX 193` ENDS IN `RelX 193`, so the press's list would have read a drag
+// with one end measured and the other missing as complete.
+//
+// WHAT ITS ABSENCE DID: a guarded drag read as LEGACY, because the only shape this knew about was
+// a Point. Studio showed a routine that checks the window it was recorded in to a person as one
+// that checks nothing, and the four desktop drag scenarios all failed on the precondition before
+// anything about a drag was exercised. That is what the desktop gate is for.
+var draggedTerms = []string{"FromRelX", "FromRelY", "ToRelX", "ToRelY",
+	"WinW", "WinH", "Dpi", "Process"}
+
+// everyMeasuredTerm is the order a missing-term list is reported in, and the union of the two
+// lists above with each term named once.
+//
+// A list of its own so that reporting cannot quietly drop a term: a shape's list is what decides
+// whether something is MISSING, and this is what decides whether a missing thing is SAID. A term
+// added to a shape and not to this would be read, found absent, and never named.
+// `TestTheReportedTermsAreTheUnionOfTheShapes` holds the two together.
+var everyMeasuredTerm = []string{"RelX", "RelY", "FromRelX", "FromRelY", "ToRelX", "ToRelY",
+	"WinW", "WinH", "Dpi", "Process"}
+
+// measuredShapeOf is which set a declaration declares, and therefore which terms the guard will
+// ask of it. "" for a line that is not a guarded action's declaration at all.
+//
+// By the SHAPE and not by the terms present, because the question "is this complete" has no
+// answer until something says what complete would be. A reader that collected whatever
+// measurements it found would call every shape complete.
+func measuredShapeOf(line string) []string {
+	switch {
+	case strings.Contains(line, "is a Point with"):
+		return measuredTerms
+	case strings.Contains(line, "is a Drag with"):
+		return draggedTerms
+	}
+	return nil
+}
+
+// statesTerm is whether a declaration states this term — the term and its value, and not the tail
+// of a longer name.
+//
+// A term in a saved set always follows `with ` or `, `, which is what makes the distinction
+// readable: `, FromRelX 193` does not state `RelX`, and a check written as "the name followed by
+// a space appears somewhere in the line" says it does. That cost nothing while a Point was the
+// only guarded shape and no two of its terms shared an ending; it is load-bearing now.
+func statesTerm(line, term string) bool {
+	return strings.Contains(line, ", "+term+" ") ||
+		strings.Contains(line, "with "+term+" ")
+}
+
 // ContractOf reads a saved route's contract, and what any incomplete press is missing.
 //
 // Read from the SOURCE, because that is where the contract lives: the saved Marco is the only
@@ -798,16 +854,13 @@ var measuredTerms = []string{"RelX", "RelY", "WinW", "WinH", "Dpi", "Process"}
 func ContractOf(src string) (Contract, []string) {
 	out, missing := Legacy, map[string]bool{}
 	for _, line := range strings.Split(src, "\n") {
-		if !strings.Contains(line, "is a Point with") || !strings.Contains(line, `RelTo "`) {
+		want := measuredShapeOf(line)
+		if want == nil || !strings.Contains(line, `RelTo "`) {
 			continue
 		}
 		out = Guarded
-		for _, term := range measuredTerms {
-			// THE TERM AND ITS VALUE, not the word anywhere in the line. A
-			// declaration ending `Process "arkascended.exe"` contains the word
-			// `Dpi` nowhere, and one containing it as part of a longer name is
-			// not this term.
-			if !strings.Contains(line, term+" ") {
+		for _, term := range want {
+			if !statesTerm(line, term) {
 				missing[term] = true
 			}
 		}
@@ -816,7 +869,7 @@ func ContractOf(src string) (Contract, []string) {
 		return out, nil
 	}
 	lacks := make([]string, 0, len(missing))
-	for _, term := range measuredTerms {
+	for _, term := range everyMeasuredTerm {
 		if missing[term] {
 			lacks = append(lacks, term)
 		}

@@ -1563,6 +1563,26 @@ invisible to a green suite, and so was the stale window that hid its fix.
 > key down, the report says which key and asks you to press and release it: the harness sends no
 > input, so it will not put it up for you.
 >
+> And **four drag scenarios**: a drag arriving as a drag rather than as two clicks, both ends
+> following a window that moved, a resized window refusing before the button goes down, and a Stop
+> pressed with the button demonstrably down letting go on the travel rather than dropping at the
+> destination. **They ran green on 2026-10-27**, 4 of 4, and `plugins\e2e\run.cmd -only drag` runs
+> just those four. The travel is the part of a drag no account outside the application can see, so
+> the fixture logs pointer movement while a button is down and the scenarios read it: a press, at
+> least one point that is neither end, and a release, with no assertion about how many — Windows
+> coalesces mouse moves, and a count would be an assertion about the machine's load.
+>
+> **It took three runs to get a first result, and nothing they found was in the drag path.** The
+> first failed all four before a gesture was sent: a guarded drag read back as *legacy*, because
+> the reader that says what a saved routine checks knew only the press's shape — so Studio was
+> describing the one routine that does check its window as the kind that cannot. The next two were
+> the harness's own speed against a gesture that lasts about 190ms however far it goes: noticing
+> the press cost a 100ms poll, and pressing Stop through the page costs a quarter of a second
+> before the button is invoked, so the stopped drag could not be ordered against its own release
+> and said so rather than guessing. That scenario raises the product's stop directly now — the same
+> raise Studio's button makes — and Studio's Stop button stays covered by the hold scenario, which
+> lasts long enough to afford the press.
+>
 > Two things it does deliberately, worth knowing if you read its output: a scenario that could not
 > ask its question is **NOT RUN and not a pass** — a partial run never exits 0 — and before any
 > scenario claims that nothing arrived, the fixture is asked, from inside its own message loop,

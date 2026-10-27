@@ -313,12 +313,16 @@ func checksSentence(c orchestrator.Contract, lacks []string) string {
 // facts once.
 func saidTerms(lacks []string) []string {
 	says := map[string]string{
-		"RelX":    "where across that window the press went",
-		"RelY":    "where down that window the press went",
-		"WinW":    "how wide that window was",
-		"WinH":    "how tall that window was",
-		"Dpi":     "what scale it was drawn at",
-		"Process": "which program owned it",
+		"RelX":     "where across that window the press went",
+		"RelY":     "where down that window the press went",
+		"FromRelX": "where across that window the drag started",
+		"FromRelY": "where down that window the drag started",
+		"ToRelX":   "where across that window the drag ended",
+		"ToRelY":   "where down that window the drag ended",
+		"WinW":     "how wide that window was",
+		"WinH":     "how tall that window was",
+		"Dpi":      "what scale it was drawn at",
+		"Process":  "which program owned it",
 	}
 	out := make([]string, 0, len(lacks))
 	for _, l := range lacks {

@@ -41,6 +41,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/chaynes-simpleclouds/marco/internal/stopsignal"
 )
 
 type studioRun struct {
@@ -51,6 +53,9 @@ type studioRun struct {
 	art      *artifacts
 	evidence string
 	rendered string
+	// home is the store this Studio was given, which is also where the product's one stop
+	// is raised. Kept because `stopNow` needs it: see there.
+	home string
 }
 
 // startStudio opens the window on the store this run owns and waits until its page has rendered.
@@ -60,7 +65,7 @@ type studioRun struct {
 // window handle alone would be waiting for a frame that might still be blank, and every press
 // after that would be racing the page.
 func startStudio(b *bundle, art *artifacts, store string) (*studioRun, error) {
-	s := &studioRun{art: art, u: uia{bin: b.uia, art: art},
+	s := &studioRun{art: art, u: uia{bin: b.uia, art: art}, home: store,
 		evidence: art.path("studio-rendered.txt")}
 	s.cmd = exec.Command(b.studio, "-home", store, "-evidence", s.evidence)
 	s.cmd.Dir = b.dir
@@ -99,6 +104,55 @@ func (s *studioRun) look() (snapshot, error) { return s.u.look(s.hwnd) }
 func (s *studioRun) press(id string) error {
 	s.art.note("press", "%s", id)
 	return s.u.press(s.hwnd, id)
+}
+
+// stopNow raises the product's one stop, without pressing the button that raises it.
+//
+// # Why a scenario would ever ask for this instead of the button
+//
+// Because of what pressing a button here COSTS. `uia.press` takes a fresh snapshot of Studio's
+// window first — up to four thousand nodes, and deliberately fresh, because a UIA runtime id goes
+// stale on a repaint and this page repaints on a poll. That snapshot is about a quarter of a
+// second, and it happens BEFORE the control is invoked.
+//
+// A drag's travel is 24 steps of 8ms: about 190ms, fixed however far the drag goes. So a scenario
+// that has to get a stop in WHILE a gesture is in flight cannot press a button to do it — the
+// gesture is over before the invoke happens. That is not a guess: the first desktop run of
+// `drag/a stopped drag lets go where it got to` measured the request at 277ms against a 190ms
+// travel and reported, correctly, that nothing ordered the stop against the release.
+//
+// # Why this is the same stop
+//
+// `Acts.Cancel` — what Studio's Stop button calls — is `stopsignal.Raise(stopsignal.Home())` and
+// nothing else. F9 raises it, `director stop` raises it, and `marco do` watches the same
+// generation file for every run it makes: there is one stop in this product rather than one per
+// kind of thing running. Studio was given this store as `-home` AND as `$MARCO_HOME`, so the
+// child watching for a stop is watching the file this writes.
+//
+// # What is therefore NOT exercised by a scenario that uses this
+//
+// That Studio's Stop BUTTON is on the surface, enabled at the right moment, and wired to that
+// call. That is the whole reason this harness presses buttons instead of calling backends, so it
+// is not a thing to lose quietly: `hold/a stopped run lets go of the key` presses the button, and
+// a hold lasts long enough to afford the snapshot. The coverage moves to the scenario that can
+// pay for it rather than disappearing.
+//
+// AND IT CHECKS ITS OWN REQUEST WAS MADE. The generation has to advance, because a raise into the
+// wrong home would leave the run finishing normally — which a scenario would then report as a run
+// that ignored a stop, a finding about Marco produced by a mistake in the arrangement.
+func (s *studioRun) stopNow() error {
+	was := stopsignal.Generation(s.home)
+	if err := stopsignal.Raise(s.home); err != nil {
+		return fmt.Errorf("raising the stop in %s: %w", s.home, err)
+	}
+	now := stopsignal.Generation(s.home)
+	if now <= was {
+		return fmt.Errorf("the stop was raised in %s and the generation stood at %d "+
+			"before and %d after, so nothing was asked of anything", s.home,
+			was, now)
+	}
+	s.art.note("stop", "raised in %s: generation %d → %d", s.home, was, now)
+	return nil
 }
 
 // waits until a control is on screen and satisfies a condition.

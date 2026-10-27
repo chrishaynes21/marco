@@ -181,6 +181,25 @@ func (a *artifacts) close() {
 // `why` is what the condition last had to say, so a timeout reports the state it gave up in
 // rather than only that it gave up.
 func until(bound time.Duration, cond func() (bool, string)) (bool, string) {
+	return untilEvery(bound, 100*time.Millisecond, cond)
+}
+
+// untilEvery is `until` with the asking cadence named, for a wait that happens INSIDE something
+// short.
+//
+// The cadence is not a tolerance and it is not a truth condition — the rule above is unchanged,
+// and a slower one only delays failure. What it does change is WHEN the harness notices, and that
+// is load-bearing exactly once: the stopped-drag scenario has to get a Stop request in while a
+// gesture is in flight, and a drag's travel is 24 steps of 8ms — about 190ms, fixed, however far
+// the drag goes. Noticing the press one 100ms tick late spends half of that before the request is
+// even made, which is how the first desktop run of that scenario reported an ordering it could
+// not settle: the release arrived while Stop was still being pressed.
+//
+// A tight cadence is affordable here because of what the condition READS. The fixture's log is a
+// file it appends to and this reads with one `os.ReadFile`; asking more often costs the
+// application nothing and cannot perturb the gesture being measured. A wait on a window or a
+// process is a different question and keeps the 100ms default — see `until`.
+func untilEvery(bound, every time.Duration, cond func() (bool, string)) (bool, string) {
 	deadline := time.Now().Add(bound)
 	last := ""
 	for {
@@ -194,7 +213,7 @@ func until(bound time.Duration, cond func() (bool, string)) (bool, string) {
 		if time.Now().After(deadline) {
 			return false, last
 		}
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(every)
 	}
 }
 

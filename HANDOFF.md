@@ -9741,3 +9741,100 @@ not confirming it applied *where it was aimed*.
 
 **Still no desktop run and the screen was not touched.** The four scenarios remain gated and have
 established nothing; `physical recording capture: NOT EXERCISED` is unchanged.
+
+### §41r — the drag gate ran: one product defect, two harness defects, and a green fourth run
+
+The screen became available and `plugins\e2e\run.cmd -only drag` ran for the first time. **It took
+three runs to get a result, and not one of the three findings was in the drag path.** Every claim
+these four scenarios make was correct and mutation-tested before any of them ran; what stopped
+them was everything around the claims.
+
+#### Run one: 0 of 4, and the defect was in a reader
+
+All four failed on the seeded routine's own precondition: *the seeded routine came out legacy
+rather than guarded*. The routine was guarded — the artifact holds the file, with `RelTo "window"`,
+both ends' offsets, the size, the scale and the program. What was legacy was the READING of it.
+
+`orchestrator.ContractOf` recognised one shape, `is a Point with`, because when ADR-251 wrote it a
+guarded action was a press. A guarded drag matched nothing, so the route read back as **legacy** —
+*its presses are not checked; each one happens at the point it was recorded at, whatever is there
+now.* Studio prints that on the card somebody reads before pressing Play, and `cmd/marco` records
+it with a stopped run. **The one routine that does check its window was described to a person as
+the kind that cannot.**
+
+The fix is two lists and a boundary. A drag's terms are not a press's — `internal/oshost` asks for
+`FromRelX`/`FromRelY` and `ToRelX`/`ToRelY`, each pair required — so the SHAPE chooses the list,
+because "is this complete" has no answer until something says what complete would be. And a term
+is matched as the term after a `with ` or a `, `, not as a name followed by a space anywhere in the
+line: **`FromRelX 193` ends in `RelX 193`**, so the old check would have read a drag measured at
+one end only as carrying both of a press's offsets — ready for the guard to refuse, which is the
+dangerous direction. The same oversight had Studio's `saidTerms` showing a person `FromRelX` off
+their own card; its list is read back from `ContractOf` now rather than written beside it.
+
+Five mutations, all killed. The first reproduces the desktop failure exactly.
+
+#### Runs two and three: 3 of 3 and a NOT RUN, twice, for two different reasons
+
+The three ordinary scenarios passed on run two and have passed on every run since. The stopped
+drag came out **NOT RUN** — the ambiguity reported by §41p's bracket, on its first desktop run,
+and right both times:
+
+> the release is #27 and the log stood at #13 when Stop was requested and #27 once it had been, so
+> it arrived while the stop was being requested and nothing here orders the two
+
+**A drag's travel is 24 steps of 8ms: about 190ms, fixed however far the drag goes.** Everything
+the scenario does while the gesture is in flight has to fit inside that, and twice it did not.
+
+- Noticing the press cost a **100ms poll tick** — half the gesture spent before the stop was asked
+  for. `waitForMouse` asks every 5ms now, which is affordable because of what the condition reads:
+  the fixture's log is a file it appends to and this reads with one `os.ReadFile`, so asking more
+  often costs the application nothing and cannot perturb the gesture. Waits on windows and
+  processes keep the 100ms cadence. Run three: the lower bound moved from #13 to #4.
+- Pressing a button costs **longer than the gesture**. `uia.press` takes a fresh
+  four-thousand-node snapshot of Studio's window before invoking anything — deliberately fresh,
+  because a UIA runtime id goes stale on a repaint and that page repaints on a poll. Run three
+  measured the request at **277ms against a 190ms travel**, so the drag was over before the button
+  was invoked and nothing could order the two.
+
+So the stopped drag **raises** the stop instead of pressing it, and that is recorded where it
+happens. It is the same stop — `Acts.Cancel` is `stopsignal.Raise(stopsignal.Home())` and nothing
+else, F9 and `director stop` raise the same generation file, `marco do` watches it. What it stops
+exercising is Studio's Stop BUTTON, which is the whole reason this harness presses buttons rather
+than calling backends — so it is not lost quietly: `hold/a stopped run lets go of the key` presses
+the button and a hold can afford the snapshot. The raise also checks the generation advanced,
+because a raise into the wrong home would leave the run finishing normally and be reported as
+Marco ignoring a stop — a finding about the product manufactured by the arrangement.
+
+#### Run four: 4 of 4, exit 0
+
+| | |
+|---|---|
+| `drag/a drag arrives as a drag` | 26 events: a press, **24 movements with the button held**, and a release |
+| `drag/it follows an app that moved` | the window moved +240,+120 and the drag went 553,292 → 498,492 inside it |
+| `drag/a resized app is refused with nothing sent` | 626x469 → 716x529, stopped as `failed`, **nothing sent at all** |
+| `drag/a stopped drag lets go where it got to` | the button came up at **295,238** — on the travel toward 258,372 and not at it |
+
+The bracket on that last one was #5 before and #6 after, and the request took **10ms**. The stop
+is ordered before the release by the fixture's own counter, which is what §41p built.
+
+**What was NOT changed to get them green:** the bracket, the ordering rule, and every claim.
+Making the harness quick enough to land a stop inside a gesture is not the same act as widening
+what counts as having landed one — and an unorderable result is still NOT RUN.
+
+The gate is off: `onlyWhenAsked` is gone from all four, and
+`TestTheDragScenariosAreGatedUntilTheyHaveRun` became `TestTheDragScenariosRunLikeAnyOther`,
+asserting the inverse, in the commit where they passed.
+
+#### Verification
+
+Root suite green (111 packages); `plugins/e2e`, `plugins/studio`, `plugins/fixture` ok; `gofmt`
+clean; `docscheck` no problems. Mutations: five on the contract reader, one on the poll cadence
+(*it took 102ms to notice an event written 10ms in*), all killed.
+
+**Physical recording capture is still NOT EXERCISED** and still cannot be. Every one of the four
+green scenarios played a SEEDED demonstration; what they establish is that a drag ARRIVED as one.
+A person demonstrating in Studio remains the only evidence that Windows captured a physical
+gesture.
+
+Preserved artifacts: `20261027-050109` (0 of 4), `20261027-051215` and `20261027-051618` (3 of 3,
+1 not run), `20261027-052006` (4 of 4) under `%LOCALAPPDATA%\marco-e2e`.

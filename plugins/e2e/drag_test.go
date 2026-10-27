@@ -2,17 +2,18 @@
 
 package main
 
-// THE DRAG SCENARIOS, BEFORE ANY OF THEM HAS RUN.
+// THE DRAG SCENARIOS, AND WHAT CAN BE CHECKED ABOUT THEM WITHOUT A DESKTOP.
 //
-// Four scenarios written against a desktop nobody has pointed them at yet. What can be checked
-// without one is the arrangement: that they are gated out of an ordinary run, that they are
-// filed where a flag typed for something else will not sweep them up, and that the sentences
-// their verdicts rest on say what they claim to.
+// All four ran green on a desktop on 2026-10-27, so the gate is off and the inverse is asserted
+// instead: they are ordinary members of a run, filed where a flag typed for something else will
+// not sweep them up, and the sentences their verdicts rest on say what they claim to.
 //
-// The gate is the holds' gate and carries the holds' sentence: a scenario nobody has exercised
-// must not turn the next ordinary run into a debugging session. When these pass, the gate comes
-// off and THIS test changes, by name, in that commit — which is what happened to
-// `TestTheHoldScenariosRunLikeAnyOther` and is the shape to copy.
+// What getting them there took is worth keeping, because none of it was in the drag path. The
+// first run failed all four on their own precondition — the contract reader knew one guarded
+// shape and a drag is another, so a guarded drag read back as legacy. The next two were the
+// harness's own latency against a gesture that lasts about 190ms: see
+// `TestTheHarnessNoticesAMouseEventInsideAGesture` and `studioRun.stopNow`. A claim can be
+// correct, tested, and never reached.
 
 import (
 	"go/ast"
@@ -22,24 +23,28 @@ import (
 	"testing"
 )
 
-// THEY ARE GATED, LABELLED, AND NOT UNDER THE PRESS'S SELECTOR.
+// THE DRAG SCENARIOS RUN ORDINARILY, AND THEY ARE NOT UNDER THE PRESS'S SELECTOR.
 //
-// Three claims and each has its own failure. A drag that ran in a default run before anybody had
-// seen one pass would make the next ordinary run a debugging session; one labelled as anything
-// but a desktop scenario would be counted in the wrong total; and one filed under `window/` —
-// where two of them would sit naturally, since they are about a window that moved or resized —
+// The gate half of this test is gone and its going is the point: all four ran green on a desktop
+// on 2026-10-27, so they are regression checks now and belong in every default run. What is
+// asserted instead is the inverse — re-gating one would take it out of default runs, and the only
+// evidence anybody would see of that is a line in a report nobody reads twice. The holds' shape,
+// one slice over.
+//
+// The NAME claim is a separate decision and outlives the gate: one filed under `window/` — where
+// two of them would sit naturally, since they are about a window that moved or was resized —
 // would be selected by `-only window`, which is the guarded press's regression gate.
-func TestTheDragScenariosAreGatedUntilTheyHaveRun(t *testing.T) {
+func TestTheDragScenariosRunLikeAnyOther(t *testing.T) {
 	var found int
 	for _, s := range scenarios() {
 		if !strings.HasPrefix(s.name, "drag/") {
 			continue
 		}
 		found++
-		if !s.onlyWhenAsked {
-			t.Errorf("%q is in an ordinary run and has never passed on a desktop, "+
-				"so the next run anybody makes for another reason becomes a "+
-				"debugging session about drags", s.name)
+		if s.onlyWhenAsked {
+			t.Errorf("%q has run green on a desktop and is gated out of a default "+
+				"run again, so the regression it was written to catch is only "+
+				"checked when somebody remembers to name it", s.name)
 		}
 		if s.layer != layerDesktop {
 			t.Errorf("%q is labelled %q and it needs a desktop", s.name, s.layer)
@@ -436,15 +441,11 @@ func TestTheStoppedDragScenarioBracketsItsStop(t *testing.T) {
 		switch name {
 		case "lastSeq", "waitForMouse", "theStoppedDragsVerdict", "skip", "fail":
 			named[name] = append(named[name], call.Pos())
-		case "press":
-			// The STOP, and not the application's own buttons: this
-			// scenario presses Studio's Stop and nothing else.
-			if len(call.Args) == 1 {
-				if lit, ok := call.Args[0].(*ast.BasicLit); ok &&
-					strings.Contains(lit.Value, "cancel") {
-					named["stop"] = append(named["stop"], call.Pos())
-				}
-			}
+		case "stopNow":
+			// THE STOP, which this scenario raises rather than presses:
+			// a button press costs longer than the gesture it would be
+			// interrupting. See studioRun.stopNow.
+			named["stop"] = append(named["stop"], call.Pos())
 		}
 		return true
 	})
