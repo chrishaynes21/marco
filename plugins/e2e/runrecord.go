@@ -145,3 +145,13 @@ func readFileString(path string) (string, error) {
 	}
 	return string(b), nil
 }
+
+// writeFileString is the other direction, for the one scenario that ARRANGES a saved routine.
+//
+// Only `scenario_generation.go` uses it, and the note there says why a harness may write into the
+// library at all: there is no other way to have a routine stating no generation on a build that
+// stamps every one it writes. Nothing else here writes to a routine, and nothing should — a
+// harness that edits what it is about to assert on is a harness marking its own homework.
+func writeFileString(path, src string) error {
+	return os.WriteFile(path, []byte(src), 0o644)
+}

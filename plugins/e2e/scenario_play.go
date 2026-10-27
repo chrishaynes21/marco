@@ -222,6 +222,22 @@ func scenarios() []scenario {
 				"once the last character has",
 			run: typedTextArrivesAndTheNextStepFollowsIt,
 		},
+		// THE REVIEW AND REPLACE FLOW, which has not run on a desktop yet.
+		//
+		// `onlyWhenAsked` until it has. A scenario nobody has exercised must not turn
+		// the next ordinary run into a debugging session — and this one presses four
+		// controls in sequence and reads a file between each, so a wrong assumption
+		// about when the window has caught up fails as a finding about the product.
+		// The gate comes off in the commit where it passes.
+		{
+			name:          "generation/a reviewed rebuild replaces the routine",
+			layer:         layerDesktop,
+			onlyWhenAsked: true,
+			about: "a routine stating no generation is reviewed against a " +
+				"version rebuilt from its own recording, cancelled with " +
+				"nothing written, then replaced on purpose",
+			run: aReviewedRebuildReplacesTheRoutine,
+		},
 		{
 			name:  "runs/two runs are two records",
 			layer: layerDesktop,
