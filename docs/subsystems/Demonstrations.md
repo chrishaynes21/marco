@@ -214,6 +214,25 @@ that control, though a saved play still cannot say it (`cannot_say_pointer`, fol
   the window takes time of its own and whatever is last before the press is what has to be read
   there. A press that measured nothing is unchanged, Director's own lowering is unchanged, and no
   saved routine is regenerated
+- [[ADR-261-typed-text-is-a-sequence-of-submissions]] — and the input that can go in PART WAY,
+  which no other one can. `do OS's Type with "hello"` is five events and any of them can be
+  refused, so a failure leaves a field holding `he` and a next step written for `hello`. Typing
+  was ACCOUNTED nowhere — dispatched through `ok(…)`, so a rejected send was recorded in nothing
+  and the command reported success — PROPAGATED nowhere, since `StepType` was in no arm of
+  `propagating`, and partial delivery was unrepresentable. What is counted now is SUBMISSIONS and
+  not arrivals, because a count from `SendInput` says the system took the events and nothing
+  more; the unit is a Unicode CODE POINT, never a byte offset and never a UTF-16 unit; and a
+  character is submitted, refused, or PARTLY ACCEPTED — the third reported as uncertainty with
+  the release attempted for a unit whose down went in without its up. The old cast truncated
+  every code point above U+FFFF into a private-use character that sent successfully. A SECRET IS
+  NEVER MEASURED rather than redacted: the kind travels into the gesture, so no number about it
+  exists to leak, and the backend error that QUOTED the rejected character is gone. Partial
+  progress is a SECOND account beside the held-key one, because a half-filled field is not
+  something the computer is still doing, and it survives a cancellation into the record, the
+  output and the card with the outcome staying `cancelled`. Every SEGMENT of a mixed text is its
+  own link, split before the chain is built, since one step emitting three sentences left two of
+  them where nothing could stop at them — a password going into a form whose username never
+  arrived. Legacy routes keep their continuation semantics, asserted behaviourally
 - [[ADR-058-a-demonstrated-target-may-keep-its-name]]
 - [[ADR-074-one-demonstration-every-leg-reviewed]] — every leg of one demonstration is reviewed,
 - [[ADR-075-a-learn-episode-outlives-its-sessions]] — session boundaries are not Audience workflow

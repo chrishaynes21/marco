@@ -9976,3 +9976,79 @@ the press going down with the left button whatever was asked; the refusal not ke
 refusing; the button claim never firing; the count claim never firing; one scenario dropping the
 claim from its `firstOf`; the gate re-applied after the green run; and Studio's review line
 dropping the button. Each killed exactly the tests that are about it.
+
+### §41t — typed text is a sequence of submissions
+
+The relay's next slice, bounded, with seven corrections to the contract I had proposed. Three
+commits: the host, the generator, the desktop scenario and the docs.
+
+#### What was wrong, and the three different kinds of wrong
+
+`do OS's Type with "hello"` reads like one thing and is five events, any of which the machine can
+refuse on its own.
+
+- **Nothing was accounted.** `Invoke` dispatched typing through `ok(…)` rather than `delivered(…)`,
+  so a rejected send became a failed step recorded in no account at all: `Unperformed` empty,
+  `marco do` reporting success about typing that did not happen.
+- **Nothing was propagated.** `StepType` was in `emit` and in no arm of `propagating`. Typed text
+  was never a link, so whatever followed it ran whether it arrived or not — the keystroke's defect
+  one input along, and worse: a half-filled field changes what the press after it MEANS, and the
+  window guard cannot see the difference.
+- **Partial delivery was unrepresentable.** The loop stopped at the first refusal and said neither
+  how far it got nor that the question had an answer. A stop pressed mid-word is the ordinary way
+  this happens.
+
+#### The corrections that changed the design
+
+The relay's, and each one made the contract smaller or more exact:
+
+- **Count accepted input, not "characters arrived."** `SendInput` acceptance does not prove an
+  application received anything. The account says SUBMITTED, with uncertainty for a partially
+  accepted character, and the unit is a Unicode CODE POINT — never a Go byte offset, never a
+  UTF-16 unit. `4 of 8 characters` about two emoji is not a smaller claim; it is a wrong one.
+- **`input_actions` stays attempts.** A rejected Type counting as one attempted action is correct;
+  progress goes beside that number rather than in place of it.
+- **Partial progress survives cancellation**, outcome still `cancelled`, warning in the record,
+  the output and the card — and **not through the stuck-key account**. A held key means every
+  keystroke anybody types next arrives modified; a half-filled field means nothing of the sort.
+- **Never expose content in diagnostics.** The backend QUOTED the rejected character into its
+  error, which for a secret is one character of a password in a log line. For a secret, content,
+  length and failure position are all suppressed — by never computing them, so there is no number
+  to leak rather than a redaction somebody has to remember.
+- **Expand mixed steps before chaining.** One `StepType` emits several sentences, and wrapping
+  only the first or the last leaves the original defect where it matters most.
+- **Preserve saved-source compatibility**, with legacy continuation asserted behaviourally.
+- **`sendUnicodeChar` truncated non-BMP characters**, which I had not found: the rune was cast to
+  `uint16`, so U+1F600 went in as U+F600, a private-use character, and `SendInput` took it. A
+  successful send of the wrong character, silently, every time.
+
+#### What the mutation gate found this time
+
+**17 applied across the three commits, 15 killed first pass, two survivors, and both were about
+something not being exercised rather than something being wrong.**
+
+The first: the **adapter**. The gesture is driven by a fake machine — which is what makes a
+refusal mid-character arrangeable at all — and that establishes nothing about what the real one
+hands Windows. Collapsing the counting send back into a bool changed no test. It is the drag's
+lesson one device over (`MOUSEEVENTF_MOVE` missing from a button event documented as repositioning
+the pointer), and `TestACharactersEventsCarryItsCodeUnitsInOneCall` holds it now: the units, one
+call per character, the count coming back from the machine.
+
+The second: a **wiring test that passed by reading the wrong thing**. It searched the scenario file
+from the scenario's own `func` line to the end, so every claim's own DEFINITION further down
+satisfied it — deleting a call from the scenario changed nothing. It is an AST walk of that one
+function now. A text search for a function name finds the function.
+
+#### The desktop half
+
+`text/typed text arrives and the next step follows it` — **1 of 1, exit 0, on the first run**
+(`plugins\e2e\run.cmd -only text`, artifacts at `%LOCALAPPDATA%\marco-e2e\20261027-124349`). The
+fixture's own `Name` field held `marco typed this 42` character for character, `Notes` beside it
+was untouched, and Save arrived as record **#42** — after the last character, by the application's
+own counter. `input_actions=3`: the press, the typing, the press.
+
+This is the first family whose oracle is the application's own CONTENT rather than the messages it
+received, and it is the one place that can say ARRIVED where every account inside Marco can only
+say submitted.
+
+**Physical recording capture remains NOT EXERCISED.**

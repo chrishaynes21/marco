@@ -667,3 +667,108 @@ func seedDrag(f *fixtureRun, art *artifacts, name, from, to string) (seededRouti
 	art.step("seeded a drag from %q (%d,%d) to %q (%d,%d)", from, fx, fy, to, tx, ty)
 	return s, nil
 }
+
+// seedTyping writes a routine that presses a text field and then types into it.
+//
+// # Why the keystrokes are seeded one at a time
+//
+// Because `simplify` is what turns a run of printable keys into ONE `Type` step — `coalesceTyping`
+// folds a varied run and leaves a uniform one as key presses — and that fold is production code
+// this scenario is about. A seeding that wrote a `StepType` itself would be the harness's opinion
+// of what a demonstration produces, which is the mistake this file has made twice with drags.
+//
+// So the text has to be TYPEABLE: `printable` maps a key NAME to a character, so what can be
+// demonstrated is what a keyboard has keys for — letters, digits, space and a little punctuation.
+// A character above U+FFFF has no key name at all, which is why non-BMP text is a headless claim
+// (`internal/oshost`'s typing tests and the adapter's) and not one of these.
+//
+// # And why there is a press in front of it
+//
+// A key goes wherever the keyboard is, so a routine that types has to have put the keyboard
+// somewhere — and the press is what a person demonstrating this would do: click into the field,
+// then type. It also makes the routine GUARDED, so this exercises the same window check every
+// other scenario here does rather than a shape nothing else uses.
+func seedTyping(f *fixtureRun, art *artifacts, name, control, text string) (seededRoutine,
+	error) {
+
+	s := seededRoutine{name: name, controls: []string{control}, buttons: []string{"left"}}
+	if err := s.measure(f); err != nil {
+		return s, err
+	}
+	x, y := s.at[0][0], s.at[0][1]
+	t0 := time.Now().Add(-time.Minute)
+	at := t0.Add(400 * time.Millisecond)
+	events := []recorder.RecordedEvent{
+		{Kind: recorder.EvAppSwitch, KeyName: s.app, T: t0},
+		{Kind: recorder.EvClick, Button: "left", Down: true, X: x, Y: y,
+			App: s.app, PID: f.pid, RelTo: macroir.RelToWindow,
+			RelX: x - s.window.X, RelY: y - s.window.Y, WinRel: true,
+			WinW: s.window.W, WinH: s.window.H, Dpi: s.dpi,
+			Process: s.image, T: at},
+		{Kind: recorder.EvClick, Button: "left", Down: false, X: x, Y: y,
+			App: s.app, PID: f.pid, T: at.Add(40 * time.Millisecond)},
+	}
+	// THE KEYS, 10ms APART. Close enough that no pause survives between them — a wait
+	// in the middle of a run is what stops it folding into one `Type` — and far enough
+	// apart to be two events rather than one.
+	at = at.Add(300 * time.Millisecond)
+	for _, r := range text {
+		key := string(r)
+		if r == ' ' {
+			key = "space"
+		}
+		events = append(events,
+			recorder.RecordedEvent{Kind: recorder.EvKey, KeyName: key, Down: true,
+				App: s.app, PID: f.pid, T: at},
+			recorder.RecordedEvent{Kind: recorder.EvKey, KeyName: key, Down: false,
+				App: s.app, PID: f.pid, T: at.Add(5 * time.Millisecond)})
+		at = at.Add(10 * time.Millisecond)
+	}
+	// AND A PRESS AFTER IT, which is what makes the ordering claim possible: the thing
+	// after a typing must happen after the text arrived, and a routine that ends with
+	// the typing has nothing to say about that.
+	sx, sy, err := f.centreOf("Save")
+	if err != nil {
+		return s, err
+	}
+	s.controls = append(s.controls, "Save")
+	s.buttons = append(s.buttons, "left")
+	s.at = append(s.at, [2]int{sx, sy})
+	at = at.Add(300 * time.Millisecond)
+	events = append(events,
+		recorder.RecordedEvent{Kind: recorder.EvClick, Button: "left", Down: true,
+			X: sx, Y: sy, App: s.app, PID: f.pid, RelTo: macroir.RelToWindow,
+			RelX: sx - s.window.X, RelY: sy - s.window.Y, WinRel: true,
+			WinW: s.window.W, WinH: s.window.H, Dpi: s.dpi,
+			Process: s.image, T: at},
+		recorder.RecordedEvent{Kind: recorder.EvClick, Button: "left", Down: false,
+			X: sx, Y: sy, App: s.app, PID: f.pid,
+			T: at.Add(40 * time.Millisecond)})
+
+	if err := s.save(art, events); err != nil {
+		return s, err
+	}
+	if err := s.typingReachedTheFile(text); err != nil {
+		return s, err
+	}
+	art.step("seeded typing %q into %q, with a press of Save after it", text, control)
+	return s, nil
+}
+
+// typingReachedTheFile is the precondition a seeded typing shares with every other seeding here.
+//
+// A precondition and not a finding, `seedDrag`'s shape and `buttonsReachedTheFile`'s: a
+// demonstration that came out as a row of individual KEYSTROKES would make every assertion in the
+// scenario true of something that is not typed text — the characters would still arrive, in
+// order, into the same field — and the scenario would pass while exercising none of this
+// contract. `coalesceTyping` is what folds a varied run into one `Type`, and it is production
+// code with a threshold in it.
+func (s *seededRoutine) typingReachedTheFile(text string) error {
+	want := fmt.Sprintf("do OS's Type with %q", text)
+	if strings.Contains(s.source, want) {
+		return nil
+	}
+	return fmt.Errorf("the seeded demonstration of typing %q did not come out as one "+
+		"Type step (no %s in it), so the routine performs keystrokes rather than "+
+		"text:\n%s", text, want, s.source)
+}

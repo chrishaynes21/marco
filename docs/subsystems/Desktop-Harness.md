@@ -396,6 +396,38 @@ instead.
 
 See [[ADR-260-a-press-is-a-button-and-a-place]].
 
+## And one typing scenario, run green on a desktop the day it was written
+
+| | |
+|---|---|
+| `text/typed text arrives and the next step follows it` | the application's own field holds the demonstrated text character for character, the field beside it is untouched, and the press after the typing arrived after the last character |
+
+**It ran green on 2026-10-27** (`plugins\e2e\run.cmd -only text`, 1 of 1, exit 0, first run), so
+it is an ordinary member of a default run and `onlyWhenAsked` is off it.
+
+**One scenario and two claims, because both are about the same run.** The RECEIPT — what the field
+holds afterwards — and the ORDER — that the press after the typing arrived after it. A second
+Studio start would establish nothing the first does not, and the two claims rule out different
+runs: the receipt alone passes on a form submitted mid-value, and the order alone passes on a run
+that typed something else entirely.
+
+**This is the one family whose oracle is the application's own CONTENT.** A press is a message the
+fixture received; a character is a message it received AND a change to what it holds, published
+independently of anything Marco says. `SendInput` returning a count says the system took the
+events and nothing more, so Marco's accounts agree on "submitted" and none of them can say what is
+in the box.
+
+Three things it deliberately does not do. A **refused** typing — the machine takes what this
+harness sends, so a delivery failure cannot be arranged here at all, and the claim that matters
+about one is what does NOT happen afterwards, held headlessly by refusing each segment in turn. A
+**secret** — the text is synthetic and non-sensitive, because a scenario typing a credential-store
+value would put somebody's password into a fixture's text box and into this run's artifacts. And
+**non-BMP text** — `printable` maps a key NAME to a character, so what can be demonstrated is what
+a keyboard has keys for, and the surrogate-pair path is exercised against the real adapter in
+`internal/oshost`.
+
+See [[ADR-261-typed-text-is-a-sequence-of-submissions]].
+
 ## The gate for a change to chords
 
 `plugins\e2e\run.cmd -only keys` is the regression gate for an executable change to the chord

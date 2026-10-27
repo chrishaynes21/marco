@@ -204,6 +204,24 @@ func scenarios() []scenario {
 				"one, by its own reading of the keyboard, and lets go after",
 			run: aCtrlHeldRightPressArrivesWithCtrlHeld,
 		},
+		// THE TYPING SCENARIO, which ran green on a desktop on 2026-10-27 and is an
+		// ordinary member of every run from then on.
+		//
+		// It carried `onlyWhenAsked` until that run, for the reason the holds, the
+		// drags and the buttons carried it, and the gate came off in the commit where
+		// it passed.
+		//
+		// One scenario and two claims, because both are about the same run: what the
+		// field holds afterwards, and that the press after the typing arrived after it.
+		// A second Studio start would establish nothing the first does not.
+		{
+			name:  "text/typed text arrives and the next step follows it",
+			layer: layerDesktop,
+			about: "a demonstrated text reaches the field it was typed into, " +
+				"character for character, and the press after it lands " +
+				"once the last character has",
+			run: typedTextArrivesAndTheNextStepFollowsIt,
+		},
 		{
 			name:  "runs/two runs are two records",
 			layer: layerDesktop,

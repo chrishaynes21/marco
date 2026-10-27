@@ -1595,6 +1595,13 @@ invisible to a green suite, and so was the stale window that hid its fix.
 > press and not for the other two — so the count that corroborates every left-handed scenario here
 > is silent for these on purpose.
 >
+> And **one typing scenario**: a demonstrated text reaching the field it was typed into, character
+> for character, with the press after it landing once the last character has. **It ran green on
+> 2026-10-27**, first time, and `plugins\e2e\run.cmd -only text` runs just that one. It is the only
+> scenario here whose oracle is the application's own CONTENT rather than the messages it
+> received — which is also why a refused typing is not among them: the machine takes what the
+> harness sends, so what a refusal stops is checked without a desktop.
+>
 > Two things it does deliberately, worth knowing if you read its output: a scenario that could not
 > ask its question is **NOT RUN and not a pass** — a partial run never exits 0 — and before any
 > scenario claims that nothing arrived, the fixture is asked, from inside its own message loop,
