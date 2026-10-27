@@ -12,6 +12,8 @@ updated: 2026-10-24
 source_paths:
   - internal/director/demo
   - cmd/director/democmd.go
+  - internal/orchestrator/generation.go
+  - internal/orchestrator/regenerate.go
   - plugins/studio/routines.go
   - internal/runs
   - internal/marcopaths
@@ -233,6 +235,29 @@ that control, though a saved play still cannot say it (`cannot_say_pointer`, fol
   own link, split before the chain is built, since one step emitting three sentences left two of
   them where nothing could stop at them — a password going into a form whose username never
   arrived. Legacy routes keep their continuation semantics, asserted behaviourally
+- [[ADR-262-a-routine-states-which-generation-wrote-it]] — and the thing every one of those rules
+  has in common: it reaches a routine when that routine is WRITTEN, and never afterwards. A
+  library therefore accumulates files written under rules that no longer match each other, and
+  nothing on disk said which rules wrote a file. It cannot be inferred either — the shapes in a
+  routine are a function of the demonstration as much as of the generator, which is exactly how a
+  guarded drag read as `legacy` before `draggedTerms` existed. So the generator STAMPS it, as a
+  comment, unconditionally: whatever called it, that generator wrote the file. IT IS PROVENANCE
+  AND NOT A VERDICT and in particular it is not the contract — a current-generation routine can
+  press without checking anything, because that is what its demonstration asked for. FOUR
+  READINGS, none collapsing into another: current, older-and-recognised, UNSTATED (which says only
+  that — not "written before versioning", a claim a handwritten file does not support), and
+  UNKNOWN (a later build's number, a malformed value, or the same question answered twice). An
+  unknown generation is offered nothing, because a reader that cannot say what a generation does
+  cannot say what replacing it would change — and it stays inspectable and playable under exactly
+  the rules it always had. Generation 1 is what this generator does, with NOTHING BEHIND IT:
+  numbering the rule changes that landed before today would place routines in a history they never
+  stated. OLDER IS NOT AFFECTED — a difference is a fact about two generators, so a routine is
+  claimed to need replacing only where its own contents bear on the rule. And a replacement is
+  four steps of which three write nothing: select, prepare, review both sources in full, then
+  replace or cancel. `Resave` is not that flow and stays what it is, repairing a routine that can
+  press nothing at all and rescoping to do it; this one reads the scope off where the routine
+  already lives, and refuses if either the source or the recording moved while the review was open
+  — which is also the whole of the protection for a hand-edited routine
 - [[ADR-058-a-demonstrated-target-may-keep-its-name]]
 - [[ADR-074-one-demonstration-every-leg-reviewed]] — every leg of one demonstration is reviewed,
 - [[ADR-075-a-learn-episode-outlives-its-sessions]] — session boundaries are not Audience workflow

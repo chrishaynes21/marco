@@ -1602,6 +1602,16 @@ invisible to a green suite, and so was the stale window that hid its fix.
 > received — which is also why a refused typing is not among them: the machine takes what the
 > harness sends, so what a refusal stops is checked without a desktop.
 >
+> And **one review scenario**, which is the only one here that sends no input at all: a routine
+> stating no generation of Marco's rules is reviewed against a version rebuilt from its own
+> recording, cancelled with nothing written, then replaced on purpose. **It ran green on
+> 2026-10-27**, first time, and `plugins\e2e\run.cmd -only generation` runs just that one. It
+> presses Studio's own controls and reads the file on disk — three of its four steps are claims
+> that nothing was written, and only the bytes can settle those. Its strength is not that the file
+> changed: the harness takes the generation line out of a routine the build just wrote, so the only
+> difference a correct replacement can have is that line put back, and on the first run the result
+> was byte-identical to what the generator had written before.
+>
 > Two things it does deliberately, worth knowing if you read its output: a scenario that could not
 > ask its question is **NOT RUN and not a pass** — a partial run never exits 0 — and before any
 > scenario claims that nothing arrived, the fixture is asked, from inside its own message loop,

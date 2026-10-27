@@ -4,10 +4,10 @@ package main
 
 // THE REVIEW-AND-REPLACE SCENARIO, AND WHAT CAN BE CHECKED ABOUT IT WITHOUT A DESKTOP.
 //
-// It has not run on a desktop yet, so it is gated out of a default run and this holds the gate,
-// the name, the claims the verdict rests on, and the one piece of arithmetic in it that does not
-// need a window: the comparison that says a replacement is the saved routine with its generation
-// line restored and nothing else changed.
+// It ran green on a desktop on 2026-10-27, first time, so what is held here is the name, the
+// claims the verdict rests on, the call sites that ask them, and the one piece of arithmetic in
+// it that does not need a window: the comparison that says a replacement is the saved routine
+// with its generation line restored and nothing else changed.
 //
 // That comparison is the whole strength of the scenario. "The file changed" would pass on a
 // window that wrote anything at all into it.
@@ -22,22 +22,23 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/orchestrator"
 )
 
-// IT NEEDS A DESKTOP, IT IS GATED UNTIL IT HAS PASSED ON ONE, AND NOBODY ELSE'S SELECTOR TAKES IT.
+// IT RUNS ORDINARILY, IT NEEDS A DESKTOP, AND NOBODY ELSE'S SELECTOR TAKES IT.
 //
-// The gate half goes in the commit where it first runs green, and this test inverts with it —
-// which is the discipline every family here is under. The NAME claim outlives the gate: a
-// scenario swept up by `-only text` or `-only button` would be run by somebody who typed a flag
-// for a different reason.
-func TestTheReviewScenarioIsGatedUntilItHasRun(t *testing.T) {
+// The gate half of this test is gone and its going is the point: it ran green on a desktop on
+// 2026-10-27, first time, so it is a regression check now and belongs in every default run. The
+// NAME claim outlives the gate — a scenario swept up by `-only text` or `-only button` would be
+// run by somebody who typed a flag for a different reason.
+func TestTheReviewScenarioRunsLikeAnyOther(t *testing.T) {
 	var found int
 	for _, s := range scenarios() {
 		if !strings.HasPrefix(s.name, "generation/") {
 			continue
 		}
 		found++
-		if !s.onlyWhenAsked {
-			t.Errorf("%q has not run green on a desktop and is in a default run, "+
-				"so the next ordinary run becomes a debugging session", s.name)
+		if s.onlyWhenAsked {
+			t.Errorf("%q has run green on a desktop and is gated out of a default "+
+				"run again, so the regression it was written to catch is only "+
+				"checked when somebody remembers to name it", s.name)
 		}
 		if s.layer != layerDesktop {
 			t.Errorf("%q is labelled %q and it needs a desktop", s.name, s.layer)

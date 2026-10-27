@@ -10103,3 +10103,145 @@ itself changed: 1 of 1, exit 0, the field holding `marco typed this 42` characte
 and Save at #42 again (artifacts `20261027-132002`). **Physical recording capture remains NOT
 EXERCISED**, and these three failure paths are headless by nature — a desktop cannot be made to
 refuse a send.
+
+### §41v — a routine states which generation wrote it
+
+`fa57c6a` → `df3bc32` → `71ec609` → `c0165f5` → `044060b`, on `feat/demonstrated-acts`. The
+Architect's work order after the Type/Secret slice closed: generation-contract versioning,
+starting now, with no historical generations reconstructed from unstamped files.
+
+**The gap, and why it was invisible.** A routine keeps the shape it was generated with, for ever,
+because nothing rewrites saved Marco — ADR-251's rule, and the right one. So every rule about what
+a generated routine DOES reaches a routine when that routine is written: presses checked, chords
+and holds and keystrokes propagating, a drag's two ends, a press's button, typed text stopping what
+follows it. A routine saved before the last of those goes on acting past text that never arrived
+and reports a run that performed. ADR-251 said so at the time and scoped the answer out.
+
+Nothing on disk said which rules wrote a file, and **nothing can work it out**. The shapes in a
+routine are a function of the demonstration as much as of the generator — and that inference has
+already failed here in exactly this shape: before `draggedTerms` existed, `ContractOf` knew only
+about a `Point`, so a guarded drag read as **legacy**, Studio told somebody a routine that checks
+its window checks nothing, and four desktop scenarios failed on the precondition before anything
+about a drag was exercised.
+
+**So the generator stamps it, and the stamp is three things it is not.** `// Generation: 1.`,
+written **unconditionally** — whatever called it, that generator wrote the file, and a condition
+there would be a file written by it that does not say so, which is where this differs from every
+other line in that header. Not the BUILD: ADR-251 settled that an older build does not establish
+that a routine needs anything. Not a CORE change: a comment is not a word of the language, the
+same ground `// Recorded as:` stands on, reported as such before implementing. And not a VERDICT —
+a current-generation routine can press without checking anything, because that is what its
+demonstration asked for, so what the presses promise stays `ContractOf`'s separate question and
+both facts are shown with neither derived from the other.
+
+**Four readings, and the damage from merging any two.** Current, older-and-recognised, unstated,
+unknown. *Unstated means exactly that* — not "written before versioning", which is a claim about
+when a file was made that a handwritten routine, or one somebody deleted the line from, does not
+support. *Unknown is neither of its neighbours*: `current` would be this build writing down that it
+wrote a file it cannot read, into the one artifact a person cites when a routine behaved
+differently somewhere else, and `unstated` would lose the only fact the file does state. So the
+reading and the declared value travel separately everywhere — in the reading, on the card, in the
+record. Malformed, conflicting and **duplicate** all read as unknown, duplicates included when the
+two agree: a file answering one question twice has been edited by something, and which answer it
+means is not in the file. Nothing is offered for an unknown generation, and what is withheld is
+*only* the offer — the routine stays listed, stays runnable, and runs under exactly the rules it
+always had, held against a control run of the same routine unstamped that has to reach the same
+outcome for the same reason.
+
+**Generation 1 has nothing behind it, on purpose.** Numbering the five rule changes that landed
+before today 1..5 would place routines in a history they never stated, and the only way to decide
+which one a file belonged to would be to infer it from its shapes. The history is **one list**, so
+the current generation is its last entry rather than a constant beside it — `everyMeasuredTerm`'s
+lesson one layer up, where a generation added to a counter and not to the words would be read,
+found older, and never explainable. And the difference walk is exercised against **synthetic**
+future generations, with the one authority swapped under `t.Cleanup`, because with one real
+generation three exported readers would have no live input at all and this repository's record is
+eight cases of complete code never invoked.
+
+**Older is not affected.** A difference is a fact about two GENERATORS; whether it changes anything
+for one routine is a fact about that ROUTINE. So each rule carries its own question about a saved
+source, and a routine is claimed to need replacing only where its contents answer it. A card that
+announced every difference as a defect would be telling somebody to replace a file over a rule it
+never exercises — and the next time it said so about a real one they would have learnt to ignore
+it.
+
+**The flow is four steps and three of them write nothing.** Select the exact routine, prepare a
+version from its own stored demonstration, review both sources in full plus any refusal, then
+explicitly replace or cancel. `Resave` is **not** this flow and stays what it is: it repairs a
+routine that cannot press anything at all, so it is immediate on purpose, and it RESCOPES through
+the save path that chooses where a routine lives. Neither is allowed here — the scope is read off
+where the routine already lives, so a replacement cannot quietly move somebody's routine.
+
+Preparation writes nothing, which is what makes cancelling the absence of an operation rather than
+a tidy-up a crash can interrupt. A replacement re-reads both files it was built from and refuses if
+either moved, naming which: somebody can edit the routine or record the same name again while the
+review is open, and writing then would replace a source nobody looked at with a rendering of a
+recording that is no longer there — silently, because the result would look like an ordinary
+success. **That is also the whole of the protection for a hand-edited routine**: the edit is the
+left-hand pane, so replacing it is a decision, and what is not allowed is for that to happen
+without the review being current.
+
+`Save`'s own rendering became the one function both callers use. A review built from a copy of
+those four lines would be a second answer to what a draft becomes, and the disagreement would be
+between the source somebody approved and the source that replaced theirs.
+
+**A rebuild today's rules would refuse is a reviewable answer, not an error.** A recording with a
+press found by matching a picture was saved happily by an older build and produces no routine now,
+so "what would I get if I rebuilt this" has three answers rather than two, and the third is shown
+in the generator's own words beside the source it would have replaced.
+
+#### What the mutation gate found, and the two it found twice
+
+**31 mutations, 28 killed, one equivalent, and two real holes that were the same hole.** A routine
+this build just wrote rebuilds **byte for byte** from its own recording — so in the two tests that
+used one, the saved and rebuilt sources were identical, and two different wrongs were invisible: a
+`Prepare` that saved its own result changed nothing a digest could see, and a `Replace` that wrote
+the OLD source instead of the reviewed one wrote the same bytes either way. *Successful replacement
+produces exactly the reviewed source* — the claim the whole slice rests on — was passing without
+being able to fail. Both tests now take the generation line out first and assert the two differ
+before relying on it.
+
+The third was a widened lookup: `routineWithID` also matching a name or a slug is invisible until
+something passes one, and nothing did. A name two routines answer to is not an address, and
+choosing one is how a person approves one routine's source and has another one's file replaced.
+Something passes a name now, and the refusal is the assertion.
+
+**And the gate's own first run was wrong about three of them.** The `-run` filter I used matched
+none of the tests whose names do not contain the word "Generation", so three mutations reported as
+survivors that the package kills outright. The false-survivor trap from the other direction: a
+filter narrow enough to miss the test that holds the line.
+
+Four gaps were closed before the gate could speak at all, because the exported readers were only
+tested through their internals and Studio's refusals only through a page stub: the exported readers
+under a synthetic future, a context-scoped replacement where the scope changes what is GENERATED,
+the Acts' four refusals, and a routine that TYPES the generation line not being a routine that
+states one.
+
+One mutant survives on purpose: `Registry.Replace`'s atomicity cannot be told from `Save` by any
+test here — they differ only when a write fails PART WAY, and a disk full is not something a test
+stages portably. The comment beside it says so rather than letting it look held.
+
+#### The desktop scenario, and what it can see
+
+`generation/a reviewed rebuild replaces the routine` **ran green on 2026-10-27, 1 of 1, exit 0,
+first run** (artifacts `20261027-162205`). It is the only desktop scenario here that sends **no
+input at all**: it presses Studio's own controls through UI Automation and reads a file. The
+fixture is open because the routine has to be a real one, generated by the production path from
+real window measurements; its window is never pressed.
+
+The oracle is the **file**. Studio's words are read too and reported as evidence, but three of the
+four steps are claims that nothing was written and only the bytes settle those. Its strength is not
+"the file changed": the harness takes the generation line out of a routine this build just wrote, so
+the same generator wrote both versions and the only difference a correct replacement can have is
+that line restored. On the first run the replaced file differed from the stripped one by **exactly
+that line** and was **byte-identical** to what the generator had written before.
+
+What the arrangement establishes is bounded and the boundary is stated where it happens: it
+exercises the flow against a routine stating no generation. It is not a claim that any particular
+older routine in anybody's library looks like this, and nothing in it reconstructs a generation for
+an unstamped file. **Physical recording capture remains NOT EXERCISED.**
+
+A second run was made only to read the exit code, and also passed. The first run is the one
+reported above and its artifacts are preserved.
+
+See [[ADR-262-a-routine-states-which-generation-wrote-it]].

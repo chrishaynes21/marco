@@ -222,17 +222,19 @@ func scenarios() []scenario {
 				"once the last character has",
 			run: typedTextArrivesAndTheNextStepFollowsIt,
 		},
-		// THE REVIEW AND REPLACE FLOW, which has not run on a desktop yet.
+		// THE REVIEW AND REPLACE FLOW, which ran green on a desktop on 2026-10-27,
+		// first time, and is an ordinary member of a default run from then on.
 		//
-		// `onlyWhenAsked` until it has. A scenario nobody has exercised must not turn
-		// the next ordinary run into a debugging session — and this one presses four
-		// controls in sequence and reads a file between each, so a wrong assumption
-		// about when the window has caught up fails as a finding about the product.
-		// The gate comes off in the commit where it passes.
+		// It kept `onlyWhenAsked` until that run, so a scenario nobody had
+		// exercised could not turn the next ordinary run into a debugging session.
+		// What it established: the panel came up with both sources in it and the
+		// file was untouched; cancelling left it untouched; and after a second
+		// review, Replace wrote a file differing from the one on disk by exactly
+		// the generation line — byte-identical to what the generator had written
+		// before the harness took that line out.
 		{
-			name:          "generation/a reviewed rebuild replaces the routine",
-			layer:         layerDesktop,
-			onlyWhenAsked: true,
+			name:  "generation/a reviewed rebuild replaces the routine",
+			layer: layerDesktop,
 			about: "a routine stating no generation is reviewed against a " +
 				"version rebuilt from its own recording, cancelled with " +
 				"nothing written, then replaced on purpose",
