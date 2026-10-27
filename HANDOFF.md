@@ -9498,3 +9498,119 @@ a person can save, and everything it depends on is tested before it.
 And it proposed the split backend and the ledger as what the work "needs". Neither is necessary for
 this scope — a `defer` inside the gesture plus one slot of host state covers returns and panic
 unwinding. The ledger remains available as later work for the sweep's retry.
+
+### §41o — guarded drags, built in eight increments
+
+The Architect approved §41n's approach with four corrections, and all four landed. The contract is
+in [[ADR-259-a-guarded-drag-is-two-points-in-one-window]]; this is the trace.
+
+**The hold gate was not pending** and was not re-run: it is recorded green, and
+`plugins/e2e/hold_test.go` now FAILS if one of those three is re-gated, so the status is enforced
+rather than remembered.
+
+#### The four corrections, and what each changed
+
+1. **Validate at mouse-down, after aiming.** §41n put the validation in `doDrag`, before the
+   gesture. The gesture then AIMS — an injected pointer move, which changes applications: a hover,
+   a highlight, a panel that lays itself out differently, a window that resizes to fit what is now
+   under the cursor. A check before the gesture started is a check before its own first event. So
+   `dragGesture` takes a `stillThere` and asks it after the aim and immediately before the press,
+   with **no input sent in between**, and the answer is compared against the SNAPSHOT the two
+   points were computed for — not merely against the recorded terms, because `confirmWindow`
+   compares the live window with what was DEMONSTRATED and nothing was demonstrated about where
+   the window would be. A change refuses; it does not re-base.
+2. **The same recording window, not matching rectangles and names.** Two windows of one executable
+   at one size on one display satisfy every comparison of geometry, DPI and program name and are
+   two different windows. `RecordedEvent` carries `HWnd` and `WinX/WinY` now, both recording
+   evidence that never reaches a route, and `simplify` asks identity BEFORE the describing terms.
+3. **Track accepted button-down, not entry.** §41n proposed one slot written before the gesture and
+   cleared on a clean release. That reports a stuck button after a panic during the aim, when
+   nothing was pressed — and a warning that fires when nothing happened teaches people to ignore
+   the warning. Four states now (`noDown`, `buttonDown`, `letGo`, `buttonStuckDown`), armed on an
+   ACCEPTED press, with one release path every exit goes through including the deferred one.
+4. **Stay inside the fixture's evidence.** No count of movement, because Windows coalesces moves
+   and a number is an assertion about the scheduler. A stop after the release is NOT RUN. No stuck
+   button manufactured on a desktop.
+
+#### Eight increments, in an order with a property
+
+Nothing could save or run a partly-guarded drag at any point. Increment 6 is the only one that
+changed what a person can save, and everything it depends on was tested before it landed.
+
+| # | commit | what |
+|---|---|---|
+| 0 | `0e7c68c` | split `checkGuarded` into `confirmWindow` + the arithmetic, no behaviour change |
+| 1 | `e1e2436` | both edges of a click measured; `HWnd`, `WinX/WinY`; hook cost measured |
+| 2 | `ab5fc80` | `simplify`'s six outcomes, and `ToRelX/ToRelY` on the step |
+| 3 | `7a74ba8` | nine fields on the `Drag` set; emission; Save still refused, and that was asserted |
+| 4 | `2da5cc8` | two ends from one measurement, and the revalidation at mouse-down |
+| 5 | `7321d45` | the deferred release, armed on an accepted press |
+| 6 | `900424b` | **the switch**: `guardedStep`, `propagating`, `cannotPropagate`, and Studio's review |
+| 7 | `71a3621` | the fixture logs movement while a button is down |
+| 8 | `91b0643` | four scenarios, gated, NEVER RUN |
+
+#### What mutation testing found that reading did not
+
+Thirty-odd mutations across the eight. Six survived first, and only two of those were because the
+fix was over-complete; the other four were real gaps:
+
+- **The identity comparison had no case at all** (increment 2). The Architect's own finding, and my
+  first test did not cover it: every case I had written changed the geometry, so dropping the
+  handle comparison changed nothing. A second window of the same program at the same place is the
+  case, and it is now in the table.
+- **The unmeasurable branch was unreachable** (increment 2). Every fixture that got near it tripped
+  an earlier case. The case that reaches it is a drag ending OUTSIDE the window — which turned out
+  to deserve a sentence of its own, because it is something the person did.
+- **The shape comparison had no case** (increment 2): a window resized between the edges, with the
+  origin unchanged. That is the whole reason size and scale are separate terms.
+- **The gesture's own revalidation call was uncovered** (increment 4), because the recording
+  backend answers the callback itself. The tests that drive the PRODUCTION gesture were missing.
+- **"The drag is in the route" cannot tell a LINK from an ordinary step inside a chain** (increment
+  6). Same words, same gesture, same reading to a person — and everything after it runs whether the
+  gesture happened or not. A link's guard is `do … ...` followed by `when ok?`; an ordinary step
+  ends in a full stop. That is the only thing worth asserting there.
+- **And `go test` CACHES past a change to a file outside the module being tested** (increment 7).
+  Three mutations of the fixture's C# survived because of it: the gate was deleted, the suite ran
+  again, and it said `ok (cached)`. A test that goes green against a broken fixture on every run
+  but the first is worse than no test, because the one run that would catch it is the one nobody
+  repeats. `plugins/fixture` is a Go package now whose only job is to `//go:embed` the C# as a
+  BUILD INPUT, and the rule's test lives beside it.
+
+One mutation was **equivalent** and is recorded in the code rather than fixed: replacing `up.rx`
+with `s.X2 - down.x` — deriving the destination from the press's rectangle — passes everything,
+because once the two edges must report the same origin the expressions are identical. So the second
+measurement earns its place as **the check and not the arithmetic**, and the mutation that proves
+it is the origin comparison.
+
+#### And one test of my own failed on something real
+
+`TestTheDragScenariosAreGatedUntilTheyHaveRun` asserts the scenarios are not under another
+family's `-only` selector. My first names were `drag/moved window still gets the drag` and
+`drag/resized window is refused with nothing sent` — both contain "window", which is the guarded
+press's regression gate, so a flag typed for a press change would have swept them in. Renamed, and
+the test asks about **every registered family** now, read off the scenarios rather than listed: a
+list would have been written against the collisions that existed the day it was written. That is
+the pump invariant's lesson in a third place.
+
+#### Verification
+
+Root suite clean (`go test ./...`), `plugins/studio` ok, `plugins/e2e` ok, `plugins/fixture` ok,
+`gofmt` clean, `docscheck` no problems, `wiringcheck` green — which is what checks that every test
+ADR-259 cites exists.
+
+**No desktop run, and the screen was not touched.** The four scenarios are written, gated, and
+have established nothing. The standing position is that the screen is the owner's unless they say
+otherwise; `-only drag` is the gate when it is available, the first result and its artifacts are to
+be preserved, and failures are not to be re-run for green.
+
+`physical recording capture: NOT EXERCISED` is unchanged and cannot change here — the hooks discard
+injected input, so every scenario seeds a demonstration and plays it. What they will establish is
+that a drag ARRIVED as one.
+
+#### Still open
+
+- **The button ledger**, which would buy the route-end sweep's SECOND attempt after a refusal.
+  Not needed by this contract and not a defect in the gesture.
+- **Non-left clicks and anchored presses** still cannot propagate, for their own reasons.
+- The parked items from before: the `E2E.md` and ADR-252 double-encoding, the harness's
+  unexplained foreground refusal (§40b), `stopsignal.Raise`'s unretried *Access is denied*.

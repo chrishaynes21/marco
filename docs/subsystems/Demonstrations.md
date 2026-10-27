@@ -129,7 +129,7 @@ that control, though a saved play still cannot say it (`cannot_say_pointer`, fol
   handler is compulsory in Marco and a routine that did not happen therefore ends tidily — and the
   account covers a press the machine would not DELIVER as well as one it could not check, which
   are the same outcome and were not the same record. A step whose failure cannot stop the routine
-  — a non-left press, a drag — is refused at generation and said at review. **A KEYSTROKE IS A
+  — a non-left press — is refused at generation and said at review. **A KEYSTROKE IS A
   LINK TOO**, and not because anything checks it: it is a link because it can fail to be
   DELIVERED, and what follows it then acts on a screen the key never changed — an Escape that did
   not arrive leaves the menu open, and geometry cannot detect that, because the window is the same
@@ -173,6 +173,25 @@ that control, though a saved play still cannot say it (`cannot_say_pointer`, fol
   cross a process boundary without being written somewhere; so Studio supplies its own process
   id as the exclusion boundary, starting is separable from finishing, and one predicate now
   answers "is something being recorded" for both recorders
+- [[ADR-259-a-guarded-drag-is-two-points-in-one-window]] — and the gesture that mechanism refused
+  to save. A drag already worked and was already one `do` sentence; what it lacked was a
+  measurement, and the refusal's own sentence described the recorder rather than the gesture. BOTH
+  EDGES of a click are measured now — a release used to carry no geometry, which was right while
+  the only two-edged gesture was a click, whose release lands where its press did — and each edge
+  carries the window HANDLE, its owner and the rectangle's ORIGIN as recording evidence that never
+  reaches a route, because geometry and a program name cannot say WHICH window: two windows of one
+  executable at one size satisfy every comparison of those. `simplify` then tells six recordings
+  apart, and the distinction worth the words is between what the PERSON did — a gesture across two
+  windows, a window that moved, one that was resized, a drag out of the window, each refused with
+  a sentence naming it — and what the machine would not report, which gets the basis alone and no
+  instruction, because telling somebody to demonstrate it again cannot help when the program had
+  exited. At replay both ends resolve from ONE answer, since asking twice would let a window that
+  moved between them relocate the destination; and the window is asked AGAIN immediately before
+  the button goes down, against the snapshot those points were computed for, because the gesture
+  AIMS in between and an injected pointer move changes applications. A change there refuses rather
+  than re-bases. Cleanup is a defer inside the gesture that ARMS ON AN ACCEPTED PRESS and not on
+  entry, so a panic during the aim reports nothing; a ledger would only buy the sweep's second
+  attempt, and forced termination is outside all of it
 - [[ADR-058-a-demonstrated-target-may-keep-its-name]]
 - [[ADR-074-one-demonstration-every-leg-reviewed]] — every leg of one demonstration is reviewed,
 - [[ADR-075-a-learn-episode-outlives-its-sessions]] — session boundaries are not Audience workflow

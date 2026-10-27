@@ -121,7 +121,20 @@ so it reaches ordinary returns and the unwinding where deferred code still runs,
 terminated process runs at all. Recovering from a kill needs an owner that outlives the runner and
 is outside this.
 
-Review of that found three more, and two of them were in the half the extraction does not reach.
+**And then the gesture got its guard.** `do OS's Drag with …` carries the window it was
+demonstrated in now — two offsets and one set of window terms, because a drag's two ends are two
+points in ONE window. Both ends resolve from one measurement at replay, and the window is asked
+AGAIN immediately before the button goes down, against the snapshot those points were computed
+for: the gesture aims in between, an injected pointer move changes applications, and a check made
+before the gesture started is a check made before its own first event. A change there refuses
+rather than re-bases. Cleanup is a defer inside the gesture, armed on an ACCEPTED press and not on
+entry, so a panic during the aim reports nothing — no ledger and no split backend, because the
+gesture is still on the stack while the unwinding happens. Existing saved Marco carries no `RelTo`
+and takes the legacy path exactly as it did.
+[[ADR-259-a-guarded-drag-is-two-points-in-one-window]]
+
+Review of the gesture work found three more, and two of them were in the half the extraction does
+not reach.
 The **warning channel ended at the keyboard**: `Host.NotReleased` is the account a cancelled run
 cannot discard, and it recognised stuck keys only, so a stop mid-drag recorded `cancelled` with
 nothing beside it while the button was down. It asks for `stillHolding` now — the shape of the
@@ -167,6 +180,7 @@ direct-invoke design would never have noticed.
 - [[ADR-030-a-play-says-where-it-begins]]
 - [[ADR-031-the-user-names-the-stage]]
 - [[ADR-258-a-chord-is-a-promise-to-let-go]]
+- [[ADR-259-a-guarded-drag-is-two-points-in-one-window]]
 
 ## Validated by
 

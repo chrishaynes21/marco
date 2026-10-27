@@ -221,9 +221,9 @@ the physical-capture limit and in the same spirit:
 > implemented and NOT EXERCISED: hold/… Written, gated out of this selection, and waiting on one
 > green desktop run before it joins the gate — run with `-only hold`.
 
-**The machinery stays, unused.** Drags are the next thing that will be written before it can be
-run, and `TestAGatedScenarioIsNamedInTheSummary` keeps the line honest against scenarios of its
-own rather than whichever ones happen to be gated today.
+**The machinery stays, and the drags are using it now** — see below. `TestAGatedScenarioIsNamedInTheSummary`
+keeps the line honest against scenarios of its own rather than whichever ones happen to be gated
+today.
 
 They are filed under `hold/` and not `keys/` on purpose, so `-only keys` — the chord's gate — does
 not sweep them into every chord change. That is a separate decision and outlives the gate.
@@ -258,6 +258,51 @@ headlessly, in `internal/oshost`. A desktop scenario that needed a key to be STU
 assert anything would be arranging to leave one down on somebody's computer — and when one of
 these does find a key held, the harness reports it and says to press and release the key, because
 it sends no input and will not put it up itself.
+
+## And four drag scenarios, written and NEVER RUN
+
+| | |
+|---|---|
+| `drag/a drag arrives as a drag` | the application receives a press, movement with the button held, and a release — not two clicks |
+| `drag/it follows an app that moved` | both ends of a guarded drag re-base onto the window as it is now, and the whole gesture stays inside it |
+| `drag/a resized app is refused with nothing sent` | the routine refuses before the button goes down, so the application receives nothing at all |
+| `drag/a stopped drag lets go where it got to` | Stop with the button demonstrably down releases where the pointer reached, not at the destination |
+
+**All four carry `onlyWhenAsked`**, for the holds' reason: a scenario nobody has exercised must
+not turn the next ordinary run into a debugging session. Run them with `-only drag`; the gate comes
+off when they pass, and `TestTheDragScenariosAreGatedUntilTheyHaveRun` is the test that changes, by
+name, in that commit — the shape `TestTheHoldScenariosRunLikeAnyOther` set.
+
+They are filed under `drag/` and not `window/`, although two of them are about a window that moved
+or was resized and that is how they want to be named. `-only window` is the guarded press's gate,
+and the test above failed on the first names for exactly that reason. It asks about every
+registered family now rather than the one that was obviously a risk.
+
+**What the fixture had to learn for these.** It logged no pointer movement at all, on purpose: a
+replay aims before every click and a person moves the pointer continuously, so logging all of it
+would bury the presses in thousands of records. But a drag is not its two ends — those are two
+clicks — and the travel between them is the one part of the gesture no account outside the
+application can see. So movement is logged **only while a button is down**, which is exactly drag
+motion and is bounded by the release. Whether a button is down is counted from the edges the window
+RECEIVED rather than read from the mouse's state now, because that is the state at a later instant
+than the one being logged.
+
+**Three things these deliberately do not assert**, and each is a way a scenario can be green about
+nothing:
+
+- **Not every injected point, and no count.** Windows coalesces mouse moves, so a gesture that
+  sent twenty-four can arrive as six depending on how busy the machine is. A count would be an
+  assertion about the scheduler. Required instead: intermediate movement ARRIVED, and the ends came
+  in order around it.
+- **A stop that arrived after the release is NOT RUN**, not a pass. The gesture finished, the record
+  may still say `cancelled` because the run was stopped between steps, and every assertion about
+  where the button came up would be true of a drag nothing interrupted. The stop goes in once the
+  application has LOGGED the press, and that question is asked before any other.
+- **No stuck button is manufactured here.** A release the machine refuses is arranged headlessly,
+  where a machine can be told to refuse. On a desktop it would mean leaving a real button held down
+  on somebody's computer to see whether the report says so.
+
+See [[ADR-259-a-guarded-drag-is-two-points-in-one-window]].
 
 ## The gate for a change to chords
 
