@@ -1,0 +1,175 @@
+package oshost
+
+// A DRAG IS A BUTTON HELD DOWN WHILE THE POINTER TRAVELS, AND A PROMISE TO LET GO OF IT.
+//
+// The same shape as a chord, one device over: not one thing the machine does, but aim, press,
+// glide, land, release — and the release is the promise. A button this process pressed is held
+// down on somebody's computer until this process lets go of it, and while it is held the pointer
+// drags whatever it passes over. Windows does not clean that up either.
+//
+// # Which is why the sequencing is here, away from SendInput
+//
+// Three defects lived in the middle of it, and none of them could be reached by a test, because
+// the whole gesture sat inside the function that calls `SendInput`:
+//
+//   - A STOP DURING THE TRAVEL STILL COMPLETED THE DROP. The loop read the context at the top
+//     and broke out of it — and the two lines after the loop then sent the landing move and the
+//     release anyway. So stopping a drag let go of the button (right) at the DESTINATION
+//     (wrong): the thing being dragged was dropped where the routine was going rather than
+//     where the pointer was when somebody said stop. A stop that still delivers the gesture's
+//     whole point is not a stop.
+//   - THERE WAS NO ENTRANCE CHECK. Nothing read the context before the press, so a drag reached
+//     with the run already stopped pressed the button and dragged regardless — and then found
+//     the cancellation at the top of the loop, by which time the press had happened.
+//     `sendChord` needed exactly this check and has it; this path never got one.
+//   - EVERY DELIVERY FAILURE WAS DISCARDED. The send closure ignored what `SendInput` returned
+//     and the function returned only the context's error, so a refused press, a refused move
+//     and a refused release were indistinguishable from a gesture that worked. Nothing could
+//     tell "the machine would not take it" from "done".
+//
+// So `dragGesture` holds the order and the undertaking, `pointerMachine` is the machine as it is
+// needed here (one pointer event at a time, each carrying its own point), and the Windows
+// backend supplies the real one. The gesture is then checkable without a desktop, which is what
+// it took to see that the first defect's release was aimed at the wrong place and that the third
+// was silent.
+//
+// # What it does not do
+//
+// It does not put the button in the host's held list. A key that goes down is written into an
+// account the route-end sweep reads ([Host.holding]), and a button is not, so an exit between
+// the press and the release — a panic, a kill, an unwinding stop — leaves the button down with
+// nothing in the process that knows to lift it. Covering that needs the backend's `drag` split
+// so that something outside it can release, and the ledger taught about a button; both are the
+// guarded-drag contract's business and neither is a defect in this gesture. What is fixed here
+// is every exit THIS function reaches, which is all three above.
+//
+// And a failed release is REPORTED AND NOT RECOVERED, the chord's rule unchanged: no retry, no
+// forced anything, a sentence saying what the computer is now like.
+//
+// See [[ADR-258-a-chord-is-a-promise-to-let-go]] for the rule, and `HANDOFF` §41k for the trace
+// this came out of.
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"time"
+)
+
+// pointerMachine is the machine, one pointer event at a time.
+//
+// Every event carries its own point, which is not decoration: it is the property that lets the
+// release land where the pointer actually IS rather than where the gesture was going, and it is
+// how the Windows backend already sends a click (the position travels with the button event so
+// nothing can interleave and move the pointer between them). `press` and `release` report
+// whether the machine TOOK the event — the return value the old code threw away. `settle` is the
+// wait between steps, and it is the machine's because a real one returns early when the run is
+// stopped.
+type pointerMachine interface {
+	moveTo(x, y int) bool
+	press(button string, x, y int) bool
+	release(button string, x, y int) bool
+	settle(ctx context.Context, d time.Duration)
+}
+
+const (
+	// dragSteps is how many moves the travel is cut into — enough that an app or a game
+	// reading motion registers a drag rather than a teleport.
+	dragSteps = 24
+	// dragStep is the wait between them, so the motion has time to register.
+	dragStep = 8 * time.Millisecond
+)
+
+// dragGesture performs a button-held drag from (x1,y1) to (x2,y2) and lets go of the button.
+//
+// The order never changes and neither does the undertaking: if the button went down, this
+// attempts a release before it returns — whether the drag worked, was refused partway, or was
+// stopped. Not "is released": the machine can refuse a release, and that refusal is exactly what
+// [errButtonNotReleased] is for.
+func dragGesture(ctx context.Context, m pointerMachine, button string, x1, y1, x2, y2 int) error {
+	// NOTHING IS SENT TO A RUN THAT HAS ALREADY STOPPED. Before the aim, not inside the
+	// travel: a drag reached with the context already done used to press the button, move
+	// it, and only then discover there was nothing to do this for.
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if !m.moveTo(x1, y1) {
+		return fmt.Errorf("the machine refused to aim at %d,%d for the %s drag",
+			x1, y1, button)
+	}
+	if !m.press(button, x1, y1) {
+		// NO RELEASE FOR A BUTTON THAT IS NOT DOWN. `SendInput` takes an event or it
+		// does not, so a rejected press leaves nothing to undo, and sending the
+		// release anyway would produce a second refusal and a sentence naming two
+		// failures for one. The chord learned this about keys.
+		return fmt.Errorf("the machine refused to press the %s button at %d,%d",
+			button, x1, y1)
+	}
+	// THE BUTTON IS DOWN FROM HERE, and every exit below goes through letting go of it.
+	//
+	// atX, atY is WHERE THE POINTER IS: the last point the machine accepted, not the next
+	// one the gesture meant to send. It is the whole of the first fix — a release aimed at
+	// the destination is a drop, and a drop is the one thing a stopped drag must not do.
+	atX, atY := x1, y1
+	for i := 1; i < dragSteps; i++ {
+		if err := ctx.Err(); err != nil {
+			return withRelease(err, releaseAt(m, button, atX, atY), "drag")
+		}
+		t := float64(i) / float64(dragSteps)
+		nx, ny := x1+int(float64(x2-x1)*t), y1+int(float64(y2-y1)*t)
+		if !m.moveTo(nx, ny) {
+			// A REFUSED MOVE ENDS THE TRAVEL rather than carrying on without it.
+			// The gesture did not go where it said it went, and finishing the
+			// loop around a machine that is refusing input would land a drop
+			// somewhere nobody chose.
+			return withRelease(fmt.Errorf("the machine refused to move to %d,%d "+
+				"partway through the %s drag", nx, ny, button),
+				releaseAt(m, button, atX, atY), "drag")
+		}
+		atX, atY = nx, ny
+		m.settle(ctx, dragStep)
+	}
+	// AND READ ONCE MORE BEFORE THE LANDING, because `settle` returns early when the run
+	// is stopped and the step after it is the one that completes the gesture. This is the
+	// line the old code did not have: it is where a stop during the last wait used to
+	// become a drop at the destination.
+	if err := ctx.Err(); err != nil {
+		return withRelease(err, releaseAt(m, button, atX, atY), "drag")
+	}
+	if !m.moveTo(x2, y2) {
+		return withRelease(fmt.Errorf("the machine refused to land the %s drag at "+
+			"%d,%d", button, x2, y2), releaseAt(m, button, atX, atY), "drag")
+	}
+	return releaseAt(m, button, x2, y2)
+}
+
+// releaseAt attempts the release, and says so when the machine would not take it.
+//
+// AN ATTEMPT, AND THE DISTINCTION IS THE POINT — the chord's words, and they hold here for the
+// same reason: "the button was released" is what this code is for and not what it can promise.
+func releaseAt(m pointerMachine, button string, x, y int) error {
+	if !m.release(button, x, y) {
+		return buttonStuck{button: button, x: x, y: y}
+	}
+	return nil
+}
+
+// errButtonNotReleased is the identity, for recognising one of these rather than reading it.
+var errButtonNotReleased = errors.New("a mouse button the machine would not release")
+
+// buttonStuck carries the button and where it was last seen, so the sentence and the identity
+// are one value.
+type buttonStuck struct {
+	button string
+	x, y   int
+}
+
+// Error says it AS A STATE AND NOT AS A FAILED CALL, like a stuck key: what matters is not what
+// this process could not do but what the computer is now like.
+func (b buttonStuck) Error() string {
+	return fmt.Sprintf("the machine would not release the %s mouse button, which may still be "+
+		"held down at %d,%d on this computer — until it is, the pointer drags whatever it "+
+		"passes over", b.button, b.x, b.y)
+}
+
+func (buttonStuck) Is(target error) bool { return target == errButtonNotReleased }

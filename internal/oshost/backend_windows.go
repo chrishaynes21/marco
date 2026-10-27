@@ -193,31 +193,49 @@ func (winBackend) clickAt(ctx context.Context, button string, x, y int) error {
 	return ctx.Err()
 }
 
+// thePointer is SendInput, one pointer event at a time, which is what `dragGesture` is written
+// against so that the gesture can be checked without a desktop. See drag.go.
+//
+// Every event carries its own absolute point, normalised over the VIRTUAL desktop — the same
+// gesture `clickAt` sends, and correct on any monitor including one with a negative origin. The
+// point travels WITH the button event on purpose: nothing can interleave and move the pointer
+// between the aim and the press, and a release can therefore be aimed at where the pointer is.
+type thePointer struct{}
+
+func (thePointer) event(x, y int, flags uint32) bool {
+	vx, vy, vw, vh := virtualDesk()
+	nx, ny := normAbsolute(x, y, vx, vy, vw, vh)
+	const absDesk = _MOUSEEVENTF_ABSOLUTE | _MOUSEEVENTF_VIRTUALDESK
+	return sendInputs([]inputT{mouseInputT(nx, ny, 0, flags|absDesk)})
+}
+
+func (p thePointer) moveTo(x, y int) bool { return p.event(x, y, _MOUSEEVENTF_MOVE) }
+
+func (p thePointer) press(button string, x, y int) bool {
+	down, _ := mouseButtonFlags(button)
+	return p.event(x, y, down)
+}
+
+func (p thePointer) release(button string, x, y int) bool {
+	_, up := mouseButtonFlags(button)
+	return p.event(x, y, up)
+}
+
+// settle waits between the steps of the travel, and RETURNS EARLY when the run is stopped. That
+// early return is how a stop reaches a drag that is mid-flight; `dragGesture` reads the context
+// straight afterwards.
+func (thePointer) settle(ctx context.Context, d time.Duration) { sleepCtx(ctx, d) }
+
 // drag performs a REAL button-held drag: move to the start, press the button, GLIDE to the end
 // as a trail of injected MOVE events (so an app/game registers the drag motion, not a teleport),
-// then release. Absolute coordinates over the virtual desktop, like clickAt.
+// then release.
+//
+// The ORDER, the cancellation and the undertaking are in `dragGesture`, away from SendInput and
+// therefore reachable by a test — which is what it took to find that a stopped drag completed its
+// drop, that nothing checked the run before the press, and that every refusal SendInput reported
+// was being discarded. This supplies the machine and nothing else.
 func (winBackend) drag(ctx context.Context, button string, x1, y1, x2, y2 int) error {
-	down, up := mouseButtonFlags(button)
-	vx, vy, vw, vh := virtualDesk()
-	const absDesk = _MOUSEEVENTF_ABSOLUTE | _MOUSEEVENTF_VIRTUALDESK
-	send := func(x, y int, flags uint32) {
-		nx, ny := normAbsolute(x, y, vx, vy, vw, vh)
-		sendInputs([]inputT{mouseInputT(nx, ny, 0, flags)})
-	}
-	send(x1, y1, _MOUSEEVENTF_MOVE|absDesk) // to start
-	send(x1, y1, down|absDesk)              // press
-	const steps = 24
-	for i := 1; i < steps; i++ {
-		if ctx.Err() != nil {
-			break
-		}
-		t := float64(i) / float64(steps)
-		send(x1+int(float64(x2-x1)*t), y1+int(float64(y2-y1)*t), _MOUSEEVENTF_MOVE|absDesk)
-		time.Sleep(8 * time.Millisecond) // let the drag motion register between steps
-	}
-	send(x2, y2, _MOUSEEVENTF_MOVE|absDesk) // land exactly on the end
-	send(x2, y2, up|absDesk)                // release
-	return ctx.Err()
+	return dragGesture(ctx, thePointer{}, button, x1, y1, x2, y2)
 }
 
 // move sends a real injected mouse-MOVE event (SendInput), not a bare SetCursorPos.

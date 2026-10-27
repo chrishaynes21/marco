@@ -2,13 +2,14 @@
 type: adr
 status: accepted
 date: 2026-10-25
-decision: "ACCEPTED — A CHORD IS A SEQUENCE OF KEY EVENTS AND A PROMISE TO UNDO IT, AND THE PROMISE IS NOW KEPT, CHECKABLE AND CHECKED. `ctrl+shift+a` is not one thing the machine does: it is hold Ctrl, hold Shift, settle, tap A, hold, release A, release Shift, release Ctrl — and the releases are the promise, because a modifier this process pressed stays down on somebody's computer until this process lets go of it and nothing else will clean that up. Three defects lived in the middle of that sequence, inside the function that calls `SendInput`, where no test could reach them: a REJECTED modifier returned from the middle of the loop leaving the earlier modifiers held down, so a refused Shift left a stuck Ctrl and reported only the failed keystroke; a STOP during the modifier settle stopped nothing, because `sleepCtx` returns early on cancellation and the next line tapped the key regardless, so Escape pressed over a chord in flight sent the chord; and a RELEASE the machine refused was discarded entirely, so the one outcome a person most needs to hear about — a modifier still down, every keystroke afterwards arriving modified — was the one outcome that reported success. The sequencing now lives in `sendChord` against a `keyMachine` that takes one key event at a time, so a refused modifier, a stop mid-flight and a release the machine will not take are all arrangeable without a desktop; every key pressed gets a RELEASE ATTEMPT before the function returns, in reverse, whether the chord worked, was refused or was stopped — an attempt and not a release, because the machine can refuse one and that refusal is the whole point; a stuck key outranks a refused keystroke in what a caller is told, EXCEPT that a cancellation keeps its identity so a person pressing Escape does not become a routine that failed. AND A STOPPED RUN MAY NOT CARRY A STUCK KEY AWAY WITH IT: `performOnePlay` discards a cancelled run's error on purpose, so the key still held down is kept by the HOST in an account of its own — the error is flattened into a sentence on its way up and discarded at the top, and an account survives both — and from there into the durable record and onto the run's own output, where the window shows it beside "was stopped part of the way through". The outcome stays `cancelled`: a stop is not a failure. And the desktop half is held by `plugins/e2e` `keys/a chord arrives as a chord`, on three accounts that no unit test can supply: the order of the messages the application received, the modifier state the application read from the system at the instant the key arrived — which is what tells a chord from four keystrokes, and catches a sender whose modifier events the system never applied — and what this desktop is still holding down afterwards, asked of Windows directly, because no message arrives to tell an application about a key nobody released. THE SAME RULES THEN GOT A SECOND SLICE: A HOLD — `hold Q, click, release Q` — is a key held down on purpose for as long as the routine says, and the thing that cleans up after one is the END OF A RUN, so a hold whose release goes wrong goes wrong when nobody is watching. Four of the same defects were there one layer up, plus a fifth: `doKeyUp` forgot the key before asking whether the release worked, so the sweep that could have tried again was told it had come up; the sweep discarded every answer, making the one path whose purpose is "nothing is left down" the one that could not say otherwise; the keys were held in a MAP and released in whatever order Go produced; `keyDown` reported a stop after a successful send, so a run cancelled in that instant pressed a key, called the hold failed, never wrote it down as held, and left it down for ever invisible to everything; and nothing stopped a stopped run from starting a hold at all. Holds are an ordered list now, released in reverse, a refused release stays on the list for the sweep to retry once, and whatever the sweep still cannot release goes into the same account — record, output, card. IT DOES NOT RETRY A RELEASE MORE THAN THAT: a modifier the machine refuses twice is a different problem and a retry loop around input is a decision of its own."
+decision: "ACCEPTED — A CHORD IS A SEQUENCE OF KEY EVENTS AND A PROMISE TO UNDO IT, AND THE PROMISE IS NOW KEPT, CHECKABLE AND CHECKED. `ctrl+shift+a` is not one thing the machine does: it is hold Ctrl, hold Shift, settle, tap A, hold, release A, release Shift, release Ctrl — and the releases are the promise, because a modifier this process pressed stays down on somebody's computer until this process lets go of it and nothing else will clean that up. Three defects lived in the middle of that sequence, inside the function that calls `SendInput`, where no test could reach them: a REJECTED modifier returned from the middle of the loop leaving the earlier modifiers held down, so a refused Shift left a stuck Ctrl and reported only the failed keystroke; a STOP during the modifier settle stopped nothing, because `sleepCtx` returns early on cancellation and the next line tapped the key regardless, so Escape pressed over a chord in flight sent the chord; and a RELEASE the machine refused was discarded entirely, so the one outcome a person most needs to hear about — a modifier still down, every keystroke afterwards arriving modified — was the one outcome that reported success. The sequencing now lives in `sendChord` against a `keyMachine` that takes one key event at a time, so a refused modifier, a stop mid-flight and a release the machine will not take are all arrangeable without a desktop; every key pressed gets a RELEASE ATTEMPT before the function returns, in reverse, whether the chord worked, was refused or was stopped — an attempt and not a release, because the machine can refuse one and that refusal is the whole point; a stuck key outranks a refused keystroke in what a caller is told, EXCEPT that a cancellation keeps its identity so a person pressing Escape does not become a routine that failed. AND A STOPPED RUN MAY NOT CARRY A STUCK KEY AWAY WITH IT: `performOnePlay` discards a cancelled run's error on purpose, so the key still held down is kept by the HOST in an account of its own — the error is flattened into a sentence on its way up and discarded at the top, and an account survives both — and from there into the durable record and onto the run's own output, where the window shows it beside "was stopped part of the way through". The outcome stays `cancelled`: a stop is not a failure. And the desktop half is held by `plugins/e2e` `keys/a chord arrives as a chord`, on three accounts that no unit test can supply: the order of the messages the application received, the modifier state the application read from the system at the instant the key arrived — which is what tells a chord from four keystrokes, and catches a sender whose modifier events the system never applied — and what this desktop is still holding down afterwards, asked of Windows directly, because no message arrives to tell an application about a key nobody released. THE SAME RULES THEN GOT A SECOND SLICE: A HOLD — `hold Q, click, release Q` — is a key held down on purpose for as long as the routine says, and the thing that cleans up after one is the END OF A RUN, so a hold whose release goes wrong goes wrong when nobody is watching. Four of the same defects were there one layer up, plus a fifth: `doKeyUp` forgot the key before asking whether the release worked, so the sweep that could have tried again was told it had come up; the sweep discarded every answer, making the one path whose purpose is "nothing is left down" the one that could not say otherwise; the keys were held in a MAP and released in whatever order Go produced; `keyDown` reported a stop after a successful send, so a run cancelled in that instant pressed a key, called the hold failed, never wrote it down as held, and left it down for ever invisible to everything; and nothing stopped a stopped run from starting a hold at all. Holds are an ordered list now, released in reverse, a refused release stays on the list for the sweep to retry once, and whatever the sweep still cannot release goes into the same account — record, output, card. IT DOES NOT RETRY A RELEASE MORE THAN THAT: a modifier the machine refuses twice is a different problem and a retry loop around input is a decision of its own. AND THEN A THIRD SLICE, ONE DEVICE OVER: A DRAG IS A BUTTON HELD DOWN WHILE THE POINTER TRAVELS, AND THE SAME PROMISE — and it had the same three defects, in the same place, the whole gesture inside the function that calls `SendInput`, found by reading it while tracing what a guarded drag would need rather than by running anything. A STOP DURING THE TRAVEL STILL COMPLETED THE DROP: the loop read the context at the top and broke out of it, and the two lines after the loop then sent the landing move and the release anyway, so a stopped drag let go of the button — right — at the DESTINATION — wrong — and the thing being dragged was dropped where the routine was going rather than where the pointer had got to when somebody pressed Escape. THERE WAS NO ENTRANCE CHECK, so a drag reached with the run already stopped pressed the button and dragged regardless, finding the cancellation after the one event that cannot be taken back. AND EVERY DELIVERY FAILURE WAS DISCARDED: the send closure ignored what `SendInput` returned and the function returned only the context's error, with `doDrag` reporting through `ok` rather than `delivered` on top of that, so a drag the machine refused was absent from `Host.Unperformed` and a command reading that account to decide what to say about a run read an empty one. The correction is the chord's by construction: the order and the undertaking live in `dragGesture` against a `pointerMachine` that takes one pointer event at a time, the Windows backend supplies the real one, and every event carries its own point — which is the property that lets a release be aimed at WHERE THE POINTER IS, since the gesture tracks the last point the machine accepted and a stop, a refused move and a refused landing all release there. A refused move ends the travel rather than carrying on through a machine that is refusing input. WHAT IS NOT FIXED, and is not a defect in the gesture: the button is in no ledger, so an exit between the press and the release leaves it down with nothing in the process that knows to lift it; closing that needs the backend's `drag` split so something outside it can release, and the ledger taught about a button, both of which belong to the guarded-drag contract and are proposed rather than agreed."
 supersedes: []
 affects:
   - execution
   - interface
 source_paths:
   - internal/oshost/chord.go
+  - internal/oshost/drag.go
   - internal/oshost/backend_windows.go
   - plugins/e2e/scenario_keys.go
   - plugins/fixture/Fixture.cs
@@ -324,6 +325,52 @@ run means anything is the half that was never checked before it ran.
 - **Nothing about recording changed.** `simplify` already folded held modifiers into a chord; the
   only new thing on that side is that a harness now demonstrates one.
 
+## And a third slice: the drag had the same three, one device over
+
+A drag is a button held down while the pointer travels, and a promise to let go of it. The same
+shape as a chord, the same place to hide — the whole gesture sat inside the function that calls
+`SendInput` — and, found by reading it while tracing what a guarded drag would need, the same
+three defects. Not analogous ones. The same ones.
+
+- **A stop during the travel still completed the drop.** The loop read the context at the top and
+  broke out of it, and the two lines after the loop then sent the landing move and the release
+  anyway. So stopping a drag let go of the button, which is right, AT THE DESTINATION, which is
+  not: the thing being dragged was dropped where the routine was going rather than where the
+  pointer had got to when somebody pressed Escape. The chord's version of this defect sent a
+  keystroke nobody wanted; this one completes the gesture's whole point after being told to stop.
+- **There was no entrance check.** Nothing read the context before the press, so a drag reached
+  with the run already stopped pressed the button and dragged regardless, discovering the
+  cancellation at the top of the loop — after the press, which is the event that cannot be taken
+  back.
+- **Every delivery failure was discarded.** The send closure ignored what `SendInput` returned
+  and the function returned only the context's error, so a refused press, a refused move and a
+  refused release were indistinguishable from a gesture that worked. `doDrag` compounded it by
+  reporting through `ok` rather than `delivered`: a drag the machine refused was absent from
+  `Host.Unperformed`, so the command that reads that account to decide what to say about a run
+  read an empty one.
+
+The correction is the chord's, by construction: the order and the undertaking live in
+`dragGesture` against a `pointerMachine` that takes one pointer event at a time, and the Windows
+backend supplies the real one. Every event carries its own point, which is the property that lets
+a release be aimed at WHERE THE POINTER IS — the gesture tracks the last point the machine
+accepted, so a stop, a refused move and a refused landing all release there rather than at the
+destination. A refused move ends the travel rather than carrying on through a machine that is
+refusing input. `withRelease` serves both, and the one word that differed — "keystroke" — is
+passed in now.
+
+**A drag is counted as asked for either way, and that was already true**: the count is taken in
+`Invoke` against `sendsInput`, which is why it is taken there. The trace that found these said it
+was not, and was wrong about that one clause.
+
+**What is NOT fixed here, and is not a defect in this gesture.** The button is in no ledger. A key
+that goes down is written into an account the route-end sweep reads; a button is not, so an exit
+between the press and the release — a panic, a kill, a stop that unwinds past the call — leaves
+the button down with nothing in the process that knows to lift it. Covering that needs the
+backend's `drag` split so something outside it can release, and the ledger taught about a button:
+both belong to the guarded-drag contract, which is proposed and not agreed. What is fixed is every
+exit this function reaches, which is all three above. The two limits are unchanged — a failed
+release is reported, not recovered, and forced termination is outside all of it.
+
 ## Enforced by
 
 - `internal/oshost` `TestAChordHoldsItsModifiersAndLetsThemGoInReverse` — the control, and the
@@ -373,6 +420,35 @@ run means anything is the half that was never checked before it ran.
 - `cmd/marco` `TestAStoppedRunThatReleasedEverythingRecordsOnlyThat` — the control: a clean stop
   records nothing beside it, so pressing Escape on a well-behaved routine does not tell somebody
   their keyboard may be stuck.
+
+And the drag's three, each failing alone when its own half is put back:
+
+- `internal/oshost` `TestTheGestureSendsTheWholeTravel` — the control, and first for the chord's
+  reason: a gesture that sent nothing at all would satisfy every assertion about what it does not
+  send. The aim, the press, the moves and a release AT the destination when nothing interrupts.
+- `internal/oshost` `TestAStoppedDragLetsGoWhereThePointerIs` — the first defect, asserted on a
+  PLACE: the release has to carry the last point the pointer reached, and the landing move must be
+  absent. Restoring the old break-and-fall-through fails it; so does leaving the stop's identity
+  intact while aiming the release at the destination, which is the narrower mutation and the one
+  that proves the assertion is about where rather than about whether.
+- `internal/oshost` `TestADragDispatchedAfterAStopPressesNothing` — the entrance check in the
+  gesture, which fails alone when removed: it is asserted on the machine having been asked for
+  nothing at all, because a press is the event that cannot be taken back.
+- `internal/oshost` `TestAStoppedRunDragsNothing` — and the same check in the host, where it holds
+  for every backend. Through the production `Invoke`, so a routine's drag is what is dispatched.
+- `internal/oshost` `TestADragTheMachineRefusesIsNotReportedAsDone` — the third defect, in three
+  parts because "the drag failed" is not the useful half: a refused press (and no release for a
+  button that is not down), a refused move partway (the travel ENDS there, and the button still
+  comes up where the pointer got to), and a refused release (which must say so, and say where).
+  The machine refuses ONE named event per case; refusing everything from the nth onwards let the
+  middle case pass with its fix mutated out, because a failed release produces a failure of its
+  own.
+- `internal/oshost` `TestAStoppedDragSaysBothWhatStoppedAndWhatIsStuck` — the chord's rule for the
+  drag: a cancellation whose release also failed reads as both, or the run reads as failed instead
+  of stopped, or a button left down on somebody's desktop goes unsaid.
+- `internal/oshost` `TestADragTheMachineRefusedIsInTheAccount` — the delivery report where it is
+  read from: `Host.Unperformed` names the gesture and its two points, and the run still counts it
+  as asked for. Putting `ok` back fails this alone.
 - `cmd/marco` `TestTheHeldKeyWarningIsTheLastThingTheRunSays` — the ordering, which is what makes
   the sentence the window's: Studio keeps the last line before the outcome word and does not parse
   it, so a warning with anything printed after it is one the window silently replaces.

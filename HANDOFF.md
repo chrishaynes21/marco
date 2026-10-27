@@ -9045,6 +9045,10 @@ work is to make the guarded form representable, not to invent a gesture.
    refused move and a refused release are indistinguishable from a performed gesture. `doDrag`
    compounds it by using `ok(...)` rather than `delivered(...)`: a drag the machine refused is not
    in `Unperformed`, is not counted in `InputActions`, and reports `performed`.
+   **One clause of that is wrong and is corrected in §41l**: a drag IS counted, because the count
+   is taken in `Invoke` against `sendsInput` and not inside `delivered`, which is the whole reason
+   it is taken there. `TestTypingAndDraggingAreAskedFor` is the test that says so, and it was
+   written against exactly this mistake.
 
 Also worth stating because it is the dangerous one: the button is in no ledger. `ReleaseHeld` knows
 keys. An exit between the press and the release — a panic, a kill, a stop that unwinds past the
@@ -9070,3 +9074,94 @@ Explicit regeneration can pick it up; nothing rewrites anything.
 **What no amount of this establishes** is unchanged: the hooks discard injected input, so no
 automated run can show that Windows captured a physical drag. The fixture can show that a drag
 ARRIVED as one.
+
+### §41l — the three drag defects, fixed
+
+§41k found them by reading and did not touch them. These three were the part of that trace that
+stands alone: none of them needs the guarded-drag contract, none of them changes what a drag
+means, and all three are about what happens on the way OUT of a gesture. The contract is still
+proposed and still not agreed.
+
+**They were the chord's three defects.** Not analogous ones — the same three, one device over, in
+the same hiding place: the whole gesture sat inside the function that calls `SendInput`, where
+nothing could arrange a refusal or a stop.
+
+| the defect | what it did | what it does now |
+|---|---|---|
+| a stop during the travel | broke out of the interpolation loop and then sent the landing move and the release anyway, so the button was let go of AT THE DESTINATION: the thing being dragged was dropped where the routine was going, not where the pointer had got to | releases where the pointer IS. The gesture tracks the last point the machine accepted, and every exit releases there |
+| no entrance check | a drag reached with the run already stopped pressed the button and dragged, discovering the cancellation at the top of the loop — after the press, which is the event that cannot be taken back | checked twice: in `dragGesture` before the aim, the way `sendChord` does, and in `doDrag`, where it holds for every backend and can be driven by a test |
+| every delivery failure discarded | the send closure ignored what `sendInputs` returned and the function returned only the context's error; `doDrag` then reported through `ok` rather than `delivered`, so a refused drag was absent from `Unperformed` and a command reading that account read an empty one | each event's answer is kept, the gesture says WHICH event the machine would not take, and `doDrag` reports through `delivered` |
+
+**And one clause of §41k's third defect was wrong.** It said a refused drag "is not counted in
+`InputActions`". It is: the count is taken in `Invoke` against `sendsInput`, which is exactly where
+that function's own comment says it is taken and why — an earlier plan to count inside `delivered`
+would have read zero for a routine that typed or dragged, and
+`TestTypingAndDraggingAreAskedFor` exists because of it. The test was already in the tree and the
+trace contradicted it. Reading the function and not its test is how.
+
+#### The shape of the fix is the chord's, deliberately
+
+`internal/oshost/drag.go` now holds the order and the undertaking, against a `pointerMachine` that
+takes one pointer event at a time; `winBackend.drag` is three lines and supplies the real one
+(`thePointer`). Every event carries its own absolute point — which is how `clickAt` already sends a
+click, and the property that makes "release where the pointer is" expressible at all. `withRelease`
+serves both gestures now; the one word that differed, "keystroke", is a parameter.
+
+A refused move ENDS the travel rather than carrying on. A gesture that did not go where it said it
+went must not finish by dropping something somewhere nobody chose, so the button comes up at the
+last point the pointer reached.
+
+#### What is deliberately NOT fixed
+
+**The button is in no ledger.** A key that goes down is written into an account the route-end sweep
+reads; a button is not. So an exit between the press and the release — a panic, a kill, a stop that
+unwinds past the call — leaves the button down with nothing in the process that knows to lift it,
+and a held left button drags whatever the pointer passes over. Closing that needs the backend's
+`drag` split into `mouseDown` → movement → `mouseUp` so something outside it can release, and the
+ledger taught about a button. Both are in §41k's proposed contract, which is the Architect's to
+agree. What is fixed here is every exit this function reaches.
+
+The two limits are unchanged and are the chord's words: a failed release is **reported, not
+recovered**, and **forced termination is outside all of it**.
+
+#### Seven mutations, each killed
+
+The project's standard, and two of them earned their keep:
+
+- restoring the old break-and-fall-through → `TestAStoppedDragLetsGoWhereThePointerIs` and
+  `TestAStoppedDragSaysBothWhatStoppedAndWhatIsStuck` fail.
+- **the first mutation of that defect SURVIVED**, and it was the fix that was over-complete rather
+  than the test that was weak: putting the `break` back in the loop alone changes nothing, because
+  the check I had added after the loop catches it too. The faithful mutation removes both. Worth
+  writing down — a surviving mutation is usually the test's fault and this one was not.
+- aiming the cancelled release at the destination while leaving the stop's identity intact → the
+  narrower mutation, and the one that proves the assertion is about WHERE rather than about
+  whether. Fails `TestAStoppedDragLetsGoWhereThePointerIs` on the place.
+- removing the gesture's entrance check → `TestADragDispatchedAfterAStopPressesNothing` fails,
+  naming the three events a stopped run sent.
+- removing `doDrag`'s → `TestAStoppedRunDragsNothing` fails on both halves: the status and the
+  machine having been reached.
+- discarding the release's answer → `TestADragTheMachineRefusesIsNotReportedAsDone` and the
+  stop-and-stuck pair fail.
+- shrugging off a refused move → **this one survived too, and that WAS the test's fault.** The fake
+  machine refused everything from the nth event onwards, which refuses the release as well, and a
+  failed release produces an error of its own — so the case about a refused move saw a failure and
+  a released button whether or not the refused move was noticed. It names one event at a time now,
+  and asserts the exact list of moves the travel asked for. The lesson is the oracle's:
+  **a fake that fails broadly makes a narrow claim unfalsifiable.**
+- putting `ok` back in `doDrag` → `TestADragTheMachineRefusedIsInTheAccount` fails with an empty
+  account.
+
+Restored from a scratchpad copy and verified byte-identical, not with `git checkout`.
+
+#### Verification
+
+Root suite clean. `gofmt` clean, `docscheck` no problems, `internal/wiringcheck` green (it is what
+checks the test names this added to ADR-258 actually exist). `go vet ./internal/oshost` reports the
+two pre-existing `unsafe.Pointer` lines in `clipboard_windows.go` and nothing new.
+
+**No desktop run.** Nothing here needs one and nothing here would be established by one: the
+provenance wall is unchanged, and all three fixes are about paths a desktop run does not take —
+a stop mid-gesture, a machine that refuses input, a run that has already ended. `plugins/e2e` has
+no drag scenario yet; that is part of the contract's fifth requirement (independent fixture
+evidence of the full gesture), and the fixture still does not log movement.

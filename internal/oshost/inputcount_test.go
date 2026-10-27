@@ -71,8 +71,13 @@ func TestEveryHostActionSaysWhetherItSendsInput(t *testing.T) {
 
 // AND TWO OF THEM ARE THE ONES THAT WOULD HAVE BEEN MISSED.
 //
-// Typing and dragging do not go through `delivered`, so the count first proposed for this would
+// Typing and dragging did not go through `delivered`, so the count first proposed for this would
 // have read zero for a routine that did both. These two are that measurement.
+//
+// A drag goes through `delivered` now, and the measurement is unchanged and still needed: the
+// count is taken in `Invoke` against `sendsInput`, which is the whole point of where it is taken
+// — a number that depended on each action remembering to report would start reading low again
+// the next time one of them did not. Typing still does not.
 func TestTypingAndDraggingAreAskedFor(t *testing.T) {
 	rec := &recBackend{}
 	h := &Host{b: rec}

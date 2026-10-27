@@ -175,11 +175,19 @@ func (r *recBackend) clickAt(_ context.Context, b string, x, y int) error {
 	r.calls = append(r.calls, "click "+b)
 	return nil
 }
-func (r *recBackend) drag(_ context.Context, _ string, x1, y1, x2, y2 int) error {
+
+// drag records the gesture it was ASKED for, before deciding whether the machine takes it —
+// a refused drag is still a drag somebody asked for.
+//
+// A DRAG IS AN INPUT SEND, so `refuseFrom` reaches it too. It did not used to, the same gap this
+// backend's `key` had and for the same reason: nothing could put a drag-delivery failure in a
+// routine, so the account that a refused drag belongs in could not be tested.
+func (r *recBackend) drag(_ context.Context, button string, x1, y1, x2, y2 int) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.drags = append(r.drags, [4]int{x1, y1, x2, y2})
-	return nil
+	r.calls = append(r.calls, fmt.Sprintf("drag %s %d,%d-%d,%d", button, x1, y1, x2, y2))
+	return r.sending()
 }
 func (r *recBackend) move(_ context.Context, x, y int) error {
 	r.mu.Lock()

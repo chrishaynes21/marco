@@ -1081,8 +1081,24 @@ func (h *Host) doDrag(c runtime.HostCall) (string, runtime.Value, error) {
 	if btn == "" {
 		btn = "left"
 	}
+	// NOTHING IS DRAGGED BY A RUN THAT HAS ALREADY STOPPED. Here as well as inside the
+	// gesture, and for the reason `doKeyDown` gives: here it holds for EVERY backend,
+	// including the ones a test can drive, so "a stopped run presses nothing" is a claim
+	// about the host rather than about Windows. The gesture keeps its own check because
+	// the press is the event that must not happen and the gesture is what sends it.
+	if err := c.Ctx.Err(); err != nil {
+		return fail(err.Error())
+	}
 	mlog.Debug("drag", "from", fmt.Sprintf("(%d,%d)", fx, fy), "to", fmt.Sprintf("(%d,%d)", tx, ty), "button", btn)
-	return ok(h.b.drag(c.Ctx, btn, fx, fy, tx, ty))
+	// AND A DRAG THE MACHINE WOULD NOT TAKE IS KEPT, like a press, a hold and a keystroke.
+	//
+	// It used to go out through `ok`, which turns an error into a failed step and records it
+	// nowhere — so a drag the machine refused was absent from the account the command reads
+	// and the run reported success about a gesture that never happened. Worse, underneath it
+	// the backend was discarding what `SendInput` returned, so there was usually no error to
+	// report in the first place; both halves had to go.
+	return h.delivered(fmt.Sprintf("dragging from %d,%d to %d,%d", fx, fy, tx, ty),
+		h.b.drag(c.Ctx, btn, fx, fy, tx, ty))
 }
 
 // cvOff reports whether computer vision / anchors are OFF — the DEFAULT now. The CV anchor

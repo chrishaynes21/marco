@@ -101,6 +101,22 @@ release goes wrong goes wrong when nobody is watching. Holds are an ordered list
 reverse, a refused release stays on the list for the route-end sweep to try once more, and what
 the sweep still cannot release goes into the same account. The sweep used to discard every answer.
 
+And a third slice, one device over: `do OS's Drag with …` is a button held down while the pointer
+travels, and the same promise. It had the same three defects, in the same place — the whole
+gesture inside the function that calls `SendInput` — and found the same way, by reading it rather
+than by running it. A stop during the travel broke out of the loop and then sent the landing move
+and the release anyway, so a stopped drag let go of the button at the DESTINATION: the thing being
+dragged was dropped where the routine was going rather than where the pointer had got to. Nothing
+read the run before the press. And every refusal `SendInput` reported was discarded, with `doDrag`
+reporting through `ok` rather than `delivered` on top of it, so a drag the machine would not take
+was absent from the account a command reads. The order now lives in `dragGesture` against a
+machine that takes one pointer event at a time; every event carries its own point, which is what
+lets a release be aimed at where the pointer IS, and the gesture tracks the last point the machine
+accepted so a stop, a refused move and a refused landing all release there. The button is still in
+no ledger — an exit between the press and the release leaves it down — and closing that needs the
+backend's `drag` split so something outside it can release; that belongs to the guarded-drag
+contract and is not yet agreed.
+
 Two limits, in those words: a failed release is **reported, not recovered** — none of that
 machinery puts the key back up, and whoever reads the sentence is the recovery — and **forced
 termination is outside it**, because a process killed between a modifier going down and its

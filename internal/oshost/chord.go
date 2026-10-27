@@ -111,7 +111,7 @@ func sendChord(ctx context.Context, m keyMachine, asked string, keys []keySpec,
 			// AND WHAT WAS PRESSED IS RELEASED BEFORE THIS RETURNS. The missing
 			// three lines: a return from here used to leave the earlier modifiers
 			// down, so a refused Shift left a held Ctrl behind it.
-			return withRelease(refused(asked, mod), releasing(m, held))
+			return withRelease(refused(asked, mod), releasing(m, held), "keystroke")
 		}
 		held = append(held, mod)
 	}
@@ -124,7 +124,7 @@ func sendChord(ctx context.Context, m keyMachine, asked string, keys []keySpec,
 		// key. Stopping a run has to stop the keystroke that was in flight, or Escape
 		// is a key that sends the chord.
 		if err := ctx.Err(); err != nil {
-			return withRelease(err, releasing(m, held))
+			return withRelease(err, releasing(m, held), "keystroke")
 		}
 	}
 	// How long the key or the combo stays down. An explicit hold wins — it is what lets
@@ -141,7 +141,7 @@ func sendChord(ctx context.Context, m keyMachine, asked string, keys []keySpec,
 		// NO RELEASE FOR A KEY THAT IS NOT DOWN. `SendInput` takes an event or it does
 		// not, so a rejected press left nothing to undo; sending the release anyway
 		// produced a second refusal and a sentence naming two failures for one.
-		return withRelease(refused(asked, tap), releasing(m, held))
+		return withRelease(refused(asked, tap), releasing(m, held), "keystroke")
 	}
 	held = append(held, tap)
 	m.settle(ctx, holdFor)
@@ -150,7 +150,7 @@ func sendChord(ctx context.Context, m keyMachine, asked string, keys []keySpec,
 	// during the hold does not skip this — the keys are down, and down is the state
 	// somebody is left with.
 	if stuck := releasing(m, held); stuck != nil {
-		return withRelease(ctx.Err(), stuck)
+		return withRelease(ctx.Err(), stuck, "keystroke")
 	}
 	return ctx.Err()
 }
@@ -225,7 +225,12 @@ func refused(asked string, k keySpec) error {
 // a cancellation that stopped looking like a cancellation would turn a person pressing Escape
 // into a routine that failed. Then the stop keeps its identity and the stuck key is said in the
 // same breath.
-func withRelease(primary, stuck error) error {
+//
+// It serves a drag the same way, and `gesture` is the one word that differs: the noun for what
+// did not happen, a keystroke here and a drag there. Passed in rather than written in, because
+// the sentence below said "keystroke" while this had one caller, and a second one would have
+// inherited a noun about the wrong device.
+func withRelease(primary, stuck error, gesture string) error {
 	switch {
 	case stuck == nil:
 		return primary
@@ -240,6 +245,7 @@ func withRelease(primary, stuck error) error {
 		// AND THE DELIVERY FAILURE IS KEPT RATHER THAN SUMMARISED. Both are wrapped,
 		// so a caller that has to tell "the keystroke did not happen" from "a key is
 		// still down" can ask about either without reading the sentence.
-		return fmt.Errorf("%w (and the keystroke itself was refused: %w)", stuck, primary)
+		return fmt.Errorf("%w (and the %s itself was refused: %w)", stuck, gesture,
+			primary)
 	}
 }
