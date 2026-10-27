@@ -9001,3 +9001,72 @@ decoration. `cmd/marco` then ran `ok … 12.237s`.
 neither green run proves it is gone — the structural test is the one that does not depend on
 catching it. And the harness's unexplained foreground refusal (§40b) is still open and is a
 separate anomaly; one answered question is not two.
+
+### §41k — guarded drags, traced and not built
+
+Asked for by the Architect as an investigation: trace capture → simplification → generation →
+execution, say what is reusable and what is missing, and propose the smallest contract. **Nothing
+in this section is implemented, and the contract at the end is PROPOSED, NOT AGREED.**
+
+**The first finding reframes the rest: drags already work end to end.** They are not missing. What
+is missing is the GUARD. A demonstrated drag is captured, simplified into `StepDrag`, generated as
+`do OS's Drag with drag1`, and performed by `oshost.doDrag` → `winBackend.drag`. It has been there
+since before the guarded-press work, and it is unguarded.
+
+And the tree already says so, in one line of `codegen.cannotPropagate`: **"a DRAG resolves no
+offset, so it carries no window and is checked against nothing."** `Unpropagatable` therefore
+refuses to SAVE a guarded recording that contains a drag, by name, before anybody presses Save. So
+the present state is honest — a drag is either in an unguarded routine or it is refused — and the
+work is to make the guarded form representable, not to invent a gesture.
+
+#### What each layer has, and what it has not
+
+| layer | reusable as it stands | missing |
+|---|---|---|
+| capture (`internal/recorder`) | the press edge already carries the whole window contract: `RelX`, `RelY`, `RelTo`, `WinW`, `WinH`, `Dpi`, `Process`, read at the press because a press is the only moment it can be read | the RELEASE edge carries no window at all, by design — `newClick` stamps geometry only when `down`. So the drop point exists only as an absolute coordinate, or as an offset computed from the PRESS's measurement |
+| simplification (`internal/simplify`) | `StepDrag` is formed from the down/up pair when a move was seen and the distance passes `DragThresholdPx`; every field above is in hand at that moment, in `downRelX`, `downIn`, `downWindow` | it DISCARDS all of it. The step gets `X, Y, X2, Y2, Button` and nothing else — the comment beside it says so plainly: "Drags carry neither" |
+| generation (`internal/codegen`) | a drag is already ONE `do` sentence, which is the property the propagation chain needs, and the exact reason non-left clicks and anchored presses cannot join it | `cannotPropagate` names "a drag"; `guardedStep` admits only `StepClick` and `StepMove`; the `Drag` set in `os.marco` has no window fields to carry a contract in |
+| execution (`internal/oshost`) | `clickTarget` already resolves a Point against a freshly measured window and REFUSES with the term that disagreed; `delivered` already keeps a refused send as something that did not happen; `holding` / `released` / `ReleaseHeld` already sweep at route end and report what would not come up | `doDrag` uses none of them. It reads four ints, logs, and calls `ok(h.b.drag(…))` |
+| the backend | `keyDown` / `keyUp` exist as separate primitives, which is what lets the ledger bracket a held key | there is **no `mouseDown` / `mouseUp`**. `drag` is one monolithic call, so no code outside it can release the button it pressed |
+| fixture evidence | both edges are logged — `what` is the button plus `_down` or `_up` — with three coordinate spaces and the window rect each time | `WmMouseMove: break; // Deliberately not logged`. The movement BETWEEN the edges, which is the whole of what makes a drag a drag, is invisible to the only account outside both programs |
+
+#### Three defects found by reading, not by running
+
+1. **A cancelled drag still completes the drop.** `winBackend.drag` checks the context at the top
+   of its interpolation loop and breaks — and then sends the landing move to the destination and
+   the release anyway. So a stop during a drag releases the button (good) at the DESTINATION
+   (wrong): the object is dropped where the routine was going rather than where the pointer was
+   when somebody said stop.
+2. **No entrance check.** Nothing tests the context before the press, so a drag dispatched after a
+   stop has already been raised presses and drags regardless. `sendChord` needed exactly this check
+   and has it ([[ADR-258-a-chord-is-a-promise-to-let-go]]); the drag path never got one.
+3. **Every delivery failure is discarded.** The `send` closure inside `drag` ignores the result of
+   `sendInputs` entirely and the function returns only the context's error, so a refused press, a
+   refused move and a refused release are indistinguishable from a performed gesture. `doDrag`
+   compounds it by using `ok(...)` rather than `delivered(...)`: a drag the machine refused is not
+   in `Unperformed`, is not counted in `InputActions`, and reports `performed`.
+
+Also worth stating because it is the dangerous one: the button is in no ledger. `ReleaseHeld` knows
+keys. An exit between the press and the release — a panic, a kill, a stop that unwinds past the
+call — leaves the left button DOWN with nothing in the process that knows to lift it, and a held
+left button drags whatever the pointer passes over.
+
+#### The smallest contract that covers the five requirements
+
+| requirement | the smallest mechanism | what it costs |
+|---|---|---|
+| fresh window validation before mouse-down | `simplify` stops discarding the press's contract; the `Drag` set carries it in the same field names `Point` already uses; `doDrag` resolves the From point through `clickTarget` and refuses with the term that disagreed. ONE measurement, taken before the press | nine fields on an existing set in `os.marco`, every name already in the language on `Point`. No Core change, no new act, no new word |
+| the destination | resolved as an offset in the SAME measurement, not re-measured mid-gesture: a window that moved during the drag would otherwise move the destination under the pointer | the end offset is computed from the press's rect, since the release edge records none. A demonstration whose window moved mid-drag is ambiguous and is refused rather than guessed |
+| cancellation during movement | release WHERE IT IS and stop: no landing move, no drop at the destination. The inter-step sleep becomes a select on the context so a stop lands within a step rather than at the next boundary, and an entrance check matches `sendChord`'s | one behaviour change to an existing primitive, and it changes what a stopped drag does today |
+| release attempts on every exit | split the backend's `drag` into `mouseDown` → movement → `mouseUp`, and register the button in the existing ledger so the route-end sweep attempts it. Attempted, reported, not recovered, not forced — the holds' rule, unchanged | two new backend primitives and their stubs. This is the only genuinely new machinery in the proposal |
+| delivery-failure propagation | `send` keeps what `sendInputs` returned; `doDrag` reports through `delivered`; the chain gains a `StepDrag` case in `propagating`, which needs nothing new because a drag is already one sentence; `cannotPropagate` loses its drag case last of all | the refusal channel already exists for recordings that cannot be represented — a mid-drag window move joins it |
+| independent fixture evidence | log mouse movement **only while a button is down**, which is exactly drag motion and is bounded: a drag is about twenty-five moves. Keep the no-input rule — the fixture observes | a counted path with its ends, and whether each point was inside the window. Enough to tell a drag from two clicks, which is the part a replay can skip while both ends still look right |
+
+**Preserve existing saved Marco.** The same decision as the holds: `the Drag is a set` keeps every
+field it has, `do OS's Drag with …` keeps its meaning, and a routine already on disk keeps running
+exactly as it does — unguarded, absolute, no window check. New recordings get the guarded form.
+Explicit regeneration can pick it up; nothing rewrites anything.
+
+**What no amount of this establishes** is unchanged: the hooks discard injected input, so no
+automated run can show that Windows captured a physical drag. The fixture can show that a drag
+ARRIVED as one.
