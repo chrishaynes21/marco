@@ -9614,3 +9614,83 @@ that a drag ARRIVED as one.
 - **Non-left clicks and anchored presses** still cannot propagate, for their own reasons.
 - The parked items from before: the `E2E.md` and ADR-252 double-encoding, the harness's
   unexplained foreground refusal (§40b), `stopsignal.Raise`'s unretried *Access is denied*.
+
+### §41p — three findings against §41o: one instant, one order, two claims
+
+Review of the slice above found three, and the shape of all three is the same: a check or a claim
+that reads as stronger than what it establishes.
+
+#### A stop arriving while the window was being read still pressed
+
+`dragGesture` read the context, aimed, read it again, asked the window, and pressed. The second
+read was the §41m fix for the gap the aim opens — and it closed that gap and opened the next one.
+The confirmation sends nothing, which is why it was allowed to sit between a stop check and the
+press at all; but it reads a rectangle, a scale and a process name off a live desktop, and a stop
+arriving while it did that found nothing between its own answer and the button going down. The
+window was still there, the callback said so, and the press went out on a run that had already
+been stopped.
+
+So there are three reads now — the stop, the window, the stop again — and the rule they prove is
+the general one this keeps teaching in a new place: **a check belongs against the press, so
+whatever is last before the press is what has to be read there**, including a check that was
+itself the fix for the instant before. The one before the window stays, and has its own test:
+somebody who presses Escape is owed "it was stopped" and not "that window changed size".
+
+Both are pinned, and each by one mutation: deleting the last read presses after a confirmation
+that cancelled and agreed, and deleting the middle one asks a desktop about a run that is over.
+
+#### An outcome word is not a timestamp
+
+`theDragHadAlreadyFinished` decided whether the stopped-drag scenario had exercised anything from
+the record's outcome and the existence of movement. Neither orders the stop against the release,
+and read as a timestamp the outcome fails in BOTH directions:
+
+- a stop Marco **ignored** finishes as `performed`, which the check excused as "too late" and
+  reported NOT RUN — filing the most serious thing the scenario can find as nothing happened;
+- a stop that landed **after** a completed gesture still records `cancelled`, because the run was
+  stopped between steps — which convicted a drag nothing interrupted of dropping at its
+  destination.
+
+The ordering evidence is the fixture's own counter, read on both sides of the Stop request. An
+event at or below the first reading was logged before the request; one above the second was logged
+after it; what falls between arrived DURING the request and nothing orders it, so that is reported
+as ambiguous — not a pass, not a failure, and the sentence says which two things it cannot put in
+order. An ignored stop is now a finding with its own sentence, and a log with no release at all
+returns to `theButtonWasNotReleased` rather than becoming NOT RUN: that one survived the first
+mutation run, and it is the same mistake one claim over.
+
+Whether the SCENARIO takes that evidence, and in that order, is a property of a function body only
+a desktop runs — so it is read off the source the way the hold scenario's absence claim is. A
+bracket taken at the top of the scenario bounds nothing, and an upper bound that is never read is
+not a bound: `TestTheStoppedDragScenarioBracketsItsStop` kills both, and the three verdicts have to
+come after the ordering.
+
+#### "A move arrived" and "not the destination" are both weaker than they read
+
+The travel claim counted movement. A replay that jumped straight to the far end and let go there
+sends a move of its own, at the destination, and satisfied it — so the check that existed to tell a
+drag from a teleport passed the teleport. What is required is a received point that is **neither
+end**, which no count can stand in for.
+
+And that log has a second reading the oracle cannot separate from a teleport: an application that
+never got the processor during the travel and was told the pointer's position once, at the end. The
+failing sentence names both, because one of them sends somebody to the machine and not to Marco.
+
+The release claim asserted the button did not come up at the destination, which passes a release at
+a point the pointer never visited — a corner of the box the ends make, the origin, whatever a
+mistaken implementation aimed at. "It let go somewhere else" is not "it let go where it got to", so
+the release also has to be ON the travel: inside the demonstrated ends and on the line between
+them, to within the band the gesture's own integer stepping produces and no wider. What the oracle
+CANNOT say is which point of the travel the pointer had reached when the stop landed — coalescing
+means the log does not name the pointer's last position, and the instant a stop arrives is not
+observable from outside the run — so the passing sentence claims an order and a place, and not an
+instant.
+
+#### Verification
+
+Fifteen mutations of the claim code, one survivor, fixed and re-killed; six of the scenario's
+wiring, all killed; two of the gesture's new reads, both killed. Root suite clean, `plugins/e2e`
+ok, `gofmt` clean, `docscheck` no problems, `wiringcheck` green.
+
+**Still no desktop run and the screen was not touched.** The four scenarios remain gated and have
+established nothing; `physical recording capture: NOT EXERCISED` is unchanged.

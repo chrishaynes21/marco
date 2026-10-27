@@ -266,7 +266,7 @@ it sends no input and will not put it up itself.
 | `drag/a drag arrives as a drag` | the application receives a press, movement with the button held, and a release — not two clicks |
 | `drag/it follows an app that moved` | both ends of a guarded drag re-base onto the window as it is now, and the whole gesture stays inside it |
 | `drag/a resized app is refused with nothing sent` | the routine refuses before the button goes down, so the application receives nothing at all |
-| `drag/a stopped drag lets go where it got to` | Stop with the button demonstrably down releases where the pointer reached, not at the destination |
+| `drag/a stopped drag lets go where it got to` | Stop with the button demonstrably down releases on the travel, short of the destination, after the stop was asked for |
 
 **All four carry `onlyWhenAsked`**, for the holds' reason: a scenario nobody has exercised must
 not turn the next ordinary run into a debugging session. Run them with `-only drag`; the gate comes
@@ -292,12 +292,17 @@ nothing:
 
 - **Not every injected point, and no count.** Windows coalesces mouse moves, so a gesture that
   sent twenty-four can arrive as six depending on how busy the machine is. A count would be an
-  assertion about the scheduler. Required instead: intermediate movement ARRIVED, and the ends came
-  in order around it.
-- **A stop that arrived after the release is NOT RUN**, not a pass. The gesture finished, the record
-  may still say `cancelled` because the run was stopped between steps, and every assertion about
-  where the button came up would be true of a drag nothing interrupted. The stop goes in once the
-  application has LOGGED the press, and that question is asked before any other.
+  assertion about the scheduler. Required instead: **a received point that is neither end**, and
+  the ends in order around it. Not merely "a move arrived" — a replay that jumped to the far end
+  and let go there sends one of its own, at the destination.
+- **A stop that arrived after the release is NOT RUN**, not a pass — and the fixture's own counter
+  is what says so, read **on both sides of the Stop request**. An outcome word cannot: it is what
+  Marco concluded, not when the application was told, and reading it as a timestamp excuses a stop
+  that was IGNORED (`performed` looks like "too late") and convicts a drag nothing interrupted
+  (`cancelled` is still recorded when the run was stopped between steps). The stop goes in once
+  the application has LOGGED the press, the ordering is asked before any verdict, and a release
+  that lands inside the bracket is reported as **ambiguous** — neither a pass nor a failure,
+  because a verdict either way would be a guess about which of two things happened first.
 - **No stuck button is manufactured here.** A release the machine refuses is arranged headlessly,
   where a machine can be told to refuse. On a desktop it would mean leaving a real button held down
   on somebody's computer to see whether the report says so.

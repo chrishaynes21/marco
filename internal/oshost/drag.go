@@ -161,15 +161,17 @@ func dragGesture(ctx context.Context, m pointerMachine, button string, x1, y1, x
 		return fmt.Errorf("the machine refused to aim at %d,%d for the %s drag",
 			x1, y1, button)
 	}
-	// AND READ AGAIN, IMMEDIATELY BEFORE THE PRESS.
+	// AND READ AGAIN, AS SOON AS THE AIM HAS BEEN TAKEN.
 	//
 	// The entrance check above is not enough on its own, and the gap between the two is
 	// not theoretical: the aim is a send, a send takes time, and a stop that arrives while
 	// the machine is accepting the aim found nothing between it and the button going down.
 	// A press is the event that cannot be taken back, so the check belongs against the
-	// press and not only against the gesture. This is the narrowest instant the gesture
-	// can read, and reading it here is what makes the claim "a stopped run presses nothing"
-	// true of the moment rather than of the function.
+	// press and not only against the gesture.
+	//
+	// This one is not the last — asking the desktop about the window takes time of its own
+	// and the final read is below, after that answer. This one is here so that a run which
+	// has already been stopped asks nothing.
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -177,13 +179,27 @@ func dragGesture(ctx context.Context, m pointerMachine, button string, x1, y1, x
 	//
 	// The stop is read first because a run that has been stopped has no business asking
 	// the desktop anything, and because a window complaint would be the wrong answer to
-	// give somebody who pressed Escape. After that this is the LAST thing before the
-	// press, and NO INPUT IS SENT BETWEEN THEM — which is the whole property, and the
-	// reason the aim is not allowed to sit in that gap.
+	// give somebody who pressed Escape.
 	if host.confirm != nil {
 		if err := host.confirm(); err != nil {
 			return err
 		}
+	}
+	// AND THE STOP ONE LAST TIME, BECAUSE ASKING THE DESKTOP TAKES TIME TOO.
+	//
+	// The confirmation is a READ and sends nothing, which is why it is allowed to sit
+	// between a stop check and the press at all. But it reads a window rectangle, a scale
+	// and a process name off a live desktop, and a stop that arrives while it is doing
+	// that found nothing between its own answer and the button going down: the window was
+	// still there, the callback said so, and the press went out on a run that had already
+	// been stopped. The aim's defect, one question later, and the same fix — the check
+	// belongs against the PRESS, so it is the last thing before it whatever came before.
+	//
+	// So this is the last line before the press, and NO INPUT IS SENT ANYWHERE BETWEEN THE
+	// AIM AND THE PRESS, which is the whole property: everything in that gap is a question
+	// about whether to press, and this is the last of them.
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 	if !m.press(button, x1, y1) {
 		// NO RELEASE FOR A BUTTON THAT IS NOT DOWN. `SendInput` takes an event or it

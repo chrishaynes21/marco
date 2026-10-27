@@ -15,6 +15,9 @@ package main
 // `TestTheHoldScenariosRunLikeAnyOther` and is the shape to copy.
 
 import (
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"strings"
 	"testing"
 )
@@ -149,6 +152,48 @@ func TestTheTravelIsRequiredAndNotCounted(t *testing.T) {
 	if !strings.Contains(why, "teleport") {
 		t.Errorf("the sentence is %q and does not say what arrived instead", why)
 	}
+	// AND A TELEPORT WITH A MOVE EVENT IN IT IS THE SAME TELEPORT.
+	//
+	// The case a reader that counted movement would pass, and the reason the claim is
+	// about a point between the ends rather than about a number: a replay that jumped
+	// straight to the far end sends a move of its own, at the destination, and then lets
+	// go there. One move arrived, no travel did.
+	for _, c := range []struct {
+		what  string
+		moved [2]int
+	}{
+		{"one jump to the destination", [2]int{600, 400}},
+		{"one move that never left the press", [2]int{200, 200}},
+	} {
+		t.Run(c.what, func(t *testing.T) {
+			jumped := []fixtureEvent{
+				{Seq: 1, Kind: "mouse", What: "left_down", ScreenX: 200,
+					ScreenY: 200},
+				{Seq: 2, Kind: "mouse", What: "move", ScreenX: c.moved[0],
+					ScreenY: c.moved[1]},
+				{Seq: 3, Kind: "mouse", What: "left_up", ScreenX: 600,
+					ScreenY: 400},
+			}
+			why := theTravelWasNotReceived(jumped)
+			if why == "" {
+				t.Fatalf("%s is reported as travel, so a gesture that never "+
+					"went between its ends reads as a drag", c.what)
+			}
+			if !strings.Contains(why, "BETWEEN") {
+				t.Errorf("the sentence is %q and does not say what was "+
+					"missing", why)
+			}
+			// AND THE OTHER READING IS NAMED. A log with no intermediate
+			// point is also what an application that never ran during the
+			// travel produces, and that is a reason to look at the machine
+			// rather than at Marco. A sentence that convicted the gesture
+			// of teleporting would send somebody to the wrong place.
+			if !strings.Contains(why, "never ran") {
+				t.Errorf("the sentence is %q and names only one of the two "+
+					"things this log can mean", why)
+			}
+		})
+	}
 }
 
 // AND EVERY POINT HAS TO BE INSIDE THE WINDOW, NOT JUST THE ENDS.
@@ -195,31 +240,61 @@ func TestARefusedDragIsAssertedOnNotOneEvent(t *testing.T) {
 	}
 }
 
-// AND A STOP THAT ARRIVED TOO LATE IS NOT RUN, NOT A PASS.
+// AND THE STOP IS ORDERED AGAINST THE RELEASE BY THE LOG, NOT BY A VERDICT.
 //
-// The one way the stopped-drag scenario can be accidentally green: the gesture finishes, the run
-// is stopped between steps and records `cancelled`, and every assertion about where the button
-// came up is true of a drag nothing interrupted.
-func TestAStopThatArrivedTooLateIsNotACancellation(t *testing.T) {
+// The one way the stopped-drag scenario can be accidentally green is a gesture that had already
+// finished: the run is stopped between steps, records `cancelled`, and every assertion about
+// where the button came up is true of a drag nothing interrupted. The first cut read that off the
+// outcome word and the existence of movement, and neither orders anything — an outcome says what
+// Marco concluded, not when the application was told. So the stop is bracketed in the fixture's
+// own counter, and the three readings of that bracket are the three answers this can give.
+//
+// `mid` is a press at #1, movement at #2–#4 and a release at #5 throughout, so the bracket is the
+// only thing that changes between the cases.
+func TestTheStopIsOrderedAgainstTheReleaseByTheFixturesLog(t *testing.T) {
 	mid := aDragLog(theTestWindow, [2]int{200, 200}, [2]int{600, 400}, 3)
-	if why := theDragHadAlreadyFinished(mid, runRecord{Outcome: "cancelled"}); why != "" {
-		t.Errorf("a stopped gesture that had travelled is reported as having "+
-			"finished: %s", why)
+	if got := mid[len(mid)-1].Seq; got != 5 {
+		t.Fatalf("the log this test reasons about ends at #%d, not #5", got)
+	}
+	// THE RELEASE AFTER THE REQUEST: a cancellation was exercised.
+	if why := theDragHadAlreadyFinished(mid, stopBracket{before: 4, after: 4}); why != "" {
+		t.Errorf("a release logged after the stop was asked for is reported as "+
+			"unexercised: %s", why)
+	}
+	// AND NO RELEASE AT ALL IS NOT AN UNEXERCISED SCENARIO.
+	//
+	// It is a button held down on somebody's desktop, which `theButtonWasNotReleased`
+	// reports as the finding it is. A NOT RUN here would file the worst outcome this
+	// scenario can produce as "nothing happened" — the same mistake as excusing an
+	// ignored stop, one claim over.
+	if why := theDragHadAlreadyFinished(mid[:4], stopBracket{before: 4, after: 4}); why != "" {
+		t.Errorf("a gesture whose button never came up is reported as unexercised "+
+			"(%s), so a held button would be filed as NOT RUN", why)
+	}
+	if why := theButtonWasNotReleased(mid[:4]); why == "" {
+		t.Error("and nothing else reports it either")
 	}
 	for _, c := range []struct {
 		what string
 		got  []fixtureEvent
-		rec  runRecord
+		br   stopBracket
 		says string
 	}{
-		{"the run performed", mid, runRecord{Outcome: "performed"},
+		{"the release was already logged", mid, stopBracket{before: 5, after: 5},
 			"no cancellation was exercised"},
-		{"the stop landed before the travel",
-			mid[:1], runRecord{Outcome: "cancelled"},
-			"no gesture in flight to interrupt"},
+		// THE AMBIGUITY, which is neither a pass nor a failure. The release
+		// arrived while the request was being made, and nothing orders them.
+		{"the release landed inside the bracket", mid,
+			stopBracket{before: 4, after: 6}, "nothing here orders the two"},
+		{"the press was not logged before the stop", mid,
+			stopBracket{before: 0, after: 0}, "not demonstrably down"},
+		{"nothing arrived at all", nil, stopBracket{before: 0, after: 0},
+			"no gesture in flight"},
+		{"the log could not be read", mid, stopBracket{before: 4, after: 0},
+			"could not be read"},
 	} {
 		t.Run(c.what, func(t *testing.T) {
-			why := theDragHadAlreadyFinished(c.got, c.rec)
+			why := theDragHadAlreadyFinished(c.got, c.br)
 			if why == "" {
 				t.Fatalf("%s is reported as an exercised cancellation", c.what)
 			}
@@ -230,15 +305,186 @@ func TestAStopThatArrivedTooLateIsNotACancellation(t *testing.T) {
 	}
 }
 
-// AND A RELEASE AT THE DESTINATION IS THE DEFECT, ASSERTED AGAINST WHAT WAS DEMONSTRATED.
+// AND THE SCENARIO HAS TO TAKE THAT EVIDENCE, IN THAT ORDER.
 //
-// Against the seeded destination and not against the last movement received, which would make
-// the check a tautology about two adjacent records in the same log — a release always follows the
-// last move, wherever either of them is.
-func TestAReleaseAtTheDestinationIsReported(t *testing.T) {
+// The claims above can be asked of a log by a test; whether the scenario ASKS them, and whether
+// it has the evidence when it does, is a property of a function body only a desktop runs. So it
+// is read the way the hold scenario's absence claim is read — off the source, as an order of
+// calls — because a bracket taken at the wrong moment is not a bracket:
+//
+//   - the lower bound has to be read AFTER the press has arrived, or it bounds nothing: a
+//     reading taken at the top of the scenario is a reading from before the gesture, and every
+//     event of the drag would fall above it;
+//   - the upper bound has to be read AFTER Stop was pressed, or there is no upper bound at all
+//     and an ambiguous ordering reads as a clean one;
+//   - and the ordering question has to be asked BEFORE any verdict, because every verdict this
+//     scenario reaches is true of a drag nothing interrupted.
+func TestTheStoppedDragScenarioBracketsItsStop(t *testing.T) {
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, "scenario_drag.go", nil, 0)
+	if err != nil {
+		t.Fatalf("parsing scenario_drag.go: %v", err)
+	}
+	var fn *ast.FuncDecl
+	for _, decl := range file.Decls {
+		if d, ok := decl.(*ast.FuncDecl); ok &&
+			d.Name.Name == "aStoppedDragLetsGoWhereItGotTo" {
+			fn = d
+		}
+	}
+	if fn == nil {
+		t.Fatal("aStoppedDragLetsGoWhereItGotTo is gone; it is the desktop half of " +
+			"the defect that dropped a stopped drag at its destination")
+	}
+	// named collects the position of every call to one of these, in source order.
+	named := map[string][]token.Pos{}
+	ast.Inspect(fn, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		var name string
+		switch f := call.Fun.(type) {
+		case *ast.Ident:
+			name = f.Name
+		case *ast.SelectorExpr:
+			name = f.Sel.Name
+		}
+		switch name {
+		case "lastSeq", "waitForMouse", "theDragHadAlreadyFinished",
+			"theTravelNeverStarted", "theButtonWasNotReleased",
+			"theReleaseWasNotWhereItGotTo", "theStopWasIgnored":
+			named[name] = append(named[name], call.Pos())
+		case "press":
+			// The STOP, and not the application's own buttons: this
+			// scenario presses Studio's Stop and nothing else.
+			if len(call.Args) == 1 {
+				if lit, ok := call.Args[0].(*ast.BasicLit); ok &&
+					strings.Contains(lit.Value, "cancel") {
+					named["stop"] = append(named["stop"], call.Pos())
+				}
+			}
+		}
+		return true
+	})
+	first := func(what string) token.Pos {
+		if len(named[what]) == 0 {
+			return token.NoPos
+		}
+		return named[what][0]
+	}
+	stop, down := first("stop"), first("waitForMouse")
+	if !stop.IsValid() || !down.IsValid() {
+		t.Fatal("the scenario no longer waits for the button to go down and then " +
+			"presses Stop, which is the whole arrangement")
+	}
+	var lower, upper bool
+	for _, at := range named["lastSeq"] {
+		if at > down && at < stop {
+			lower = true
+		}
+		if at > stop {
+			upper = true
+		}
+	}
+	if !lower {
+		t.Error("the fixture's log is not read between the press arriving and Stop " +
+			"being pressed, so the stop's lower bound is a reading from before " +
+			"the gesture and every event of the drag falls above it")
+	}
+	if !upper {
+		t.Error("the fixture's log is not read after Stop was pressed, so there is " +
+			"no upper bound on the request and a release that arrived while it " +
+			"was being made reads as one that arrived after it")
+	}
+	ordering := first("theDragHadAlreadyFinished")
+	if !ordering.IsValid() {
+		t.Fatal("the scenario no longer asks whether the stop preceded the release, " +
+			"so a drag that had already finished would be judged on assertions " +
+			"that are all true of a drag nothing interrupted")
+	}
+	for _, verdict := range []string{"theButtonWasNotReleased",
+		"theReleaseWasNotWhereItGotTo", "theStopWasIgnored"} {
+		at := first(verdict)
+		if !at.IsValid() {
+			t.Errorf("the scenario no longer asks %s", verdict)
+			continue
+		}
+		if at < ordering {
+			t.Errorf("%s is asked before the stop has been ordered against the "+
+				"release, so it can report a drag nothing interrupted",
+				verdict)
+		}
+	}
+	if at := first("theTravelNeverStarted"); !at.IsValid() {
+		t.Error("the scenario no longer asks whether the pointer got anywhere before " +
+			"it judges where the button came up")
+	}
+}
+
+// AND AN IGNORED STOP IS A FINDING, NOT AN EXCUSE.
+//
+// The defect in the first cut, and the reason the outcome word was taken out of the ordering: it
+// read `performed` as "the stop was too late" and reported NOT RUN. A run told to stop with a
+// gesture demonstrably in flight that finished the gesture anyway is the most serious thing this
+// scenario could find, and it was the one result that could not fail.
+func TestAnIgnoredStopIsReportedRatherThanExcused(t *testing.T) {
+	mid := aDragLog(theTestWindow, [2]int{200, 200}, [2]int{600, 400}, 3)
+	if why := theDragHadAlreadyFinished(mid, stopBracket{before: 4, after: 4}); why != "" {
+		t.Fatalf("the ordering is read as unexercised, so nothing downstream is "+
+			"asked: %s", why)
+	}
+	why := theStopWasIgnored(runRecord{Outcome: "performed", Because: "it worked"})
+	if why == "" {
+		t.Fatal("a run that finished its gesture after being told to stop is " +
+			"reported as having stopped")
+	}
+	if !strings.Contains(why, "carried on") {
+		t.Errorf("the sentence is %q and does not say what the run did", why)
+	}
+	if other := theStopWasIgnored(runRecord{Outcome: "cancelled"}); other != "" {
+		t.Errorf("a run that did stop is reported as having ignored it: %s", other)
+	}
+}
+
+// AND A TRAVEL THAT NEVER STARTED IS NOT RUN FOR A DIFFERENT REASON.
+//
+// Split from the ordering above because the two were one check and are two facts. A gesture with
+// no received movement is a real cancellation — the button was down — but "it let go where it got
+// to" is not a claim about a pointer that never got anywhere, so it is out of scope rather than
+// too late, and the sentence says which.
+func TestAStoppedDragThatNeverTravelledIsOutOfScope(t *testing.T) {
+	mid := aDragLog(theTestWindow, [2]int{200, 200}, [2]int{600, 400}, 3)
+	if why := theTravelNeverStarted(mid); why != "" {
+		t.Errorf("a gesture that travelled is reported as not having: %s", why)
+	}
+	why := theTravelNeverStarted(mid[:1])
+	if why == "" {
+		t.Fatal("a stop that landed before the first step of the travel is reported " +
+			"as having exercised where the pointer got to")
+	}
+	for _, want := range []string{"cancellation is real", "never got anywhere"} {
+		if !strings.Contains(why, want) {
+			t.Errorf("the sentence is %q and does not say %q — a reader has to be "+
+				"able to tell this from a stop that was ignored", why, want)
+		}
+	}
+}
+
+// AND THE RELEASE HAS TO BE WHERE IT GOT TO, WHICH IS TWO CLAIMS AND NOT ONE.
+//
+// Against the seeded ends and not against the last movement received, which would make the check
+// a tautology about two adjacent records in the same log — a release always follows the last move,
+// wherever either of them is.
+//
+// The destination is the defect this slice fixed. The second claim is the one the first cut left
+// out: "anywhere but the destination" passes a release at a point the pointer never visited, and
+// "it let go somewhere else" is not "it let go where it got to". So the release also has to be ON
+// the travel.
+func TestTheReleaseHasToBeOnTheTravelAndNotAtItsEnd(t *testing.T) {
 	seed := seededRoutine{at: [][2]int{{200, 200}, {600, 400}}}
 	dropped := aDragLog(theTestWindow, [2]int{200, 200}, [2]int{600, 400}, 3)
-	why := theReleaseWasAtTheDestination(dropped, seed)
+	why := theReleaseWasNotWhereItGotTo(dropped, seed)
 	if why == "" {
 		t.Fatal("a stopped drag that released at its destination is reported as " +
 			"having let go where the pointer got to — which is the first defect " +
@@ -248,12 +494,45 @@ func TestAReleaseAtTheDestinationIsReported(t *testing.T) {
 		t.Errorf("the sentence is %q", why)
 	}
 	// AND LETTING GO PARTWAY IS WHAT A STOP LOOKS LIKE.
-	partway := append([]fixtureEvent{}, dropped[:len(dropped)-1]...)
-	partway = append(partway, fixtureEvent{Seq: 9, Kind: "mouse", What: "left_up",
-		ScreenX: 400, ScreenY: 300, Window: theTestWindow})
-	if why := theReleaseWasAtTheDestination(partway, seed); why != "" {
-		t.Errorf("a release partway along the travel is reported as a drop at the "+
-			"destination: %s", why)
+	letGo := func(x, y int) []fixtureEvent {
+		out := append([]fixtureEvent{}, dropped[:len(dropped)-1]...)
+		return append(out, fixtureEvent{Seq: 9, Kind: "mouse", What: "left_up",
+			ScreenX: x, ScreenY: y, Window: theTestWindow})
+	}
+	if why := theReleaseWasNotWhereItGotTo(letGo(400, 300), seed); why != "" {
+		t.Errorf("a release partway along the travel is reported as not being on it: "+
+			"%s", why)
+	}
+	// AND SO IS A POINT THE GESTURE'S OWN TRUNCATION PRODUCES. It steps
+	// `x1 + int((x2-x1)*t)`, so the points it sends are off the exact line by up to a
+	// pixel in each axis, and a band narrower than that would fail a correct run.
+	for _, p := range [][2]int{{300, 249}, {300, 251}, {499, 350}} {
+		if why := theReleaseWasNotWhereItGotTo(letGo(p[0], p[1]), seed); why != "" {
+			t.Errorf("a release at %d,%d — a point the gesture's own arithmetic "+
+				"produces — is reported as off the travel: %s", p[0], p[1],
+				why)
+		}
+	}
+	// AND A POINT THE PATH NEVER PASSES THROUGH IS THE CASE THE FIRST CUT MISSED.
+	for _, c := range []struct {
+		what string
+		at   [2]int
+	}{
+		{"a corner of the box the ends make", [2]int{200, 400}},
+		{"somewhere else entirely", [2]int{20, 20}},
+		{"past the destination along the same line", [2]int{700, 450}},
+	} {
+		t.Run(c.what, func(t *testing.T) {
+			why := theReleaseWasNotWhereItGotTo(letGo(c.at[0], c.at[1]), seed)
+			if why == "" {
+				t.Fatalf("a release at %s is reported as where the pointer "+
+					"got to, and the gesture never goes there", c.what)
+			}
+			if !strings.Contains(why, "not a point on the travel") {
+				t.Errorf("the sentence is %q and does not say what is wrong "+
+					"with the place", why)
+			}
+		})
 	}
 }
 

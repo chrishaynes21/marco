@@ -29,9 +29,13 @@ package main
 //	where a machine can be told to refuse; doing it on a desktop would mean leaving a real
 //	mouse button held down on somebody's computer to see whether the report says so.
 //
-//	AND A STOP THAT ARRIVED TOO LATE IS NOT A CANCELLATION. If the gesture had finished before
-//	the stop landed, the scenario has exercised nothing and says so — NOT RUN rather than a
-//	pass. The fixture's own log is what decides: the button has to have been down.
+//	AND A STOP THAT ARRIVED TOO LATE IS NOT A CANCELLATION. If the gesture had finished
+//	before the stop landed, the scenario has exercised nothing and says so — NOT RUN rather
+//	than a pass. What decides it is the stop's place in the fixture's own log, read on both
+//	sides of the request: an outcome word is what Marco concluded and not when the
+//	application was told anything. An order that falls inside the request is an ambiguity
+//	this reports rather than resolves, because a verdict either way would be a guess about
+//	which of two things happened first.
 //
 // Physical recording capture is not exercised by any of this and never can be: the hooks discard
 // injected input, so every one of these seeds a demonstration and plays it. What they establish
@@ -247,9 +251,10 @@ func aDragIntoAResizedWindowIsRefused(w *world) result {
 // against the application's own account of where the button came up.
 //
 // AND A STOP THAT ARRIVED AFTER THE GESTURE FINISHED HAS EXERCISED NOTHING. The fixture's log is
-// what decides: a release that arrived before the stop was sent is a completed drag, and this
-// reports NOT RUN rather than a pass. That is the one way this scenario can be accidentally
-// green, so it is the one thing it checks first.
+// what decides, bracketed on both sides of the Stop request: a release logged before the request
+// went in is a completed drag, and this reports NOT RUN rather than a pass. That is the one way
+// this scenario can be accidentally green, so it is the one thing it checks first — and a release
+// that lands inside the bracket is named as ambiguous rather than counted either way.
 func aStoppedDragLetsGoWhereItGotTo(w *world) result {
 	started := time.Now()
 	st, err := setUpSeeded(w, func(f *fixtureRun) (seededRoutine, error) {
@@ -276,6 +281,15 @@ func aStoppedDragLetsGoWhereItGotTo(w *world) result {
 	}
 	w.art.step("the button went down on %q at screen %d,%d; stopping the run",
 		down.Control, down.ScreenX, down.ScreenY)
+	// AND THE STOP IS BRACKETED IN THE FIXTURE'S OWN LOG, on both sides, before anything
+	// is asked of the outcome.
+	//
+	// This is the only ordering evidence the harness has, and without it nothing says
+	// whether the stop preceded the release: a verdict word is what Marco concluded and
+	// not when the application was told. Two readings of the fixture's counter bound the
+	// request, and what falls between them is an ambiguity this run reports rather than
+	// resolves. See [stopBracket].
+	br := stopBracket{before: st.f.lastSeq()}
 	if err := st.s.press("cancelBtn2"); err != nil {
 		// A STOP THAT CANNOT BE RAISED IS NOT A FINDING ABOUT DRAGS, and this says
 		// which of the two it is rather than reporting a gesture that ignored Stop.
@@ -286,6 +300,8 @@ func aStoppedDragLetsGoWhereItGotTo(w *world) result {
 			"the drag was in flight, so what the stop would have done with the "+
 			"gesture is not established: %v", err))
 	}
+	br.after = st.f.lastSeq()
+	w.art.step("Stop was requested: %s", br)
 	rec, err := waitForRecord(60*time.Second, st.store, records)
 	if err != nil {
 		st.fail()
@@ -300,23 +316,47 @@ func aStoppedDragLetsGoWhereItGotTo(w *world) result {
 		return fail(started, err.Error())
 	}
 	// ── AND WHETHER THIS EXERCISED A CANCELLATION AT ALL ──
-	if why := theDragHadAlreadyFinished(got, rec); why != "" {
+	//
+	// Both of these are NOT RUN and neither is a verdict about Marco: the first is the
+	// stop's place in the application's log, which is the only thing that orders it
+	// against the release, and the second is whether the pointer had got anywhere by
+	// then. A run that fails either has not exercised what this scenario is about, and
+	// the evidence is in the artifact either way.
+	if why := firstOf(
+		theDragHadAlreadyFinished(got, br),
+		theTravelNeverStarted(got),
+	); why != "" {
 		return skip(started, why)
 	}
 	why := firstOf(
 		theButtonWasNotReleased(got),
-		theReleaseWasAtTheDestination(got, st.seed),
-		notCancelled(rec),
+		theReleaseWasNotWhereItGotTo(got, st.seed),
+		// AND MARCO HAS TO HAVE STOPPED. With the ordering above established, a run
+		// that reports anything else ignored a stop that arrived while its gesture
+		// was in flight — which is a finding and not an excuse.
+		theStopWasIgnored(rec),
 	)
 	if why != "" {
 		st.fail()
 		return fail(started, why, fmt.Sprintf("the fixture received %s", mouseAre(got)),
 			fmt.Sprintf("Marco recorded %s", rec))
 	}
+	// AND THE PASSING SENTENCE CLAIMS WHAT THE EVIDENCE CARRIES AND NOT MORE.
+	//
+	// Not "it let go exactly where the pointer was": coalescing means the application's
+	// log does not name the pointer's last position, and the instant a stop arrives is
+	// not observable from outside the run. What is established is an order and a place —
+	// the release was logged after the stop was asked for, and it landed on the travel
+	// short of the destination.
 	up := got[len(got)-1]
 	return pass(started,
-		fmt.Sprintf("the run was stopped with the button down and it came up at "+
-			"%d,%d, which is not the destination", up.ScreenX, up.ScreenY),
+		fmt.Sprintf("the button came up at %d,%d — on the travel toward %d,%d and not "+
+			"at it, so the stop let go on the way rather than dropping at the "+
+			"destination", up.ScreenX, up.ScreenY, st.seed.at[1][0],
+			st.seed.at[1][1]),
+		fmt.Sprintf("the release is #%d and %s, so it arrived after the stop was "+
+			"asked for; which point of the travel the pointer had reached by then "+
+			"is not observable from here", up.Seq, br),
 		fmt.Sprintf("the gesture arrived as %s", endsOf(got)),
 		fmt.Sprintf("Marco recorded %q: %s", rec.Outcome, rec.Because))
 }

@@ -453,6 +453,65 @@ func TestNothingIsSentBetweenTheWindowCheckAndThePress(t *testing.T) {
 	}
 }
 
+// AND A STOP THAT ARRIVES WHILE THE WINDOW IS BEING READ STILL PRESSES NOTHING.
+//
+// The third instant in this gap, and the one the first cut got wrong. The window check is a READ
+// and sends nothing, so it was allowed to sit between the stop check and the press — but it reads
+// a rectangle, a scale and a process name off a live desktop, and a stop arriving while it does
+// that found nothing between its own answer and the button going down. The window was still
+// there, the callback said so, and the press went out on a run that had already been stopped.
+//
+// The machine here cancels the run from inside the confirmation and then AGREES, which is the
+// narrowest arrangement of it: the only thing that can refuse has said yes, so nothing but a
+// final read of the stop stands between the answer and the press.
+func TestADragStoppedWhileTheWindowIsCheckedDoesNotPress(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	p := &fakePointer{}
+	err := dragGesture(ctx, p, "left", 10, 10, 90, 90, dragHost{
+		confirm: func() error { cancel(); return nil },
+	})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("a drag stopped while its window was being read reported %v, want "+
+			"a cancellation", err)
+	}
+	if len(p.events) != 1 || p.events[0] != "move 10,10" {
+		t.Errorf("the gesture sent %v; the aim had been taken when the stop arrived, "+
+			"so the aim is all there should be", p.events)
+	}
+	for _, e := range p.events {
+		if strings.Contains(e, "down") || strings.Contains(e, "up") {
+			t.Errorf("a stop arrived while the window was being confirmed and the "+
+				"gesture pressed anyway: %v", p.events)
+		}
+	}
+}
+
+// AND A RUN THAT HAS ALREADY STOPPED ASKS THE DESKTOP NOTHING.
+//
+// The other side of the same gap, and the reason the stop is read BEFORE the window and not only
+// after it. Somebody who presses Escape mid-route is owed "it was stopped" and not "that window
+// changed size": a gesture that confirmed first would answer with whichever of the two it
+// happened to find, and a desktop read is the slower of the two questions to ask on a run that
+// has nothing left to do.
+func TestADragStoppedBeforeItAimedAsksTheDesktopNothing(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	p := &fakePointer{stopAfter: 1, cancel: cancel} // stopped as the aim is taken
+	var asked int
+	err := dragGesture(ctx, p, "left", 10, 10, 90, 90, dragHost{
+		confirm: func() error { asked++; return nil },
+	})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("a drag stopped during its aim reported %v, want a cancellation", err)
+	}
+	if asked != 0 {
+		t.Errorf("the gesture read the window %d time(s) on a run that had already "+
+			"been stopped — a window complaint is the wrong answer to give "+
+			"somebody who pressed Escape", asked)
+	}
+}
+
 // ── and the exits that are not returns ──
 
 // aPointerThatPanics is a machine that stops working the way a real failure does: not by

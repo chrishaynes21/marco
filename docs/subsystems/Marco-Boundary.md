@@ -127,10 +127,14 @@ points in ONE window. Both ends resolve from one measurement at replay, and the 
 AGAIN immediately before the button goes down, against the snapshot those points were computed
 for: the gesture aims in between, an injected pointer move changes applications, and a check made
 before the gesture started is a check made before its own first event. A change there refuses
-rather than re-bases. Cleanup is a defer inside the gesture, armed on an ACCEPTED press and not on
-entry, so a panic during the aim reports nothing — no ledger and no split backend, because the
-gesture is still on the stack while the unwinding happens. Existing saved Marco carries no `RelTo`
-and takes the legacy path exactly as it did.
+rather than re-bases. **And the stop is read once more after the window answers**, which review
+found missing: the confirmation sends nothing, but it reads a live desktop and takes time of its
+own, so a stop arriving while it ran found nothing between its own answer and the button going
+down. The order is the stop, the window, the stop again, then the press — whatever is last before
+the press is what has to be read there. Cleanup is a defer inside the gesture, armed on an
+ACCEPTED press and not on entry, so a panic during the aim reports nothing — no ledger and no
+split backend, because the gesture is still on the stack while the unwinding happens. Existing
+saved Marco carries no `RelTo` and takes the legacy path exactly as it did.
 [[ADR-259-a-guarded-drag-is-two-points-in-one-window]]
 
 Review of the gesture work found three more, and two of them were in the half the extraction does
