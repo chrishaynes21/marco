@@ -309,3 +309,27 @@ func TestARecordingOfOnlyAnUnwrappablePressIsRefused(t *testing.T) {
 			"be was generated as an ordinary route")
 	}
 }
+
+// AND A DRAG THAT MEASURED NOTHING IS THE DRAG IT ALWAYS WAS.
+//
+// The compatibility half, and the reason it is asserted rather than assumed: every drag already
+// saved has none of these fields, and the one thing that must not happen to it is acquiring half
+// of them. `do OS's Drag with drag1` means what it meant.
+func TestAnUnmeasuredDragIsUnchanged(t *testing.T) {
+	src := generated(t, macroir.Step{Kind: macroir.StepDrag, Button: "left",
+		X: 300, Y: 200, X2: 760, Y2: 540})
+
+	want := "the drag1 is a Drag with FromX 300, FromY 200, ToX 760, ToY 540, " +
+		"Button \"left\".\n"
+	if !strings.Contains(src, want) {
+		t.Errorf("a drag that measured nothing came out differently.\n"+
+			"  want: %s\n--- source ---\n%s", want, src)
+	}
+	for _, term := range []string{"RelTo", "FromRelX", "ToRelX", "WinW", "Dpi",
+		"Process"} {
+		if strings.Contains(src, term) {
+			t.Errorf("%q is in a route generated from a drag that measured "+
+				"nothing:\n%s", term, src)
+		}
+	}
+}

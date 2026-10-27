@@ -54,12 +54,28 @@ this's Dpi is a number.     // the scale it was drawn at; absent when nobody cou
 this's Process is a text.   // the program that owned it, e.g. "arkascended.exe"
 
 // A press-hold-release drag from (FromX,FromY) to (ToX,ToY), passed to Drag.
+//
+// The window terms mean what they mean on Point, and for the same reason: a drag that
+// carries them asks to be checked against the window it was demonstrated in, and one
+// that does not keeps exactly the behaviour it was saved with. ONE set of them, because
+// a drag's two ends are two points in ONE window — the start and the destination both
+// resolve against a single live measurement, and re-measuring between them would let a
+// window that moved mid-gesture relocate the destination under the pointer.
 the Drag is a set.
 this's FromX is a number.
 this's FromY is a number.
 this's ToX is a number.
 this's ToY is a number.
 this's Button is a text.   // "left" | "right" | "middle" (default left)
+this's FromRelX is a number. // where it started, measured inside the window
+this's FromRelY is a number.
+this's ToRelX is a number.   // where it ended, in the same window
+this's ToRelY is a number.
+this's RelTo is a text.      // which rectangle those offsets are measured from: "window"
+this's WinW is a number.     // how big that window was, on the outside
+this's WinH is a number.
+this's Dpi is a number.      // the scale it was drawn at; absent when nobody could read it
+this's Process is a text.    // the program that owned it, e.g. "arkascended.exe"
 
 // What the clipboard holds, returned by ClipboardGet.
 //

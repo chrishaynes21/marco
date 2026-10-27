@@ -340,6 +340,33 @@ func measured(s macroir.Step) string {
 	return out
 }
 
+// dragSet declares the Drag for a drag step and returns its name.
+//
+// The window terms go on when the step carries the BASIS, which is the same rule `clickPoint`
+// follows and the same reason: a drag that declared the window it was made in and could not be
+// measured in it must come out as something replay REFUSES, not as a bare pair of coordinates
+// indistinguishable from a drag saved before any of this existed.
+//
+// One `measured(s)` for both ends, because there is one window. Two sets of window terms on one
+// gesture would be inviting it to be checked against two windows, which is not a gesture; what
+// makes one set honest is that `simplify` has already shown both edges agreed about it.
+func (g *gen) dragSet(b *strings.Builder, pad string, s macroir.Step) string {
+	btn := s.Button
+	if btn == "" {
+		btn = "left"
+	}
+	g.dragN++
+	name := fmt.Sprintf("drag%d", g.dragN)
+	rel := ""
+	if s.WinRel {
+		rel = fmt.Sprintf(", FromRelX %d, FromRelY %d, ToRelX %d, ToRelY %d",
+			s.RelX, s.RelY, s.ToRelX, s.ToRelY)
+	}
+	fmt.Fprintf(b, "%sthe %s is a Drag with FromX %d, FromY %d, ToX %d, ToY %d, "+
+		"Button %q%s%s.\n", pad, name, s.X, s.Y, s.X2, s.Y2, btn, rel, measured(s))
+	return name
+}
+
 // clickPoint declares the Point for a click step — window-relative when the
 // recorder captured an offset, else a plain absolute point.
 // A point goes down the window-relative form when it is ABOUT a window, which is the basis and
@@ -409,14 +436,8 @@ func emit(steps []macroir.Step, g *gen, depth int) (string, error) {
 		case macroir.StepDrag:
 			// A real press-hold-release drag (OS's Drag primitive): press at the start, glide to
 			// the end, release. The Drag set type comes from os.marco.
-			btn := s.Button
-			if btn == "" {
-				btn = "left"
-			}
-			g.dragN++
-			fmt.Fprintf(&b, "%sthe drag%d is a Drag with FromX %d, FromY %d, ToX %d, ToY %d, Button %q.\n",
-				pad, g.dragN, s.X, s.Y, s.X2, s.Y2, btn)
-			fmt.Fprintf(&b, "%sdo OS's Drag with drag%d.\n", pad, g.dragN)
+			name := g.dragSet(&b, pad, s)
+			fmt.Fprintf(&b, "%sdo OS's Drag with %s.\n", pad, name)
 		case macroir.StepLoop:
 			fmt.Fprintf(&b, "%srepeat %d times...\n", pad, s.Count)
 			inner, err := emit(s.Steps, g, depth+1)
