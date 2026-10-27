@@ -10052,3 +10052,54 @@ received, and it is the one place that can say ARRIVED where every account insid
 say submitted.
 
 **Physical recording capture remains NOT EXERCISED.**
+
+#### §41u — three findings on §41t, and what the gate found behind one of them
+
+The review of the typing slice returned three. Each was real, and the first was a P1.
+
+- **[P1] A secret that could not be LOOKED UP reached no account.** `doSecret` returned `fail`
+  for a missing credential and for a store that would not answer, and wrote nothing down. The
+  chain did its job — the arm ended the routine and nothing after it ran — and then the COMMAND
+  reported `performed`, because the rule that fails a run reads `Unperformed` and the account was
+  empty. A person was told their routine had run while the field the password was going into was
+  empty. The fix is one function, `couldNotLookUp`, and the account it writes to is the one for
+  things that DID NOT HAPPEN: nothing was typed, so a person whose secret was never found must
+  not be told that part of it may be sitting in a form.
+- **[P2] The refactor had silently removed the typing cadence.** `typeCadence` and
+  `$MARCO_TYPE_CADENCE_MS` stayed declared and nothing called them. Lifting the sequence out of
+  the backend left the pacing behind, so every text — including every legacy routine's — went out
+  as fast as `SendInput` would take it, which is the thing the knob exists to prevent. The wait is
+  on the MACHINE now, the chord's `settle` shape and its reason: the cadence belongs to the real
+  keyboard, and the early return is what a stop looks like from inside a wait.
+- **[P2] A secret's progress was still being measured.** The sentence left the numbers out and
+  the gesture computed them anyway — redaction after measurement. `typingProgress` has two
+  registers now: `finished` and `partial` are state, answerable about any text, and `submitted`
+  and `total` are accumulated only for a literal. What had forced the numbers into existence was
+  `whole()`, which compared them — so without them a refused secret would have reported itself
+  complete, and the account would have stayed silent about a field with part of a password in it.
+
+**The command-level test needed a seam, and the seam needed a reason.** The rule that fails a run
+lives in `cmd/marco`, and a test with a host of its own would be a test of the rule against a
+stand-in written to satisfy it. So `oshost.NewWithSecrets` is exported, with the reason in its
+doc: a test may not put a value in somebody's credential manager, nor read whatever is in there.
+The control stores an EMPTY value, which is a real state and submits no characters, so the step
+after the secret is reached without typing into whatever has focus on the machine running the
+tests. That step is a guarded press with no `Activate` in front of it, so it refuses for want of
+a bound window — which is what makes "the step after the secret was reached" observable as
+`input_actions` of 2 rather than 1, with no input sent at all.
+
+**And the gate found a fourth thing behind the second.** My first fix for the cadence put a stop
+check inside the pacing branch; removing it changed nothing, because the check at the top of each
+character had already answered. One check sits after the wait and answers both questions — a stop
+during the previous submission, and a stop during the wait. Two checks where one is load-bearing
+is a line nobody can test, and it reads as a guard somebody added for a reason.
+
+**Mutations: 8 applied, 7 killed, one survivor equivalent.** The survivor was `typeCadence <= 0`
+weakened to `< 0`: `time.After(0)` fires immediately, so a zero cadence behaves the same either
+way and no assertion can separate them.
+
+The text gate was **re-run** after the fixes rather than taken on trust, since the typing path
+itself changed: 1 of 1, exit 0, the field holding `marco typed this 42` character for character
+and Save at #42 again (artifacts `20261027-132002`). **Physical recording capture remains NOT
+EXERCISED**, and these three failure paths are headless by nature — a desktop cannot be made to
+refuse a send.

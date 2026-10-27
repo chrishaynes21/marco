@@ -24,6 +24,7 @@ import (
 	"unicode/utf16"
 
 	"github.com/chaynes-simpleclouds/marco/internal/runtime"
+	"github.com/chaynes-simpleclouds/marco/internal/secrets"
 )
 
 // aTypist is the machine for these: it remembers what it was asked to submit, takes what the
@@ -45,6 +46,20 @@ type aTypist struct {
 	stopAfter int
 	stop      func()
 	n         int
+	// paced counts the waits between characters, and stopInThePace makes the stop
+	// arrive DURING one — which is the case the early return exists for and the one
+	// the chord slice found by hand.
+	paced         int
+	stopInThePace bool
+}
+
+// pace is the wait between two characters. It cancels the run from inside the wait when the
+// case asks for that, which is what a stop arriving mid-text looks like from in here.
+func (t *aTypist) pace(context.Context) {
+	t.paced++
+	if t.stopInThePace && t.stop != nil {
+		t.stop()
+	}
 }
 
 func (t *aTypist) submit(units []uint16) int {
@@ -508,4 +523,203 @@ func TestARefusedSecretNamesTheSecretAndNotTheValue(t *testing.T) {
 				"value: %q", leak, said)
 		}
 	}
+}
+
+// ── AND THE THREE THINGS THE REVIEW OF THIS SLICE FOUND ───────────────────────
+
+// A SECRET'S PROGRESS IS NOT MEASURED, WHICH IS A CLAIM ABOUT THE VALUE AND NOT ABOUT A SENTENCE.
+//
+// The sentence said no number from the start, and the numbers were being COMPUTED anyway and left
+// out of it — redaction after measurement, which is the opposite of the design. A number that
+// exists is one that gets logged by whatever logs values and printed by the next person to add a
+// field to a report.
+//
+// So this reads the returned progress and the error's PAYLOAD rather than its words: the state
+// that says "not all of it went in" survives, and nothing that counts anything does.
+func TestASecretsProgressCarriesNoNumbers(t *testing.T) {
+	m := &aTypist{takes: []int{-1, -1, 1}}
+	p, err := typeOut(context.Background(), m, "s3cr3t-value", asSecret)
+
+	if p.counted || p.submitted != 0 || p.total != 0 {
+		t.Errorf("a secret's progress is %+v — a length and a position are both "+
+			"facts about the value", p)
+	}
+	// AND THE STATE IS STILL THERE: part of it went in, which is what the field it was
+	// going into now holds.
+	if !p.partial || p.finished {
+		t.Errorf("a secret refused part way reports %+v, which does not say it is "+
+			"unfinished with one character in doubt", p)
+	}
+	var carried partlyTyped
+	if !errors.As(err, &carried) {
+		t.Fatalf("the error is %v, which carries no progress at all", err)
+	}
+	if carried.progress.counted || carried.progress.submitted != 0 ||
+		carried.progress.total != 0 {
+		t.Errorf("the error carries %+v, so the numbers are in the payload and "+
+			"only the sentence leaves them out", carried.progress)
+	}
+	// AND THE LITERAL IS THE CONTROL: the same refusal about a literal DOES count,
+	// because the text is in the route and on the screen already.
+	p, _ = typeOut(context.Background(), &aTypist{takes: []int{-1, -1, 1}},
+		"s3cr3t-value", asLiteral)
+	if !p.counted || p.submitted != 2 || p.total != 12 {
+		t.Errorf("a literal's progress is %+v, want 2 of 12 counted", p)
+	}
+}
+
+// AND COMPLETION IS STATE AND NOT ARITHMETIC, so it answers the same way for both kinds.
+//
+// `whole()` compared `submitted` with `total`, which is why they were accumulated for a secret at
+// all: without numbers the comparison would have said a refused secret was complete, and the
+// account would have stayed silent about a field with part of a password in it.
+func TestCompletionIsStateForBothKinds(t *testing.T) {
+	for _, kind := range []textKind{asLiteral, asSecret} {
+		p, err := typeOut(context.Background(), &aTypist{}, "hello", kind)
+		if err != nil || !p.whole() {
+			t.Errorf("a text the machine took reports %+v (%v)", p, err)
+		}
+		p, _ = typeOut(context.Background(), &aTypist{takes: []int{0}}, "hello", kind)
+		if p.whole() {
+			t.Errorf("a text refused at the first character reports itself whole: "+
+				"%+v", p)
+		}
+		p, _ = typeOut(context.Background(), &aTypist{takes: []int{-1, -1, 0}},
+			"hello", kind)
+		if p.whole() {
+			t.Errorf("a text refused midway reports itself whole: %+v", p)
+		}
+	}
+}
+
+// THE CADENCE IS BETWEEN THE CHARACTERS, AND A STOP DURING IT STOPS THE NEXT ONE.
+//
+// `$MARCO_TYPE_CADENCE_MS` paces the keystrokes so a fast application does not drop them, and the
+// refactor that lifted this sequence out of the backend dropped the pacing: the knob and the wait
+// stayed declared, nothing called them, and every text — including every legacy routine's — went
+// out as fast as `SendInput` would take it.
+//
+// Both halves are asserted. The wait happens between characters and not after the last, so a
+// four-character text waits three times; and a stop arriving DURING one of those waits stops the
+// character that would have followed it, which is the chord slice's second defect in a different
+// loop.
+func TestTheCadenceIsBetweenCharactersAndAStopInItStopsTheNext(t *testing.T) {
+	m := &aTypist{}
+	if _, err := typeOut(context.Background(), m, "abcd", asLiteral); err != nil {
+		t.Fatalf("an ordinary text was refused: %v", err)
+	}
+	if m.paced != 3 {
+		t.Errorf("a four-character text waited %d time(s), want 3 — between them "+
+			"and not after the last", m.paced)
+	}
+	if len(m.submitted) != 4 {
+		t.Errorf("the machine was handed %d character(s)", len(m.submitted))
+	}
+	// AND A ONE-CHARACTER TEXT WAITS NOT AT ALL. The wait is between characters, and
+	// there is nothing to be between.
+	m = &aTypist{}
+	if _, err := typeOut(context.Background(), m, "a", asLiteral); err != nil {
+		t.Fatal(err)
+	}
+	if m.paced != 0 {
+		t.Errorf("a one-character text waited %d time(s)", m.paced)
+	}
+
+	// THE STOP, FROM INSIDE THE WAIT.
+	ctx, cancel := context.WithCancel(context.Background())
+	m = &aTypist{stopInThePace: true, stop: cancel}
+	p, err := typeOut(ctx, m, "abcd", asLiteral)
+
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("a stop during the wait answered %v rather than a cancellation", err)
+	}
+	if len(m.submitted) != 1 {
+		t.Errorf("the machine was handed %d character(s) after a stop during the "+
+			"first wait, want the one that had already gone in", len(m.submitted))
+	}
+	if p.submitted != 1 || p.total != 4 || p.partial {
+		t.Errorf("the progress is %+v, want 1 of 4 with nothing in doubt", p)
+	}
+}
+
+// A SECRET THAT COULD NOT BE LOOKED UP IS IN THE ACCOUNT, AND CLAIMS NOTHING ABOUT TYPING.
+//
+// Two different outcomes used to go out through `fail` and reach no account at all: a secret the
+// store has no value for, and a store that would not answer. The chain did its job — the arm
+// ended the routine and nothing after it ran — and then the COMMAND reported `performed`, because
+// `runRoute` turns a non-empty account into a failed run and the account was empty.
+//
+// AND IT IS THE OTHER ACCOUNT. Nothing was typed, so there is no half-filled field: a person
+// whose secret was never found must not be told part of it may be sitting in a form.
+func TestASecretThatCouldNotBeLookedUpIsInTheAccount(t *testing.T) {
+	for _, c := range []struct {
+		what  string
+		store secrets.Store
+		asked string
+		says  string
+	}{
+		{"the store has no value for it", aStore{}, "ark:password", "is not set"},
+		{"the store would not answer", aBrokenStore{}, "ark:password",
+			"would not answer"},
+		{"the routine does not say which secret", aStore{}, "", "does not say which"},
+	} {
+		t.Run(c.what, func(t *testing.T) {
+			rec := &recBackend{}
+			h := &Host{b: rec, sec: c.store}
+
+			st, v, _ := call(h, "Secret", runtime.Text(c.asked))
+			if st != "failed" {
+				t.Fatalf("it answered %q", st)
+			}
+			said := ""
+			if v.IsError() {
+				said = v.AsError().Message
+			}
+			if !strings.Contains(said, c.says) {
+				t.Errorf("the refusal is %q and does not say %q", said, c.says)
+			}
+			// THE ACCOUNT THE COMMAND READS. Without this the step fails, the
+			// chain's arm ends the routine, and the command reports success.
+			undone := h.Unperformed()
+			if len(undone) != 1 || !strings.Contains(undone[0], c.says) {
+				t.Fatalf("the run's account of what it did not do is %v", undone)
+			}
+			// AND NOT THE OTHER ONE, and nothing was typed.
+			if left := h.PartlyTyped(); left != "" {
+				t.Errorf("a secret that was never found is reported as text "+
+					"left half submitted: %q", left)
+			}
+			if len(rec.typed) != 0 {
+				t.Errorf("the machine was asked to type %v", rec.typed)
+			}
+		})
+	}
+}
+
+// AND A SECRET THAT WAS FOUND IS IN NEITHER ACCOUNT.
+//
+// The control for all three above, and the one that keeps them from being satisfied by a host
+// that complains about every secret.
+func TestASecretThatWasFoundIsInNeitherAccount(t *testing.T) {
+	rec := &recBackend{}
+	h := &Host{b: rec, sec: aStore{"ark:password": "s3cr3t-value"}}
+
+	st, _, _ := call(h, "Secret", runtime.Text("ark:password"))
+	if st != "ok" {
+		t.Fatalf("a secret that was found answered %q", st)
+	}
+	if undone, left := h.Unperformed(), h.PartlyTyped(); len(undone) != 0 || left != "" {
+		t.Errorf("a secret that went in reports %v and %q", undone, left)
+	}
+	if len(rec.typed) != 1 || rec.typed[0] != "s3cr3t-value" {
+		t.Errorf("the machine was asked to type %v", rec.typed)
+	}
+}
+
+// aBrokenStore is a credential store that will not answer, which is a real state — a locked
+// store, a service that is not running, a profile the process cannot read.
+type aBrokenStore struct{ aStore }
+
+func (aBrokenStore) Get(string) (string, bool, error) {
+	return "", false, errors.New("the credential store is not available")
 }

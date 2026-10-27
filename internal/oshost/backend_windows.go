@@ -174,6 +174,25 @@ func (theKeyboard) submit(units []uint16) int {
 	return sentInputs(inps)
 }
 
+// pace waits `typeCadence` between two characters, and returns the moment the run is stopped.
+//
+// THE PACING IS NOT A DETAIL OF THE LOOP, which is how the refactor that lifted the sequence out
+// of here dropped it: `$MARCO_TYPE_CADENCE_MS` and the wait it configures stayed declared and
+// nothing called them, so every text — including every legacy routine's — went out as fast as
+// `SendInput` would take it. A fast application or a game that drops characters is the reason the
+// knob exists.
+//
+// A zero cadence waits not at all, which is what it has always meant.
+func (theKeyboard) pace(ctx context.Context) {
+	if typeCadence <= 0 {
+		return
+	}
+	select {
+	case <-time.After(typeCadence):
+	case <-ctx.Done():
+	}
+}
+
 // release attempts the up for a unit whose down went in without it.
 //
 // Through the same counting call as `submit`, so the typing path has ONE place where it hands

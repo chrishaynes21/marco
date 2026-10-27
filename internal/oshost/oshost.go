@@ -151,6 +151,19 @@ func New() runtime.Host {
 	return &Host{b: newBackend(), scr: screen.New(), sec: secrets.New()}
 }
 
+// NewWithSecrets is `New` with the credential store supplied.
+//
+// EXPORTED FOR A TEST, and for a reason the alternative makes plain: the rule that a routine
+// which stopped at a missing secret must not report `performed` lives in `cmd/marco`, and the
+// only way to reach it honestly is the production host with the production `doSecret` in it. A
+// test cannot put a value in somebody's credential manager to see what a run does with it, and
+// must not try — nor read whatever happens to be in there, which is a different machine's answer
+// every time. See `cmd/marco`'s secret tests, which also explain why the value they store is
+// empty.
+func NewWithSecrets(s secrets.Store) runtime.Host {
+	return &Host{b: newBackend(), scr: screen.New(), sec: s}
+}
+
 // CursorSnapshot records the current cursor position and returns a function that
 // puts it back — so a route's clicks/moves don't leave the pointer parked on the
 // last target (a menu macro should return you to where you were). The driver calls
@@ -450,7 +463,8 @@ func (h *Host) PartlyTyped() string {
 func (h *Host) doSecret(c runtime.HostCall) (string, runtime.Value, error) {
 	name := c.Input.AsText()
 	if name == "" {
-		return fail("secret needs a name")
+		return h.couldNotLookUp("", "this routine asks for a secret and does not "+
+			"say which one")
 	}
 	// The arg name is the part after the last ":" (route-qualified keys look like
 	// "login-to-facebook:password"). If the invocation provided that arg inline, use
@@ -471,14 +485,43 @@ func (h *Host) doSecret(c runtime.HostCall) (string, runtime.Value, error) {
 	val, found, err := h.sec.Get(name)
 	if err != nil {
 		mlog.Error("secret: store error", "key", name, "err", err)
-		return fail(fmt.Sprintf("secret %q: %v", name, err))
+		return h.couldNotLookUp(name, fmt.Sprintf("the credential store would not "+
+			"answer about the secret %q: %v", name, err))
 	}
 	if !found {
 		mlog.Warn("secret: not set", "key", name)
-		return fail(fmt.Sprintf("secret %q is not set — pass %s:<value> once, or run: marco secret set %s", name, argname, name))
+		return h.couldNotLookUp(name, fmt.Sprintf("the secret %q is not set — pass "+
+			"%s:<value> once, or run: marco secret set %s", name, argname,
+			name))
 	}
 	mlog.Debug("secret: store hit", "key", name)
 	return h.typedSecret(c, name, val)
+}
+
+// couldNotLookUp is a secret that could not be RESOLVED, which is a different thing from one that
+// could not be typed.
+//
+// # Why it has to be in the account at all
+//
+// Because without it the step failed and nothing was written down. `Unperformed` stayed empty, so
+// `runRoute` — which turns a non-empty account into a failed command — had nothing to act on, and
+// a guarded routine that stopped at a missing secret reported `performed`. The chain did its job:
+// the arm ended the routine and nothing after it ran. The COMMAND then said the routine had
+// performed, which is the one sentence a person reads.
+//
+// # And why it claims nothing about submission
+//
+// Nothing was typed. There is no partial field, nothing is in doubt, and the `PartlyTyped`
+// account must stay empty — a person whose secret was never found must not be told that part of
+// it may be sitting in a form. So this writes to the account for things that DID NOT HAPPEN and
+// to no other.
+//
+// The NAME is said, because it is in the route already and is the only thing that says which
+// secret to go and set. Nothing about a value is said, because there is no value: the store
+// either had none or would not answer.
+func (h *Host) couldNotLookUp(name, why string) (string, runtime.Value, error) {
+	h.didNotDo(why)
+	return fail(why)
 }
 
 // typedSecret submits a secret and accounts for it WITHOUT MEASURING IT.

@@ -170,18 +170,29 @@ func (r *recBackend) typeText(_ context.Context, t string, kind textKind) (typin
 	defer r.mu.Unlock()
 	r.typed = append(r.typed, t)
 	r.calls = append(r.calls, "type "+t)
-	p := typingProgress{total: utf8.RuneCountInString(t)}
+	// THE PROGRESS IS SHAPED THE WAY THE PRODUCTION GESTURE SHAPES IT, which is not
+	// decoration: `counted` is false for a secret because no number about one is ever
+	// derived, and `finished` is the state `whole()` is asked about. A stand-in that
+	// left `finished` unset reported every successful typing as unfinished — caught by
+	// the control in TestASecretThatWasFoundIsInNeitherAccount, which is what controls
+	// are for.
+	p := typingProgress{counted: kind == asLiteral}
+	if p.counted {
+		p.total = utf8.RuneCountInString(t)
+	}
 	if err := r.sending(); err != nil {
 		// THE MACHINE REFUSED THE WHOLE SEND, which is what `refuseFrom` means for
 		// every other input: nothing of it went in.
 		return p, notAllSubmitted(p, kind, true)
 	}
-	if n := r.typeRefuseAfter; n > 0 && n < p.total {
-		p.submitted = n
+	if n := r.typeRefuseAfter; n > 0 && n < utf8.RuneCountInString(t) {
+		if p.counted {
+			p.submitted = n
+		}
 		p.partial = r.typePartly
 		return p, notAllSubmitted(p, kind, true)
 	}
-	p.submitted = p.total
+	p.submitted, p.finished = p.total, true
 	return p, nil
 }
 func (r *recBackend) click(_ context.Context, b string) error {

@@ -89,6 +89,15 @@ type textMachine interface {
 	// release attempts the up for a unit whose down the machine took and whose up it
 	// did not, and says whether it took that.
 	release(unit uint16) bool
+	// pace waits between two characters, and returns early when the run is stopped.
+	//
+	// ON THE MACHINE AND NOT IN THE SEQUENCE, which is `keyMachine.settle`'s shape and
+	// its reason: the cadence is a property of the real keyboard — `$MARCO_TYPE_CADENCE_MS`,
+	// there so a fast application does not drop characters — and the EARLY RETURN is
+	// what a stop looks like from in here. A sequence that slept would be a sequence a
+	// test has to wait for, and the one case that matters is a stop arriving during the
+	// wait.
+	pace(ctx context.Context)
 }
 
 // textKind is whether what is being typed may be described in a diagnostic.
@@ -107,19 +116,39 @@ const (
 	asSecret
 )
 
-// typingProgress is how far a typing got, in the only unit that means anything to a person.
+// typingProgress is how far a typing got.
 //
-// `total` and `submitted` are code points. `partial` is one code point whose events the machine
-// took some of — at most one, because the sequence stops there.
+// # Two registers, and a secret is never in the one with numbers in it
+//
+// `finished` and `partial` are STATE: every character went in, and one character is in doubt.
+// Both are answerable about any text without measuring it. `submitted` and `total` are code
+// points, and they are accumulated ONLY for a literal — `counted` says whether they mean
+// anything.
+//
+// That is the difference between suppression and redaction, and it is the whole point: a number
+// that was computed and then left out of a sentence is a number that exists, in a value that gets
+// passed around, logged by whatever logs values, and printed by the next person to add a field to
+// a report. For a secret, the length and the position it stopped at are facts about the value —
+// a failure position is a prefix whose size somebody now knows — so they are never derived.
 type typingProgress struct {
+	// counted says `submitted` and `total` mean anything. False for a secret.
+	counted   bool
 	submitted int
 	total     int
-	partial   bool
+	// partial is one code point whose events the machine took some of — at most one,
+	// because the sequence stops there.
+	partial bool
+	// finished says the sequence reached the end of the text without a refusal or a stop.
+	finished bool
 }
 
 // whole reports whether every character was submitted and none was left in doubt.
+//
+// ASKED OF THE STATE AND NOT OF THE NUMBERS, so it answers the same way for a secret, where
+// there are none. It used to compare `submitted` with `total`, which is why they were being
+// accumulated for a secret at all.
 func (p typingProgress) whole() bool {
-	return p.submitted == p.total && !p.partial
+	return p.finished && !p.partial
 }
 
 // typeOut submits a text one code point at a time, and says how far it got.
@@ -131,13 +160,36 @@ func (p typingProgress) whole() bool {
 func typeOut(ctx context.Context, m textMachine, text string, kind textKind) (typingProgress,
 	error) {
 
-	p := typingProgress{total: utf8.RuneCountInString(text)}
+	p := typingProgress{counted: kind == asLiteral}
+	if p.counted {
+		p.total = utf8.RuneCountInString(text)
+	}
+	first := true
 	for _, r := range text {
+		// THE CADENCE, BETWEEN CHARACTERS AND NOT AFTER THE LAST ONE.
+		//
+		// `$MARCO_TYPE_CADENCE_MS` paces the keystrokes so a fast application or a
+		// game does not drop them, and it was in the loop this replaced. The pace
+		// goes BEFORE each character except the first — rather than after each
+		// except the last — because then the condition is about this character and
+		// not about how many are left, which is what the old byte-indexed version
+		// got subtly wrong for multi-byte text.
+		if !first {
+			m.pace(ctx)
+		}
+		first = false
 		// NOTHING MORE IS SENT TO A RUN THAT HAS STOPPED, asked before each character
-		// rather than once at the top. A stop is somebody pressing Escape while the
-		// text is going in, which is the ordinary way this happens: the point of
-		// checking here is that the next character does not go, and the point of
-		// returning the progress is that what already went is not forgotten.
+		// rather than once at the top — and AFTER the wait above rather than before
+		// it, which is what makes one check answer two questions. A stop is somebody
+		// pressing Escape while the text is going in, and it can arrive while the
+		// previous character was being submitted or while this one was being waited
+		// for; `pace` returns early when the run is cancelled, so both arrive here.
+		// The point of checking is that the next character does not go, and the point
+		// of returning the progress is that what already went is not forgotten.
+		//
+		// A SECOND CHECK INSIDE THE BRANCH ABOVE WAS WRITTEN FIRST AND DELETED: the
+		// mutation gate removed it and nothing failed, because this one had already
+		// answered. Two checks where one is load-bearing is a line nobody can test.
 		if err := ctx.Err(); err != nil {
 			return p, err
 		}
@@ -146,7 +198,9 @@ func typeOut(ctx context.Context, m textMachine, text string, kind textKind) (ty
 		took := m.submit(units)
 		switch {
 		case took >= events:
-			p.submitted++
+			if p.counted {
+				p.submitted++
+			}
 		case took <= 0:
 			// NOTHING OF THIS CHARACTER WENT IN, so there is nothing in doubt
 			// about it and nothing to release.
@@ -164,6 +218,7 @@ func typeOut(ctx context.Context, m textMachine, text string, kind textKind) (ty
 			return p, notAllSubmitted(p, kind, true)
 		}
 	}
+	p.finished = true
 	return p, ctx.Err()
 }
 
@@ -207,7 +262,7 @@ func (t partlyTyped) Error() string {
 	if !t.refused {
 		what = "the run was stopped before"
 	}
-	if t.kind == asSecret {
+	if !t.progress.counted {
 		return fmt.Sprintf("%s all of this secret, so part of it may have been "+
 			"submitted and the field it was going into is incomplete", what)
 	}
@@ -242,8 +297,8 @@ func (partlyTyped) Is(target error) bool { return target == errPartlyTyped }
 // `refused` separates the machine saying no from the run being stopped, because they are two
 // different things to tell somebody about the same half-filled field.
 func PartlyTypedText(submitted, total int, refused bool) error {
-	return notAllSubmitted(typingProgress{submitted: submitted, total: total},
-		asLiteral, refused)
+	return notAllSubmitted(typingProgress{counted: true, submitted: submitted,
+		total: total}, asLiteral, refused)
 }
 
 // PartlyTypedSecret says a secret did not all go in, and says nothing else: no length, and no

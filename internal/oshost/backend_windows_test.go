@@ -3,7 +3,9 @@
 package oshost
 
 import (
+	"context"
 	"testing"
+	"time"
 	"unsafe"
 )
 
@@ -258,5 +260,48 @@ func TestACharactersEventsCarryItsCodeUnitsInOneCall(t *testing.T) {
 	if e := kb(batches[0], 0); e.wScan != 'l' ||
 		e.dwFlags != _KEYEVENTF_UNICODE|_KEYEVENTF_KEYUP {
 		t.Errorf("the release carries %#04x with flags %#x", e.wScan, e.dwFlags)
+	}
+}
+
+// AND THE REAL PACE WAITS THE CADENCE AND RETURNS THE MOMENT THE RUN IS STOPPED.
+//
+// The adapter's half of the finding that the refactor had dropped the pacing. Two claims and one
+// of them is a duration, so it is asserted as a BOUND and not as a measurement: with the cadence
+// set to two seconds, a stopped run has to come back in a fraction of that. The only way to fail
+// is to actually wait, which is the defect — a wait that ignores the context is a routine that
+// keeps typing for two seconds per character after somebody pressed Escape.
+//
+// A zero cadence waits not at all, which is what `$MARCO_TYPE_CADENCE_MS=0` has always meant.
+func TestThePaceWaitsAndAStopEndsIt(t *testing.T) {
+	was := typeCadence
+	t.Cleanup(func() { typeCadence = was })
+
+	typeCadence = 2 * time.Second
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	began := time.Now()
+	theKeyboard{}.pace(ctx)
+	if took := time.Since(began); took > 250*time.Millisecond {
+		t.Errorf("a stopped run waited %s of a 2s cadence before the next "+
+			"character, so a stop does not end the typing", took.Round(
+			time.Millisecond))
+	}
+
+	// AND A ZERO CADENCE DOES NOT WAIT, which is the other half of the knob.
+	typeCadence = 0
+	began = time.Now()
+	theKeyboard{}.pace(context.Background())
+	if took := time.Since(began); took > 250*time.Millisecond {
+		t.Errorf("a zero cadence waited %s", took.Round(time.Millisecond))
+	}
+
+	// AND A CADENCE THAT IS SET DOES WAIT. Bounded the other way, and generously: the
+	// claim is that the wait HAPPENS, not how long it was.
+	typeCadence = 30 * time.Millisecond
+	began = time.Now()
+	theKeyboard{}.pace(context.Background())
+	if took := time.Since(began); took < 10*time.Millisecond {
+		t.Errorf("a 30ms cadence waited %s, so the pacing the knob configures is "+
+			"not happening", took.Round(time.Millisecond))
 	}
 }
