@@ -12,6 +12,7 @@
 package routes
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -331,4 +332,24 @@ func routeSlug(filename string) (string, bool) {
 		return "", false
 	}
 	return strings.TrimSuffix(filename, ".marco"), true
+}
+
+// Replace overwrites an existing play's source, atomically.
+//
+// # Why it is not Save
+//
+// `Save` writes in place with `os.WriteFile`, which truncates first. That is harmless for a play
+// nobody has yet — a half-written new file is a file nobody was relying on — and it is not
+// harmless for a replacement: a write that fails part way leaves somebody's working routine
+// truncated, and the thing it replaced is gone. A replacement lands whole or not at all, and on
+// "not at all" the original is exactly as it was.
+//
+// Nothing else about the play is touched. The demonstration beside it, its provenance and its
+// anchor images stay where they are, because a replacement is a new rendering of the same
+// recording and not a new play.
+func (r Registry) Replace(rt Route, source string) error {
+	if rt.Slug == "" {
+		return fmt.Errorf("routes: a play needs a name")
+	}
+	return writeAtomic(r.Path(rt), []byte(source))
 }

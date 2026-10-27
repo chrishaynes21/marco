@@ -306,21 +306,7 @@ func (d Deps) Save(dr *Draft, scope Scope, app string) (routes.Route, error) {
 	if err != nil {
 		return routes.Route{}, err
 	}
-	steps := dr.Steps
-	codegenApp := ""
-	switch mode {
-	case scopeContext:
-		steps = stripLeadingActivate(steps)
-	case scopeFocus:
-		codegenApp = app
-	default:
-		steps = stripLeadingActivate(steps)
-	}
-	// THE DRAFT'S OWN MODE, not this Deps'. A draft can outlive the window state that
-	// made it — recorded, reviewed, saved under another name minutes later — and the
-	// recording is what the line describes.
-	src, assets, err := codegen.RouteAs(codegen.Recorded{Mode: string(dr.Mode)},
-		dr.Name, codegenApp, steps, d.Reg.ScopeDir(rt), dr.Args...)
+	src, assets, err := d.render(dr, mode, app, rt)
 	if err != nil {
 		return rt, err
 	}
@@ -338,7 +324,7 @@ func (d Deps) Save(dr *Draft, scope Scope, app string) (routes.Route, error) {
 		_ = d.Reg.SaveRecording(rt, raw)
 	}
 	mlog.Info("draft: saved", "route", dr.Name, "scope", string(scope),
-		"app", app, "steps", len(steps), "path", d.Reg.Path(rt))
+		"app", app, "steps", len(dr.Steps), "path", d.Reg.Path(rt))
 	return rt, nil
 }
 
@@ -927,4 +913,55 @@ func reasonOf(err error) string {
 		return ""
 	}
 	return err.Error()
+}
+
+// render is the source a draft becomes, and the asset files with it. NOTHING IS WRITTEN.
+//
+// # Why it is its own function with two callers
+//
+// Because the second caller's whole promise is that what a person reviewed is what gets written.
+// `Save` used to decide this inline, and a review built from a copy of those four lines would be
+// a second answer to "what does this draft become" — which is the shape of defect this repository
+// keeps finding: `codegen` and `oshost` holding two lists of the same terms, a recorder and a
+// reader holding two ideas of one mode. Here it would be worse than a disagreement about a
+// listing, because the disagreement would be between the source somebody approved and the source
+// that replaced theirs.
+//
+// The scope decides two things — whether the application is brought forward, and therefore
+// whether a leading `Activate` belongs in the steps — and a regeneration passes the scope the
+// route ALREADY has, which is how it cannot quietly rescope somebody's routine.
+func (d Deps) render(dr *Draft, mode scopeMode, app string, rt routes.Route) (string,
+	map[string][]byte, error) {
+
+	steps := dr.Steps
+	codegenApp := ""
+	switch mode {
+	case scopeContext:
+		steps = stripLeadingActivate(steps)
+	case scopeFocus:
+		codegenApp = app
+	default:
+		steps = stripLeadingActivate(steps)
+	}
+	// THE DRAFT'S OWN MODE, not this Deps'. A draft can outlive the window state that
+	// made it — recorded, reviewed, saved under another name minutes later — and the
+	// recording is what the line describes.
+	return codegen.RouteAs(codegen.Recorded{Mode: string(dr.Mode)},
+		dr.Name, codegenApp, steps, d.Reg.ScopeDir(rt), dr.Args...)
+}
+
+// ScopeAlreadyOf is the scope a SAVED routine is already under, read off where it lives.
+//
+// The route's own place is the durable account of its scope — `routes/<app>/focus` brings the
+// application forward, `routes/<app>/context` works only while it is already in front, and
+// `routes/global` is about no application — so this is a reading of the library rather than a
+// choice. A regeneration uses it to write the routine back exactly where and as it was.
+func ScopeAlreadyOf(rt routes.Route) Scope {
+	switch {
+	case rt.App == "":
+		return ScopeEverywhere
+	case rt.Focus:
+		return ScopeAppAnywhere
+	}
+	return ScopeApp
 }
