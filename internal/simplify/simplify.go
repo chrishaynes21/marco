@@ -103,11 +103,17 @@ func DefaultOptions() Options {
 // understood of it, and nothing downstream may save them while the reason is set.
 func Simplify(events []recorder.RecordedEvent, opt Options) ([]macroir.Step, error) {
 	opt = opt.normalize()
-	timed := lower(events, opt)
+	timed, gesture := lower(events, opt)
 	timed = foldActivates(timed)
 	steps := SimplifySteps(insertWaits(timed, opt), opt)
 	if why := modifierTrouble(events, strings.ToLower(strings.TrimSpace(opt.ArgKey))); why != "" {
 		return steps, errors.New(why)
+	}
+	// AND A GESTURE THAT SPANS TWO WINDOWS, which `lower` noticed while it was pairing
+	// the edges. Second, because a modifier nobody let go of is the more urgent sentence
+	// of the two and only one error comes back.
+	if gesture != "" {
+		return steps, errors.New(gesture)
 	}
 	return steps, nil
 }
@@ -139,8 +145,15 @@ type timedStep struct {
 // lower converts raw events into anchor steps (clicks/drags/keys/type), with no
 // waits yet. Hover moves are discarded; printable keystrokes are accumulated
 // into type runs; held-button drags are detected.
-func lower(events []recorder.RecordedEvent, opt Options) []timedStep {
+func lower(events []recorder.RecordedEvent, opt Options) ([]timedStep, string) {
 	var out []timedStep
+	// trouble is the first gesture in this recording that cannot be written down
+	// faithfully, and it comes out of HERE rather than from a second pass over the
+	// events: the pairing of a press with its release, the move test and the distance
+	// test are what decide that a gesture is a drag at all, and a separate pass asking
+	// the same question again would be a second chance to answer it differently.
+	// `modifierTrouble` is a pass of its own because it is about keys nothing pairs.
+	var trouble string
 	shift, ctrl, alt, win := false, false, false, false
 	// heldMods are the modifiers currently down as an EXPLICIT hold, as opposed to the
 	// four flags above, which are the ones being tracked for a chord. The two are
@@ -161,6 +174,9 @@ func lower(events []recorder.RecordedEvent, opt Options) []timedStep {
 	var downRelX, downRelY int
 	var downWinRel bool
 	var downIn pressedIn
+	// downRect is the window the PRESS happened in, by the evidence that says which window
+	// rather than what it looked like. Compared against the release's at the end of a drag.
+	var downRect inRect
 	sawMove := false
 	argN := 0
 	argKey := strings.ToLower(strings.TrimSpace(opt.ArgKey))
@@ -196,6 +212,7 @@ func lower(events []recorder.RecordedEvent, opt Options) []timedStep {
 				downRelX, downRelY, downWinRel = ev.RelX, ev.RelY, ev.WinRel
 				downIn = pressedIn{relTo: ev.RelTo, w: ev.WinW, h: ev.WinH,
 					dpi: ev.Dpi, process: ev.Process}
+				downRect = rectOf(ev)
 				sawMove = false
 			} else {
 				if !downActive {
@@ -204,10 +221,18 @@ func lower(events []recorder.RecordedEvent, opt Options) []timedStep {
 				downActive = false
 				dist := abs(ev.X-downX) > opt.DragThresholdPx || abs(ev.Y-downY) > opt.DragThresholdPx
 				if sawMove && dist {
-					out = append(out, timedStep{
-						step: macroir.Step{Kind: macroir.StepDrag, X: downX, Y: downY, X2: ev.X, Y2: ev.Y, Button: downBtn},
-						t:    downT,
-					})
+					// A DRAG CARRIES THE WINDOW ITS TWO EDGES AGREE ABOUT, or
+					// it carries the basis alone and is refused at Save, or —
+					// when the edges describe two different rectangles — the
+					// whole recording is refused with a sentence saying so.
+					// `dragIn` is the one place that decides; see its comment.
+					step, why := dragIn(downRect, rectOf(ev), macroir.Step{
+						Kind: macroir.StepDrag, X: downX, Y: downY,
+						X2: ev.X, Y2: ev.Y, Button: downBtn})
+					if why != "" && trouble == "" {
+						trouble = why
+					}
+					out = append(out, timedStep{step: step, t: downT})
 				} else {
 					// The click carries its window-relative offset (default — follows the
 					// active window across monitors/position) and, when anchors are on, a
@@ -367,7 +392,7 @@ func lower(events []recorder.RecordedEvent, opt Options) []timedStep {
 			out = append(out, timedStep{step: step, t: ev.T})
 		}
 	}
-	return out
+	return out, trouble
 }
 
 // holdThreshold is the press duration at/above which a key counts as a HOLD rather than a
@@ -830,6 +855,131 @@ type pressedIn struct {
 func (p pressedIn) onto(s macroir.Step) macroir.Step {
 	s.RelTo, s.WinW, s.WinH, s.Dpi, s.Process = p.relTo, p.w, p.h, p.dpi, p.process
 	return s
+}
+
+// inRect is one edge of a gesture and the window it happened in, as that edge measured it.
+//
+// Everything `pressedIn` has, plus the three terms a saved route never sees: the handle, its
+// owner, and where the rectangle WAS. Those are recording evidence — they answer "which window",
+// which nothing else here can. A rectangle's size, scale and program name are satisfied by two
+// windows of one executable at the same size on the same display, and those are two windows.
+type inRect struct {
+	hwnd      uintptr
+	pid       uint32
+	x, y      int // where the rectangle was, which is never emitted
+	w, h, dpi int
+	process   string
+	relTo     string
+	rel       bool // this edge resolved an offset inside that rectangle
+	rx, ry    int
+}
+
+func rectOf(ev recorder.RecordedEvent) inRect {
+	return inRect{hwnd: ev.HWnd, pid: ev.PID, x: ev.WinX, y: ev.WinY,
+		w: ev.WinW, h: ev.WinH, dpi: ev.Dpi, process: ev.Process,
+		relTo: ev.RelTo, rel: ev.WinRel, rx: ev.RelX, ry: ev.RelY}
+}
+
+// measured reports whether this edge has everything a guarded point needs.
+func (r inRect) measured() bool {
+	return r.relTo != "" && r.rel && r.w > 0 && r.h > 0 && r.dpi > 0 && r.process != ""
+}
+
+// dragIn decides what a drag's two edges entitle it to, and is the ONE place that decides.
+//
+// Three outcomes, and the middle one is the reason this is a function rather than a condition:
+//
+//   - NEITHER EDGE DECLARED A WINDOW. A recording from a build before any of this, or one made
+//     where nothing could be measured at all. The step is what it always was — two absolute
+//     coordinates — and runs the way every drag saved before this does. Untouched, deliberately.
+//   - THE TWO EDGES ARE ABOUT DIFFERENT WINDOWS. Refused, with a sentence, because there is no
+//     honest step to write. Two offsets into two rectangles describe a gesture that crossed from
+//     one to the other, and replaying it in one window would be reproducing neither half. A
+//     window that MOVED mid-drag is the ordinary case of this and reads as exactly that.
+//   - ONE WINDOW, AND NOT EVERYTHING MEASURED. The basis alone, which is the third saved
+//     contract: a step that asked to be checked and cannot be. Replay refuses it naming the
+//     missing term, and `codegen.Unpropagatable` refuses to SAVE it, which is where somebody
+//     finds out. What must not happen is it quietly becoming the first case and running
+//     unchecked — that is the whole reason the basis is written whether or not the rest arrived.
+//
+// And the destination's offset is the RELEASE's own measurement. Deriving it from the press's
+// rectangle was the first design and it is an unchecked inference: an offset into the window as it
+// was, attributed to a point captured later, with nothing able to tell whether the window moved
+// in between. The second measurement is what turns that into a question with an answer.
+//
+// # What the second measurement is actually for, which mutation testing had to say out loud
+//
+// Replacing `up.rx` below with `s.X2 - down.x` — the derivation — passes every test, and it
+// SHOULD: once the two edges are required to report the same origin, the two expressions are
+// arithmetically identical. The mutant is equivalent, and that is not a gap in the tests.
+//
+// So the second measurement earns its place as the CHECK and not as the arithmetic. What it buys
+// is the ability to notice, and the mutation that proves it is the origin comparison above:
+// remove that and a window which moved mid-drag is silently reconciled into a gesture nobody
+// demonstrated. Worth writing down, because "we measure the release so the destination is right"
+// is the wrong reason and would survive somebody deleting the comparison it depends on.
+func dragIn(down, up inRect, s macroir.Step) (macroir.Step, string) {
+	if down.relTo == "" && up.relTo == "" {
+		return s, "" // a legacy drag, and it stays one
+	}
+	// WHICH WINDOW, BEFORE WHAT IT LOOKED LIKE. A handle and its owner name the window;
+	// the geometry describes it. Asking the describing questions first would let two
+	// windows of one program at one size pass as one window.
+	switch {
+	case down.hwnd == 0 || up.hwnd == 0 || down.pid == 0 || up.pid == 0:
+		s.RelTo = firstOf(down.relTo, up.relTo)
+		return s, ""
+	case down.hwnd != up.hwnd || down.pid != up.pid:
+		s.RelTo = firstOf(down.relTo, up.relTo)
+		return s, "this drag starts in one window and ends in another, so there is " +
+			"no single window to measure it against — demonstrate it again " +
+			"inside one window"
+	case down.x != up.x || down.y != up.y:
+		s.RelTo = firstOf(down.relTo, up.relTo)
+		return s, "the window moved while this drag was being demonstrated, so where " +
+			"it started and where it ended are offsets into two different " +
+			"rectangles — demonstrate it again without moving the window"
+	case down.w != up.w || down.h != up.h || down.dpi != up.dpi:
+		s.RelTo = firstOf(down.relTo, up.relTo)
+		return s, "the window changed size or scale while this drag was being " +
+			"demonstrated, so what is inside it moved between the start and " +
+			"the end — demonstrate it again"
+	case down.rel && !up.rel:
+		// AND A DRAG THAT ENDED OUTSIDE THE WINDOW IT STARTED IN.
+		//
+		// A sentence rather than silence, because this is something the person DID
+		// and can do differently. `newClick` declines an offset for an edge that
+		// landed outside the rectangle it attributed — the subtraction would
+		// produce a number that is not an offset into anything — so a drag out of
+		// a window arrives here with a measured start and an unmeasured end.
+		s.RelTo = firstOf(down.relTo, up.relTo)
+		return s, "this drag ends outside the window it started in, so where it " +
+			"finishes is not a point in that window — demonstrate it again " +
+			"inside one window"
+	case !down.measured() || !up.measured():
+		// ASKED AND UNMEASURABLE. The basis and nothing else, which replay refuses
+		// and Save refuses, and which is NOT the same as an ordinary drag.
+		//
+		// No sentence, and the distinction from the case above is the whole reason
+		// they are two cases: a scale Windows would not report or a program that
+		// had exited is not a thing the person did, so telling them to demonstrate
+		// it differently would be telling them to do something that cannot help.
+		// Save names the missing term instead.
+		s.RelTo = firstOf(down.relTo, up.relTo)
+		return s, ""
+	}
+	s = pressedIn{relTo: down.relTo, w: down.w, h: down.h, dpi: down.dpi,
+		process: down.process}.onto(s)
+	s.RelX, s.RelY, s.WinRel = down.rx, down.ry, true
+	s.ToRelX, s.ToRelY = up.rx, up.ry
+	return s, ""
+}
+
+func firstOf(a, b string) string {
+	if a != "" {
+		return a
+	}
+	return b
 }
 
 // anyGuarded reports whether any of these steps asked to be checked against the window it was

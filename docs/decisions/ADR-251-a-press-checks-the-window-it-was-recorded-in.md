@@ -448,7 +448,7 @@ there IS matching to do, and refusing there would refuse to go looking.
   lookup runs after the capture and follows the BASIS, not the offset: a press it cannot answer
   for keeps everything it did measure and loses only the name.
 - `internal/simplify` `TestTheWindowAPressMeasuredReachesTheStep`, `TestTheClickPointIsThePress`,
-  `TestAPressThatMeasuredNothingClaimsNothing`, `TestADragClaimsNothingAboutAWindow`.
+  `TestAPressThatMeasuredNothingClaimsNothing`, `TestADragCarriesTheWindowItsEdgesAgreeAbout`.
 - `internal/codegen` `TestAMeasuredPressCarriesItsWindowIntoTheRoute`,
   `TestAnUnmeasuredTermIsAbsentRatherThanDefaulted`,
   `TestWithoutABasisNothingAboutTheWindowIsWritten`, `TestALegacyPointIsGeneratedUnchanged`,

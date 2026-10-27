@@ -78,6 +78,23 @@ type Step struct {
 	RelX   int  `json:"relX,omitempty"`
 	RelY   int  `json:"relY,omitempty"`
 	WinRel bool `json:"winRel,omitempty"`
+	// ToRelX, ToRelY (set with the terms below, on a StepDrag) are where the gesture
+	// ENDED, as an offset into the same window — the destination of a drag.
+	//
+	// Its own pair rather than reusing RelX,RelY for whichever end is being talked about,
+	// because a drag has two points and they are not interchangeable: one is where the
+	// button goes down and the other is where it comes up, and a reader who had to work
+	// out which end an offset belonged to would be reading a bug waiting to happen.
+	//
+	// MEASURED AT THE RELEASE AND NOT DERIVED FROM THE PRESS. The alternative was
+	// subtracting the press's rectangle from the release's absolute coordinate, which is
+	// an offset into the window as it WAS attributed to a point captured after — with
+	// nothing able to tell whether the window moved in between, and no way for replay to
+	// notice. So both edges of the gesture are measured where they happened and the two
+	// have to agree about the window; see `internal/simplify`, which refuses a drag whose
+	// edges describe two different rectangles.
+	ToRelX int `json:"toRelX,omitempty"`
+	ToRelY int `json:"toRelY,omitempty"`
 
 	// ── WHAT THE WINDOW WAS LIKE WHEN THE PRESS WAS MADE ──
 	//
@@ -86,6 +103,13 @@ type Step struct {
 	// was measured against is still the same thing. A replayer that adds an offset to a
 	// window without checking any of these is pressing a remembered pixel and calling it
 	// a target.
+	//
+	// ONE SET OF THEM FOR A DRAG TOO, AND ONE IS THE POINT. A drag's two offsets are two
+	// points in ONE window, so there is one rectangle, measured once — the start and the
+	// destination resolve against the same live window at replay. Carrying a second set
+	// would be inviting a drag to be checked against two windows, which is not a gesture.
+	// What makes that honest is that both edges were measured and shown to agree before
+	// these were written; a drag whose window changed mid-gesture never gets here.
 	//
 	// They are also the OPT-IN. A route whose points carry them asks for the guarded
 	// contract — bind the window, then check it again immediately before the press — and
