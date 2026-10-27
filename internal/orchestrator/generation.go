@@ -371,3 +371,17 @@ func offer(rebuildable bool) string {
 	}
 	return "You can review a version rebuilt from its stored recording."
 }
+
+// Offerable is whether a rebuilt version may be OFFERED for a routine that reads this way.
+//
+// Three of the four readings may be. A current routine rebuilds to itself and comparing is
+// harmless; an older or unstated one is the case this exists for. An unknown one may not: a
+// reader that cannot say what a generation does cannot say what replacing it would change, so
+// there is nothing to put in front of somebody as a choice. It stays inspectable and playable
+// under exactly the rules it always had — withholding the offer is the whole of what happens.
+//
+// Asked here rather than in the window, so the button that is greyed out and the call that
+// refuses are reading one answer. A page with its own copy of this is a page that can offer what
+// the backend then declines, which is how a product tells somebody off for pressing what it
+// offered them.
+func (s StatedGeneration) Offerable() bool { return s.Reading != GenerationUnknown }

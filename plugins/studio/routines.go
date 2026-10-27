@@ -122,6 +122,47 @@ type Routine struct {
 	Source  string `json:"source,omitempty"`
 	SavedAt string `json:"saved_at,omitempty"`
 	Path    string `json:"path,omitempty"`
+	// Generation is which of the four readings the saved source gives for the generation
+	// of generator rules that wrote it, Declared is what the file actually says, and Wrote
+	// is the sentence a person reads.
+	//
+	// # Why all three, and why `Declared` is shown at all
+	//
+	// Because the reading is this build's and the declared value is the file's. A routine
+	// written by a LATER build states a generation this one cannot explain: the reading is
+	// `unknown`, and the number is the only thing that identifies it to whoever can. A
+	// card showing only the verdict would tell somebody their routine is unrecognised and
+	// withhold the one fact that says why.
+	//
+	// IT IS PROVENANCE AND NOT A VERDICT, and in particular it is not `Contract`. A
+	// routine written by today's generator can press without checking anything, because
+	// that is what its demonstration asked for. Both facts are shown, neither derived
+	// from the other. See orchestrator.GenerationOf.
+	Generation string `json:"generation"`
+	Declared   string `json:"declared_generation,omitempty"`
+	Wrote      string `json:"wrote,omitempty"`
+	// Rebuildable is whether its own demonstration is still stored beside it, which is
+	// whether a rebuilt version can be offered at all. A routine without one is still
+	// explained; see Wrote.
+	Rebuildable bool `json:"rebuildable"`
+	// Offer is whether a rebuilt version may be offered for this routine at all — its
+	// demonstration is still there AND its generation is one this build can explain.
+	//
+	// ONE FIELD READ BY THE BUTTON, and the rule behind it is
+	// `orchestrator.StatedGeneration.Offerable`, not a second condition written here. A
+	// page with its own copy of the rule is a page that can offer what the backend then
+	// declines, which is a window telling somebody off for pressing what it offered them.
+	Offer bool `json:"offer"`
+	// Differences is what the routine was written without, and Update whether any of them
+	// bears on this routine's own contents.
+	//
+	// TWO THINGS BECAUSE OLDER IS NOT AFFECTED. A generation difference is a fact about
+	// two generators; whether it changes anything here is a fact about this file. A card
+	// that announced every difference as a defect would be telling somebody to replace a
+	// routine over a rule it never exercises — and the next time it said so about a real
+	// one they would have learnt to ignore it.
+	Differences []string `json:"differences,omitempty"`
+	Update      bool     `json:"update,omitempty"`
 	// Runnable is whether it would run AS IT STANDS, and Why the refusal when it would
 	// not. Asked now rather than remembered: the file may have been edited by hand, and a
 	// routine listed as ready that cannot run is the state this product keeps finding.
@@ -205,6 +246,19 @@ func (a *Acts) Routines() []Routine {
 		}
 		contract, lacks := orchestrator.ContractOf(src)
 		r.Contract, r.Checks = string(contract), checksSentence(contract, lacks)
+		// AND WHICH GENERATION OF THE GENERATOR'S RULES WROTE IT, off the same
+		// source, by the one reader of that line. A separate fact from the
+		// contract above and never derived from it: see Routine.Generation.
+		g := orchestrator.GenerationOf(src)
+		r.Generation, r.Declared = string(g.Reading), g.Declared
+		r.Rebuildable = a.reg().HasRecording(rt)
+		r.Wrote = orchestrator.GenerationSentence(g, r.Rebuildable)
+		r.Offer = r.Rebuildable && g.Offerable()
+		diffs := orchestrator.GenerationDifferencesOf(src)
+		r.Update = orchestrator.Bears(diffs)
+		for _, dd := range diffs {
+			r.Differences = append(r.Differences, differenceLine(dd))
+		}
 		// AND HOW IT WAS RECORDED, WHEN THE FILE SAYS. Off the same source as the
 		// contract, by the one reader of that line, and left empty when there is no
 		// line — see Routine.Mode.

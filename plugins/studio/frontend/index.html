@@ -534,6 +534,56 @@
            be this window telling somebody how their routine was made on the strength of
            a guess. See routines.go. -->
       <div class="muted hide" style="margin-top:6px" id="routineCaptures"></div>
+      <!-- WHICH GENERATION OF MARCO'S RULES WROTE IT.
+           Provenance, and NOT the same question as whether its presses are checked: a
+           routine today's generator wrote can press without checking anything, because
+           that is what its demonstration asked for. Both lines are here and neither is
+           derived from the other.
+
+           The sentence is the backend's, all four readings of it, because the wording is
+           where this goes wrong: "written before versioning" is a claim a file that
+           states nothing does not support, and a later build's routine called current
+           would be this one claiming to have written it. See orchestrator.GenerationOf. -->
+      <div class="muted" style="margin-top:6px" id="routineWrote"></div>
+      <!-- AND WHAT IT WAS WRITTEN WITHOUT, each line saying whether this routine's own
+           contents bear on it. Older is not affected: a difference is a fact about two
+           generators, and whether it changes anything here is a fact about this file. -->
+      <div class="muted hide" style="margin-top:6px" id="routineDifferences"></div>
+      <!-- REVIEW A REBUILT VERSION — WHICH WRITES NOTHING.
+           Four steps, and the first three of them change nothing on disk: the card says
+           which generation wrote it, Review renders its own recording again and shows
+           both sources, Cancel drops it, and only Replace writes. A replacement refuses
+           if the routine or its recording moved while the review was open, which is also
+           the whole of the protection for a routine somebody edited by hand — the edit is
+           what the left-hand pane shows. See generation.go. -->
+      <div class="row" style="margin-top:10px">
+        <button id="routineReviewBtn" onclick="reviewRebuilt()">Review a rebuilt
+          version</button>
+        <span class="muted" id="routineReviewNote"></span>
+      </div>
+      <div class="card hide" id="routineReview" style="margin-top:10px">
+        <h3>Nothing has been written yet</h3>
+        <div class="banner bad hide" id="routineReviewRefused"></div>
+        <div class="muted" id="routineReviewSays"></div>
+        <div class="row" style="margin-top:8px">
+          <details open style="flex:1;min-width:0">
+            <summary>The routine as it is saved now
+              (<span id="routineReviewWasGen"></span>)</summary>
+            <pre id="routineReviewWas"></pre>
+          </details>
+          <details open style="flex:1;min-width:0">
+            <summary>Rebuilt from its own recording
+              (<span id="routineReviewNowGen"></span>)</summary>
+            <pre id="routineReviewNow"></pre>
+          </details>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <button class="go" id="routineReplaceBtn" onclick="replaceWithRebuilt()">Replace
+            the saved routine with this</button>
+          <button id="routineReviewCancelBtn" onclick="cancelReview()">Cancel</button>
+          <span class="muted" id="routineReplaceNote"></span>
+        </div>
+      </div>
       <!-- RECORD IT AGAIN, FROM THE ROUTINE.
            Re-recording is what somebody testing a routine does all afternoon, and it
            used to mean reading the name off this card and typing it back into the box
@@ -1610,7 +1660,8 @@
        chosenRoutine = ''
      }
      const sig = routines.map(r => [r.id, r.name, r.contract, r.mode, r.runnable,
-       r.saved_at].join('\u0001')).join('\u0000') + '\u0000' + chosenRoutine
+       r.saved_at, r.generation, r.declared_generation, r.update,
+       r.rebuildable].join('\u0001')).join('\u0000') + '\u0000' + chosenRoutine
      if (sig !== shownRoutines) { shownRoutines = sig; drawRoutines() }
    }).finally(() => setTimeout(pollRoutines, 2500))
  }
@@ -1668,6 +1719,91 @@
  // version of this that took a name answered with whichever row came first.
  function routineWith(id){ return routines.find(r => r.id === id) }
 
+ // ── REVIEWING A REBUILT VERSION, AND REPLACING ONLY ON PURPOSE ───────────────
+ //
+ // `reviewing` is the version the window last built for the chosen routine, and it is the
+ // only thing that licenses a replacement: `ReplaceWithRebuilt` is handed an identity and
+ // writes what the BACKEND held, so what lands on disk is what was on the screen and not
+ // whatever the page could hand back. See generation.go.
+ let reviewing = null
+
+ function reviewRebuilt(){
+   const r = routineWith(chosenRoutine)
+   if (!r) { return }
+   $('routineReviewBtn').disabled = true
+   text($('routineReviewNote'), 'building a version from its recording — nothing is ' +
+     'written')
+   acts.ReviewRebuilt(r.id).then(v => {
+     $('routineReviewBtn').disabled = !r.offer
+     if (!v || v.why) {
+       reviewing = null
+       showing($('routineReview'), false)
+       text($('routineReviewNote'), (v && v.why) || 'the version could not be built')
+       return
+     }
+     reviewing = v
+     text($('routineReviewNote'), '')
+     drawReview()
+   })
+ }
+
+ function drawReview(){
+   const v = reviewing
+   showing($('routineReview'), !!v)
+   if (!v) { return }
+   text($('routineReviewRefused'), v.refused || '')
+   showing($('routineReviewRefused'), !!v.refused)
+   // WHAT REPLACING WOULD DO, SAID PLAINLY. A routine today's generator wrote rebuilds
+   // byte for byte, and two identical panes with a Replace button over them is a window
+   // offering to do nothing.
+   text($('routineReviewSays'), v.refused
+     ? 'There is nothing to replace it with. Its own recording no longer produces a ' +
+       'routine under today\u2019s rules, and the reason is above.'
+     : (v.changes
+          ? 'The two differ. Nothing has been written: compare them, then replace or ' +
+            'cancel.'
+          : 'The rebuilt version is identical to the routine you have, so replacing it ' +
+            'would change nothing.'))
+   text($('routineReviewWas'), v.was || '')
+   text($('routineReviewNow'), v.now || '')
+   text($('routineReviewWasGen'), v.was_generation || 'unstated')
+   text($('routineReviewNowGen'), v.now_generation || 'unstated')
+   text($('routineReplaceNote'), '')
+   $('routineReplaceBtn').disabled = !v.replaceable || !v.changes
+ }
+
+ // CANCEL WRITES NOTHING, BECAUSE NOTHING WAS WRITTEN. It lets go of the version in the
+ // window, so a second press of a button somebody already dismissed cannot replace with
+ // it.
+ function cancelReview(){
+   const v = reviewing
+   reviewing = null
+   showing($('routineReview'), false)
+   text($('routineReviewNote'), '')
+   if (v) { acts.CancelReview(v.id) }
+ }
+
+ function replaceWithRebuilt(){
+   if (!reviewing) { return }
+   const id = reviewing.id, name = reviewing.name
+   $('routineReplaceBtn').disabled = true
+   acts.ReplaceWithRebuilt(id).then(why => {
+     if (why) {
+       // THE REFUSAL STAYS ON THE SCREEN WITH THE REVIEW. It names what moved,
+       // and the way forward is to review again — which needs the panel still
+       // there to press the button beside.
+       text($('routineReplaceNote'), why)
+       $('routineReplaceBtn').disabled = false
+       return
+     }
+     reviewing = null
+     showing($('routineReview'), false)
+     text($('routineReviewNote'), 'Replaced ' + esc(name) + ' with the version you ' +
+       'reviewed.')
+     shownRoutines = ''
+   })
+ }
+
  function renderRoutine(){
    const r = routineWith(chosenRoutine)
    showing($('routineChosen'), !!r)
@@ -1681,6 +1817,20 @@
    showing($('routineWhy'), !r.runnable)
    text($('routineWhy'), r.why || '')
    text($('routineSource'), r.source || '')
+   // WHICH GENERATION WROTE IT, AND WHAT IT WAS WRITTEN WITHOUT.
+   //
+   // The sentence comes from the backend for all four readings — see the element's
+   // comment. The Review button reads ONE answer, `offer`, which is false when there is
+   // no demonstration to rebuild from and when the generation is one this build cannot
+   // explain; the sentence already says which. A second condition written here could
+   // offer what the backend then declines.
+   text($('routineWrote'), r.wrote || '')
+   text($('routineDifferences'), (r.differences || []).join('\n'))
+   showing($('routineDifferences'), (r.differences || []).length > 0)
+   $('routineReviewBtn').disabled = !r.offer
+   // AND A REVIEW BELONGS TO ONE ROUTINE. Choosing another card puts it away rather than
+   // leaving two sources on screen under somebody else's name.
+   if (reviewing && reviewing.id !== r.id) { cancelReview() }
    paintRoutinePlay()
  }
 
