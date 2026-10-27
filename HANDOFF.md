@@ -9165,3 +9165,100 @@ provenance wall is unchanged, and all three fixes are about paths a desktop run 
 a stop mid-gesture, a machine that refuses input, a run that has already ended. `plugins/e2e` has
 no drag scenario yet; that is part of the contract's fifth requirement (independent fixture
 evidence of the full gesture), and the fixture still does not log movement.
+
+### §41m — three findings against §41l, and the one that is really about seams
+
+The Architect reviewed §41l by reading the source, having run nothing. All three findings are
+real, and two of them are in the half that lifting the gesture out of `SendInput` does not reach.
+
+#### [P1] The warning channel ended at the keyboard
+
+`Host.NotReleased` is the account a cancelled run cannot discard: `performOnePlay` throws a stopped
+run's error away on purpose, because a stop is not a failure, so the half that is STILL HAPPENING
+is kept where the discarding cannot reach it. That is the channel the chord slice built, and
+`noteHeld` looked for `notReleased` specifically — a stuck KEY.
+
+So the drag's stuck button went out through `delivered`, the list of things that did NOT happen,
+and nowhere else. A stop mid-drag recorded `cancelled` with nothing beside it while the button was
+down. It is the chord's own defect reproduced for the other device, and the worse one: a held left
+button drags whatever the pointer passes over, and there is no window in front of it saying so.
+
+`noteHeld` asks for `stillHolding` now — an interface both `notReleased` and `buttonStuck`
+implement. **The question is the shape of the thing and not the device**, and a third device cannot
+be added without passing through it. `doDrag` feeds it, the same two calls a keystroke gets.
+`ButtonNotReleased` is exported for the reason `KeyNotReleased` is: the words travel, and a test
+at any layer asks for them from there rather than retyping them.
+
+The record, the output and the Studio card needed **no change at all** — they take whatever
+sentence the host gives and do not read it. That is worth noticing: the channel was built
+generically and the only thing device-specific in it was the one `errors.As` target.
+
+#### [P1] A cancellation during the aim still permitted the mouse-down
+
+The entrance check sat at the top of the gesture, and the press came after a send. The aim IS a
+send; a send takes time; a stop arriving while the machine accepted the aim found nothing between
+it and the button going down. §41l's own words were "a stopped run presses nothing", and that was
+true of the function and not of the moment.
+
+The check is now immediately before the press as well. This is the same class as the chord's second
+defect (the stop during the settle) and the same class as
+[[tested-mechanism-untested-moment]] — **a tested mechanism is not a tested moment.** I wrote the
+entrance check by copying `sendChord`'s and did not ask what happens between it and the thing it is
+protecting.
+
+#### [P2] The native adapter did not implement the contract the gesture was written to
+
+The one that matters most, because it is about what the extraction proved.
+
+`dragGesture` is written against a machine whose press and release each carry their own point —
+that is the property the whole first fix rests on, since it is what lets a release be aimed at
+where the pointer IS rather than at the destination. The Windows adapter supplied that point as
+normalised absolute coordinates **on the button event, with no `MOUSEEVENTF_MOVE`**. Windows moves
+the cursor for an event that carries that flag; coordinates on a `LEFTDOWN` without it are
+coordinates on an event that is not a movement. So the press happened wherever the pointer already
+was, and the gesture's contract read as satisfied by an adapter that was not repositioning
+anything. My comment asserted the property in prose and the code did not have it.
+
+Press and release are each the movement and then the button **in one `SendInput` call** now, which
+is `clickAt`'s shape — that function had this right all along, and I read it while writing this and
+still got it wrong. One call because separate calls let other input interleave between the
+reposition and the button: a person's own mouse, or anything else injecting. Two events rather than
+one event carrying both flags, because the order of the movement and the press WITHIN a single
+`MOUSEINPUT` is not something the documentation gives, while the order of two events in a batch is
+what a batch means.
+
+The aim's own move is now partly redundant, since the press repeats it. Kept: an aim is a real
+event an application may act on, a refused aim is a distinct outcome from a refused press, and a
+second absolute move to the point the pointer is already at is not a gesture anybody can see.
+
+#### The lesson, and it generalises past this slice
+
+**Lifting a sequence out of the syscall makes the SEQUENCE reviewable and says nothing whatever
+about the adapter underneath it.** §41l's verification section said "no desktop run — nothing here
+needs one", and that was right about the three defects it fixed and wrong as a statement about the
+slice: the headless tests could not have seen a missing flag, and I had not given them anything to
+look at. `sendInputs` is a var now so what is actually handed to Windows can be read, and the flags
+are asserted — including that a release after an intervening movement still carries the point it
+was asked for, which is the claim the gesture actually depends on.
+
+This belongs beside [[two-lists-one-fact]] and [[fix-did-the-visible-half]]: a seam that makes the
+interesting half testable will happily leave the other half untested and looking fine.
+
+#### Six more mutations, each killed
+
+- `noteHeld` narrowed back to `notReleased` → the stuck-button account test fails.
+- the `noteHeld` call removed from `doDrag` → the same test fails.
+- the pre-press check removed → `TestADragStoppedWhileItAimsDoesNotPress` fails, naming the three
+  events a stopped run sent.
+- the `MOUSEEVENTF_MOVE` event dropped from press and release → the flags test fails on both.
+- the batch split into two `SendInput` calls → fails on the call count.
+- the release given a later point → fails on the coordinates, for both of its events.
+
+Restored byte-identical from a scratchpad copy.
+
+#### Verification
+
+Root suite clean, `plugins/studio` ok (70s), `plugins/e2e` vet and tests ok, `gofmt` clean,
+`docscheck` no problems, `wiringcheck` green. The flag tests are Windows-only by build tag and ran
+on this machine. **Still no desktop acceptance run**, and the drag's own harness scenario does not
+exist — that is the contract's fifth requirement, and the fixture still does not log movement.

@@ -285,3 +285,115 @@ func TestADragTheMachineRefusedIsInTheAccount(t *testing.T) {
 			"still a drag somebody asked for", got)
 	}
 }
+
+// TestADragStoppedWhileItAimsDoesNotPress is the gap between the entrance check and the press.
+//
+// One check at the top of the gesture is not enough on its own, and this is why: the aim is a
+// send, a send takes time, and a stop arriving while the machine accepts the aim found nothing
+// between it and the button going down. The press is the event that cannot be taken back, so the
+// check has to sit against the press rather than against the function. The machine here cancels
+// the run as it takes the aim, which is the narrowest arrangement of that instant.
+func TestADragStoppedWhileItAimsDoesNotPress(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	p := &fakePointer{stopAfter: 1, cancel: cancel}
+	if err := dragGesture(ctx, p, "left", 10, 10, 90, 90); !errors.Is(err, context.Canceled) {
+		t.Fatalf("a drag stopped during its aim reported %v, want a cancellation", err)
+	}
+	if len(p.events) != 1 || p.events[0] != "move 10,10" {
+		t.Errorf("a drag stopped while it aimed sent %v; the aim had been taken, so "+
+			"the aim is all there should be", p.events)
+	}
+	for _, e := range p.events {
+		if strings.Contains(e, "down") || strings.Contains(e, "up") {
+			t.Errorf("a stop arrived while the aim was being taken and the gesture "+
+				"pressed anyway: %v", p.events)
+		}
+	}
+}
+
+// ── and the account a cancellation cannot discard ──
+
+// aBackendWithARealDrag is the recording backend with the PRODUCTION gesture underneath its
+// drags.
+//
+// `recBackend.drag` records four numbers and returns, which is right for every test about what
+// was asked for. This one runs `dragGesture` instead, against a machine the case supplies — so
+// the aim, the press, the travel and the release all happen in order, with a machine that can
+// refuse a release and a stop that can arrive in the middle.
+type aBackendWithARealDrag struct {
+	*recBackend
+	pointer *fakePointer
+}
+
+func (b aBackendWithARealDrag) drag(ctx context.Context, button string, x1, y1, x2, y2 int) error {
+	b.recBackend.sawDrag(button, x1, y1, x2, y2)
+	return dragGesture(ctx, b.pointer, button, x1, y1, x2, y2)
+}
+
+// aDrag is the Drag set a routine's `do OS's Drag with …` arrives as.
+func aDrag(fx, fy, tx, ty int) runtime.Value {
+	s := runtime.NewSet()
+	for k, v := range map[string]int{"FromX": fx, "FromY": fy, "ToX": tx, "ToY": ty} {
+		s.Put(k, runtime.Number(float64(v)))
+	}
+	return runtime.SetVal(s)
+}
+
+// draggedWithARealGesture performs one drag through the PRODUCTION host and the production
+// gesture, with the machine arranged by the caller, and hands back the host to ask.
+func draggedWithARealGesture(t *testing.T, p *fakePointer) (*Host, string) {
+	t.Helper()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	p.cancel = cancel
+	h := &Host{b: aBackendWithARealDrag{recBackend: &recBackend{}, pointer: p}}
+	st, _, _ := h.Invoke(runtime.HostCall{Action: "Drag", Input: aDrag(10, 20, 250, 20),
+		Ctx: ctx})
+	return h, st
+}
+
+// TestARunStoppedMidDragKeepsTheStuckButtonWhereACancellationCannotDiscardIt is the warning
+// channel, extended to the device that needs it most.
+//
+// `Host.NotReleased` is the account a stopped run cannot throw away: `performOnePlay` discards a
+// cancelled run's error on purpose, because a stop is not a failure, and the half of that error
+// which is STILL HAPPENING has to outlive the discarding. It recognised stuck keys only — so a
+// drag stopped mid-travel whose release the machine refused reported `cancelled` with nothing
+// beside it, while the button stayed down dragging whatever the pointer passed over. Through the
+// production `Invoke` and the production gesture, with only the machine substituted.
+func TestARunStoppedMidDragKeepsTheStuckButtonWhereACancellationCannotDiscardIt(t *testing.T) {
+	// Stopped as the fourth move is taken, and the release that follows refused.
+	h, st := draggedWithARealGesture(t, &fakePointer{stopAfter: 6,
+		refuse: map[int]bool{7: true}})
+
+	warn := h.NotReleased()
+	switch {
+	case warn == "":
+		t.Fatalf("a run stopped mid-drag whose button the machine would not release "+
+			"says nothing in the one account a cancellation cannot discard; the "+
+			"step reported %q and that is thrown away", st)
+	case !strings.Contains(warn, "left mouse button"):
+		t.Errorf("the account says %q and never names what is held down", warn)
+	case !strings.Contains(warn, "may still be held down"):
+		t.Errorf("the account says %q and does not say the computer is still holding "+
+			"it, which is the part somebody has to act on", warn)
+	case !strings.Contains(warn, "dragging from 10,20 to 250,20"):
+		t.Errorf("the account says %q and does not say what was being done when it "+
+			"happened", warn)
+	}
+}
+
+// AND A STOP THAT LET GO OF THE BUTTON SAYS NOTHING.
+//
+// The control, and the one that makes the case above mean something: a host that complained after
+// every stopped drag would satisfy it and would also tell somebody their mouse was stuck every
+// time they pressed Escape.
+func TestAStoppedDragThatReleasedTheButtonLeavesNothingInTheAccount(t *testing.T) {
+	h, _ := draggedWithARealGesture(t, &fakePointer{stopAfter: 6})
+
+	if warn := h.NotReleased(); warn != "" {
+		t.Errorf("a drag that was stopped and DID let go of its button left %q in the "+
+			"account of what is still held down", warn)
+	}
+}

@@ -1097,8 +1097,18 @@ func (h *Host) doDrag(c runtime.HostCall) (string, runtime.Value, error) {
 	// and the run reported success about a gesture that never happened. Worse, underneath it
 	// the backend was discarding what `SendInput` returned, so there was usually no error to
 	// report in the first place; both halves had to go.
-	return h.delivered(fmt.Sprintf("dragging from %d,%d to %d,%d", fx, fy, tx, ty),
-		h.b.drag(c.Ctx, btn, fx, fy, tx, ty))
+	what := fmt.Sprintf("dragging from %d,%d to %d,%d", fx, fy, tx, ty)
+	err := h.b.drag(c.Ctx, btn, fx, fy, tx, ty)
+	// AND A BUTTON THE MACHINE WOULD NOT LET GO OF IS KEPT SEPARATELY, the same two calls a
+	// keystroke gets and for the same reason.
+	//
+	// `delivered` alone was not enough and the gap was exactly the one the chord slice
+	// closed for keys: a run STOPPED mid-drag discards its error on purpose, so a stuck
+	// button reported only through the returned error reached nobody — the record said
+	// `cancelled` with nothing beside it while the button was down, dragging whatever the
+	// pointer passed over. This account is the one a cancellation cannot discard.
+	h.noteHeld(what, err)
+	return h.delivered(what, err)
 }
 
 // cvOff reports whether computer vision / anchors are OFF — the DEFAULT now. The CV anchor
@@ -1935,7 +1945,18 @@ func (h *Host) didNotDo(why string) {
 	h.mu.Unlock()
 }
 
-// noteHeld keeps a key the machine would not release, which is an account of its own.
+// stillHolding is something the machine would not let go of: a key, or a mouse button.
+//
+// AN INTERFACE AND NOT A LIST OF TYPES, so a third device cannot be added without being noticed
+// here. What the account needs from one is only its sentence — it says what the computer is now
+// LIKE — and what it needs from the type is the undertaking that this is that kind of thing and
+// not a failure. `errors.As` finds it through however many wrappings a stop put around it.
+type stillHolding interface {
+	error
+	stillHolding()
+}
+
+// noteHeld keeps a key or a button the machine would not release, which is an account of its own.
 //
 // # Why it is not in `Unperformed`
 //
@@ -1948,8 +1969,17 @@ func (h *Host) didNotDo(why string) {
 // stop is not a failure; the half of that error which is still happening must outlive the
 // discarding, and an account the host keeps is what outlives it. The identity comes from the
 // error rather than from its wording, so improving the sentence cannot quietly disconnect this.
+//
+// # And a KEY is not the only thing the machine can refuse to let go of
+//
+// A mouse button is the other one, and it is worse: a held left button drags whatever the pointer
+// passes over. This looked for `notReleased` specifically, so the drag's stuck button went out
+// through `delivered` — the list of things that did NOT happen — and never reached the channel a
+// cancelled run cannot discard. A stop in the middle of a drag therefore read as `cancelled` with
+// nothing beside it while the button was down, which is the exact defect the chord slice fixed for
+// keys. It asks for `stillHolding` now: the shape of the thing, not the device.
 func (h *Host) noteHeld(what string, err error) {
-	var stuck notReleased
+	var stuck stillHolding
 	if !errors.As(err, &stuck) {
 		return
 	}

@@ -1234,6 +1234,44 @@ func TestAStoppedRoutineShowsWhatItLeftHeldDown(t *testing.T) {
 	}
 }
 
+// AND A STOPPED ROUTINE SHOWS A BUTTON IT LEFT HELD DOWN THE SAME WAY.
+//
+// The same channel, the other device, and the worse one: a held left button drags whatever the
+// pointer passes over, with no window in front of it to show what is happening. The window does
+// not parse this sentence either — it keeps the last thing the child said — so what is being
+// tested is that a warning about a BUTTON reaches the surface through the path built for keys,
+// and that the stop still reads as a stop.
+//
+// The sentence is `oshost.ButtonNotReleased`'s, as a person would receive it. The executor's half
+// is `cmd/marco` `TestAStoppedRunRecordsTheButtonItLeftHeldDown`; the gesture that produces it is
+// `internal/oshost`
+// `TestARunStoppedMidDragKeepsTheStuckButtonWhereACancellationCannotDiscardIt`.
+// See [[ADR-258-a-chord-is-a-promise-to-let-go]].
+func TestAStoppedRoutineShowsTheButtonItLeftHeldDown(t *testing.T) {
+	stuck := "after dragging from 10,20 to 250,20, the machine would not release the " +
+		"left mouse button, which may still be held down at 130,20 on this " +
+		"computer — until it is, the pointer drags whatever it passes over"
+	w := aRunThatSaid(t, "[route] ark graphics", stuck,
+		outcome.Line(outcome.Cancelled))
+
+	if w.Outcome != string(outcome.Cancelled) {
+		t.Fatalf("the run was stopped and the window shows %q", w.Outcome)
+	}
+	if w.Reason != stuck {
+		t.Errorf("the window kept %q as what the run said, and the run said %q",
+			w.Reason, stuck)
+	}
+	switch {
+	case !strings.Contains(w.Said, "stopped part of the way through"):
+		t.Errorf("the window no longer says a stopped routine was stopped: %q", w.Said)
+	case !strings.Contains(w.Said, "left mouse button"):
+		t.Errorf("the window says %q about a run that left the left button down — the "+
+			"stop is reported and the button still held is not, which is the "+
+			"half that is still happening to everything the pointer touches",
+			w.Said)
+	}
+}
+
 // AND AN ORDINARY STOP SAYS ONLY THAT IT STOPPED.
 //
 // The control. A window that appended whatever the child last said to every cancelled run would

@@ -183,11 +183,22 @@ func (r *recBackend) clickAt(_ context.Context, b string, x, y int) error {
 // backend's `key` had and for the same reason: nothing could put a drag-delivery failure in a
 // routine, so the account that a refused drag belongs in could not be tested.
 func (r *recBackend) drag(_ context.Context, button string, x1, y1, x2, y2 int) error {
+	r.sawDrag(button, x1, y1, x2, y2)
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.sending()
+}
+
+// sawDrag writes down a gesture this backend was asked for.
+//
+// Split out for the reason `sawKey` is: a backend that runs the PRODUCTION gesture underneath can
+// still be counted the same way — see aBackendWithARealDrag. Without it, a test about the gesture
+// would be invisible to every assertion about what was asked for.
+func (r *recBackend) sawDrag(button string, x1, y1, x2, y2 int) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.drags = append(r.drags, [4]int{x1, y1, x2, y2})
 	r.calls = append(r.calls, fmt.Sprintf("drag %s %d,%d-%d,%d", button, x1, y1, x2, y2))
-	return r.sending()
 }
 func (r *recBackend) move(_ context.Context, x, y int) error {
 	r.mu.Lock()

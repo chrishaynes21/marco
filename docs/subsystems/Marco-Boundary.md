@@ -117,6 +117,21 @@ no ledger — an exit between the press and the release leaves it down — and c
 backend's `drag` split so something outside it can release; that belongs to the guarded-drag
 contract and is not yet agreed.
 
+Review of that found three more, and two of them were in the half the extraction does not reach.
+The **warning channel ended at the keyboard**: `Host.NotReleased` is the account a cancelled run
+cannot discard, and it recognised stuck keys only, so a stop mid-drag recorded `cancelled` with
+nothing beside it while the button was down. It asks for `stillHolding` now — the shape of the
+thing, not the device — and the record, the output and the card needed no change, because they
+take whatever sentence the host gives. A **cancellation during the aim still permitted the
+mouse-down**, since the aim is a send and nothing was read between it and the press; the check sits
+against the press as well now. And the **native adapter did not implement the contract the gesture
+was written to**: the button events carried absolute coordinates without `MOUSEEVENTF_MOVE`, and
+Windows moves the cursor only for an event that carries that flag — so the press happened wherever
+the pointer already was while the gesture's contract read as satisfied. Press and release are each
+the movement and then the button in ONE `SendInput` call now, `clickAt`'s shape. The lesson is
+about what a seam proves: lifting the sequence out made the order reviewable and said nothing
+whatever about the adapter underneath it.
+
 Two limits, in those words: a failed release is **reported, not recovered** — none of that
 machinery puts the key back up, and whoever reads the sentence is the recovery — and **forced
 termination is outside it**, because a process killed between a modifier going down and its

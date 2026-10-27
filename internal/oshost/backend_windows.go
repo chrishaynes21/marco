@@ -196,29 +196,63 @@ func (winBackend) clickAt(ctx context.Context, button string, x, y int) error {
 // thePointer is SendInput, one pointer event at a time, which is what `dragGesture` is written
 // against so that the gesture can be checked without a desktop. See drag.go.
 //
-// Every event carries its own absolute point, normalised over the VIRTUAL desktop — the same
-// gesture `clickAt` sends, and correct on any monitor including one with a negative origin. The
-// point travels WITH the button event on purpose: nothing can interleave and move the pointer
-// between the aim and the press, and a release can therefore be aimed at where the pointer is.
+// # A button event does not move the pointer, and this is what that cost
+//
+// The gesture is written against a machine whose press and release each carry their own point,
+// because that is what lets a release be aimed at WHERE THE POINTER IS rather than at the
+// destination. This supplied those points as normalised absolute coordinates on the button event
+// — and nothing else. Windows moves the cursor when an event carries `MOUSEEVENTF_MOVE`;
+// coordinates on a `LEFTDOWN` with no `MOUSEEVENTF_MOVE` are coordinates on an event that is not
+// a movement, so the press happened wherever the pointer already was. The gesture's contract read
+// as satisfied and the adapter did not implement it.
+//
+// So each of these is the MOVEMENT AND THE BUTTON, in that order, in ONE `SendInput` call —
+// `clickAt`'s shape, which had this right. One call because separate calls let other input
+// interleave: a person's own mouse, or anything else injecting, between the reposition and the
+// button. Two events rather than one event carrying both flags, because the order of the movement
+// and the press WITHIN a single `MOUSEINPUT` is not something the documentation gives, while the
+// order of two events in one batch is exactly what a batch means.
+//
+// Which makes the aim's own move partly redundant — the press repeats it. Kept, because an aim
+// is a real event an application may act on (a hover, a highlight), a refused aim is a distinct
+// outcome from a refused press, and a second absolute move to the point the pointer is already at
+// is not a gesture anybody can see.
+//
+// Every point is normalised over the VIRTUAL desktop, so this is correct on any monitor including
+// one with a negative origin.
+//
+// [MOUSEINPUT]: https://learn.microsoft.com/en-us/windows/win32/api/winuser/ns-winuser-mouseinput
 type thePointer struct{}
 
-func (thePointer) event(x, y int, flags uint32) bool {
+// pointerEventAt builds one mouse event at an absolute point on the virtual desktop.
+func pointerEventAt(x, y int, flags uint32) inputT {
 	vx, vy, vw, vh := virtualDesk()
 	nx, ny := normAbsolute(x, y, vx, vy, vw, vh)
 	const absDesk = _MOUSEEVENTF_ABSOLUTE | _MOUSEEVENTF_VIRTUALDESK
-	return sendInputs([]inputT{mouseInputT(nx, ny, 0, flags|absDesk)})
+	return mouseInputT(nx, ny, 0, flags|absDesk)
 }
 
-func (p thePointer) moveTo(x, y int) bool { return p.event(x, y, _MOUSEEVENTF_MOVE) }
+func (thePointer) moveTo(x, y int) bool {
+	return sendInputs([]inputT{pointerEventAt(x, y, _MOUSEEVENTF_MOVE)})
+}
 
-func (p thePointer) press(button string, x, y int) bool {
+func (thePointer) press(button string, x, y int) bool {
 	down, _ := mouseButtonFlags(button)
-	return p.event(x, y, down)
+	return sendInputs([]inputT{
+		pointerEventAt(x, y, _MOUSEEVENTF_MOVE),
+		pointerEventAt(x, y, down),
+	})
 }
 
-func (p thePointer) release(button string, x, y int) bool {
+// release moves to the point it was given and then lets go there, which is the one the gesture
+// cares most about: a stopped drag releases where the pointer got to, and a release that did not
+// carry its own movement would let go wherever the pointer had since been taken.
+func (thePointer) release(button string, x, y int) bool {
 	_, up := mouseButtonFlags(button)
-	return p.event(x, y, up)
+	return sendInputs([]inputT{
+		pointerEventAt(x, y, _MOUSEEVENTF_MOVE),
+		pointerEventAt(x, y, up),
+	})
 }
 
 // settle waits between the steps of the travel, and RETURNS EARLY when the run is stopped. That
@@ -434,7 +468,14 @@ func mouseInputT(dx, dy int32, mouseData uint32, flags uint32) inputT {
 // sendInputs dispatches a batch of INPUTs in a SINGLE SendInput call, so no other
 // (user or injected) input interleaves between them — the move+down+up of a click stay
 // atomic and ordered. Reports whether every event was accepted.
-func sendInputs(inps []inputT) bool {
+//
+// A VAR, so what a gesture actually hands Windows can be READ. The gesture's order is checkable
+// without a desktop because it was lifted out (see drag.go), and that is a different claim from
+// this one: whether the events this builds carry the flags that make them do what the gesture
+// means. A headless test of the sequence establishes nothing about the adapter underneath it, and
+// the adapter is where `MOUSEEVENTF_MOVE` was missing from a button event that was documented as
+// repositioning the pointer.
+var sendInputs = func(inps []inputT) bool {
 	if len(inps) == 0 {
 		return true
 	}

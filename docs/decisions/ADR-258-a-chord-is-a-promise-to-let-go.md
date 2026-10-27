@@ -362,14 +362,60 @@ passed in now.
 `Invoke` against `sendsInput`, which is why it is taken there. The trace that found these said it
 was not, and was wrong about that one clause.
 
-**What is NOT fixed here, and is not a defect in this gesture.** The button is in no ledger. A key
-that goes down is written into an account the route-end sweep reads; a button is not, so an exit
-between the press and the release — a panic, a kill, a stop that unwinds past the call — leaves
-the button down with nothing in the process that knows to lift it. Covering that needs the
+**What is NOT fixed here, and is not a defect in this gesture.** The button is in no LEDGER. A key
+that goes down is written into a list the route-end sweep reads and retries; a button is not, so an
+exit between the press and the release — a panic, a kill, a stop that unwinds past the call —
+leaves the button down with nothing in the process that knows to lift it. Covering that needs the
 backend's `drag` split so something outside it can release, and the ledger taught about a button:
 both belong to the guarded-drag contract, which is proposed and not agreed. What is fixed is every
 exit this function reaches, which is all three above. The two limits are unchanged — a failed
 release is reported, not recovered, and forced termination is outside all of it.
+
+## And three things review found that the first cut had wrong
+
+The sequencing had been lifted out, which is what made the original three findable at all. Two of
+these are in the half that the extraction does not reach, and the third is the chord's own channel
+stopping at the keyboard.
+
+**The warning channel ended at the keyboard.** `Host.NotReleased` is the account a cancelled run
+cannot discard — `performOnePlay` throws a stopped run's error away on purpose, so the half that is
+still happening is kept where the discarding cannot reach it. `noteHeld` looked for `notReleased`
+specifically, so the drag's stuck button went out through `delivered` — the list of things that did
+NOT happen — and nowhere else. A stop mid-drag therefore recorded `cancelled` with nothing beside
+it while the button was down: the chord's own defect reproduced for the other device, and the worse
+one, because a held left button drags whatever the pointer passes over with no window in front of
+it saying so. The account asks for `stillHolding` now — an interface both the stuck key and the
+stuck button implement, so the question is the SHAPE of the thing and not the device, and a third
+device cannot be added without passing through it. `doDrag` feeds it, the same two calls a
+keystroke gets. Record, output and card needed no change: they take whatever sentence the host
+gives, and `ButtonNotReleased` is where the words live.
+
+**A cancellation during the aim still permitted the mouse-down.** The entrance check sat at the top
+of the gesture and the press came after a send. The aim IS a send; a send takes time; a stop that
+arrived while the machine was accepting the aim found nothing between it and the button going down.
+The check is now immediately before the press as well, which is the narrowest instant the gesture
+can read, and it makes "a stopped run presses nothing" true of the MOMENT rather than of the
+function.
+
+**And the native adapter did not implement the contract the gesture was written to.** The gesture
+is written against a machine whose press and release each carry their own point, because that is
+what lets a release be aimed at where the pointer IS. The Windows adapter supplied that point as
+normalised absolute coordinates on the button event — and left `MOUSEEVENTF_MOVE` off it. Windows
+moves the cursor when an event carries that flag; coordinates on a `LEFTDOWN` without it are
+coordinates on an event that is not a movement, so the press happened wherever the pointer already
+was. The gesture's contract read as satisfied and nothing underneath it was repositioning anything.
+Each of press and release is now the movement and then the button, **in one `SendInput` call** —
+`clickAt`'s shape, which had this right all along. One call, because separate calls let other input
+interleave between the reposition and the button; two events rather than one event carrying both
+flags, because the order of the movement and the press WITHIN a single `MOUSEINPUT` is not
+something the documentation gives, while the order of two events in a batch is what a batch means.
+
+**Which is the general lesson, and it is about what a seam proves.** Lifting the sequence out made
+the order reviewable and the three original defects testable, and it established nothing whatever
+about the adapter underneath it. A headless test of a gesture is a test of the gesture.
+`sendInputs` is a var now so that what is actually handed to Windows can be read, and the flags are
+asserted — including that a release after an intervening movement still carries the point it was
+asked for.
 
 ## Enforced by
 
@@ -449,6 +495,33 @@ And the drag's three, each failing alone when its own half is put back:
 - `internal/oshost` `TestADragTheMachineRefusedIsInTheAccount` — the delivery report where it is
   read from: `Host.Unperformed` names the gesture and its two points, and the run still counts it
   as asked for. Putting `ok` back fails this alone.
+
+And the three review found:
+
+- `internal/oshost` `TestARunStoppedMidDragKeepsTheStuckButtonWhereACancellationCannotDiscardIt` —
+  the warning channel, through the production `Invoke` and the production gesture with only the
+  machine substituted. Narrowing `noteHeld` back to `notReleased` fails it; so does taking the
+  `noteHeld` call out of `doDrag`. Asserted on the host's account and not on the step's status,
+  because the status is what a cancelled run throws away.
+- `internal/oshost` `TestAStoppedDragThatReleasedTheButtonLeavesNothingInTheAccount` — the control:
+  a host that complained after every stopped drag would satisfy the case above and would also tell
+  somebody their mouse was stuck every time they pressed Escape.
+- `cmd/marco` `TestAStoppedRunRecordsTheButtonItLeftHeldDown` /
+  `TestAStoppedRunThatReleasedTheButtonRecordsOnlyThat` — the command's half: `cancelled` AND the
+  sentence, in the record and said on the run's own output, with the clean-stop control. The
+  sentence comes from `oshost.ButtonNotReleased` rather than being retyped.
+- `plugins/studio` `TestAStoppedRoutineShowsTheButtonItLeftHeldDown` — the window's half, beside
+  the key's. `TestAnOrdinaryStopSaysOnlyThatItStopped` is the control for both.
+- `internal/oshost` `TestADragStoppedWhileItAimsDoesNotPress` — the gap between the entrance check
+  and the press, with the machine cancelling the run as it takes the aim. Removing the second check
+  fails it, and it is asserted on the events: the aim and nothing else.
+- `internal/oshost` `TestThePointersButtonEventsCarryTheirOwnMovement` — the native adapter, over a
+  seam on `sendInputs`, on three claims: the movement is there, it is in the same `SendInput` call
+  as the button, and it names the point that was asked for rather than the intervening move's.
+  Dropping the `MOUSEEVENTF_MOVE` event fails it, splitting the batch into two calls fails it, and
+  so does letting the release inherit a later point.
+- `internal/oshost` `TestThePointersAimIsAMovementAndNoButton` — the control: an adapter that put a
+  button flag on everything would satisfy the pair above and would press the mouse while hovering.
 - `cmd/marco` `TestTheHeldKeyWarningIsTheLastThingTheRunSays` — the ordering, which is what makes
   the sentence the window's: Studio keeps the last line before the outcome word and does not parse
   it, so a warning with anything printed after it is one the window silently replaces.

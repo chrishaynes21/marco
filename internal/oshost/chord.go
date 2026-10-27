@@ -186,6 +186,10 @@ func (n notReleased) Error() string {
 
 func (notReleased) Is(target error) bool { return target == errKeyNotReleased }
 
+// stillHolding marks this as something the computer has not finished doing. See
+// `Host.noteHeld`, and `buttonStuck`, which is the other one.
+func (notReleased) stillHolding() {}
+
 // releasing attempts a release for every key that was pressed, and says which ones would not go.
 //
 // AN ATTEMPT, AND THE DISTINCTION IS THE POINT. "Everything pressed is released" is what this

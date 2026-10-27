@@ -97,6 +97,18 @@ func dragGesture(ctx context.Context, m pointerMachine, button string, x1, y1, x
 		return fmt.Errorf("the machine refused to aim at %d,%d for the %s drag",
 			x1, y1, button)
 	}
+	// AND READ AGAIN, IMMEDIATELY BEFORE THE PRESS.
+	//
+	// The entrance check above is not enough on its own, and the gap between the two is
+	// not theoretical: the aim is a send, a send takes time, and a stop that arrives while
+	// the machine is accepting the aim found nothing between it and the button going down.
+	// A press is the event that cannot be taken back, so the check belongs against the
+	// press and not only against the gesture. This is the narrowest instant the gesture
+	// can read, and reading it here is what makes the claim "a stopped run presses nothing"
+	// true of the moment rather than of the function.
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if !m.press(button, x1, y1) {
 		// NO RELEASE FOR A BUTTON THAT IS NOT DOWN. `SendInput` takes an event or it
 		// does not, so a rejected press leaves nothing to undo, and sending the
@@ -154,6 +166,18 @@ func releaseAt(m pointerMachine, button string, x, y int) error {
 	return nil
 }
 
+// ButtonNotReleased is the sentence for a mouse button the machine would not let go of, and the
+// one place it is written.
+//
+// Exported for the reason `KeyNotReleased` is: the words travel. The host keeps this sentence in
+// an account a cancelled run cannot discard (`Host.NotReleased`), `marco` puts it in the durable
+// record and on the run's own output, and Studio shows it to somebody. A test at any of those
+// layers asks for it from here rather than retyping it — two copies of a sentence agree until one
+// of them is improved.
+func ButtonNotReleased(button string, x, y int) error {
+	return buttonStuck{button: button, x: x, y: y}
+}
+
 // errButtonNotReleased is the identity, for recognising one of these rather than reading it.
 var errButtonNotReleased = errors.New("a mouse button the machine would not release")
 
@@ -173,3 +197,8 @@ func (b buttonStuck) Error() string {
 }
 
 func (buttonStuck) Is(target error) bool { return target == errButtonNotReleased }
+
+// stillHolding marks this as something the computer has not finished doing, which is what puts it
+// in the host's own account rather than in the list of things that did not happen. See
+// `Host.noteHeld`, which looks for this and not for a key.
+func (buttonStuck) stillHolding() {}
