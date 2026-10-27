@@ -92,7 +92,24 @@ const (
 // attempts a release before it returns — whether the drag worked, was refused partway, or was
 // stopped. Not "is released": the machine can refuse a release, and that refusal is exactly what
 // [errButtonNotReleased] is for.
-func dragGesture(ctx context.Context, m pointerMachine, button string, x1, y1, x2, y2 int) error {
+// stillThere is asked IMMEDIATELY BEFORE THE BUTTON GOES DOWN, and the gap it closes is the aim.
+//
+// The aim is an injected pointer move, and a pointer move changes applications: a hover, a
+// highlight, a tooltip, a panel that lays itself out differently, a window that resizes to fit
+// what is now under the cursor. So a check made before the gesture started is a check made before
+// the gesture's own first event, and the press that follows it is aimed at a window described by
+// a measurement taken before something happened to it.
+//
+// It answers against the snapshot taken when the endpoints were resolved, not against a fresh
+// baseline: the question is whether the window is still the one those two points were computed
+// for. And a change is a REFUSAL rather than a re-base — re-basing mid-gesture would move the
+// destination under the pointer, which is what the guard is for.
+//
+// nil for a drag that asked for no guard, which is every drag saved before this existed.
+type stillThere func() error
+
+func dragGesture(ctx context.Context, m pointerMachine, button string, x1, y1, x2, y2 int,
+	confirm stillThere) error {
 	// NOTHING IS SENT TO A RUN THAT HAS ALREADY STOPPED. Before the aim, not inside the
 	// travel: a drag reached with the context already done used to press the button, move
 	// it, and only then discover there was nothing to do this for.
@@ -114,6 +131,18 @@ func dragGesture(ctx context.Context, m pointerMachine, button string, x1, y1, x
 	// true of the moment rather than of the function.
 	if err := ctx.Err(); err != nil {
 		return err
+	}
+	// AND THE WINDOW, AGAIN, FOR THE SAME REASON ABOUT A DIFFERENT THING.
+	//
+	// The stop is read first because a run that has been stopped has no business asking
+	// the desktop anything, and because a window complaint would be the wrong answer to
+	// give somebody who pressed Escape. After that this is the LAST thing before the
+	// press, and NO INPUT IS SENT BETWEEN THEM — which is the whole property, and the
+	// reason the aim is not allowed to sit in that gap.
+	if confirm != nil {
+		if err := confirm(); err != nil {
+			return err
+		}
 	}
 	if !m.press(button, x1, y1) {
 		// NO RELEASE FOR A BUTTON THAT IS NOT DOWN. `SendInput` takes an event or it

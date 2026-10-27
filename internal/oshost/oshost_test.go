@@ -81,6 +81,10 @@ type recBackend struct {
 	// inside a hold or after its release. A gesture is an ordering, so the claim
 	// needs a log that is one.
 	calls []string
+	// confirmed counts the revalidations a guarded drag asked for, and confirmFailed
+	// says one refused. A backend that never asked is the defect these exist to catch.
+	confirmed     int
+	confirmFailed bool
 }
 
 // sending counts one input send and says whether the machine is taking it.
@@ -182,7 +186,23 @@ func (r *recBackend) clickAt(_ context.Context, b string, x, y int) error {
 // A DRAG IS AN INPUT SEND, so `refuseFrom` reaches it too. It did not used to, the same gap this
 // backend's `key` had and for the same reason: nothing could put a drag-delivery failure in a
 // routine, so the account that a refused drag belongs in could not be tested.
-func (r *recBackend) drag(_ context.Context, button string, x1, y1, x2, y2 int) error {
+func (r *recBackend) drag(_ context.Context, button string, x1, y1, x2, y2 int,
+	confirm stillThere) error {
+
+	// THE REVALIDATION IS ASKED, which is the backend's side of the contract: a backend
+	// that ignored it would make every test about "refused before mouse-down" pass while
+	// nothing was checked at the one instant that matters.
+	if confirm != nil {
+		if err := confirm(); err != nil {
+			r.mu.Lock()
+			r.confirmFailed = true
+			r.mu.Unlock()
+			return err
+		}
+		r.mu.Lock()
+		r.confirmed++
+		r.mu.Unlock()
+	}
 	r.sawDrag(button, x1, y1, x2, y2)
 	r.mu.Lock()
 	defer r.mu.Unlock()

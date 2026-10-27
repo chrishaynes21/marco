@@ -36,7 +36,7 @@ type backend interface {
 	typeText(ctx context.Context, text string) error
 	click(ctx context.Context, button string) error
 	clickAt(ctx context.Context, button string, x, y int) error
-	drag(ctx context.Context, button string, x1, y1, x2, y2 int) error
+	drag(ctx context.Context, button string, x1, y1, x2, y2 int, confirm stillThere) error
 	move(ctx context.Context, x, y int) error
 	color(ctx context.Context, x, y int) (uint32, error)
 	activeExe(ctx context.Context) (string, error)
@@ -1097,8 +1097,24 @@ func (h *Host) doDrag(c runtime.HostCall) (string, runtime.Value, error) {
 	// and the run reported success about a gesture that never happened. Worse, underneath it
 	// the backend was discarding what `SendInput` returned, so there was usually no error to
 	// report in the first place; both halves had to go.
+	// ── AND THE GUARDED FORM, WHEN THE DRAG ASKS FOR IT ──
+	//
+	// The ASKING is the opt-in, the same way a Point's is: a drag that says what it was
+	// measured from is asking to be checked against that window, and one that says nothing
+	// falls through to everything above, unchanged, which is every drag saved before this.
+	//
+	// Both ends out of ONE measurement, and the refusal before any input. See `guardedDrag`.
+	confirm := stillThere(nil)
+	if textOf(s, "RelTo") != "" {
+		from, to, again, why := h.guardedDrag(s)
+		if why != "" {
+			return fail(why)
+		}
+		fx, fy, tx, ty = from[0], from[1], to[0], to[1]
+		confirm = again
+	}
 	what := fmt.Sprintf("dragging from %d,%d to %d,%d", fx, fy, tx, ty)
-	err := h.b.drag(c.Ctx, btn, fx, fy, tx, ty)
+	err := h.b.drag(c.Ctx, btn, fx, fy, tx, ty, confirm)
 	// AND A BUTTON THE MACHINE WOULD NOT LET GO OF IS KEPT SEPARATELY, the same two calls a
 	// keystroke gets and for the same reason.
 	//
@@ -1109,6 +1125,75 @@ func (h *Host) doDrag(c runtime.HostCall) (string, runtime.Value, error) {
 	// pointer passed over. This account is the one a cancellation cannot discard.
 	h.noteHeld(what, err)
 	return h.delivered(what, err)
+}
+
+// guardedDrag resolves a drag's two ends against the window it was demonstrated in, having
+// checked that window is still that window — or refuses, saying which term disagreed.
+//
+// # One measurement, two points
+//
+// The start and the destination come out of the SAME answer. Asking the desktop twice would let
+// a window that moved between the two answers relocate the destination: the gesture would start
+// where it was demonstrated and end somewhere nobody chose, each half correct against a different
+// rectangle. That is the hazard this boundary exists for, wearing the boundary's clothes.
+//
+// # And it is checked AGAIN immediately before the button goes down
+//
+// Which is not belt-and-braces. Between resolving and pressing, the gesture AIMS — an injected
+// pointer move, and a pointer move changes applications: hover, highlight, a panel that lays
+// itself out differently, a window that resizes to fit what is under the cursor. So the returned
+// `stillThere` asks once more, against the snapshot these points were computed for, and the
+// gesture calls it with nothing sent in between.
+//
+// A change is a REFUSAL and not a re-base. Re-basing would move the two points after the gesture
+// had been planned against them, which is the same wrong answer by a different route: the whole
+// claim is that a drag lands where it was demonstrated or does not happen.
+//
+// Every refusal is kept in the run's own account, like a press's, because a routine whose gesture
+// was refused did not do what it was asked and whatever started it has to be able to say so
+// without reading output.
+func (h *Host) guardedDrag(set *runtime.Set) (from, to [2]int, again stillThere, why string) {
+	m, rel, why := measuredFrom(set, theDragFrom, theDragTo)
+	if why != "" {
+		h.didNotDo(why)
+		return from, to, nil, why
+	}
+	at, why := h.confirmWindow(m)
+	if why != "" {
+		h.didNotDo(why)
+		return from, to, nil, why
+	}
+	from = [2]int{at.left + rel[0][0], at.top + rel[0][1]}
+	to = [2]int{at.left + rel[1][0], at.top + rel[1][1]}
+	mlog.Debug("drag: guarded",
+		"app", at.app, "window", fmt.Sprintf("hwnd:%#x", at.hwnd),
+		"wantRel", fmt.Sprintf("(%d,%d)-(%d,%d)", rel[0][0], rel[0][1],
+			rel[1][0], rel[1][1]),
+		"origin", fmt.Sprintf("(%d,%d)", at.left, at.top),
+		"shape", fmt.Sprintf("%dx%d at %d dpi", at.w, at.h, at.dpi),
+		"dragging", fmt.Sprintf("(%d,%d)-(%d,%d)", from[0], from[1], to[0], to[1]))
+	return from, to, func() error {
+		now, why := h.confirmWindow(m)
+		if why == "" && now != at {
+			// THE RECORDED TERMS STILL AGREE AND THE WINDOW IS SOMEWHERE
+			// ELSE. `confirmWindow` compares the live window against what was
+			// DEMONSTRATED, and nothing was demonstrated about where the
+			// window would be — so it passes a window that has moved since
+			// this drag's two points were computed from its origin. Comparing
+			// against the snapshot is what notices, and it is the only thing
+			// that can.
+			why = fmt.Sprintf("the %s window moved between this drag being "+
+				"aimed and the button going down — it was at %d,%d and "+
+				"is at %d,%d, so the gesture would start and end "+
+				"somewhere nobody demonstrated", at.app, at.left, at.top,
+				now.left, now.top)
+		}
+		if why == "" {
+			return nil
+		}
+		h.didNotDo(why)
+		return errors.New(why)
+	}, ""
 }
 
 // cvOff reports whether computer vision / anchors are OFF — the DEFAULT now. The CV anchor
@@ -1782,13 +1867,40 @@ const supportedBasis = macroir.RelToWindow
 // is a number that was not a measurement by the time it got here.
 const farthestPixel = 1 << 20
 
-// measuredWindow is the demonstration's whole side of the comparison: what the window was like,
-// and where inside it the press went.
+// measuredWindow is the demonstration's side of the comparison: what the window was like.
+//
+// The offsets came out of here when a drag needed TWO of them. They are a separate return now,
+// one per pair asked for, because what is compared against the desktop is the window and what is
+// resolved against the answer is however many points the action has.
 type measuredWindow struct {
 	w, h, dpi int
 	process   string
-	rx, ry    int
 }
+
+// offsets names one pair of recorded offsets and how to talk about them.
+//
+// A value rather than three near-copies of `measuredFrom`, because the validation is the same
+// validation: stated, a whole number, within the window. Only the field names and the words in
+// the refusal differ, and a second copy of the loop would be a second chance to read one of
+// these terms as "if present and sane" — which is the exact shape of the bypass that loop was
+// written to close.
+type offsets struct {
+	xf, yf       string // the field names in the saved set
+	across, down string // what each one says, for the sentence naming what is missing
+	subject      string // what the refusal calls this point
+}
+
+var (
+	thePress = offsets{"RelX", "RelY",
+		"where across that window the press went",
+		"where down that window the press went", "this press"}
+	theDragFrom = offsets{"FromRelX", "FromRelY",
+		"where across that window the drag started",
+		"where down that window the drag started", "this drag's start"}
+	theDragTo = offsets{"ToRelX", "ToRelY",
+		"where across that window the drag ended",
+		"where down that window the drag ended", "this drag's end"}
+)
 
 // measuredFrom reads and validates everything a guarded point says about its window, or returns
 // the sentence explaining why it cannot be checked.
@@ -1797,11 +1909,17 @@ type measuredWindow struct {
 // `guarded` can be reached holding a term nobody validated — which is the shape the bypass had:
 // each term was read at the point of use, and each one was read as "if present and sane", so an
 // absent or malformed term meant that check silently did not happen.
-func measuredFrom(set *runtime.Set) (measuredWindow, string) {
+//
+// `want` is which recorded offsets to read: one pair for a press, two for a drag. The window's
+// own terms are read once however many there are, because there is one window — and each offset
+// is bounded against it, because an offset past the edge of the rectangle it was measured in is
+// input aimed at whatever is next to the target, under a guard that has just confirmed the target
+// is exactly as demonstrated.
+func measuredFrom(set *runtime.Set, want ...offsets) (measuredWindow, [][2]int, string) {
 	var m measuredWindow
 	// THE BASIS, AND IT MUST BE ONE THIS KNOWS.
 	if basis := textOf(set, "RelTo"); !strings.EqualFold(basis, supportedBasis) {
-		return m, fmt.Sprintf("this press says it was measured from %q, and the "+
+		return m, nil, fmt.Sprintf("this press says it was measured from %q, and the "+
 			"only thing a press can be checked against is the %s it was "+
 			"recorded in", basis, supportedBasis)
 	}
@@ -1813,54 +1931,72 @@ func measuredFrom(set *runtime.Set) (measuredWindow, string) {
 		{"WinW", "how wide that window was", &m.w},
 		{"WinH", "how tall that window was", &m.h},
 		{"Dpi", "what scale it was drawn at", &m.dpi},
-		{"RelX", "where across that window the press went", &m.rx},
-		{"RelY", "where down that window the press went", &m.ry},
 	} {
-		// AN OFFSET MAY BE ZERO — the window's own top or left edge — and a size
-		// may not. Whether an offset is INSIDE the window is a different
-		// complaint, asked once both of them have been read.
-		least := 1.0
-		if need.field == "RelX" || need.field == "RelY" {
-			least = -farthestPixel
-		}
-		n, stated, usable := wholeTerm(set, need.field, least)
+		n, stated, usable := wholeTerm(set, need.field, 1)
 		switch {
 		case !stated:
-			return m, fmt.Sprintf("this press was recorded inside a window and "+
-				"does not say %s, so there is nothing to check it "+
+			return m, nil, fmt.Sprintf("this press was recorded inside a window "+
+				"and does not say %s, so there is nothing to check it "+
 				"against — demonstrate it again", need.says)
 		case !usable:
-			return m, fmt.Sprintf("this press says %s in a way that is not a "+
-				"measurement, so it cannot be checked — demonstrate it "+
+			return m, nil, fmt.Sprintf("this press says %s in a way that is not "+
+				"a measurement, so it cannot be checked — demonstrate it "+
 				"again", need.says)
 		}
 		*need.into = n
 	}
 	if m.process = textOf(set, "Process"); m.process == "" {
-		return m, "this press was recorded inside a window and does not say which " +
-			"program owned it, so a window of the right size and scale " +
+		return m, nil, "this press was recorded inside a window and does not say " +
+			"which program owned it, so a window of the right size and scale " +
 			"belonging to something else would pass — demonstrate it again"
 	}
-	// ── AND THE PRESS MUST BE INSIDE THE WINDOW IT IS AN OFFSET INTO ──
-	//
-	// Every check after this one is about whether the window still matches, and all of
-	// them can pass while the arithmetic sends the cursor out of the window entirely:
-	// origin plus an offset is a point on the desktop, not a point in an app, and the
-	// window's size is the only thing that says which. An offset past its edge is input
-	// aimed at whatever happens to be next to the target — the neighbouring app, the
-	// desktop, another monitor — under a guard that has just confirmed the target is
-	// exactly as demonstrated.
-	//
-	// The RECORDED rectangle is the one it must be inside, because that is what the
-	// offset was measured in; by the time the press happens the live one has been shown
-	// to be the same size, so there is no second rectangle to choose between.
-	if m.rx < 0 || m.ry < 0 || m.rx >= m.w || m.ry >= m.h {
-		return m, fmt.Sprintf("this press is recorded %d,%d inside a %dx%d window, "+
-			"which is outside it, so resolving it would aim at whatever is "+
-			"beside that window rather than at anything in it",
-			m.rx, m.ry, m.w, m.h)
+	at := make([][2]int, 0, len(want))
+	for _, o := range want {
+		var p [2]int
+		for i, need := range []struct{ field, says string }{
+			{o.xf, o.across}, {o.yf, o.down},
+		} {
+			// AN OFFSET MAY BE ZERO — the window's own top or left edge — and
+			// a size may not. Whether it is INSIDE the window is a different
+			// complaint, asked once both of them have been read.
+			n, stated, usable := wholeTerm(set, need.field, -farthestPixel)
+			switch {
+			case !stated:
+				return m, nil, fmt.Sprintf("this press was recorded inside "+
+					"a window and does not say %s, so there is nothing "+
+					"to check it against — demonstrate it again",
+					need.says)
+			case !usable:
+				return m, nil, fmt.Sprintf("this press says %s in a way "+
+					"that is not a measurement, so it cannot be "+
+					"checked — demonstrate it again", need.says)
+			}
+			p[i] = n
+		}
+		// ── AND THE POINT MUST BE INSIDE THE WINDOW IT IS AN OFFSET INTO ──
+		//
+		// Every check after this one is about whether the window still matches,
+		// and all of them can pass while the arithmetic sends the cursor out of
+		// the window entirely: origin plus an offset is a point on the desktop,
+		// not a point in an app, and the window's size is the only thing that
+		// says which. An offset past its edge is input aimed at whatever happens
+		// to be next to the target — the neighbouring app, the desktop, another
+		// monitor — under a guard that has just confirmed the target is exactly
+		// as demonstrated.
+		//
+		// The RECORDED rectangle is the one it must be inside, because that is
+		// what the offset was measured in; by the time the press happens the live
+		// one has been shown to be the same size, so there is no second rectangle
+		// to choose between.
+		if p[0] < 0 || p[1] < 0 || p[0] >= m.w || p[1] >= m.h {
+			return m, nil, fmt.Sprintf("%s is recorded %d,%d inside a %dx%d "+
+				"window, which is outside it, so resolving it would aim "+
+				"at whatever is beside that window rather than at "+
+				"anything in it", o.subject, p[0], p[1], m.w, m.h)
+		}
+		at = append(at, p)
 	}
-	return m, ""
+	return m, at, ""
 }
 
 // wholeTerm reads one recorded number, telling ABSENT from MALFORMED from usable.
@@ -2042,7 +2178,7 @@ func (h *Host) Unperformed() []string {
 
 // checkGuarded is the comparison itself; `guarded` is what remembers its answer.
 func (h *Host) checkGuarded(set *runtime.Set, x, y int) (px, py int, why string) {
-	m, why := measuredFrom(set)
+	m, rel, why := measuredFrom(set, thePress)
 	if why != "" {
 		return 0, 0, why
 	}
@@ -2050,11 +2186,11 @@ func (h *Host) checkGuarded(set *runtime.Set, x, y int) (px, py int, why string)
 	if why != "" {
 		return 0, 0, why
 	}
-	px, py = at.left+m.rx, at.top+m.ry
+	px, py = at.left+rel[0][0], at.top+rel[0][1]
 	mlog.Debug("click: guarded",
 		"app", at.app, "window", fmt.Sprintf("hwnd:%#x", at.hwnd),
 		"recorded", fmt.Sprintf("(%d,%d)", x, y),
-		"wantRel", fmt.Sprintf("(%d,%d)", m.rx, m.ry),
+		"wantRel", fmt.Sprintf("(%d,%d)", rel[0][0], rel[0][1]),
 		"origin", fmt.Sprintf("(%d,%d)", at.left, at.top),
 		"shape", fmt.Sprintf("%dx%d at %d dpi", at.w, at.h, at.dpi),
 		"clicked", fmt.Sprintf("(%d,%d)", px, py))

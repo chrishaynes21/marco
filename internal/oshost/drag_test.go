@@ -81,7 +81,7 @@ func TestAStoppedDragLetsGoWhereThePointerIs(t *testing.T) {
 	// Stopped after the aim, the press and three moves, so the pointer is somewhere in
 	// the middle of a long travel and that somewhere is not either end.
 	p := &fakePointer{stopAfter: 5, cancel: cancel}
-	err := dragGesture(ctx, p, "left", 0, 0, 240, 0)
+	err := dragGesture(ctx, p, "left", 0, 0, 240, 0, nil)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("a stopped drag reported %v, want a cancellation", err)
 	}
@@ -109,7 +109,7 @@ func TestADragDispatchedAfterAStopPressesNothing(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	p := &fakePointer{}
-	if err := dragGesture(ctx, p, "left", 10, 10, 90, 90); !errors.Is(err, context.Canceled) {
+	if err := dragGesture(ctx, p, "left", 10, 10, 90, 90, nil); !errors.Is(err, context.Canceled) {
 		t.Fatalf("a drag dispatched after a stop reported %v, want a cancellation", err)
 	}
 	if len(p.events) != 0 {
@@ -129,7 +129,7 @@ func TestADragDispatchedAfterAStopPressesNothing(t *testing.T) {
 func TestADragTheMachineRefusesIsNotReportedAsDone(t *testing.T) {
 	t.Run("a refused press", func(t *testing.T) {
 		p := &fakePointer{refuse: map[int]bool{2: true}} // the aim lands, not the press
-		err := dragGesture(context.Background(), p, "left", 5, 5, 50, 50)
+		err := dragGesture(context.Background(), p, "left", 5, 5, 50, 50, nil)
 		if err == nil {
 			t.Fatal("the machine refused the press and the gesture reported success")
 		}
@@ -148,7 +148,7 @@ func TestADragTheMachineRefusesIsNotReportedAsDone(t *testing.T) {
 		// machine will not take. Only that one, so nothing else in the gesture can
 		// produce the failure this is asking about.
 		p := &fakePointer{refuse: map[int]bool{4: true}}
-		err := dragGesture(context.Background(), p, "left", 0, 0, 240, 0)
+		err := dragGesture(context.Background(), p, "left", 0, 0, 240, 0, nil)
 		if err == nil {
 			t.Fatal("the machine refused a move mid-drag and the gesture reported " +
 				"success")
@@ -179,7 +179,7 @@ func TestADragTheMachineRefusesIsNotReportedAsDone(t *testing.T) {
 		// naming the destination for the wrong reason, which is how this assertion
 		// first passed while checking nothing.
 		p := &fakePointer{refuse: map[int]bool{dragSteps + 3: true}}
-		err := dragGesture(context.Background(), p, "left", 0, 0, 240, 0)
+		err := dragGesture(context.Background(), p, "left", 0, 0, 240, 0, nil)
 		if !errors.Is(err, errButtonNotReleased) {
 			t.Fatalf("the machine refused the release and the gesture reported %v; "+
 				"a button left down is the worst outcome this gesture has and "+
@@ -200,7 +200,7 @@ func TestAStoppedDragSaysBothWhatStoppedAndWhatIsStuck(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	p := &fakePointer{stopAfter: 5, cancel: cancel, refuse: map[int]bool{6: true}}
-	err := dragGesture(ctx, p, "left", 0, 0, 240, 0)
+	err := dragGesture(ctx, p, "left", 0, 0, 240, 0, nil)
 	if !errors.Is(err, context.Canceled) {
 		t.Errorf("a stopped drag whose release was refused does not read as stopped: %v",
 			err)
@@ -215,7 +215,7 @@ func TestAStoppedDragSaysBothWhatStoppedAndWhatIsStuck(t *testing.T) {
 // are read as being about exits rather than about a gesture that no longer happens.
 func TestTheGestureSendsTheWholeTravel(t *testing.T) {
 	p := &fakePointer{}
-	if err := dragGesture(context.Background(), p, "right", 10, 10, 250, 90); err != nil {
+	if err := dragGesture(context.Background(), p, "right", 10, 10, 250, 90, nil); err != nil {
 		t.Fatalf("an ordinary drag reported %v", err)
 	}
 	if p.events[0] != "move 10,10" || p.events[1] != "right down 10,10" {
@@ -297,7 +297,7 @@ func TestADragStoppedWhileItAimsDoesNotPress(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	p := &fakePointer{stopAfter: 1, cancel: cancel}
-	if err := dragGesture(ctx, p, "left", 10, 10, 90, 90); !errors.Is(err, context.Canceled) {
+	if err := dragGesture(ctx, p, "left", 10, 10, 90, 90, nil); !errors.Is(err, context.Canceled) {
 		t.Fatalf("a drag stopped during its aim reported %v, want a cancellation", err)
 	}
 	if len(p.events) != 1 || p.events[0] != "move 10,10" {
@@ -326,9 +326,11 @@ type aBackendWithARealDrag struct {
 	pointer *fakePointer
 }
 
-func (b aBackendWithARealDrag) drag(ctx context.Context, button string, x1, y1, x2, y2 int) error {
+func (b aBackendWithARealDrag) drag(ctx context.Context, button string, x1, y1, x2, y2 int,
+	confirm stillThere) error {
+
 	b.recBackend.sawDrag(button, x1, y1, x2, y2)
-	return dragGesture(ctx, b.pointer, button, x1, y1, x2, y2)
+	return dragGesture(ctx, b.pointer, button, x1, y1, x2, y2, confirm)
 }
 
 // aDrag is the Drag set a routine's `do OS's Drag with …` arrives as.
@@ -395,5 +397,58 @@ func TestAStoppedDragThatReleasedTheButtonLeavesNothingInTheAccount(t *testing.T
 	if warn := h.NotReleased(); warn != "" {
 		t.Errorf("a drag that was stopped and DID let go of its button left %q in the "+
 			"account of what is still held down", warn)
+	}
+}
+
+// TestADragRefusedAtTheLastInstantPressesNothing is the window's half of the gap the aim opens.
+//
+// The aim is an injected pointer move, and a pointer move changes applications. So the gesture
+// asks once more, after aiming and immediately before the press — and a refusal there has to
+// stop the press, which is the event that cannot be taken back. Asserted on what the machine was
+// asked for: the aim, and nothing else.
+func TestADragRefusedAtTheLastInstantPressesNothing(t *testing.T) {
+	p := &fakePointer{}
+	refused := errors.New("the window moved between this drag being aimed and the " +
+		"button going down")
+	err := dragGesture(context.Background(), p, "left", 10, 10, 90, 90,
+		func() error { return refused })
+	if !errors.Is(err, refused) {
+		t.Fatalf("the gesture reported %v, want the refusal it was given", err)
+	}
+	if len(p.events) != 1 || p.events[0] != "move 10,10" {
+		t.Errorf("the gesture sent %v; the aim had happened when the window was "+
+			"re-read, so the aim is all there should be", p.events)
+	}
+	for _, e := range p.events {
+		if strings.Contains(e, "down") || strings.Contains(e, "up") {
+			t.Errorf("the window was refused immediately before the press and "+
+				"the gesture pressed anyway: %v", p.events)
+		}
+	}
+}
+
+// AND NOTHING IS SENT BETWEEN THAT ANSWER AND THE PRESS.
+//
+// The property the whole check rests on, and it is about an ORDER rather than a value: a check
+// followed by an injected event is a check made before that event. The machine records when it
+// was asked, so the claim is that the aim came first and the press came next, with the question
+// in between and nothing else.
+func TestNothingIsSentBetweenTheWindowCheckAndThePress(t *testing.T) {
+	p := &fakePointer{}
+	var atAsk int
+	err := dragGesture(context.Background(), p, "left", 10, 10, 90, 90,
+		func() error { atAsk = len(p.events); return nil })
+	if err != nil {
+		t.Fatalf("an ordinary guarded drag reported %v", err)
+	}
+	if atAsk != 1 {
+		t.Errorf("the window was re-read after %d event(s), want 1 — it has to "+
+			"come AFTER the aim, which is the event that can change the "+
+			"application", atAsk)
+	}
+	if len(p.events) <= atAsk || !strings.Contains(p.events[atAsk], "down") {
+		t.Errorf("the event after the window was re-read is %v, want the press — "+
+			"anything in between is input sent on an answer that predates it",
+			p.events[atAsk:])
 	}
 }

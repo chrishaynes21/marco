@@ -30,7 +30,7 @@ func (stubBackend) click(context.Context, string) error    { return unsupported(
 func (stubBackend) clickAt(context.Context, string, int, int) error {
 	return unsupported("click")
 }
-func (stubBackend) drag(context.Context, string, int, int, int, int) error {
+func (stubBackend) drag(context.Context, string, int, int, int, int, stillThere) error {
 	return unsupported("drag")
 }
 func (stubBackend) move(context.Context, int, int) error { return unsupported("move") }
