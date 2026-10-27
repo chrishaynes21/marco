@@ -120,6 +120,26 @@ type ran struct {
 	// it is a second answer. Empty travels to the record as `unstated`, which is the word
 	// the record already used before anything could put another one there.
 	Mode string
+	// Generation is what the saved source STATES about the generation of generator rules
+	// that wrote it, verbatim, and GenerationRead is what this build made of that.
+	//
+	// BOTH, because they are two different facts and a record that held only the second
+	// would lose the first exactly when it matters. A routine written by a LATER build
+	// states a generation this one cannot explain; the reading is `unknown`, and the
+	// declared value is the only thing that identifies the routine to whoever can explain
+	// it. An older executor that wrote down its own verdict and dropped what the file said
+	// would be the record contradicting the file it cites.
+	//
+	// Read by `orchestrator.GenerationOf` off the SAME snapshot that executes — the one
+	// read `take` took — like the digest, the mode and the contract, and never from this
+	// binary's own revision: `build` already says which marco ran, and a routine's
+	// generation is a fact about the file.
+	//
+	// Both empty when the source could not be read at all. `unstated` is a real reading of
+	// a real file and would be a reading of something nobody read; see contractUnstated for
+	// the same distinction one field up.
+	Generation     string
+	GenerationRead string
 }
 
 // contractUnstated is what the record says when the contract could not be read at all.
@@ -182,8 +202,10 @@ func take(d orchestrator.Deps, rt routes.Route, named map[string]string, positio
 	s.filled = routes.ApplyArgs(string(src), named, positional)
 	// WHAT IS ABOUT TO RUN, DESCRIBED ONCE. See `ran`.
 	s.contract, _ = orchestrator.ContractOf(s.filled)
+	gen := orchestrator.GenerationOf(s.filled)
 	s.did = ran{Digest: routes.DigestOf(string(src)), Contract: string(s.contract),
-		Mode: string(orchestrator.ModeOf(s.filled))}
+		Mode:       string(orchestrator.ModeOf(s.filled)),
+		Generation: gen.Declared, GenerationRead: string(gen.Reading)}
 	return s
 }
 

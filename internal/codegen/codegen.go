@@ -13,6 +13,39 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/macroir"
 )
 
+// Generation is which generation of GENERATOR RULES this build writes a routine under.
+//
+// A routine keeps the shape it was generated with, for ever. Nothing rewrites saved Marco —
+// deliberately, because the file is the only executable truth about a routine and rewriting it by
+// hand is how two things that have to agree stop agreeing. So every rule about what a generated
+// routine does reaches a routine when that routine is WRITTEN, and a library accumulates files
+// written under rules that no longer match each other. A routine saved before typed text became a
+// sequence of submissions still carries on past text that never arrived.
+//
+// Which was invisible, because nothing on disk said which rules wrote a file. It cannot be
+// inferred either: the shapes in a routine are a function of the demonstration as much as of the
+// generator, which is exactly how a guarded drag came to read as `legacy` before `draggedTerms`
+// existed — a reader that does not know a shape reports a false answer confidently. So it is
+// STATED, by the only thing that knows it, at the moment it is true.
+//
+// # Why it is not the build
+//
+// Because an older build does not establish that a routine needs anything. Most builds generated
+// what today's would; a build id answers "when" and the question is "under which rules". See
+// [[ADR-262-a-routine-states-which-generation-wrote-it]].
+//
+// # Why 1, with no history behind it
+//
+// Because a generation is a claim about a file, and nobody stamped the files written before this.
+// Numbering past rule changes 1..5 would place routines in a history they never stated — the
+// inference again, with a version number on it. Generation 1 is what this generator does; the
+// generations before it are unstated and read as unstated.
+//
+// The reader, the words for each generation, and the rule that this is the one authority for both
+// live in `internal/orchestrator`, which may not be imported here —
+// `TestTheGenerationASaveWritesIsTheGenerationThisReads` holds the two together.
+const Generation = 1
+
 // DefaultTolerance is the per-channel color slack used when a click is matched
 // by image and the step didn't specify its own. Paired with screen.MatchThreshold
 // (a fraction of pixels, not all), this tolerates anti-aliasing and overlays.
@@ -168,6 +201,20 @@ func RouteAs(rec Recorded, name, app string, steps []macroir.Step, assetDir stri
 	if rec.Mode != "" {
 		fmt.Fprintf(&b, "// Recorded as: %s.\n", rec.Mode)
 	}
+	// ── AND WHICH GENERATION OF THESE RULES WROTE IT ──
+	//
+	// UNCONDITIONALLY, which is the difference between this and every line above it.
+	// `Context` depends on the route and `Recorded as` depends on what the caller knew;
+	// this depends on nothing, because whatever called it, THIS generator wrote the file.
+	// A condition here would be a file written by this generator that does not say so.
+	//
+	// AND IT IS PROVENANCE AND NOT A VERDICT. It says which rules wrote the source. It does
+	// not say that source is guarded, or unmodified, or that anything else about it is still
+	// true: a routine of the current generation can carry legacy behaviour on purpose, since
+	// a demonstration with no measured press generates exactly the unchecked route it always
+	// did. What the presses promise is `orchestrator.ContractOf`'s question and stays a
+	// separate one.
+	fmt.Fprintf(&b, "// Generation: %d.\n", Generation)
 	b.WriteString("use os.\n")
 	// A text anchor resolves through the OCR resolver plugin (the Text act).
 	if g.textN > 0 {

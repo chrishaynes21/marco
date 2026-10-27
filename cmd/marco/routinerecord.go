@@ -109,7 +109,16 @@ type routineRun struct {
 	// Mode and Contract are what the run was performed under: see modeUnstated and ran.
 	Mode     string `json:"mode,omitempty"`
 	Contract string `json:"contract,omitempty"`
-	Started  string `json:"started"`
+	// Generation and GenerationRead are what the source states about the generation of
+	// generator rules that wrote it, and what this build made of that statement.
+	//
+	// Two fields because they are two facts; see `ran.Generation`. `generation` is absent
+	// when the file states nothing, which is the truth about it, and
+	// `generation_reading` then says `unstated` — a reading, not a default. Both absent
+	// when the source could not be read at all.
+	Generation     string `json:"generation,omitempty"`
+	GenerationRead string `json:"generation_reading,omitempty"`
+	Started        string `json:"started"`
 	// Ended is absent while the attempt has not finished, which is how a reader knows.
 	Ended string `json:"ended,omitempty"`
 	// Outcome is the routine's OWN word, unconverted, and Because the sentence the run
@@ -149,6 +158,7 @@ func aRoutineRun(id string, at time.Time, rt routes.Route, did ran) routineRun {
 		Library: marcopaths.Routes(),
 		Mode:    modeOf(did),
 		Source:  did.Digest, Contract: did.Contract,
+		Generation: did.Generation, GenerationRead: did.GenerationRead,
 		Started: at.Format(time.RFC3339),
 	}
 }
