@@ -9291,3 +9291,210 @@ in what is now there:
 - **desktop acceptance** — there is no drag scenario in `plugins/e2e`, and the fixture still does
   not log mouse movement (`WmMouseMove: break`). That is the contract's fifth requirement, and
   until it exists no run outside this process has seen a drag arrive as one.
+
+### §41n — the guarded-drag contract, proposed against the source
+
+**Nothing in this section is implemented.** It supersedes §41k's contract, which was written before
+the backend correction and is wrong in three places; those are named below.
+
+**The hold gate is not pending.** `-only hold` ran 3 of 3 exit 0 on 2026-10-26, the
+`onlyWhenAsked` lines are gone from `scenario_play.go`, and `plugins/e2e/hold_test.go:238` now
+FAILS if one reappears — the gate test was inverted when they were ungated, so the recorded status
+is enforced rather than remembered. First run's artifacts are at
+`C:\Users\chris\AppData\Local\marco-e2e\20261026-155330\artifacts`. No rerun.
+
+#### 1. Window-relative start and destination
+
+**The release edge records no geometry at all.** `newClick` stamps `RelTo`, the shape and the
+offset only `if down` (`recorder_windows.go:614`). So today the destination exists only as the
+release's absolute coordinate, and §41k proposed deriving its offset from the PRESS's rectangle.
+
+**That is an unchecked fallback and is rejected.** An offset is a measurement of a rectangle; the
+press's rectangle was measured at the press. Subtracting it from a point that arrived later
+produces a number that is an offset into the window *as it was*, attributed to a point captured
+*after*, with nothing able to tell whether the window moved in between. It would pass every check
+at replay and localise the drop against a rectangle that had gone.
+
+**So both edges are measured, and a gesture that spans two rectangles is refused.**
+
+- `newClick` stamps the release edge the same way it stamps the press: `RelTo`, `WinW/WinH/Dpi`,
+  the containment test, `WinRel`. The attribution (`clickAttribution`) already runs on both edges,
+  so the delta is `clickShape(hwnd)` — `GetWindowRect` + `GetDpiForWindow`, already judged
+  hook-safe for every press. **This roughly doubles the per-mouse-event hook cost and has to be
+  measured, not asserted** (the pump invariant's own note: a correctness rule is not a measured
+  win, and the reverse holds too).
+- `RecordedEvent` gains `WinX, WinY` — the origin `clickShape` already returns and currently
+  discards. Both edges carry it. **It is not emitted into the route**: `simplify` uses it to decide
+  and throws it away, so the durable artefact keeps offsets only. That is the
+  no-absolute-identity rule, and it means the origin is demonstration evidence rather than a
+  replay target.
+- `simplify` then requires, for a `StepDrag` to carry the contract: both edges stamped, the same
+  `RelTo`, the same `WinX/WinY/WinW/WinH/Dpi/Process`, both `WinRel`, and both offsets inside the
+  rectangle. **Identical rectangles, not merely identical sizes** — a window that moved mid-drag
+  gives two consistent offsets that describe a gesture no static window can reproduce, and
+  "the window moved while this was being demonstrated" is a sentence a person can act on.
+- Anything short of that: the step keeps `RelTo` and not the measurements, which is the third saved
+  contract `measured()` already documents (`codegen.go:321`) — asked to be checked, cannot be, and
+  refused rather than run.
+
+**The `Drag` set gains nine fields** (`internal/osmod/os.marco:57`), every one a scalar:
+`FromRelX, FromRelY, ToRelX, ToRelY, RelTo, WinW, WinH, Dpi, Process`. Five names already exist on
+`Point`; **four are new** — §41k said "every name already on `Point`", which was wrong. The
+asymmetry is deliberate: reusing `Point`'s bare `RelX/RelY` for the start beside `FromX/FromY`
+would leave a reader asking which end it belongs to.
+
+No Core change and no new act. Nesting a `Point` inside `Drag` is a language change (set fields are
+scalars — [[inline-set-to-foreign-act]]) and a second argument does not exist (`do X's Act with Y`
+takes one). `os.marco` is the host module rather than Core, and `Point`'s own window fields were
+added there for [[ADR-251-a-press-checks-the-window-it-was-recorded-in]] without reopening the
+language — same precedent, and worth the Architect confirming rather than my assuming.
+
+#### 2. Fresh validation immediately before mouse-down
+
+**`checkGuarded` already is this check**, in full: something bound, the handle's owner known, the
+window still in front, it reports its size, it reports its DPI, the handle's owner unchanged since
+preparation, the program's image name matches, the size exact, the DPI exact, and the recorded
+offset inside the recorded rectangle (`oshost.go` ~2060–2145, `measuredFrom` ~1800–1865). Every
+disagreement names the term. No tolerance anywhere, by decision.
+
+What is missing is that it resolves ONE offset. The smallest change:
+
+- split it into the validation (returns the live rectangle or the refusal) and the arithmetic;
+- a click resolves one offset from that rectangle, a drag resolves two;
+- **one measurement, not two.** Re-measuring for the destination would let a window that moved
+  during the travel relocate the drop under the pointer, which is the hazard the guard exists for
+  wearing the guard's own clothes.
+- `doDrag` resolves both points BEFORE entering the gesture, and refuses with the disagreeing
+  term having sent nothing. That ordering is what makes "resize refusal before mouse-down" a claim
+  the harness can assert on an empty event log.
+
+#### 3. Cancellation, release point, delivery failures
+
+**Done, in `9290a93`.** A stop during the travel releases at the last point the machine accepted; a
+refused move ends the travel and releases there; the entrance check is read before the aim and
+again immediately before the press; every refusal `SendInput` reports is kept; `doDrag` reports
+through `delivered` and feeds `noteHeld`. The native adapter sends the movement and the button in
+one `SendInput` call.
+
+What remains for "delivery failures stopping subsequent actions" is the chain, and it needs no new
+machinery: a drag is already ONE `do` sentence, which is the property `cannotPropagate` requires
+and the reason non-left clicks and anchored presses cannot join. So `guardedStep` admits
+`StepDrag`, `propagating` gains a case returning `OS's Drag with dragN`, and `cannotPropagate`
+drops its drag case — **in that order and last of all** (see increments).
+
+Free, and worth naming so it is not re-derived: `anyGuarded` (`simplify.go:840`) keys on
+`RelTo != ""`, so the moment a drag carries the basis it is already kept out of loop folding, and
+`guardsAnything` already turns the route into a chain on the same test.
+
+#### 4. Cleanup on returns and panic unwinding — **neither a ledger nor a split is necessary**
+
+The question the Architect left open, answered from the code:
+
+- **Ordinary returns** are covered now. `dragGesture` attempts a release on every exit it reaches.
+- **Panic unwinding** is covered by a `defer` **inside `dragGesture`**, guarded by a local flag so
+  it cannot double-release. Nothing else is required: the defer runs during the unwind whoever
+  recovers above it, and the gesture is synchronous, so there is no abandoned goroutine to chase.
+- **A ledger plus a split backend buys exactly one thing**: the route-end sweep's SECOND attempt
+  after a first refusal, which is what `doKeyUp` keeps a refused key on the list for. That is worth
+  having and it is not this contract's minimum.
+- **But there is one place a slot of host state is genuinely needed**, and it is about reporting
+  rather than releasing. A panic skips `doDrag`'s return, so `h.noteHeld(what, err)` never runs —
+  the deferred release ATTEMPT happens and its failure has nowhere to go. So: the host writes the
+  sentence it would say *before* entering the gesture and clears it on a clean release. One slot,
+  no list, no sweep, no new backend primitive. That is the smallest thing that makes "a button may
+  still be down" survive a panic.
+
+**Forced termination stays excluded, and the boundary is the one corrected in `99d8bb3`**: a ledger
+lives inside the runner, so it reaches ordinary returns and the unwinding where deferred code runs,
+and nothing in a terminated process runs at all. Recovering from a kill needs an owner that
+outlives the runner. The guarantee is a release attempt by code that gets to run.
+
+#### 5. Compatibility
+
+- **Existing saved Marco is unchanged.** A saved `the drag1 is a Drag with FromX … Button "left"`
+  has no `RelTo`, so `doDrag` takes the legacy path exactly as it does today: four ints, absolute,
+  no window check. Same three-contract structure as `Point`, and the same decision as the holds.
+  Nothing rewrites anything; explicit regeneration can pick the guarded form up.
+- **The review/Save refusal** is `codegen.Unpropagatable`, called by `plugins/studio/recording.go:519`
+  before the button and again by the generator at `codegen.go:106`. `cannotPropagate` is a pure
+  function of the step, so after the change it refuses by the step's own contents: a drag that
+  carries the full contract is allowed, a drag that asked and could not be measured is refused
+  naming what is missing, and a drag whose window changed mid-gesture is refused naming that. Three
+  sentences where there is now one ("a drag").
+- **A pre-existing gap worth checking rather than fixing here**: `Unpropagatable` iterates the top
+  level only, while `guardsAnything` recurses. A drag inside a loop body would slip past it today —
+  unreachable, because `anyGuarded` turns folding off for a guarded recording, and that is the only
+  thing standing between them.
+
+#### 6. Automated acceptance — four scenarios, all SEEDED
+
+The fixture needs one change: **log mouse movement while a button is down**
+(`Fixture.cs:637`, `case WmMouseMove: break;`). Only while a button is down, which is exactly drag
+motion and is bounded at about twenty-five points; the no-input rule is untouched, the fixture
+observes. `Geometry(b)` already stamps every record with the window as it was at that instant, so
+each scenario reads the window from the fixture's own account rather than asking afterwards.
+
+| scenario | the claim | asserted on |
+|---|---|---|
+| `drag/a drag arrives as a drag` | down at the start, movement between, up at the destination, all inside the window, the ends matching the demonstrated offsets re-based onto the live window | the received log: one `*_down`, N>1 moves, one `*_up`, their three coordinate spaces, and `mods`/`watched` showing nothing held |
+| `drag/moved window still gets the drag` | the window moves and BOTH ends re-base | the same log, against the moved rectangle — `theWindowMoved` is the template, `place` + `until` already exist |
+| `drag/resized window is refused with nothing sent` | the window resizes and the routine refuses **before mouse-down** | the received log is EMPTY — no down, no move, no up. The existing resize scenario asserts emptiness the same way and for the same reason: a state file cannot tell a refusal from a press four pixels wide |
+| `drag/a stopped drag lets go where it got to` | stopped once the fixture has LOGGED the down, the up arrives at the last point the pointer reached and not at the destination | the log's own ordering, and the run record reading `cancelled` with the stuck-button sentence beside it when the release is refused |
+
+The fourth is the desktop half of the first defect and is the one that could not exist before the
+fixture logged movement: without it there is no "last point the pointer reached" outside Marco's
+own account, and a verdict resting on Marco's account would be Marco marking its own work.
+
+**Physical recording capture stays separate and is NOT exercised by any of these.** All four seed a
+demonstration as recorder events and drive the production simplifier, generator, registry and host;
+the hooks discard injected input (`llkhfInjected`/`llmhfInjected`), so no automated run can show
+Windows captured a physical drag. Every report ends with `physical recording capture: NOT
+EXERCISED` and these add nothing to that line. What they establish is that a drag ARRIVED as one.
+
+#### Reusable, and missing
+
+**Reusable without change:** `dragGesture` and `thePointer`; `delivered`, `Unperformed`,
+`noteHeld`, `NotReleased`, `stillHolding`; `wholeTerm`, `farthestPixel`, `supportedBasis`;
+`measuredFrom`'s stated/malformed/usable reading and its sentences; `clickShape`; the chain —
+`chainOf`, `link`, `guardsAnything`, `anyGuarded`, `keyByKey`; `Unpropagatable` as the review
+surface; e2e `setUpSeeded`, `place`, `until`, `waitForPress`, `waitForRecord`, `countRecords`, and
+the moved/resized pair as templates; the fixture's `Geometry`, `ModifiersNow`, `WatchedNow` and its
+message filter.
+
+**Reusable after a split:** `checkGuarded` — the validation is the whole requirement and only the
+arithmetic is single-offset.
+
+**Missing:** release-edge geometry and `WinX/WinY` in the recorder; the both-edges rule in
+`simplify`; nine fields in `os.marco`; emission, `guardedStep`, `propagating` and a refined
+`cannotPropagate` in `codegen`; the two-offset resolve and the pre-gesture validation in `oshost`;
+the deferred release and the one host slot; movement-while-down in the fixture; four scenarios.
+
+#### Bounded increments
+
+Ordered so that **nothing can save or run a partly-guarded drag at any point**, which is the
+property that makes them safe to land one at a time. Increment 6 is the only one that changes what
+a person can save, and everything it depends on is tested before it.
+
+| # | increment | gate |
+|---|---|---|
+| 0 | split `checkGuarded` into validation and arithmetic, no behaviour change | the existing `guardedpress_test.go` mutations must still all die |
+| 1 | recorder: release-edge geometry, `WinX/WinY` | recorder tests; **and a hook-cost measurement**, stated as a number |
+| 2 | `simplify`: carry the contract on `StepDrag`, require both edges, refuse a mid-gesture change | simplify tests. Still unsavable — `cannotPropagate` refuses "a drag", so nothing runs |
+| 3 | `os.marco` fields + codegen emission, `cannotPropagate` untouched | `spectest`, codegen tests; the generator testable while nothing is runnable |
+| 4 | `oshost`: two-offset guarded resolve, `doDrag` validates before mouse-down | oshost tests, each refusal term mutated |
+| 5 | the deferred release and the host slot that survives a panic | a panic injected mid-travel; the sentence must arrive |
+| 6 | **the switch**: `guardedStep` admits `StepDrag`, `propagating` gains its case, `cannotPropagate` drops the drag and gains two sentences | end-to-end through the production save path; `Unpropagatable`'s three outcomes |
+| 7 | fixture movement-while-down + `build.ps1` | the fixture's own tests; the log bounded on an ordinary click |
+| 8 | the four scenarios | a desktop gate, when the screen is available. First result preserved; no rerun to obtain green |
+
+#### What §41k got wrong
+
+1. "every name already on `Point`" — four of the nine field names are new.
+2. "is not counted in `InputActions`" — already corrected in §41l; a drag is counted in `Invoke`.
+3. The destination resolved from the press's measurement. That is the unchecked fallback this
+   contract refuses; both edges are measured instead, and a gesture spanning two rectangles is
+   refused at Save.
+
+And it proposed the split backend and the ledger as what the work "needs". Neither is necessary for
+this scope — a `defer` inside the gesture plus one slot of host state covers returns and panic
+unwinding. The ledger remains available as later work for the sweep's retry.
