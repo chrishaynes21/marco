@@ -120,7 +120,7 @@ func (a *Acts) ReviewRebuilt(id string) Review {
 		return Review{ID: id, Name: chosen.Name, Was: chosen.Source,
 			WasGeneration: chosen.Generation, Why: chosen.Wrote}
 	}
-	rt := routes.Route{Slug: chosen.Slug, App: chosen.App, Focus: chosen.Focus}
+	rt := chosen.route()
 	d := orchestrator.Deps{Reg: a.reg(), Out: &strings.Builder{}}
 	p, err := d.Prepare(rt)
 	if err != nil {
@@ -205,4 +205,14 @@ func (a *Acts) routineWithID(id string) (Routine, bool) {
 		}
 	}
 	return Routine{}, false
+}
+
+// route is one listing row as the registry's own identity.
+//
+// One place, because a `Routine` is a card and a `routes.Route` is a file, and a second
+// hand-written conversion between them is a second chance to drop `Focus` — which would be a
+// review of `<app>/focus/settings` and a replacement of `<app>/context/settings`, the exact
+// confusion `Routine.ID` exists to prevent.
+func (r Routine) route() routes.Route {
+	return routes.Route{Slug: r.Slug, App: r.App, Focus: r.Focus}
 }

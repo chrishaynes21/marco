@@ -436,3 +436,126 @@ func TestARoutineWithNoDemonstrationIsExplainedAndNotOffered(t *testing.T) {
 		}
 	}
 }
+
+// ── THE EXPORTED READERS, UNDER A SYNTHETIC FUTURE ────────────────────────────
+
+// underAHistoryOfThree points this package's one authority at a made-up future for one test.
+//
+// # Why the real var is swapped rather than the methods tested directly
+//
+// Because `GenerationOf`, `GenerationDifferencesOf` and `GenerationSentence` are what every
+// caller uses — `cmd/marco`'s record, Studio's card, `Deps.Prepare` — and with one real
+// generation none of them can ever return an `older` reading in production. A test that only
+// exercised the unexported methods would leave three exported delegations that nothing enters, so
+// a build that stopped calling the walk from the exported one would pass. That is this
+// repository's own recorded failure mode: complete code, correct in itself, never invoked.
+//
+// Restored on cleanup, and the restore is the point: nothing here leaves a fabricated history
+// behind for another test to read as real.
+func underAHistoryOfThree(t *testing.T) {
+	t.Helper()
+	was := theHistory
+	theHistory = aHistoryOfThree()
+	t.Cleanup(func() { theHistory = was })
+}
+
+// THE EXPORTED READING WALKS THE HISTORY, AND THE SENTENCE FOR AN OLDER ROUTINE OFFERS A REVIEW.
+func TestTheExportedReadersWalkTheHistoryAndSayWhatChanged(t *testing.T) {
+	underAHistoryOfThree(t)
+	src := aStampedRoutine("// Generation: 1.") +
+		"\nthis's Run does...\n    do OS's Type with \"hello\".\n"
+
+	got := GenerationOf(src)
+	if got.Reading != GenerationOlder || got.Generation != 1 {
+		t.Fatalf("a routine stating 1 of 3 reads as %+v", got)
+	}
+	if !got.Offerable() {
+		t.Error("an older routine this build can explain is not offerable, so the " +
+			"one case this flow exists for would be refused a review")
+	}
+	diffs := GenerationDifferencesOf(src)
+	if len(diffs) != 3 {
+		t.Fatalf("the exported reader names %d difference(s) from generation 1 of 3, "+
+			"want 3 — so it is not walking the history every caller reads",
+			len(diffs))
+	}
+	if !Bears(diffs) {
+		t.Error("a routine that types text is not reported as bearing on the typing " +
+			"difference, through the exported path")
+	}
+	// AND THE SENTENCE SAYS BOTH NUMBERS AND OFFERS THE REVIEW.
+	said := GenerationSentence(got, true)
+	if !strings.Contains(said, "generation 1") || !strings.Contains(said, "generation 3") {
+		t.Errorf("the sentence for an older routine is %q and does not say which "+
+			"generation wrote it and which this build writes", said)
+	}
+	if !strings.Contains(said, "You can review") {
+		t.Errorf("an older routine with its demonstration still there is not offered "+
+			"a review: %q", said)
+	}
+	// AND THE CURRENT GENERATION IS THE HISTORY'S LAST ENTRY, asked through the
+	// exported door the sentence and the card both use.
+	if GenerationNow() != 3 {
+		t.Errorf("the current generation reads as %d under a history of three",
+			GenerationNow())
+	}
+	if len(ThisGenerationDoes()) != 2 {
+		t.Errorf("this generation is said to do %d thing(s), want the 2 the last "+
+			"entry lists", len(ThisGenerationDoes()))
+	}
+}
+
+// AND A ROUTINE THE SYNTHETIC HISTORY CANNOT EXPLAIN IS STILL NOT OFFERABLE.
+//
+// The same rule from the other side, so `Offerable` is not satisfied by a build where every
+// reading happens to be offerable.
+func TestAnUnknownReadingIsNotOfferableUnderAnyHistory(t *testing.T) {
+	underAHistoryOfThree(t)
+	got := GenerationOf(aStampedRoutine("// Generation: 9."))
+	if got.Reading != GenerationUnknown {
+		t.Fatalf("a routine stating 9 of 3 reads as %q", got.Reading)
+	}
+	if got.Offerable() {
+		t.Error("a generation this build cannot explain is offerable, so a window " +
+			"would offer to replace a routine it cannot describe the change to")
+	}
+	// AND THE THREE THIS BUILD CAN ARE. Without this the rule is satisfied by
+	// refusing everything.
+	for _, s := range []StatedGeneration{
+		GenerationOf(aStampedRoutine("// Generation: 1.")),
+		GenerationOf(aStampedRoutine("// Generation: 3.")),
+		GenerationOf(aStampedRoutine()),
+	} {
+		if !s.Offerable() {
+			t.Errorf("a %q reading is not offerable", s.Reading)
+		}
+	}
+}
+
+// A ROUTINE THAT TYPES THE GENERATION LINE IS NOT A ROUTINE THAT STATES ONE.
+//
+// A `Type` step carries whatever somebody demonstrated, and what they demonstrated can be the
+// text of this very comment — a person writing about Marco, or filling in a form about it. The
+// rule that keeps the two apart is that the line has to START with the prefix once trimmed, so a
+// line beginning `do OS's Type with` is not a declaration however it ends.
+//
+// Both directions, because a reader loose enough to find it in a string is also a reader that
+// would find two of them and report a conflicting stamp about a routine that states nothing.
+func TestARoutineThatTypesTheGenerationLineStatesNothing(t *testing.T) {
+	typed := aStampedRoutine() + "\nthis's Run does...\n" +
+		"    do OS's Type with \"// Generation: 9.\".\n"
+	got := GenerationOf(typed)
+	if got.Reading != GenerationUnstated {
+		t.Errorf("a routine that TYPES the generation line reads as %q with declared "+
+			"%q — the text of a demonstration read as a claim about the file",
+			got.Reading, got.Declared)
+	}
+	// AND THE SAME ROUTINE WITH A REAL STAMP STILL READS IT, so the rule is not
+	// satisfied by a reader that finds nothing anywhere.
+	both := aStampedRoutine("// Generation: 1.") + "\nthis's Run does...\n" +
+		"    do OS's Type with \"// Generation: 9.\".\n"
+	if got := GenerationOf(both); got.Reading != GenerationCurrent ||
+		got.Declared != "1" {
+		t.Errorf("a routine that states 1 and types 9 reads as %+v", got)
+	}
+}

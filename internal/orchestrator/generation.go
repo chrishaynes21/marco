@@ -335,14 +335,28 @@ func Bears(diffs []Difference) bool {
 
 // GenerationSentence is what is said to a person about one saved routine's generation.
 //
-// `rebuildable` is whether its own demonstration is still stored beside it, because the offer is
-// only real when there is something to rebuild from — and a routine whose demonstration is gone
-// still deserves the explanation. See `Deps.Prepare`.
+// Two parts: what the file states, and what can be done about it. The second part exists because
+// the Review button is greyed out by the same facts — a routine with no stored demonstration, and
+// one whose generation this build cannot explain — and a disabled control with nothing beside it
+// is a dead end this product has shipped before.
+//
+// `rebuildable` is whether its own demonstration is still stored beside it. See `Deps.Prepare`.
 func GenerationSentence(s StatedGeneration, rebuildable bool) string {
 	switch s.Reading {
 	case GenerationCurrent:
-		return fmt.Sprintf("This routine states that generation %d of Marco's rules "+
+		was := fmt.Sprintf("This routine states that generation %d of Marco's rules "+
 			"wrote it, which is the generation this build writes.", s.Generation)
+		if !rebuildable {
+			// SAID EVEN THOUGH NOTHING IS WRONG, because the button is off
+			// and somebody will wonder why. It matters later rather than now:
+			// the day the rules change, this is the routine that cannot be
+			// brought forward without being demonstrated again.
+			return was + " Its demonstration is no longer stored beside it, so " +
+				"there is nothing to rebuild a version from — which will " +
+				"matter only if these rules change."
+		}
+		return was + " You can still review a version rebuilt from its stored " +
+			"recording; it will be the same routine."
 	case GenerationOlder:
 		was := fmt.Sprintf("This routine states that generation %d of Marco's rules "+
 			"wrote it, and this build writes generation %d.", s.Generation,
@@ -362,7 +376,8 @@ func GenerationSentence(s StatedGeneration, rebuildable bool) string {
 	return "This routine does not state which generation rules wrote it. " + offer(rebuildable)
 }
 
-// offer is the half of those sentences that depends on there being a demonstration.
+// offer is the half of those sentences that depends on there being a demonstration, for a routine
+// a rebuilt version could actually change.
 func offer(rebuildable bool) string {
 	if !rebuildable {
 		return "Its demonstration is no longer stored beside it, so there is nothing to " +

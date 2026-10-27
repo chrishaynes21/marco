@@ -347,6 +347,15 @@ func routeSlug(filename string) (string, bool) {
 // Nothing else about the play is touched. The demonstration beside it, its provenance and its
 // anchor images stay where they are, because a replacement is a new rendering of the same
 // recording and not a new play.
+//
+// # And the atomicity is REASONED, not measured
+//
+// Worth saying because the rest of this repository holds its claims by test. No test here
+// distinguishes this from `Save`: the two differ only when a write fails PART WAY, and a disk
+// full or a killed process is not something a test can stage portably. Under every failure one
+// can stage — an unwritable path, a bad name, a missing directory — both leave the original
+// alone. So this is a property of the mechanism rather than one anything checks, and the
+// mutation that swaps it back for `os.WriteFile` survives the gate on purpose.
 func (r Registry) Replace(rt Route, source string) error {
 	if rt.Slug == "" {
 		return fmt.Errorf("routes: a play needs a name")

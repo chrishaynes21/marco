@@ -93,6 +93,38 @@ func differsFrom(before, after map[string]string) string {
 	return strings.Join(said, ", ")
 }
 
+// statingNoGeneration takes the generation line out of a saved routine.
+//
+// WHICH IS WHAT MAKES A NO-WRITE TEST MEAN ANYTHING. A routine this build just wrote rebuilds
+// BYTE FOR BYTE, so a `Prepare` that saved its own result would change nothing a digest could
+// see — and the test would pass on a preparation that writes. Found by the mutation gate, which
+// is what it is for.
+//
+// With the line gone the rebuild differs by exactly that line, so any write at all is visible.
+func statingNoGeneration(t *testing.T, d Deps, rt routes.Route) {
+	t.Helper()
+	raw, err := os.ReadFile(d.Reg.Path(rt))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var kept []string
+	var took int
+	for _, line := range strings.Split(string(raw), "\n") {
+		if strings.HasPrefix(strings.TrimSpace(line), "// Generation: ") {
+			took++
+			continue
+		}
+		kept = append(kept, line)
+	}
+	if took == 0 {
+		t.Fatal("the saved routine states no generation already, so this build is " +
+			"not writing one and a rebuild would differ in nothing")
+	}
+	if err := d.Reg.Save(rt, strings.Join(kept, "\n")); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // PREPARING A VERSION, AND THEN CANCELLING, WRITES NOTHING AT ALL.
 //
 // Cancelling is not an operation: it is the absence of one, which is the whole reason preparation
@@ -101,6 +133,7 @@ func differsFrom(before, after map[string]string) string {
 // window closed.
 func TestPreparingAndCancellingAVersionWritesNothing(t *testing.T) {
 	d, rt := aSavedRoutineWithItsRecording(t)
+	statingNoGeneration(t, d, rt)
 	before := theWholeLibrary(t, d)
 
 	p, err := d.Prepare(rt)
@@ -110,6 +143,12 @@ func TestPreparingAndCancellingAVersionWritesNothing(t *testing.T) {
 	if p.Now == "" {
 		t.Fatalf("the preparation produced no version to review (refused: %q), so "+
 			"this proves nothing about what a preparation writes", p.Refused)
+	}
+	// AND THE REBUILT VERSION DIFFERS FROM THE SAVED ONE, which is what makes the
+	// digest below able to see a write at all. See statingNoGeneration.
+	if !p.Changes() {
+		t.Fatal("the rebuilt version is identical to the saved one, so a " +
+			"preparation that wrote its own result would be invisible here")
 	}
 	// AND THE REVIEW HAS SOMETHING TO SHOW: both sources in full, which is what is
 	// reviewed. A preparation that returned a summary would have nothing a person could
@@ -131,12 +170,23 @@ func TestPreparingAndCancellingAVersionWritesNothing(t *testing.T) {
 }
 
 // A SUCCESSFUL REPLACEMENT WRITES EXACTLY WHAT WAS REVIEWED, AND LEAVES THE ROUTINE WHERE IT WAS.
+//
+// The claim the whole flow rests on, and it needs the two sources to DIFFER to mean anything: a
+// routine this build just wrote rebuilds byte for byte, so `Replace` writing the old source
+// instead of the new one would be invisible. The generation line comes out first, so the
+// difference is real and known. Found by the mutation gate — the version of this test without it
+// passed on a replacement that wrote the source it was meant to be replacing.
 func TestAReplacementWritesExactlyTheSourceThatWasReviewed(t *testing.T) {
 	d, rt := aSavedRoutineWithItsRecording(t)
+	statingNoGeneration(t, d, rt)
 	path := d.Reg.Path(rt)
 	p, err := d.Prepare(rt)
 	if err != nil {
 		t.Fatalf("preparing: %v", err)
+	}
+	if !p.Changes() {
+		t.Fatal("the rebuilt version is identical to the saved one, so this cannot " +
+			"tell a replacement from leaving the file alone")
 	}
 	if err := d.Replace(p); err != nil {
 		t.Fatalf("replacing: %v", err)
@@ -149,6 +199,9 @@ func TestAReplacementWritesExactlyTheSourceThatWasReviewed(t *testing.T) {
 		t.Errorf("the file now holds something other than the version that was "+
 			"reviewed:\n--- on disk ---\n%s\n--- reviewed ---\n%s", raw, p.Now)
 	}
+	if string(raw) == p.Was {
+		t.Error("the file holds the source the replacement was supposed to replace")
+	}
 	// AND IT IS STILL THE SAME ROUTINE, IN THE SAME PLACE. A replacement that rescoped
 	// would move the file — `routes/<app>/focus` to `routes/<app>/context` is a routine
 	// that stops working from anywhere — and the person reviewed a source, not a move.
@@ -159,9 +212,9 @@ func TestAReplacementWritesExactlyTheSourceThatWasReviewed(t *testing.T) {
 		t.Error("the replacement took the demonstration with it, so the routine can " +
 			"never be rebuilt again")
 	}
-	// AND REPLACING AGAIN IS A NO-OP THAT SAYS SO. A routine rendered by today's
-	// generator rebuilds byte for byte, and offering to replace a file with itself is an
-	// offer to do nothing.
+	// AND REPLACING AGAIN IS A NO-OP THAT SAYS SO. The routine has now been written by
+	// today's generator from its own recording, so rebuilding it again changes nothing
+	// — and offering to replace a file with itself is an offer to do nothing.
 	again, err := d.Prepare(rt)
 	if err != nil {
 		t.Fatalf("preparing the replaced routine: %v", err)
@@ -418,5 +471,86 @@ func TestAReplacementFromNothingIsRefused(t *testing.T) {
 	}
 	if why := differsFrom(before, theWholeLibrary(t, d)); why != "" {
 		t.Errorf("a refused replacement changed the library: %s", why)
+	}
+}
+
+// A REPLACEMENT KEEPS A ROUTINE'S SCOPE, INCLUDING THE SCOPE THAT CHANGES WHAT IS GENERATED.
+//
+// The case the `app-anywhere` tests above cannot reach. A routine saved to work only while its
+// application is in front carries NO `Activate`, because it switches nothing — so a replacement
+// that regenerated under the wrong scope would write a routine that brings an application
+// forward, and the file would move from `<app>/context` to `<app>/focus`. Both halves are checked:
+// where the file is, and what is in it.
+//
+// `Resave` rescopes on purpose and this must not, which is the whole reason the two are separate
+// operations.
+func TestAReplacementKeepsAScopeThatChangesWhatIsGenerated(t *testing.T) {
+	_, dr := recordedWith(t, Unstated)
+	d := Deps{Reg: routes.Registry{Dir: t.TempDir()}, Out: &strings.Builder{}}
+	rt, err := d.Save(dr, ScopeApp, "arkascended")
+	if err != nil {
+		t.Fatalf("saving a context-scoped routine: %v", err)
+	}
+	path := d.Reg.Path(rt)
+	was, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// THE ARRANGEMENT HELD: this routine switches nothing, which is what the
+	// regeneration has to reproduce.
+	if strings.Contains(string(was), "OS's Activate") {
+		t.Fatalf("a context-scoped routine was generated with an Activate in it, so "+
+			"this case does not establish what it says:\n%s", was)
+	}
+	p, err := d.Prepare(rt)
+	if err != nil {
+		t.Fatalf("preparing: %v", err)
+	}
+	if err := d.Replace(p); err != nil {
+		t.Fatalf("replacing: %v", err)
+	}
+	now, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("the routine is no longer where it was: %v", err)
+	}
+	if strings.Contains(string(now), "OS's Activate") {
+		t.Errorf("the replacement brings an application forward and the routine it "+
+			"replaced switched nothing, so it was regenerated under a scope "+
+			"nobody chose:\n%s", now)
+	}
+	if string(now) != string(was) {
+		t.Errorf("a routine today's generator wrote was changed by being rebuilt "+
+			"under its own scope:\n--- was ---\n%s\n--- now ---\n%s", was, now)
+	}
+	if rt.Focus {
+		t.Error("the route's own identity gained focus")
+	}
+}
+
+// AND THE REGISTRY'S REPLACE REFUSES A ROUTINE WITH NO NAME, LEAVING WHAT IS THERE.
+//
+// The one guard on the write itself. `Save` has the same one and for the same reason: a write
+// keyed on an empty slug is a write to a directory, and finding out by watching it fail is
+// finding out after the original is gone.
+func TestTheRegistryRefusesToReplaceSomethingWithNoName(t *testing.T) {
+	reg := routes.Registry{Dir: t.TempDir()}
+	rt := routes.Route{Slug: "a-thing", App: "ark", Focus: true}
+	if err := reg.Save(rt, "use os.\n"); err != nil {
+		t.Fatal(err)
+	}
+	if err := reg.Replace(routes.Route{App: "ark", Focus: true}, "something else"); err == nil {
+		t.Error("the registry replaced a routine with no name")
+	}
+	raw, err := os.ReadFile(reg.Path(rt))
+	if err != nil || string(raw) != "use os.\n" {
+		t.Errorf("the refused write disturbed the routine beside it: %q (%v)", raw, err)
+	}
+	// AND IT DOES REPLACE ONE THAT HAS A NAME, or the guard above is satisfied by a
+	// function that refuses everything.
+	if err := reg.Replace(rt, "// replaced\nuse os.\n"); err != nil {
+		t.Fatalf("replacing a named routine: %v", err)
+	}
+	if raw, _ := os.ReadFile(reg.Path(rt)); string(raw) != "// replaced\nuse os.\n" {
+		t.Errorf("the replacement wrote %q", raw)
 	}
 }
