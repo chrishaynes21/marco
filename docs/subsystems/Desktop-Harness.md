@@ -287,7 +287,7 @@ motion and is bounded by the release. Whether a button is down is counted from t
 RECEIVED rather than read from the mouse's state now, because that is the state at a later instant
 than the one being logged.
 
-**Three things these deliberately do not assert**, and each is a way a scenario can be green about
+**Four things these deliberately do not assert**, and each is a way a scenario can be green about
 nothing:
 
 - **Not every injected point, and no count.** Windows coalesces mouse moves, so a gesture that
@@ -303,6 +303,12 @@ nothing:
   the application has LOGGED the press, the ordering is asked before any verdict, and a release
   that lands inside the bracket is reported as **ambiguous** — neither a pass nor a failure,
   because a verdict either way would be a guess about which of two things happened first.
+- **No exemption is applied before a held button is reported.** Both of the NOT RUN answers above
+  are ways for the stopped-drag scenario to report nothing, so the missing release is asked ABOVE
+  both of them: a log with a press and nothing else has no movement in it, and the scope exemption
+  used to answer first and file a button left down on somebody's desktop as "nothing happened".
+  The whole decision is one function rather than a list of claims, because the order of it is the
+  part that was wrong.
 - **No stuck button is manufactured here.** A release the machine refuses is arranged headlessly,
   where a machine can be told to refuse. On a desktop it would mean leaving a real button held down
   on somebody's computer to see whether the report says so.

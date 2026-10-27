@@ -315,28 +315,17 @@ func aStoppedDragLetsGoWhereItGotTo(w *world) result {
 	if err != nil {
 		return fail(started, err.Error())
 	}
-	// ── AND WHETHER THIS EXERCISED A CANCELLATION AT ALL ──
+	// ── AND WHAT THIS RUN ESTABLISHED, IF ANYTHING ──
 	//
-	// Both of these are NOT RUN and neither is a verdict about Marco: the first is the
-	// stop's place in the application's log, which is the only thing that orders it
-	// against the release, and the second is whether the pointer had got anywhere by
-	// then. A run that fails either has not exercised what this scenario is about, and
-	// the evidence is in the artifact either way.
-	if why := firstOf(
-		theDragHadAlreadyFinished(got, br),
-		theTravelNeverStarted(got),
-	); why != "" {
-		return skip(started, why)
-	}
-	why := firstOf(
-		theButtonWasNotReleased(got),
-		theReleaseWasNotWhereItGotTo(got, st.seed),
-		// AND MARCO HAS TO HAVE STOPPED. With the ordering above established, a run
-		// that reports anything else ignored a stop that arrived while its gesture
-		// was in flight — which is a finding and not an excuse.
-		theStopWasIgnored(rec),
-	)
-	if why != "" {
+	// One decision and not a list, because the ORDER of it is the thing: a held button is
+	// reported whatever else this run exercised, and the two NOT RUN exemptions — the
+	// stop's place in the application's log, and whether the pointer got anywhere — come
+	// after it rather than in front of it. See [theStoppedDragsVerdict]; the evidence is in
+	// the artifact whichever way it goes.
+	if why, notRun := theStoppedDragsVerdict(got, br, rec, st.seed); why != "" {
+		if notRun {
+			return skip(started, why)
+		}
 		st.fail()
 		return fail(started, why, fmt.Sprintf("the fixture received %s", mouseAre(got)),
 			fmt.Sprintf("Marco recorded %s", rec))

@@ -305,6 +305,89 @@ func TestTheStopIsOrderedAgainstTheReleaseByTheFixturesLog(t *testing.T) {
 	}
 }
 
+// AND THE ORDER THE CLAIMS ARE ASKED IN IS ITSELF A CLAIM.
+//
+// Every piece above has its own test and the composition had none, and the composition is where
+// the defect was: a log with a press and nothing else has no movement in it, so the scope
+// exemption answered first and filed it as NOT RUN, and the missing release was never asked
+// about. A left button held down on somebody's desktop is the worst thing this scenario can find
+// and it was the one thing it could not report — a defect behind an exemption, which is the third
+// time this slice has found that shape.
+//
+// So this asks the composed decision with both controls: the exemptions must not swallow the held
+// button, and they must still exempt what they are for.
+func TestTheHeldButtonIsReportedBeforeAnyExemption(t *testing.T) {
+	seed := seededRoutine{at: [][2]int{{200, 200}, {600, 400}}}
+	mid := aDragLog(theTestWindow, [2]int{200, 200}, [2]int{600, 400}, 3)
+	// letGo is the clean arrangement: a stopped drag that released partway along.
+	letGo := append(append([]fixtureEvent{}, mid[:len(mid)-1]...),
+		fixtureEvent{Seq: 9, Kind: "mouse", What: "left_up", ScreenX: 400,
+			ScreenY: 300, Window: theTestWindow})
+	cancelled := runRecord{Outcome: "cancelled", Because: "Stop was pressed"}
+	for _, c := range []struct {
+		what   string
+		got    []fixtureEvent
+		br     stopBracket
+		rec    runRecord
+		says   string
+		notRun bool
+	}{
+		// THE CASE THE ORDER WAS WRONG FOR.
+		{"a press and nothing else", mid[:1], stopBracket{before: 1, after: 1},
+			cancelled, "still held", false},
+		// AND THE SAME THING ONE EXEMPTION OVER: an ordering this cannot
+		// settle is no reason to leave a held button unreported either.
+		{"a press the bracket cannot order", mid[:1], stopBracket{before: 0, after: 0},
+			cancelled, "still held", false},
+		// AND THE EXEMPTIONS STILL EXEMPT WHAT THEY ARE FOR.
+		{"a press and a release with no travel",
+			aDragLog(theTestWindow, [2]int{200, 200}, [2]int{600, 400}, 0),
+			stopBracket{before: 1, after: 1}, cancelled, "no movement at all", true},
+		{"a drag that had already finished", letGo,
+			stopBracket{before: 9, after: 9}, cancelled,
+			"no cancellation was exercised", true},
+		{"nothing at all", nil, stopBracket{before: 0, after: 0}, cancelled,
+			"no gesture in flight", true},
+		// AND THE VERDICTS ARE STILL REACHED.
+		{"a release at the destination", mid, stopBracket{before: 4, after: 4},
+			cancelled, "destination", false},
+		{"a stop that was ignored", letGo, stopBracket{before: 4, after: 4},
+			runRecord{Outcome: "performed", Because: "it worked"},
+			"carried on", false},
+	} {
+		t.Run(c.what, func(t *testing.T) {
+			why, notRun := theStoppedDragsVerdict(c.got, c.br, c.rec, seed)
+			if why == "" {
+				t.Fatalf("%s is reported as a stopped drag that let go where it "+
+					"got to", c.what)
+			}
+			if !strings.Contains(why, c.says) {
+				t.Errorf("the sentence is %q and does not say %q", why, c.says)
+			}
+			if notRun != c.notRun {
+				was, want := "a failure", "NOT RUN"
+				if !c.notRun {
+					was, want = want, was
+				}
+				t.Errorf("%s is reported as %s and it is %s: %s", c.what, was,
+					want, why)
+			}
+		})
+	}
+	// AND THE CLEAN ARRANGEMENT HAS TO PASS, or every case above is satisfied by a
+	// decision that disagrees with everything.
+	if why, _ := theStoppedDragsVerdict(letGo, stopBracket{before: 4, after: 4},
+		cancelled, seed); why != "" {
+		t.Errorf("a stop that let go partway along its travel is reported as "+
+			"wrong: %s", why)
+	}
+	// AND A LOG WITH NO PRESS IN IT IS NOT A HELD BUTTON, which is what lets the held
+	// button be asked first: nothing went down, so nothing is down.
+	if why := theButtonWasNotReleased(nil); why != "" {
+		t.Errorf("an empty log is reported as a button left down: %s", why)
+	}
+}
+
 // AND THE SCENARIO HAS TO TAKE THAT EVIDENCE, IN THAT ORDER.
 //
 // The claims above can be asked of a log by a test; whether the scenario ASKS them, and whether
@@ -351,9 +434,7 @@ func TestTheStoppedDragScenarioBracketsItsStop(t *testing.T) {
 			name = f.Sel.Name
 		}
 		switch name {
-		case "lastSeq", "waitForMouse", "theDragHadAlreadyFinished",
-			"theTravelNeverStarted", "theButtonWasNotReleased",
-			"theReleaseWasNotWhereItGotTo", "theStopWasIgnored":
+		case "lastSeq", "waitForMouse", "theStoppedDragsVerdict", "skip", "fail":
 			named[name] = append(named[name], call.Pos())
 		case "press":
 			// The STOP, and not the application's own buttons: this
@@ -397,28 +478,35 @@ func TestTheStoppedDragScenarioBracketsItsStop(t *testing.T) {
 			"no upper bound on the request and a release that arrived while it " +
 			"was being made reads as one that arrived after it")
 	}
-	ordering := first("theDragHadAlreadyFinished")
-	if !ordering.IsValid() {
-		t.Fatal("the scenario no longer asks whether the stop preceded the release, " +
-			"so a drag that had already finished would be judged on assertions " +
-			"that are all true of a drag nothing interrupted")
+	verdict := first("theStoppedDragsVerdict")
+	if !verdict.IsValid() {
+		t.Fatal("the scenario no longer asks `theStoppedDragsVerdict`, which is where " +
+			"the order of its claims lives — including asking the stop's place in " +
+			"the log before any verdict, since every verdict it reaches is true " +
+			"of a drag nothing interrupted")
 	}
-	for _, verdict := range []string{"theButtonWasNotReleased",
-		"theReleaseWasNotWhereItGotTo", "theStopWasIgnored"} {
-		at := first(verdict)
-		if !at.IsValid() {
-			t.Errorf("the scenario no longer asks %s", verdict)
-			continue
-		}
-		if at < ordering {
-			t.Errorf("%s is asked before the stop has been ordered against the "+
-				"release, so it can report a drag nothing interrupted",
-				verdict)
-		}
+	if verdict < stop {
+		t.Error("the verdict is reached before Stop has been pressed, so the bracket " +
+			"it is handed has no upper bound yet")
 	}
-	if at := first("theTravelNeverStarted"); !at.IsValid() {
-		t.Error("the scenario no longer asks whether the pointer got anywhere before " +
-			"it judges where the button came up")
+	// AND BOTH DISPOSITIONS HAVE TO BE DOWNSTREAM OF IT, because the one thing the
+	// composed decision cannot do from where it sits is report itself: a scenario that
+	// took the sentence and called only `fail` would turn every NOT RUN into a failure,
+	// and one that called only `skip` would turn a held button into nothing happened.
+	var skipped, failed bool
+	for _, at := range named["skip"] {
+		skipped = skipped || at > verdict
+	}
+	for _, at := range named["fail"] {
+		failed = failed || at > verdict
+	}
+	if !skipped {
+		t.Error("nothing after the verdict reports NOT RUN, so a run that exercised " +
+			"no cancellation is reported as a result about Marco")
+	}
+	if !failed {
+		t.Error("nothing after the verdict reports a failure, so a drag that got it " +
+			"wrong is reported as unexercised")
 	}
 }
 

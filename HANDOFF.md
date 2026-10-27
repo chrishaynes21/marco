@@ -9694,3 +9694,50 @@ ok, `gofmt` clean, `docscheck` no problems, `wiringcheck` green.
 
 **Still no desktop run and the screen was not touched.** The four scenarios remain gated and have
 established nothing; `physical recording capture: NOT EXERCISED` is unchanged.
+
+### §41q — the order of the claims was itself a claim
+
+One finding against §41p, and it is the third of this shape in the slice: a defect sitting behind
+its own excuse.
+
+The stopped-drag scenario asked the two NOT RUN exemptions first — the stop's place in the log, and
+whether the pointer got anywhere — and then the verdicts, the missing release among them. Each
+claim had its own test. The composition had none, and the composition is where the defect was: a
+log with a press and nothing else has no movement in it, so the scope exemption answered first,
+filed the run as NOT RUN, and nothing ever asked whether the button came up. **A left button held
+down on somebody's desktop is the worst thing this scenario can find, and it was the one thing it
+could not report.**
+
+So the held button is asked FIRST, above both exemptions and not merely above the travel one: an
+ordering the bracket cannot settle would have swallowed it exactly the same way, and that case is
+one line over from the one review named. For it to be asked there, `theButtonWasNotReleased` had to
+become silent about a log with no press in it — nothing went down, so nothing is down, and the
+sentence it carries is about a button that is held. The log with no press is already NOT RUN, from
+the ordering claim, which is where it belongs.
+
+The whole decision now lives in `theStoppedDragsVerdict`, which returns the sentence and whether it
+is NOT RUN, in four steps: the held button, the ordering, the scope, then the verdicts. It is one
+function so that the ORDER can be tested — which is the real repair, since the pieces were never
+what was wrong. The scenario keeps only the mapping from that answer to a disposition, and the
+source test now reads both halves of it: a scenario that called only `fail` would turn every NOT
+RUN into a failure, and one that called only `skip` would turn a held button into nothing happened.
+
+#### Verification
+
+Ten mutations, all killed. Six of the composed decision — the held button asked after the
+exemptions (which reproduces exactly the reported defect: "a press and nothing else" comes back as
+NOT RUN for the travel claim), not asked at all, its precondition removed, the two exemptions
+swapped, and each disposition flipped. Four of the scenario's wiring, read off the source: each
+disposition replaced by the other, the decision not asked, and the bracket's upper bound taken
+before Stop.
+
+Two of those mutations had to be rewritten to compile — deleting a guard left a variable unused —
+and one first run was a **false survivor**: the perl pattern matched the same five lines in an
+earlier scenario in the same file, so the file changed, the target did not, and the test was
+right to pass. The trap is the one this project keeps hitting: confirming a mutation applied is
+not confirming it applied *where it was aimed*.
+
+`plugins/e2e` ok, `gofmt` clean, `docscheck` no problems, `wiringcheck` green.
+
+**Still no desktop run and the screen was not touched.** The four scenarios remain gated and have
+established nothing; `physical recording capture: NOT EXERCISED` is unchanged.

@@ -283,11 +283,24 @@ func theStopWasIgnored(rec runRecord) string {
 }
 
 // theButtonWasNotReleased is the promise, on the application's own account.
+//
+// IT TAKES A PRESS TO HOLD A BUTTON, which is why this says nothing about a log that has none.
+// The sentence below is about a button that is down and did not come up, and a log with no press
+// in it is a scenario that never got started — `theDragHadAlreadyFinished` reports that. Without
+// the precondition this could not be asked first, and asked first is where it has to be: see
+// [theStoppedDragsVerdict].
 func theButtonWasNotReleased(got []fixtureEvent) string {
+	pressed := false
 	for _, e := range got {
-		if e.What == "left_up" {
+		switch e.What {
+		case "left_up":
 			return ""
+		case "left_down":
+			pressed = true
 		}
+	}
+	if !pressed {
+		return ""
 	}
 	return fmt.Sprintf("the run was stopped with the button down and the application "+
 		"never received a release, so as far as this window knows the left button "+
@@ -373,6 +386,52 @@ func abs(n int) int {
 		return -n
 	}
 	return n
+}
+
+// theStoppedDragsVerdict is the whole of what the stopped-drag scenario decides, in one place so
+// that the ORDER of it can be tested.
+//
+// Each of the claims it composes had its own test and the composition had none, and the order is
+// exactly where the defect was: a log with a press and nothing else has no movement in it, so the
+// scope exemption answered first and reported NOT RUN, and the missing release — a left button
+// held down on somebody's desktop by a routine that has finished — was never asked about. The
+// worst thing this scenario can find was the one thing it could not report.
+//
+// So the order is what the evidence supports, and nothing else decides it:
+//
+//  1. A HELD BUTTON, FIRST AND WHATEVER ELSE. It does not depend on any ordering or on any scope:
+//     the application received a press and never received a release, and that is true however
+//     little the rest of the run exercised. Every exemption below it is a way for this scenario
+//     to report nothing, so it is asked above all of them — including above the ordering, where
+//     an unestablished bracket would have excused it just as the travel check did.
+//  2. THE ORDERING, which is NOT RUN: the stop's place in the application's own log is the only
+//     thing that orders it against the release, and an ordering this cannot settle is reported as
+//     the ambiguity it is. It also catches the log with no press at all, which is why the claim
+//     above it is silent about one.
+//  3. THE SCOPE, also NOT RUN: a cancellation with no movement received is real, but "it let go
+//     where it got to" is not a claim about a pointer that never got anywhere.
+//  4. The verdicts: where the button came up, and whether Marco stopped at all.
+//
+// notRun separates the two dispositions, and they are never the same sentence: a NOT RUN says
+// this run did not exercise the claim, and a failure says Marco got it wrong.
+func theStoppedDragsVerdict(got []fixtureEvent, br stopBracket, rec runRecord,
+	seed seededRoutine) (why string, notRun bool) {
+	if why := theButtonWasNotReleased(got); why != "" {
+		return why, false
+	}
+	if why := firstOf(
+		theDragHadAlreadyFinished(got, br),
+		theTravelNeverStarted(got),
+	); why != "" {
+		return why, true
+	}
+	return firstOf(
+		theReleaseWasNotWhereItGotTo(got, seed),
+		// AND MARCO HAS TO HAVE STOPPED. With the ordering above established, a run
+		// that reports anything else ignored a stop that arrived while its gesture was
+		// in flight — which is a finding and not an excuse.
+		theStopWasIgnored(rec),
+	), false
 }
 
 // mouseAre is what a failure carries: every mouse event, in order, one per line.

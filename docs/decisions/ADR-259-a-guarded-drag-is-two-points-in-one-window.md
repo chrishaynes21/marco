@@ -188,7 +188,7 @@ a witness answering about a later instant is the defect the whole harness exists
 count rather than a flag, because two buttons can be down at once; floored at zero, because one
 release seen without its press would otherwise make every later move invisible.
 
-Three things the scenarios deliberately do not assert:
+What the scenarios deliberately do not assert, and what review found they had to:
 
 - **Not every point, and no count.** Windows coalesces mouse moves — a message is generated from
   the queue's current position when somebody asks for one — so a gesture that sent twenty-four
@@ -220,6 +220,16 @@ Three things the scenarios deliberately do not assert:
   coalescing means the log does not name the pointer's last position, and the instant a stop
   arrives is not observable from outside the run. So the passing sentence claims an order and a
   place, and not an instant.
+- **No exemption is applied before a held button is reported.** The claims above are each true or
+  false of a log on their own, and review found the ORDER of them carrying a defect of its own: a
+  log with a press and nothing else has no movement in it, so the scope exemption answered first,
+  filed the run as NOT RUN, and never asked whether the button came up. A left button held down on
+  somebody's desktop is the worst thing this scenario can find and it was the one thing it could
+  not report. So the held button is asked FIRST — above both exemptions, since an unestablished
+  ordering would have swallowed it exactly as the travel check did — and it is silent about a log
+  with no press in it, which is what lets it be asked there at all. The composed decision lives in
+  one function so that its order can be tested; this is the third time this slice has found a
+  defect behind its own excuse, which is why the composition is now a claim and not a list.
 - **No stuck button is manufactured on a desktop.** A release the machine refuses is arranged
   headlessly, where a machine can be told to refuse. Doing it on a desktop would mean leaving a
   real mouse button held down on somebody's computer to see whether the report says so.
@@ -315,11 +325,17 @@ as one.
 - `plugins/e2e` `TestTheReleaseHasToBeOnTheTravelAndNotAtItsEnd` — both halves of where a stopped
   drag may let go, including a release at a corner of the box the ends make, which the first cut
   passed.
+- `plugins/e2e` `TestTheHeldButtonIsReportedBeforeAnyExemption` — the composed decision, which is
+  where the order of those claims lives and where review found the next defect: a press with
+  nothing after it must name the missing release, and the two exemptions must still exempt a
+  release with no travel, a drag that had already finished, and a log with nothing in it.
 - `plugins/e2e` `TestTheStoppedDragScenarioBracketsItsStop` — that the scenario TAKES that
-  evidence and in that order, read off the source the way the hold scenario's absence claim is:
-  the lower bound after the press arrives, the upper bound after Stop is pressed, and the ordering
-  asked before any verdict. A bracket taken at the wrong moment is not a bracket, and no headless
-  test can run that function body.
+  evidence, read off the source the way the hold scenario's absence claim is: the lower bound
+  after the press arrives, the upper bound after Stop is pressed, the composed decision reached
+  after both, and BOTH dispositions downstream of it — a scenario that called only `fail` would
+  turn every NOT RUN into a failure, and one that called only `skip` would turn a held button into
+  nothing happened. A bracket taken at the wrong moment is not a bracket, and no headless test can
+  run that function body.
 - `plugins/studio` `TestADemonstratedDragIsOfferedAndSaved` /
   `TestADragWhoseWindowMovedIsRefusedWithTheReason` /
   `TestADragThatEndedOutsideTheWindowSaysSo` / `TestADragMissingAMeasurementIsNamedAtReview` —
