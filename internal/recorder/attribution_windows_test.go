@@ -99,19 +99,83 @@ func TestTheAppTagCanDisagreeWithTheProcess(t *testing.T) {
 	}
 }
 
-// AND GEOMETRY STAYS ON THE PRESS ALONE.
+// AND BOTH EDGES RECORD WHERE THEY LANDED, WHICH IS WHAT A DRAG NEEDS.
 //
-// The other half of the correction, asserted so that stamping attribution on both edges did not
-// quietly spread the window offset too. A release lands wherever the press did; a second offset
-// for it would be a second place to replay from, which is not a thing.
-func TestOnlyThePressRecordsWhereItLanded(t *testing.T) {
+// This read the other way round — "geometry stays on the press alone" — and it was right while
+// the only gesture with two edges was a click, whose release lands where its press did and is
+// about no rectangle of its own.
+//
+// A DRAG ends somewhere else. Its destination is a point in a window exactly as much as its start
+// is, and the alternative to measuring it was subtracting the PRESS's rectangle from a point
+// captured later: an offset into the window as it WAS, attributed to a point from after, with
+// nothing able to tell whether the window moved in between. So both edges are measured, both
+// carry the handle and the origin they were measured from, and `simplify` refuses a gesture whose
+// two edges disagree about the window.
+//
+// The old assertion PASSED after the change, which is why it is replaced rather than deleted: its
+// release coordinate fell outside the window the fixture stood in front, so the containment test
+// declined the offset and the claim held by accident. It was asserting an accident of its own
+// arrangement.
+func TestBothEdgesOfAClickRecordWhereTheyLanded(t *testing.T) {
 	onTheGameWithMarcoInFront(t, 9140)
+	aWindowLike(t, marcosWindow, 120, 64, 1920, 1080, 144)
 
-	up := newClick("left", false, 1511, 913)
-	if up.WinRel {
-		t.Error("a release recorded a window-relative offset of its own")
+	down := newClick("left", true, 1511, 913)
+	up := newClick("left", false, 1400, 700)
+
+	for _, e := range []struct {
+		what string
+		ev   RecordedEvent
+		x, y int
+	}{
+		{"press", down, 1511, 913},
+		{"release", up, 1400, 700},
+	} {
+		if !e.ev.WinRel {
+			t.Errorf("the %s recorded no window-relative offset, so a gesture "+
+				"that ends there has nothing to resolve against the live "+
+				"window", e.what)
+			continue
+		}
+		if e.ev.RelX != e.x-120 || e.ev.RelY != e.y-64 {
+			t.Errorf("the %s is %d,%d inside the window, want %d,%d", e.what,
+				e.ev.RelX, e.ev.RelY, e.x-120, e.y-64)
+		}
+		if e.ev.RelTo != macroir.RelToWindow {
+			t.Errorf("the %s says it was measured from %q", e.what, e.ev.RelTo)
+		}
+		if e.ev.WinW != 1920 || e.ev.WinH != 1080 || e.ev.Dpi != 144 {
+			t.Errorf("the %s records a %dx%d window at %d dpi, want 1920x1080 "+
+				"at 144", e.what, e.ev.WinW, e.ev.WinH, e.ev.Dpi)
+		}
+		// AND THE EVIDENCE THAT SAYS WHICH WINDOW, which geometry cannot: two
+		// windows of one program, the same size at the same scale, agree about
+		// every term above and are two different windows.
+		if e.ev.HWnd != marcosWindow {
+			t.Errorf("the %s carries handle %#x, want %#x — without it, the two "+
+				"edges of a gesture cannot be shown to have happened in the "+
+				"same window", e.what, e.ev.HWnd, marcosWindow)
+		}
+		if e.ev.WinX != 120 || e.ev.WinY != 64 {
+			t.Errorf("the %s records the window at %d,%d, want 120,64 — the "+
+				"origin is what lets a later pass ask whether both edges "+
+				"are about the same rectangle, which an offset cannot "+
+				"answer", e.what, e.ev.WinX, e.ev.WinY)
+		}
 	}
-	if up.Window != "" {
+}
+
+// AND THE WINDOW'S TITLE STAYS ON THE PRESS ALONE.
+//
+// The half of the old claim that survives, and it is about a different field for a different
+// reason: `Window` is an ANCHOR's context check — which window of an app that opens several a
+// template was matched in — and an anchor is resolved at the press. A title beside the release
+// would be a second context for one gesture.
+func TestOnlyThePressRecordsTheWindowsTitle(t *testing.T) {
+	onTheGameWithMarcoInFront(t, 9140)
+	aWindowLike(t, marcosWindow, 120, 64, 1920, 1080, 144)
+
+	if up := newClick("left", false, 1400, 700); up.Window != "" {
 		t.Errorf("a release recorded the window title %q", up.Window)
 	}
 }

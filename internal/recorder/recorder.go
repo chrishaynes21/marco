@@ -64,6 +64,26 @@ type RecordedEvent struct {
 	// change: an application that handles `WM_DPICHANGED` relayouts inside a rectangle
 	// that never moved, so nothing about the dimensions would show it.
 	WinW, WinH, Dpi int
+	// WinX, WinY are where that window's outer top-left WAS, at the same instant.
+	//
+	// RECORDING EVIDENCE, AND NEVER A REPLAY TARGET. Nothing emits these into a route and
+	// nothing resolves against them: a saved absolute origin is the thing the whole
+	// window-relative design exists to avoid. They are here so a pass that lowers a
+	// gesture spanning two edges can ask whether both edges are about the SAME rectangle
+	// — a question an offset cannot answer, because an offset is what is left once the
+	// origin has been subtracted away. Two offsets agree happily about a window that
+	// moved between them and describe a gesture no static window can reproduce.
+	WinX, WinY int
+	// HWnd is the window handle the attribution named at the instant of the event, and
+	// `PID` beside it is its owner then.
+	//
+	// RECORDING EVIDENCE, AND NEVER A REPLAY TARGET, for the same reason and one more: a
+	// handle is only meaningful inside the session that issued it, and Windows reuses
+	// them. What it is for is identity WITHIN one recording — whether the two edges of a
+	// gesture happened in the same window. Geometry and a program name cannot answer
+	// that: two windows of one executable, the same size at the same scale, satisfy every
+	// comparison of those and are two different windows.
+	HWnd uintptr
 	// Process is the file name of the executable that owned that window, lowercased.
 	//
 	// Resolved AFTER the capture, off the hook thread, from `PID` — which was read at the
@@ -142,9 +162,14 @@ func resolveImages(events []RecordedEvent, look func(uint32) string) {
 	seen := map[uint32]string{}
 	for i := range events {
 		pid := events[i].PID
-		// ONLY A PRESS IS ABOUT A WINDOW. The release carries the same process —
-		// both edges are stamped — but it is about no rectangle, so a name beside
-		// it would describe a window nothing was measured in.
+		// WHATEVER DECLARED A BASIS IS ABOUT A WINDOW, which is now both edges of a
+		// click and not just the press.
+		//
+		// It read "only a press is about a window" while the release was measured not
+		// at all. A drag's release is a point in a window exactly as much as its press
+		// is, so both edges are measured and both are named — and the condition did
+		// not have to change for that, because it was never about the edge. It asks
+		// whether this event claimed a rectangle, which is the question.
 		if events[i].RelTo == "" {
 			continue
 		}

@@ -204,7 +204,7 @@ it.
 ## Enforced by
 
 - `internal/recorder` `TestBothEdgesOfAClickCarryTheirOwner`,
-  `TestTheAppTagCanDisagreeWithTheProcess`, `TestOnlyThePressRecordsWhereItLanded` — driven
+  `TestTheAppTagCanDisagreeWithTheProcess`, `TestOnlyThePressRecordsTheWindowsTitle` — driven
   through `newClick`, the production event builder, with the poller still on the game. These
   exist because a test that builds its own events cannot catch a builder that stamps less than
   the fixture assumed, and twice it did not.

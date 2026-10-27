@@ -443,7 +443,7 @@ there IS matching to do, and refusing there would refuse to go looking.
   counting the shape reads and checking which window was asked about; the last two hold the basis
   against every way a measurement can fail.
 - `internal/recorder` `TestEachPressIsNamedAndEachProgramAskedOnce`,
-  `TestOnlyAPressCarriesTheProgramName`, `TestAProgramThatHasGoneLeavesTheNameMissing`,
+  `TestOnlyWhatDeclaredAWindowCarriesTheProgramName`, `TestAProgramThatHasGoneLeavesTheNameMissing`,
   `TestAPressWithNoProcessIsNotLookedUp`, `TestAPressWithNoOffsetIsStillNamed` — the program
   lookup runs after the capture and follows the BASIS, not the offset: a press it cannot answer
   for keeps everything it did measure and loses only the name.

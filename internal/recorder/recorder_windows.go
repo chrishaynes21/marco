@@ -610,55 +610,75 @@ var clickShape = winctx.WindowShape
 func newClick(button string, down bool, x, y int) RecordedEvent {
 	hwnd, pid, app := clickAttribution()
 	ev := RecordedEvent{Kind: EvClick, Button: button, Down: down, X: x, Y: y,
-		T: time.Now(), App: app, PID: pid}
-	if down {
-		// THE WINDOW AS IT WAS AT THIS PRESS — where it is, how big it is on the
-		// outside, and what DPI it is drawn at, from the window the attribution
-		// above already identified. All of it at the press, because a press is the
-		// only moment it can be read: anything later is a sample, and a sample cannot
-		// answer about an instant it missed.
-		//
-		// The process IMAGE is deliberately not read here. That opens a process
-		// handle, which is the work that makes Windows drop the hooks, so it is
-		// resolved from `PID` once the capture is over. See `resolveImages`.
-		// ── THE CONTRACT IS DECLARED FOR EVERY PRESS, BEFORE ANY OF IT IS READ ──
-		//
-		// `RelTo` names the rectangle this press is ABOUT: the one its offset is
-		// measured from and the one it is checked against immediately before
-		// input. It is a statement of what the press MEANS, not one of the
-		// measurements, so it goes in whether or not the measurements arrive.
-		//
-		// That ordering is the whole of this comment, because the other one was
-		// wrong. Writing the basis only when every term arrived meant a press
-		// whose window would not report its size, or whose scale Windows will
-		// not report (no `GetDpiForWindow` before Windows 10 1607), or whose
-		// program had exited before the hooks came down, was saved as an ORDINARY
-		// point — and an ordinary point is pressed at its recorded coordinate
-		// having checked nothing. A failed measurement cannot be what makes the
-		// safeguards optional: it means guarded replay is unavailable for that
-		// recording, and the recording has to say so rather than quietly become
-		// something that runs.
-		//
-		// So: the basis always, each measurement only when it was taken, missing
-		// left missing, and replay refuses until they are all there. Routes
-		// already on disk carry no basis and are untouched.
-		ev.RelTo = macroir.RelToWindow
-		if left, top, w, h, dpi, ok := clickShape(hwnd); ok {
-			ev.Dpi = dpi // 0 when Windows would not say, and 0 stays 0
-			if w > 0 && h > 0 {
-				ev.WinW, ev.WinH = w, h
-				// AND THE OFFSET IS A MEASUREMENT OF THAT WINDOW ONLY IF
-				// THE PRESS WAS IN IT. A click that CHANGED the foreground
-				// looks like this from inside the hook: the attribution
-				// names the window that was in front at that instant and
-				// the click landed in the one it was about to raise, so
-				// the subtraction produces a number that is not an offset
-				// into anything.
-				if x >= left && y >= top && x-left < w && y-top < h {
-					ev.RelX, ev.RelY, ev.WinRel = x-left, y-top, true
-				}
+		T: time.Now(), App: app, PID: pid, HWnd: uintptr(hwnd)}
+	// THE WINDOW AS IT WAS AT THIS EDGE — where it is, how big it is on the outside, and
+	// what DPI it is drawn at, from the window the attribution above already identified.
+	// At the edge itself, because the edge is the only moment it can be read: anything
+	// later is a sample, and a sample cannot answer about an instant it missed.
+	//
+	// The process IMAGE is deliberately not read here. That opens a process handle, which
+	// is the work that makes Windows drop the hooks, so it is resolved from `PID` once the
+	// capture is over. See `resolveImages`.
+	//
+	// ── BOTH EDGES, AND THAT IS WHAT A DRAG NEEDS ──
+	//
+	// The release used to be measured not at all: a release lands wherever the press did,
+	// so for a CLICK it is about no rectangle of its own. A DRAG ends somewhere else, and
+	// its destination is a point in a window just as much as its start is — so deriving
+	// the destination's offset from the PRESS's rectangle would subtract a rectangle
+	// measured at one instant from a point captured at another, with nothing able to tell
+	// whether the window moved in between. That is an offset into a window as it WAS,
+	// attributed to a point from after, and it would pass every check at replay.
+	//
+	// So the release is measured the same way, `simplify` requires the two edges to agree
+	// about the window, and a gesture that spans two different rectangles is refused
+	// rather than reconciled. The cost is one more `clickShape` per mouse event in the
+	// hook: `GetWindowRect` plus `GetDpiForWindow`, window data Windows already holds, no
+	// process handle. The same class of call the attribution above already makes on both
+	// edges.
+	//
+	// ── THE CONTRACT IS DECLARED FOR EVERY EDGE, BEFORE ANY OF IT IS READ ──
+	//
+	// `RelTo` names the rectangle this edge is ABOUT: the one its offset is measured from
+	// and the one it is checked against immediately before input. It is a statement of
+	// what the edge MEANS, not one of the measurements, so it goes in whether or not the
+	// measurements arrive.
+	//
+	// That ordering is the whole of this comment, because the other one was wrong.
+	// Writing the basis only when every term arrived meant a press whose window would not
+	// report its size, or whose scale Windows will not report (no `GetDpiForWindow` before
+	// Windows 10 1607), or whose program had exited before the hooks came down, was saved
+	// as an ORDINARY point — and an ordinary point is pressed at its recorded coordinate
+	// having checked nothing. A failed measurement cannot be what makes the safeguards
+	// optional: it means guarded replay is unavailable for that recording, and the
+	// recording has to say so rather than quietly become something that runs.
+	//
+	// So: the basis always, each measurement only when it was taken, missing left
+	// missing, and replay refuses until they are all there. Routes already on disk carry
+	// no basis and are untouched.
+	ev.RelTo = macroir.RelToWindow
+	if left, top, w, h, dpi, ok := clickShape(hwnd); ok {
+		ev.Dpi = dpi // 0 when Windows would not say, and 0 stays 0
+		if w > 0 && h > 0 {
+			ev.WinW, ev.WinH = w, h
+			// AND WHERE THAT RECTANGLE WAS, which is not a replay target and is
+			// never emitted into a route. It is here so `simplify` can ask
+			// whether the two edges of a drag are about the SAME rectangle —
+			// a question an offset cannot answer, because an offset is what is
+			// left after the origin has been subtracted away.
+			ev.WinX, ev.WinY = left, top
+			// AND THE OFFSET IS A MEASUREMENT OF THAT WINDOW ONLY IF THE EDGE
+			// WAS IN IT. A click that CHANGED the foreground looks like this
+			// from inside the hook: the attribution names the window that was
+			// in front at that instant and the click landed in the one it was
+			// about to raise, so the subtraction produces a number that is not
+			// an offset into anything.
+			if x >= left && y >= top && x-left < w && y-top < h {
+				ev.RelX, ev.RelY, ev.WinRel = x-left, y-top, true
 			}
 		}
+	}
+	if down {
 		ev.Window = winctx.ForegroundTitle() // context: which window was clicked
 	}
 	return ev

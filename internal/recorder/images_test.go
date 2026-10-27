@@ -22,9 +22,17 @@ func aRecordingAcrossTwoPrograms() []RecordedEvent {
 			PID: pid, WinRel: true, RelX: x - 100, RelY: y - 50,
 			RelTo: "window", WinW: 1920, WinH: 1080, Dpi: 96}
 	}
+	// A RELEASE IS MEASURED TOO, which is what the hook stamps now.
+	//
+	// It carried nothing here while the only two-edged gesture was a click, whose release
+	// lands where its press did. A drag ends somewhere else, so both edges declare the
+	// rectangle they are about — and a fixture describing the old stream is exactly the
+	// hazard `attribution_windows_test.go`'s header names: a consumer tested against a
+	// desktop that cannot happen.
 	release := func(pid uint32, x, y int) RecordedEvent {
 		return RecordedEvent{Kind: EvClick, Down: false, Button: "left", X: x, Y: y,
-			PID: pid}
+			PID: pid, WinRel: true, RelX: x - 100, RelY: y - 50,
+			RelTo: "window", WinW: 1920, WinH: 1080, Dpi: 96}
 	}
 	return []RecordedEvent{
 		press(4812, 842, 274), release(4812, 842, 274),
@@ -51,7 +59,13 @@ func TestEachPressIsNamedAndEachProgramAskedOnce(t *testing.T) {
 		return ""
 	})
 
-	want := []string{"arkascended.exe", "", "arkascended.exe", "", "chrome.exe", ""}
+	// EVERY EDGE, because every edge declared the window it was about. The lookups are
+	// still two: one per distinct program, not one per event.
+	want := []string{
+		"arkascended.exe", "arkascended.exe",
+		"arkascended.exe", "arkascended.exe",
+		"chrome.exe", "chrome.exe",
+	}
 	for i, w := range want {
 		if events[i].Process != w {
 			t.Errorf("event %d is named %q, want %q", i, events[i].Process, w)
@@ -63,24 +77,32 @@ func TestEachPressIsNamedAndEachProgramAskedOnce(t *testing.T) {
 	}
 }
 
-// AND ONLY A PRESS IS NAMED, BECAUSE ONLY A PRESS MEASURED A WINDOW.
+// AND WHAT IS NAMED IS WHATEVER DECLARED A WINDOW, NOT WHATEVER IS A PRESS.
 //
-// The release carries the same process — both edges are stamped, which is what keeps a strip
-// walking backwards from losing the press behind an unattributed release — but it records no
-// geometry at all. A program name beside it would describe a window nothing was measured in, and
-// the guarded contract reads these five terms together or not at all.
-func TestOnlyAPressCarriesTheProgramName(t *testing.T) {
+// This read "only a press is named, because only a press measured a window", which was true of
+// the stream and never of the condition: `resolveImages` asks whether an event claimed a
+// rectangle. Both edges of a click claim one now, so both are named — and the discrimination
+// being tested is the one that matters, which is that an event claiming NOTHING gets no name.
+// A program name beside such an event would describe a window nothing was measured in, and the
+// guarded contract reads its terms together or not at all.
+func TestOnlyWhatDeclaredAWindowCarriesTheProgramName(t *testing.T) {
 	events := aRecordingAcrossTwoPrograms()
+	// AND ONE EVENT THAT MEASURED NOTHING, in the middle of a recording where
+	// everything else did. Its process is readable and its basis is empty, so the only
+	// thing that can leave it unnamed is the condition this is about.
+	events = append(events, RecordedEvent{Kind: EvClick, Down: true, Button: "left",
+		X: 70, Y: 70, PID: 4812})
 	resolveImages(events, func(uint32) string { return "arkascended.exe" })
 
-	for i := range events {
-		if events[i].Down {
-			continue
+	for i := range events[:len(events)-1] {
+		if events[i].Process == "" {
+			t.Errorf("event %d declared the window it was about and was not "+
+				"named", i)
 		}
-		if events[i].Process != "" {
-			t.Errorf("release %d is named %q, and it measured no window", i,
-				events[i].Process)
-		}
+	}
+	if last := events[len(events)-1]; last.Process != "" {
+		t.Errorf("an event that declared no window is named %q, so a name now "+
+			"describes a window nothing measured", last.Process)
 	}
 }
 
