@@ -520,3 +520,79 @@ func seedModifierClick(f *fixtureRun, art *artifacts, name, mod string,
 	}
 	return s, nil
 }
+
+// seedDrag writes a routine that drags from the centre of one control to the centre of another.
+//
+// GUARDED, like every other demonstration here, and for a reason that is sharper for a drag:
+// BOTH edges carry the window. The production recorder measures both, `simplify` requires them to
+// agree, and a seed that stamped only the press would be describing a stream the recorder does
+// not produce — the mistake this file has made twice, with a consumer then tested against a
+// desktop that cannot happen.
+//
+// The movement between them is seeded as real `EvMove` events, because that is what makes it a
+// drag rather than two clicks: `simplify` folds a press and a release into one `StepDrag` only
+// when it saw a move and the distance passes the threshold. A seed with no moves produces two
+// clicks, and every assertion in the scenarios below would then be true of something that is not
+// a drag.
+func seedDrag(f *fixtureRun, art *artifacts, name, from, to string) (seededRoutine, error) {
+	s := seededRoutine{name: name, controls: []string{from, to}}
+	if err := s.measure(f); err != nil {
+		return s, err
+	}
+	fx, fy := s.at[0][0], s.at[0][1]
+	tx, ty := s.at[1][0], s.at[1][1]
+
+	// AN EDGE AS THE RECORDER STAMPS ONE: the window it happened in, by the evidence that
+	// says WHICH window as well as what it looked like. The handle and the origin are
+	// recording evidence and never reach the route; they are what lets `simplify` ask
+	// whether both edges are about the same rectangle.
+	edge := func(down bool, x, y int, at time.Time) recorder.RecordedEvent {
+		return recorder.RecordedEvent{Kind: recorder.EvClick, Button: "left",
+			Down: down, X: x, Y: y, App: s.app, PID: f.pid,
+			HWnd: f.hwnd, WinX: s.window.X, WinY: s.window.Y,
+			WinW: s.window.W, WinH: s.window.H, Dpi: s.dpi,
+			Process: s.image, RelTo: macroir.RelToWindow,
+			RelX: x - s.window.X, RelY: y - s.window.Y, WinRel: true, T: at}
+	}
+
+	t0 := time.Now().Add(-time.Minute)
+	at := t0.Add(400 * time.Millisecond)
+	events := []recorder.RecordedEvent{
+		{Kind: recorder.EvAppSwitch, KeyName: s.app, T: t0},
+		edge(true, fx, fy, at),
+	}
+	const steps = 6
+	for i := 1; i < steps; i++ {
+		at = at.Add(30 * time.Millisecond)
+		p := float64(i) / float64(steps)
+		events = append(events, recorder.RecordedEvent{Kind: recorder.EvMove,
+			X: fx + int(float64(tx-fx)*p), Y: fy + int(float64(ty-fy)*p), T: at})
+	}
+	at = at.Add(30 * time.Millisecond)
+	events = append(events, edge(false, tx, ty, at))
+
+	if err := s.save(art, events); err != nil {
+		return s, err
+	}
+	// AND THE SAVED ROUTINE HAS TO BE A DRAG THAT CARRIES ITS WINDOW.
+	//
+	// A precondition and not a finding, for `seedHold`'s reason: a demonstration that came
+	// out as two clicks, or as a drag with no window, would make every assertion in the
+	// scenarios true of something else and they would pass. Both are checked, because they
+	// are two different ways for this to decay — the first loses the gesture, the second
+	// loses the guard while keeping the gesture.
+	if !strings.Contains(s.source, "do OS's Drag with") {
+		return s, fmt.Errorf("the seeded demonstration of a drag from %q to %q did "+
+			"not produce one:\n%s", from, to, s.source)
+	}
+	for _, term := range []string{"FromRelX", "ToRelX", "RelTo \"window\"", "WinW",
+		"Dpi", "Process"} {
+		if !strings.Contains(s.source, term) {
+			return s, fmt.Errorf("the seeded drag does not carry %s, so it would "+
+				"not check the window it was demonstrated in:\n%s", term,
+				s.source)
+		}
+	}
+	art.step("seeded a drag from %q (%d,%d) to %q (%d,%d)", from, fx, fy, to, tx, ty)
+	return s, nil
+}

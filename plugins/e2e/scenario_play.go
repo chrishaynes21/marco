@@ -103,6 +103,52 @@ func scenarios() []scenario {
 				"more, and leaves no key down on the desktop",
 			run: aStoppedRunLetsGoOfTheKey,
 		},
+		// THE FOUR DRAG SCENARIOS, which have never run on a desktop.
+		//
+		// `onlyWhenAsked` for the reason the holds had it: a scenario nobody has
+		// exercised must not turn the next ordinary run into a debugging session, and
+		// what these are about — the travel of a gesture, as the application received
+		// it — is a thing no run of this harness has ever read. The gate comes off
+		// when they have passed, which is the same sentence the holds' gate carried and
+		// the same commit shape: remove it, and change the test that holds it by name.
+		//
+		// Under `drag/` rather than `window/`, although two of them are about a window
+		// that moved or resized. `-only window` is the guarded press's regression gate,
+		// and a drag filed under that name would be swept into every press change by a
+		// flag somebody typed for a different reason — the holds' reasoning, one slice
+		// over.
+		{
+			name:          "drag/a drag arrives as a drag",
+			layer:         layerDesktop,
+			onlyWhenAsked: true,
+			about: "a seeded drag reaches the application as a press, movement " +
+				"with the button held, and a release — not two clicks",
+			run: aDragArrivesAsADrag,
+		},
+		{
+			name:          "drag/it follows an app that moved",
+			layer:         layerDesktop,
+			onlyWhenAsked: true,
+			about: "both ends of a guarded drag re-base onto the window as it " +
+				"is now, and the whole gesture stays inside it",
+			run: aDragFollowsItsMovedWindow,
+		},
+		{
+			name:          "drag/a resized app is refused with nothing sent",
+			layer:         layerDesktop,
+			onlyWhenAsked: true,
+			about: "a guarded drag into a resized window refuses before the " +
+				"button goes down, so the application receives nothing at all",
+			run: aDragIntoAResizedWindowIsRefused,
+		},
+		{
+			name:          "drag/a stopped drag lets go where it got to",
+			layer:         layerDesktop,
+			onlyWhenAsked: true,
+			about: "Stop with the button demonstrably down releases where the " +
+				"pointer reached, not at the destination it was heading for",
+			run: aStoppedDragLetsGoWhereItGotTo,
+		},
 		{
 			name:  "runs/two runs are two records",
 			layer: layerDesktop,

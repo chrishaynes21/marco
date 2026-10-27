@@ -403,3 +403,54 @@ func (f *fixtureRun) arrivedSoFar(after int) string {
 	return keysAre(got) + " so far (read without the drain barrier, so it is what had " +
 		"arrived and not necessarily all that was sent)"
 }
+
+// mouse is every mouse message the window has received since a given sequence number — presses,
+// releases and the movement between them.
+//
+// All three, unlike `presses`, because the claim a DRAG makes is about the shape of the whole
+// gesture: a press, movement with the button held, and a release. A reader given only the downs
+// could not tell a drag from a click, and one given only the ends could not tell a drag from two
+// clicks — which is precisely what a replay that teleported the pointer would produce.
+//
+// The fixture logs movement only while a button is down, so this is bounded by the gesture rather
+// than by how long the window has been open. See its NoteMove.
+func (f *fixtureRun) mouse(after int) ([]fixtureEvent, error) {
+	all, err := f.received()
+	if err != nil {
+		return nil, err
+	}
+	var out []fixtureEvent
+	for _, e := range all {
+		if e.Seq > after && e.Kind == "mouse" {
+			out = append(out, e)
+		}
+	}
+	return out, nil
+}
+
+// waitForMouse waits until the window has received one named mouse event after `after`.
+//
+// `what` is the fixture's own spelling — `left_down`, `move`, `left_up`. It exists so a scenario
+// can act at a moment the APPLICATION has reached rather than at one a sleep guessed: a stop sent
+// before the button went down stops nothing, and a stop sent after the release has exercised
+// nothing. Both of those are scenarios about nothing that pass.
+func (f *fixtureRun) waitForMouse(bound time.Duration, after int, what string) (fixtureEvent,
+	bool) {
+
+	var got fixtureEvent
+	ok, _ := until(bound, func() (bool, string) {
+		evs, err := f.mouse(after)
+		if err != nil {
+			return false, err.Error()
+		}
+		for _, e := range evs {
+			if e.What == what {
+				got = e
+				return true, e.String()
+			}
+		}
+		return false, fmt.Sprintf("%d mouse event(s), none of them %s", len(evs),
+			what)
+	})
+	return got, ok
+}
