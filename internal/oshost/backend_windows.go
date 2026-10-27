@@ -269,9 +269,9 @@ func (thePointer) settle(ctx context.Context, d time.Duration) { sleepCtx(ctx, d
 // drop, that nothing checked the run before the press, and that every refusal SendInput reported
 // was being discarded. This supplies the machine and nothing else.
 func (winBackend) drag(ctx context.Context, button string, x1, y1, x2, y2 int,
-	confirm stillThere) error {
+	host dragHost) error {
 
-	return dragGesture(ctx, thePointer{}, button, x1, y1, x2, y2, confirm)
+	return dragGesture(ctx, thePointer{}, button, x1, y1, x2, y2, host)
 }
 
 // move sends a real injected mouse-MOVE event (SendInput), not a bare SetCursorPos.

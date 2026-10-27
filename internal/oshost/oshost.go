@@ -36,7 +36,7 @@ type backend interface {
 	typeText(ctx context.Context, text string) error
 	click(ctx context.Context, button string) error
 	clickAt(ctx context.Context, button string, x, y int) error
-	drag(ctx context.Context, button string, x1, y1, x2, y2 int, confirm stillThere) error
+	drag(ctx context.Context, button string, x1, y1, x2, y2 int, host dragHost) error
 	move(ctx context.Context, x, y int) error
 	color(ctx context.Context, x, y int) (uint32, error)
 	activeExe(ctx context.Context) (string, error)
@@ -1104,27 +1104,32 @@ func (h *Host) doDrag(c runtime.HostCall) (string, runtime.Value, error) {
 	// falls through to everything above, unchanged, which is every drag saved before this.
 	//
 	// Both ends out of ONE measurement, and the refusal before any input. See `guardedDrag`.
-	confirm := stillThere(nil)
+	host := dragHost{}
 	if textOf(s, "RelTo") != "" {
 		from, to, again, why := h.guardedDrag(s)
 		if why != "" {
 			return fail(why)
 		}
 		fx, fy, tx, ty = from[0], from[1], to[0], to[1]
-		confirm = again
+		host.confirm = again
 	}
 	what := fmt.Sprintf("dragging from %d,%d to %d,%d", fx, fy, tx, ty)
-	err := h.b.drag(c.Ctx, btn, fx, fy, tx, ty, confirm)
-	// AND A BUTTON THE MACHINE WOULD NOT LET GO OF IS KEPT SEPARATELY, the same two calls a
-	// keystroke gets and for the same reason.
+	// AND A BUTTON THE MACHINE WOULD NOT LET GO OF IS KEPT SEPARATELY, the same two
+	// accounts a keystroke gets and for the same reason.
 	//
 	// `delivered` alone was not enough and the gap was exactly the one the chord slice
 	// closed for keys: a run STOPPED mid-drag discards its error on purpose, so a stuck
 	// button reported only through the returned error reached nobody — the record said
 	// `cancelled` with nothing beside it while the button was down, dragging whatever the
 	// pointer passed over. This account is the one a cancellation cannot discard.
-	h.noteHeld(what, err)
-	return h.delivered(what, err)
+	//
+	// WRITTEN FROM INSIDE THE GESTURE and not from the error it returns, because the worst
+	// path does not return one: a panic unwinding past the gesture runs its deferred
+	// release and keeps going, so this line would never be reached. The gesture reports
+	// where it happens; `delivered` below keeps the other half, which is a gesture that
+	// did not happen rather than one that has not finished.
+	host.stuck = func(err error) { h.noteHeld(what, err) }
+	return h.delivered(what, h.b.drag(c.Ctx, btn, fx, fy, tx, ty, host))
 }
 
 // guardedDrag resolves a drag's two ends against the window it was demonstrated in, having

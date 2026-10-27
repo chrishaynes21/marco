@@ -187,13 +187,13 @@ func (r *recBackend) clickAt(_ context.Context, b string, x, y int) error {
 // backend's `key` had and for the same reason: nothing could put a drag-delivery failure in a
 // routine, so the account that a refused drag belongs in could not be tested.
 func (r *recBackend) drag(_ context.Context, button string, x1, y1, x2, y2 int,
-	confirm stillThere) error {
+	host dragHost) error {
 
 	// THE REVALIDATION IS ASKED, which is the backend's side of the contract: a backend
 	// that ignored it would make every test about "refused before mouse-down" pass while
 	// nothing was checked at the one instant that matters.
-	if confirm != nil {
-		if err := confirm(); err != nil {
+	if host.confirm != nil {
+		if err := host.confirm(); err != nil {
 			r.mu.Lock()
 			r.confirmFailed = true
 			r.mu.Unlock()

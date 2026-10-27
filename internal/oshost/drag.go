@@ -33,21 +33,24 @@ package oshost
 // it took to see that the first defect's release was aimed at the wrong place and that the third
 // was silent.
 //
-// # What it does not do
+// # Every exit, including the ones that are not returns
 //
-// It does not put the button in the host's held list. A key that goes down is written into an
-// account the route-end sweep reads ([Host.holding]), and a button is not, so a return that
-// leaves this function by a path it does not own — a panic unwinding past it, a caller that
-// abandons it — leaves the button down with nothing else in the process that knows to lift it.
-// A ledger would cover that, and the guarded-drag contract proposes one; it is not agreed, it is
-// not a defect in this gesture, and what is fixed here is every exit THIS function reaches, which
-// is all three above.
+// A panic unwinding past this runs its deferred code, so the release is deferred and the button
+// comes up on the way out. That needs no ledger and no split backend, and the reason is worth
+// stating because the first proposal reached for both: nothing outside this function has to
+// release, because this function is still on the stack while the unwinding happens.
+//
+// WHAT IT ARMS ON IS AN ACCEPTED PRESS, and not entry into the gesture. Writing "a button may be
+// down" before the press — which is what a slot armed on the way in would do — reports a stuck
+// button after a panic during the AIM, when nothing was ever pressed. So there are four states
+// and not two, and each one has its own cleanup and its own report: see [buttonState].
 //
 // AND A LEDGER WOULD NOT COVER A KILL, which is the chord's limit and has to be said the same way
 // here: a ledger lives inside the runner, so it reaches ordinary returns and the unwinding where
 // deferred code still runs, and nothing in a process that has been terminated runs at all.
 // Recovering from that needs an owner that OUTLIVES the runner, which is a different undertaking
-// and outside this one.
+// and outside this one. What remains available later, and is not needed by this contract, is the
+// route-end sweep's SECOND attempt after a first refusal — the thing a ledger would actually buy.
 //
 // And a failed release is REPORTED AND NOT RECOVERED, the chord's rule unchanged: no retry, no
 // forced anything, a sentence saying what the computer is now like.
@@ -108,8 +111,46 @@ const (
 // nil for a drag that asked for no guard, which is every drag saved before this existed.
 type stillThere func() error
 
+// dragHost is the two things only the host can do for a gesture, and the gesture holds neither.
+type dragHost struct {
+	// confirm asks the desktop, immediately before the button goes down, whether the
+	// window is still the one these two points were computed for. See [stillThere].
+	confirm stillThere
+	// stuck is where a button the machine would not release is written down.
+	//
+	// A CALLBACK AND NOT A RETURN VALUE, because the path it exists for does not return.
+	// A panic unwinding past the gesture runs the deferred release and keeps unwinding —
+	// `doDrag` never gets to report anything — so the one account that can outlive the
+	// gesture has to be written from inside it. On an ordinary return the error says the
+	// same thing a second way, into a different account, and that is not a duplicate:
+	// `Unperformed` is what did not happen and `NotReleased` is what has not finished.
+	stuck func(error)
+}
+
+// buttonState is what the gesture knows about the button, and there are four because the cleanup
+// and the report differ for every one of them.
+//
+// Two would be the obvious design and it is wrong in both directions. A flag set on the way IN
+// reports a stuck button after a panic during the aim, when nothing was pressed; a flag that only
+// said "pressed" cannot tell a release that worked from one the machine refused, which is the one
+// fact anybody downstream needs.
+type buttonState int
+
+const (
+	// noDown: nothing was accepted, so nothing is owed and nothing is said.
+	noDown buttonState = iota
+	// buttonDown: accepted, and a release is owed on every exit from here.
+	buttonDown
+	// letGo: released. Nothing to report — this is the ordinary end of a gesture.
+	letGo
+	// buttonStuckDown: the machine refused the release. The computer is left in a state
+	// somebody has to know about, and this is the only state that reports.
+	buttonStuckDown
+)
+
 func dragGesture(ctx context.Context, m pointerMachine, button string, x1, y1, x2, y2 int,
-	confirm stillThere) error {
+	host dragHost) error {
+
 	// NOTHING IS SENT TO A RUN THAT HAS ALREADY STOPPED. Before the aim, not inside the
 	// travel: a drag reached with the context already done used to press the button, move
 	// it, and only then discover there was nothing to do this for.
@@ -139,8 +180,8 @@ func dragGesture(ctx context.Context, m pointerMachine, button string, x1, y1, x
 	// give somebody who pressed Escape. After that this is the LAST thing before the
 	// press, and NO INPUT IS SENT BETWEEN THEM — which is the whole property, and the
 	// reason the aim is not allowed to sit in that gap.
-	if confirm != nil {
-		if err := confirm(); err != nil {
+	if host.confirm != nil {
+		if err := host.confirm(); err != nil {
 			return err
 		}
 	}
@@ -158,9 +199,33 @@ func dragGesture(ctx context.Context, m pointerMachine, button string, x1, y1, x
 	// one the gesture meant to send. It is the whole of the first fix — a release aimed at
 	// the destination is a drop, and a drop is the one thing a stopped drag must not do.
 	atX, atY := x1, y1
+	state := buttonDown
+	// letGoNow is the ONE release path, and every exit goes through it — including the
+	// deferred one below, which is how a panic unwinding past this still lets go.
+	//
+	// It is idempotent by reading the state rather than by a separate flag: a gesture
+	// that already released leaves `letGo` behind, and a second attempt on a button that
+	// is not down would produce a second refusal and a sentence naming two failures for
+	// one. And `atX, atY` is read at the moment it runs, so the deferred release aims
+	// where the pointer actually got to rather than where the gesture was going.
+	letGoNow := func() error {
+		if state != buttonDown {
+			return nil // nothing is owed
+		}
+		if err := releaseAt(m, button, atX, atY); err != nil {
+			state = buttonStuckDown
+			if host.stuck != nil {
+				host.stuck(err)
+			}
+			return err
+		}
+		state = letGo
+		return nil
+	}
+	defer func() { _ = letGoNow() }()
 	for i := 1; i < dragSteps; i++ {
 		if err := ctx.Err(); err != nil {
-			return withRelease(err, releaseAt(m, button, atX, atY), "drag")
+			return withRelease(err, letGoNow(), "drag")
 		}
 		t := float64(i) / float64(dragSteps)
 		nx, ny := x1+int(float64(x2-x1)*t), y1+int(float64(y2-y1)*t)
@@ -171,7 +236,7 @@ func dragGesture(ctx context.Context, m pointerMachine, button string, x1, y1, x
 			// somewhere nobody chose.
 			return withRelease(fmt.Errorf("the machine refused to move to %d,%d "+
 				"partway through the %s drag", nx, ny, button),
-				releaseAt(m, button, atX, atY), "drag")
+				letGoNow(), "drag")
 		}
 		atX, atY = nx, ny
 		m.settle(ctx, dragStep)
@@ -181,13 +246,14 @@ func dragGesture(ctx context.Context, m pointerMachine, button string, x1, y1, x
 	// line the old code did not have: it is where a stop during the last wait used to
 	// become a drop at the destination.
 	if err := ctx.Err(); err != nil {
-		return withRelease(err, releaseAt(m, button, atX, atY), "drag")
+		return withRelease(err, letGoNow(), "drag")
 	}
 	if !m.moveTo(x2, y2) {
 		return withRelease(fmt.Errorf("the machine refused to land the %s drag at "+
-			"%d,%d", button, x2, y2), releaseAt(m, button, atX, atY), "drag")
+			"%d,%d", button, x2, y2), letGoNow(), "drag")
 	}
-	return releaseAt(m, button, x2, y2)
+	atX, atY = x2, y2
+	return letGoNow()
 }
 
 // releaseAt attempts the release, and says so when the machine would not take it.
