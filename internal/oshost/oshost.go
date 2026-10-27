@@ -2046,24 +2046,60 @@ func (h *Host) checkGuarded(set *runtime.Set, x, y int) (px, py int, why string)
 	if why != "" {
 		return 0, 0, why
 	}
+	at, why := h.confirmWindow(m)
+	if why != "" {
+		return 0, 0, why
+	}
+	px, py = at.left+m.rx, at.top+m.ry
+	mlog.Debug("click: guarded",
+		"app", at.app, "window", fmt.Sprintf("hwnd:%#x", at.hwnd),
+		"recorded", fmt.Sprintf("(%d,%d)", x, y),
+		"wantRel", fmt.Sprintf("(%d,%d)", m.rx, m.ry),
+		"origin", fmt.Sprintf("(%d,%d)", at.left, at.top),
+		"shape", fmt.Sprintf("%dx%d at %d dpi", at.w, at.h, at.dpi),
+		"clicked", fmt.Sprintf("(%d,%d)", px, py))
+	return px, py, ""
+}
+
+// atWindow is the live window a guarded action resolved against: where it is now, how big it is,
+// and the handle and owner that answered for it.
+type atWindow struct {
+	left, top int
+	w, h, dpi int
+	hwnd      uintptr
+	app       string
+}
+
+// confirmWindow is every question this boundary puts to the DESKTOP, and the one that answers
+// whether the window a thing was recorded in is still that window.
+//
+// Split out of `checkGuarded` so that one answer can resolve more than one offset. A click has
+// one point; a guarded DRAG has two, and they have to come out of ONE measurement — asking twice
+// would let a window that moved between the two answers relocate the second point, which is the
+// hazard this whole boundary exists for, wearing its clothes. So the questions are asked here and
+// the arithmetic is done by whoever knows how many points it has.
+//
+// It validates nothing about the offsets. `measuredFrom` has already read and bounded those, and
+// taking the measurement as a parameter is what makes it impossible to reach a check here holding
+// a term nobody validated.
+func (h *Host) confirmWindow(m measuredWindow) (atWindow, string) {
 	wantW, wantH, wantDpi, wantProc := m.w, m.h, m.dpi, m.process
-	rx, ry := m.rx, m.ry
 	hwnd, app, boundPID := h.binding()
 	if hwnd == 0 {
 		// NOTHING WAS BOUND. A guarded point has no window to be about: either no
 		// Activate ran, or the one that ran could not find its window. Refusing is
 		// the whole of the opt-in — the alternative is the legacy fallback, which is
 		// what this route asked not to have.
-		return 0, 0, "this press was recorded inside a window and no window was " +
-			"brought to the front for it, so there is nothing to measure it " +
-			"against"
+		return atWindow{}, "this press was recorded inside a window and no window " +
+			"was brought to the front for it, so there is nothing to measure " +
+			"it against"
 	}
 	if boundPID == 0 {
 		// THE WINDOW WAS FOUND AND ITS OWNER WAS NOT. Without the process that
 		// held the handle at preparation time there is no way to tell this window
 		// from a second copy of the same program that inherited the handle, and
 		// the image-name check below would agree with both.
-		return 0, 0, fmt.Sprintf("the %s window brought to the front would not "+
+		return atWindow{}, fmt.Sprintf("the %s window brought to the front would not "+
 			"say which program it belongs to, so a press in it could not be "+
 			"told from a press in another copy of the same program", app)
 	}
@@ -2078,25 +2114,25 @@ func (h *Host) checkGuarded(set *runtime.Set, x, y int) (px, py int, why string)
 	f := windowFacts(hwnd)
 	switch {
 	case !f.Alive:
-		return 0, 0, fmt.Sprintf("the %s window this was recorded in has closed", app)
+		return atWindow{}, fmt.Sprintf("the %s window this was recorded in has closed", app)
 	case !f.Front:
-		return 0, 0, fmt.Sprintf("the %s window is no longer in front, so a press "+
+		return atWindow{}, fmt.Sprintf("the %s window is no longer in front, so a press "+
 			"would land in whatever is", app)
 	case f.W == 0 || f.H == 0:
-		return 0, 0, fmt.Sprintf("the %s window would not say how big it is", app)
+		return atWindow{}, fmt.Sprintf("the %s window would not say how big it is", app)
 	case f.Dpi == 0:
 		// UNREADABLE IS NOT MATCHING. This press was recorded at a scale, and a
 		// desktop that will not report the current one cannot be compared with it
 		// — so the honest answer is that nobody can say whether the controls in
 		// that window are where they were drawn.
-		return 0, 0, fmt.Sprintf("the %s window would not say what scale it is "+
+		return atWindow{}, fmt.Sprintf("the %s window would not say what scale it is "+
 			"drawn at, and this press was recorded at %d dpi", app, wantDpi)
 	case f.PID != boundPID:
 		// AND THE HANDLE'S OWNER HAS CHANGED SINCE PREPARATION. The image-name
 		// check below cannot see this: two copies of one program have the same
 		// executable, so the window answering here would pass it while being a
 		// window the route never brought to the front.
-		return 0, 0, fmt.Sprintf("the window prepared for this press was %s "+
+		return atWindow{}, fmt.Sprintf("the window prepared for this press was %s "+
 			"process %d and that handle now belongs to process %d, which is "+
 			"another copy of the program and not the one activated",
 			app, boundPID, f.PID)
@@ -2110,15 +2146,15 @@ func (h *Host) checkGuarded(set *runtime.Set, x, y int) (px, py int, why string)
 	is := imageOf(f.PID)
 	switch {
 	case is == "":
-		return 0, 0, fmt.Sprintf("the program that owns the %s window will not "+
+		return atWindow{}, fmt.Sprintf("the program that owns the %s window will not "+
 			"say what it is, and this press was recorded in %s", app, wantProc)
 	case !strings.EqualFold(is, wantProc):
-		return 0, 0, fmt.Sprintf("this was recorded in %s and that window "+
+		return atWindow{}, fmt.Sprintf("this was recorded in %s and that window "+
 			"now belongs to %s", wantProc, is)
 	}
 	// ── THE SHAPE, EXACTLY ──
 	if f.W != wantW || f.H != wantH {
-		return 0, 0, fmt.Sprintf("this was recorded in a %s window of "+
+		return atWindow{}, fmt.Sprintf("this was recorded in a %s window of "+
 			"%dx%d and it is %dx%d now, so what is inside it is not "+
 			"where it was", app, wantW, wantH, f.W, f.H)
 	}
@@ -2129,19 +2165,12 @@ func (h *Host) checkGuarded(set *runtime.Set, x, y int) (px, py int, why string)
 	// rectangle never moved, so the check above passes and everything in the window is
 	// somewhere else.
 	if f.Dpi != wantDpi {
-		return 0, 0, fmt.Sprintf("this was recorded at %d dpi and the %s window "+
+		return atWindow{}, fmt.Sprintf("this was recorded at %d dpi and the %s window "+
 			"is at %d now, so what is inside it has been redrawn at another "+
 			"scale", wantDpi, app, f.Dpi)
 	}
-	px, py = f.Left+rx, f.Top+ry
-	mlog.Debug("click: guarded",
-		"app", app, "window", fmt.Sprintf("hwnd:%#x", hwnd),
-		"recorded", fmt.Sprintf("(%d,%d)", x, y),
-		"wantRel", fmt.Sprintf("(%d,%d)", rx, ry),
-		"origin", fmt.Sprintf("(%d,%d)", f.Left, f.Top),
-		"shape", fmt.Sprintf("%dx%d at %d dpi", f.W, f.H, f.Dpi),
-		"clicked", fmt.Sprintf("(%d,%d)", px, py))
-	return px, py, ""
+	return atWindow{left: f.Left, top: f.Top, w: f.W, h: f.H, dpi: f.Dpi,
+		hwnd: hwnd, app: app}, ""
 }
 
 // windowFacts and imageOf are the two desktop questions the guarded press boundary asks.
