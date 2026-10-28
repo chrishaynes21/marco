@@ -422,17 +422,7 @@ func (a *Acts) SaveDraft(scope, app string) string {
 // Refused rather than defaulted: a scope nobody recognised becoming "only in this application"
 // is the window choosing where somebody's routine works and not telling them.
 func wantedScope(scope string) (orchestrator.Scope, string) {
-	switch orchestrator.Scope(strings.TrimSpace(scope)) {
-	case orchestrator.ScopeApp:
-		return orchestrator.ScopeApp, ""
-	case orchestrator.ScopeAppAnywhere:
-		return orchestrator.ScopeAppAnywhere, ""
-	case orchestrator.ScopeEverywhere:
-		return orchestrator.ScopeEverywhere, ""
-	}
-	return "", fmt.Sprintf("say where it should work: %q, %q or %q",
-		orchestrator.ScopeApp, orchestrator.ScopeAppAnywhere,
-		orchestrator.ScopeEverywhere)
+	return orchestrator.WantedScope(scope)
 }
 
 // Recording is the capture in flight, or the draft waiting to be looked at.

@@ -172,6 +172,17 @@ go run ./cmd/gate                      # its first stage alone, which needs no s
   BOM-less file as ANSI, so a box-drawing character or an em dash in a script written as plain
   UTF-8 becomes a parse error with a mangled caret — which is what the first `gate.ps1` did,
   before a single stage ran.
+- **Keeping a recording is ONE set of rules, in `orchestrator.Keep`, and every surface obeys
+  them.** Studio gained drafts and the consolidation did not come with them: `marco learn` and the
+  widget had a second copy of the same pipeline with none of the rules, so learning a name twice
+  REPLACED the first routine, and two of the three scope answers saved a routine that refuses
+  every press. Both measured. Scope validity, the collision check and the replacement-identity
+  re-check live in `Keep` now; each surface supplies only the interaction — Studio a card,
+  `marco learn` a question naming the exact application/scope/route with ENTER MEANING NO, and the
+  widget's unattended `LearnAuto` a refusal, because it saves with nobody having looked. What is
+  NOT shared, on purpose: the capture mode (the terminal states nothing and still does) and the
+  owner-strip rule (`Deps.OwnerTailOnly`). `saveTaught`/`chooseScope` are retained for
+  `LearnVoice`. See [[ADR-266-one-set-of-rules-for-keeping-a-recording]].
 - **Studio can be ASKED for a routine in words, and the resolver it asks was dead.**
   `internal/dispatch` + `plugins/llama` + a local Ollama had a Dispatcher, an Advisor, a
   trust-but-verify `validate` and `$MARCO_RESOLVER` pinned by `setup.ps1` — reached only by

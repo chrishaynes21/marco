@@ -100,6 +100,30 @@ type Deps struct {
 	// click. The process that owned the foreground window at the instant of the event does
 	// not have that problem, because it is read at the instant of the event.
 	OwnerPID uint32
+	// OwnerTailOnly takes the owner's window out ONLY off the tail of a recording the
+	// BUTTON ended, instead of wherever it appears.
+	//
+	// # Two rules, both deliberate, and neither chosen by accident
+	//
+	// The default — false — is the window's: the owner comes out WHEREVER IT IS, because a
+	// window is glanced at. Pressing a button in Studio means bringing Studio forward and
+	// clicking in it, and a glance mid-demonstration costs the click before it as well as
+	// the one at the end. That is what
+	// [[ADR-249-ending-a-recording-is-not-part-of-the-recording]] is about, and it is what
+	// `Capture.Finish` has always done.
+	//
+	// THE TERMINAL AND THE WIDGET ASK FOR THE OTHER ONE, which is what they have always
+	// done: the strip ran only for a recording the BUTTON ended, so a recording ended by
+	// the stop GESTURE kept whatever it always kept — including a click somebody made in
+	// Marco's own window. `TestAGestureEndedRecordingIsNotStripped` exists to record that
+	// changing that would be a separate decision rather than a tidy-up, so moving those
+	// two onto this pipeline must not change it in passing. In production the difference
+	// is unreachable for them: `cmd/marco` sets no owner at all. It is preserved because
+	// it was stated, not because it is load-bearing.
+	//
+	// One pipeline, two stated policies. See
+	// [[ADR-266-one-set-of-rules-for-keeping-a-recording]].
+	OwnerTailOnly bool
 	// StopWhen ends a recording from outside the captured input — the button, rather
 	// than the stop key. Nil leaves the gesture as the only way to finish.
 	//
@@ -244,8 +268,9 @@ func (d Deps) activeApp() string {
 	return d.App()
 }
 
-// Learn records a demonstration of name, simplifies it into a route, saves it, and prompts at
-// every step: what was recorded, whether to simplify further, and where the play should work.
+// Learn records a demonstration of name, makes a DRAFT of it, prompts at every step — what was
+// recorded, whether to simplify further, and where the play should work — and keeps it through the
+// one set of save rules.
 //
 // LEARN is the person acting while Marco watches — see the LEARN/TEACH/DO invariant in CLAUDE.md.
 // This doc comment said "Teach records…" until Phase 3, left behind by the acquisition rename;
@@ -253,36 +278,33 @@ func (d Deps) activeApp() string {
 //
 // The user performs the actions and presses the stop gesture (F12 by default, `StopKey`) to
 // finish. Esc is deliberately NOT the default, so a play can record Esc as an ordinary key.
+//
+// # It is an ADAPTER now, and it used to be a second implementation
+//
+// It started the recorder itself, waited for the stop itself, simplified itself, and wrote
+// through `saveTaught` — the same pipeline Studio reaches through `Begin` → `Finish` → `Save`,
+// written again. The two then disagreed about what saving means, and the disagreement cost
+// somebody's routine: learning a name twice REPLACED the first one, with nothing asked and
+// nothing said. See keep.go.
+//
+// So the recording, the simplification and the save rules are the shared ones, and what is left
+// here is the INTERACTION: four prompts on a terminal, which is what this surface is.
 func (d Deps) Learn(name string) error {
-	// "say hello with name, count" declares named args; the route is the part before
-	// "with". Reassign name to the route so the rest of the flow (slug, codegen, save)
-	// is unchanged.
-	name, argNames := routes.SplitArgs(name)
+	base, argNames := routes.SplitArgs(name)
 	stop := recorder.ParseStopKey(d.StopKey)
-	fmt.Fprintf(d.Out, "Show me how to %q. Do it now, then press %s when finished.\n", name, stop.Label())
+	fmt.Fprintf(d.Out, "Show me how to %q. Do it now, then press %s when finished.\n", base, stop.Label())
 	fmt.Fprintf(d.Out, "(For a password, type {{name}} and set it with: marco secret set <name>.%s)%s\n", d.argKeyHint(argNames), anchorKeyHint())
-	mlog.Debug("record: starting recorder", "route", name, "stop_key", stop.Label())
-	if err := d.Rec.Start(); err != nil {
-		return fmt.Errorf("can't record on this platform: %w", err)
-	}
-	byButton := waitForStop(d.Rec, &stop, d.StopWhen)
-	events := stripTrailingStop(d.Rec.Stop(), stop)
-	if byButton {
-		events = stripTrailingOwner(events, d.Owner, d.OwnerPID)
-	}
-	mlog.Debug("record: recording done", "route", name, "events", len(events))
 
-	// The faithful recording is the default; "simplify further" re-runs the whole
-	// pipeline from the raw events with typing-rhythm folding on — re-running from
-	// events (not the folded steps) lets typing coalesce into Type steps before
-	// loop-folding ever sees repeated letters.
-	opts := d.learnOptions()
-	opts.ArgNames = argNames
-	steps, refused := simplify.Simplify(events, opts)
-	d.enrichAnchors(steps) // OCR each demonstrated anchor's button → text locator
-	mlog.Info("record: simplified", "route", name, "events", len(events), "steps", len(steps))
-	if len(steps) == 0 {
-		mlog.Warn("record: nothing recorded", "route", name)
+	// THE LEGACY OWNER RULE, ASKED FOR RATHER THAN INHERITED. See Deps.OwnerTailOnly:
+	// this surface strips the owner only off a button-ended recording, which is what it
+	// has always done, and moving onto the shared pipeline must not change it in passing.
+	c, err := d.asTerminal().Begin(name)
+	if err != nil {
+		return err
+	}
+	dr := c.Finish()
+	if len(dr.Steps) == 0 {
+		mlog.Warn("record: nothing recorded", "route", dr.Name)
 		fmt.Fprintln(d.Out, "Nothing was recorded — not saving.")
 		return nil
 	}
@@ -293,64 +315,173 @@ func (d Deps) Learn(name string) error {
 	// the sentence names what it was and what to do instead. The alternative is a routine
 	// that quietly does something else and reads as a faithful recording of what was
 	// shown. See simplify.modifierTrouble.
-	if refused != nil {
-		mlog.Warn("record: refused", "route", name, "why", refused.Error())
-		fmt.Fprintf(d.Out, "Not saving: %s.\n", refused)
+	if dr.Unrepresentable != "" {
+		mlog.Warn("record: refused", "route", dr.Name, "why", dr.Unrepresentable)
+		fmt.Fprintf(d.Out, "Not saving: %s.\n", dr.Unrepresentable)
 		return nil
 	}
-	// The route's primary app — for scope and the context comment — is the app it
-	// actually starts working in (the recorder's first detected app switch). When
-	// the recorder supplied no app info (e.g. a non-Windows backend), fall back to
-	// the foreground app now.
-	app := firstActivateApp(steps)
-	if app == "" {
-		app = d.activeApp()
+	if dr.App != "" {
+		fmt.Fprintf(d.Out, "(context: %s)\n", dr.App)
 	}
-	// Preview with relative template names; the saved copy embeds the real
-	// per-scope directory once scope is chosen below.
-	src, _, err := codegen.Route(name, app, steps, "", argNames...)
-	if err != nil {
+	if err := d.preview("Recorded", dr); err != nil {
 		return err
 	}
-	if app != "" {
-		fmt.Fprintf(d.Out, "(context: %s)\n", app)
-	}
-	fmt.Fprintf(d.Out, "Recorded %d steps:\n--- route ---\n%s\n", len(steps), src)
 
-	// Save / discard / simplify-further. Simplify is a one-shot (it folds as far
-	// as it goes), so once it's run the prompt drops back to just save/discard.
+	// Save / discard / simplify-further. Simplify is a one-shot (it folds as far as it
+	// goes), so once it has run the prompt drops back to just save/discard — and it
+	// rebuilds the DRAFT from the demonstration rather than re-folding the steps, which
+	// is what lets typing coalesce before loop-folding ever sees repeated letters.
+	simplified := false
 	for {
-		action := d.chooseSave(name, opts.TypingRhythmMs == 0)
-		if action == actionDiscard {
+		switch d.chooseSave(dr.Name, !simplified) {
+		case actionDiscard:
+			// NOTHING WAS WRITTEN, which is the whole of Cancel: the draft was
+			// never on disk, so dropping it is the entire operation.
 			fmt.Fprintln(d.Out, "Discarded.")
 			return nil
+		case actionSave:
+			return d.keepWhatWasShown(dr)
 		}
-		if action == actionSave {
-			break
-		}
-		// actionSimplify (only offered while not yet simplified)
-		opts.TypingRhythmMs = simplify.AggressiveTypingRhythmMs
-		if steps, refused = simplify.Simplify(events, opts); refused != nil {
+		next := d.draftFor(RebuildSimplifyTyping, nameWithArgs(dr), dr.Events, dr.App,
+			dr.StoppedBy, dr.Mode)
+		if next.Unrepresentable != "" {
 			// A REFUSAL CANNOT ARRIVE HERE THAT WAS NOT ALREADY TRUE ABOVE.
 			// "Simplify further" re-runs the same pipeline over the same events
 			// with typing folded harder, and what gets refused is a property of
 			// the EVENTS. Answered anyway rather than dropped: a reason that
 			// could only appear by surprise is the one worth not swallowing.
-			fmt.Fprintf(d.Out, "Not saving: %s.\n", refused)
+			fmt.Fprintf(d.Out, "Not saving: %s.\n", next.Unrepresentable)
 			return nil
 		}
-		d.enrichAnchors(steps) // re-simplify rebuilds steps from events → re-label anchors
-		if src, _, err = codegen.Route(name, app, steps, "", argNames...); err != nil {
+		dr, simplified = next, true
+		if err := d.preview("Simplified to", dr); err != nil {
 			return err
 		}
-		fmt.Fprintf(d.Out, "Simplified to %d steps:\n--- route ---\n%s\n", len(steps), src)
 		// On a front-end that can't show the preview (the overlay), "simplify" means
 		// "simplify and save" — don't re-prompt for a result the user can't see.
 		if d.SimplifySaves {
-			break
+			return d.keepWhatWasShown(dr)
 		}
 	}
-	return d.saveTaught(name, argNames, steps, app, events)
+}
+
+// preview prints the route a draft would become, without writing anything.
+//
+// With relative template names: the saved copy embeds the real per-scope directory once the scope
+// is chosen, and a preview that embedded one would be showing a path the save may not use.
+func (d Deps) preview(said string, dr *Draft) error {
+	src, _, err := codegen.Route(dr.Name, dr.App, dr.Steps, "", dr.Args...)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(d.Out, "%s %d steps:\n--- route ---\n%s\n", said, len(dr.Steps), src)
+	return nil
+}
+
+// nameWithArgs puts a draft's argument names back on its name, which is what `draftFor` splits.
+//
+// Because a draft has already had them taken off. Rebuilding from `dr.Name` alone would lose the
+// declared arguments, and a routine that quietly stopped taking the arguments somebody declared
+// is a routine that looks fine and refuses when it is asked for.
+func nameWithArgs(dr *Draft) string {
+	if len(dr.Args) == 0 {
+		return dr.Name
+	}
+	return dr.Name + " with " + strings.Join(dr.Args, ", ")
+}
+
+// keepWhatWasShown asks where the routine should work and keeps it there.
+//
+// The two refusals a terminal can answer are answered HERE rather than guessed around: a scope
+// this recording cannot be performed under is re-asked with the one that works named, and a name
+// already in the library is a question with Enter meaning NO.
+func (d Deps) keepWhatWasShown(dr *Draft) error {
+	scope := d.askScope(dr)
+	// REFUSED AND NOT RE-ASKED, which is the bounded shape of this.
+	//
+	// `askScope` already declines to offer a scope this recording cannot be performed
+	// under, so reaching this is a disagreement between the two and not a person's
+	// mistake. The first version looped back to the question instead — and `readLine` on a
+	// closed stdin answers "" for ever, so a terminal whose input had gone would have sat
+	// there asking itself the same question until somebody killed it.
+	if why := d.WhyNotThisScope(dr, scope); why != "" {
+		fmt.Fprintf(d.Out, "Not saving: %s\n", why)
+		return nil
+	}
+	{
+		rt, err := d.Keep(dr, scope, "", "")
+		if err == nil {
+			d.saidKept(dr, scope, rt, "Learned")
+			return nil
+		}
+		// ── ALREADY THERE, AND THE QUESTION NAMES EXACTLY WHAT WOULD GO ──
+		//
+		// Not a retry of the same save: `Keep` refused, and what follows is a
+		// DIFFERENT request — replace that one identity and no other — which it
+		// re-checks at the instant of writing. Enter means no, because the cost of
+		// the two answers is not the same: no costs a second attempt, and yes
+		// costs a routine and the demonstration beside it, neither of which comes
+		// back.
+		at := d.Collision(dr, scope, "")
+		if !at.Exists {
+			return err
+		}
+		fmt.Fprintf(d.Out, "%s\n", at.Says)
+		if !d.confirmDefaultNo(fmt.Sprintf("Replace %q (%s) in the library — "+
+			"its steps and its demonstration? [y]es / [N]o: ",
+			at.Name, at.ID)) {
+			fmt.Fprintln(d.Out, "Left alone. Nothing was saved.")
+			return nil
+		}
+		rt, err = d.Keep(dr, scope, "", at.ID)
+		if err != nil {
+			return err
+		}
+		d.saidKept(dr, scope, rt, fmt.Sprintf("Replaced %q with", at.Name))
+		return nil
+	}
+}
+
+// saidKept is the one line a terminal gets when something was written.
+func (d Deps) saidKept(dr *Draft, scope Scope, rt routes.Route, kept string) {
+	mlog.Info("record: saved", "route", dr.Name, "scope", string(scope),
+		"steps", len(dr.Steps), "path", d.Reg.Path(rt))
+	fmt.Fprintf(d.Out, "%s %q (%s) → %s\n", kept, dr.Name, scopeLabel(scope.mode(), dr.App),
+		d.Reg.Path(rt))
+}
+
+// askScope asks where the routine should work, offering only the scopes it can be saved under.
+//
+// With no application there is only one answer and it is not asked for. Where the recording's
+// presses check their own window there is also only one, and it IS said — because a person who
+// expected "only here" needs to know why they are not being offered it, and a surface that
+// silently narrowed the choice would be the one deciding.
+func (d Deps) askScope(dr *Draft) Scope {
+	if dr.App == "" {
+		return ScopeEverywhere
+	}
+	if only := ScopeFor(dr); only != "" {
+		fmt.Fprintf(d.Out, "Every press in this recording checks the window it was made "+
+			"in, so it has to bring %s forward: saving it to work only in place "+
+			"would refuse every press.\n", dr.App)
+		return only
+	}
+	for {
+		fmt.Fprintf(d.Out, "Where? [c] only in %s / [f] in %s from anywhere / [g] anywhere: ",
+			dr.App, dr.App)
+		if d.In == nil {
+			return ScopeApp
+		}
+		switch strings.TrimSpace(strings.ToLower(readLine(d.In))) {
+		case "", "c", "context", "here", "only here":
+			return ScopeApp
+		case "f", "focus", "switch":
+			return ScopeAppAnywhere
+		case "g", "global", "anywhere", "everywhere":
+			return ScopeEverywhere
+		}
+		fmt.Fprintln(d.Out, "Please answer c (only here), f (anywhere + focus), or g (anywhere).")
+	}
 }
 
 // scopeMode is where a recorded route is available and whether it switches windows.
@@ -460,67 +591,69 @@ func stripLeadingActivate(steps []macroir.Step) []macroir.Step {
 // (global only if no app context). This is what the overlay uses so learning is
 // driven entirely from the HUD (record → F12 → saved) without a console window.
 func (d Deps) LearnAuto(name string) error {
-	name, argNames := routes.SplitArgs(name)
+	base, argNames := routes.SplitArgs(name)
 	stop := recorder.ParseStopKey(d.StopKey)
-	mlog.Debug("record-auto: starting recorder", "route", name, "stop_key", stop.Label())
-	fmt.Fprintf(d.Out, "Recording %q — do it now, press %s when done.%s%s\n", name, stop.Label(), d.argKeyHint(argNames), anchorKeyHint())
-	if err := d.Rec.Start(); err != nil {
-		return fmt.Errorf("can't record on this platform: %w", err)
-	}
-	byButton := waitForStop(d.Rec, &stop, d.StopWhen)
-	events := stripTrailingStop(d.Rec.Stop(), stop)
-	if byButton {
-		events = stripTrailingOwner(events, d.Owner, d.OwnerPID)
-	}
-	mlog.Debug("record-auto: recording done", "route", name, "events", len(events))
+	fmt.Fprintf(d.Out, "Recording %q — do it now, press %s when done.%s%s\n", base,
+		stop.Label(), d.argKeyHint(argNames), anchorKeyHint())
 
-	opts := d.learnOptions()
-	opts.ArgNames = argNames
-	steps, refused := simplify.Simplify(events, opts)
-	d.enrichAnchors(steps) // OCR each demonstrated anchor's button → text locator
-	mlog.Info("record-auto: simplified", "route", name, "events", len(events), "steps", len(steps))
-	if len(steps) == 0 {
-		mlog.Warn("record-auto: nothing recorded", "route", name)
+	c, err := d.asTerminal().Begin(name)
+	if err != nil {
+		return err
+	}
+	dr := c.Finish()
+	if len(dr.Steps) == 0 {
+		mlog.Warn("record-auto: nothing recorded", "route", dr.Name)
 		fmt.Fprintln(d.Out, "Nothing was recorded — not saving.")
 		return nil
 	}
 	// AND THE SAME REFUSAL, which matters MORE here than in the reviewed path: auto-learn
 	// saves without showing anybody the route first, so a gesture that came out as
 	// something else would reach the library with nobody having looked at it.
-	if refused != nil {
-		mlog.Warn("record-auto: refused", "route", name, "why", refused.Error())
-		fmt.Fprintf(d.Out, "Not saving: %s.\n", refused)
+	if dr.Unrepresentable != "" {
+		mlog.Warn("record-auto: refused", "route", dr.Name, "why", dr.Unrepresentable)
+		fmt.Fprintf(d.Out, "Not saving: %s.\n", dr.Unrepresentable)
 		return nil
 	}
-	app := firstActivateApp(steps)
-	if app == "" {
-		app = d.activeApp()
+	// ── A SCOPE THIS RECORDING CAN ACTUALLY BE PERFORMED UNDER ──
+	//
+	// Auto-learn defaulted to a CONTEXT route for the app it was recorded in, global if
+	// there was no app. For a recording whose presses check their own window that is a
+	// routine that refuses every press, saved with nobody having looked at it — measured, on
+	// this path. So the draft is asked what it can be saved as first, and the default is
+	// what is left.
+	scope := ScopeFor(dr)
+	if scope == "" {
+		scope = ScopeApp
+		if dr.App == "" {
+			scope = ScopeEverywhere
+		}
 	}
-	// Auto-learn defaults to a CONTEXT route (foreground-only) for the app it was recorded
-	// in — global if there's no app. Neither switches windows, so drop a leading Activate.
-	rt := routes.Route{App: app, Slug: routes.Slug(name)} // Focus=false → context
-	steps = stripLeadingActivate(steps)
-	finalSrc, assets, err := codegen.Route(name, "", steps, d.Reg.ScopeDir(rt), argNames...)
+	if why := d.WhyNotThisScope(dr, scope); why != "" {
+		// UNREACHABLE AND REFUSED ANYWAY. `ScopeFor` just named this scope, so it
+		// cannot be one the draft rejects; if that ever stops being true the answer
+		// is to refuse rather than to write the routine it would refuse to perform.
+		mlog.Warn("record-auto: no scope fits", "route", dr.Name, "why", why)
+		fmt.Fprintf(d.Out, "Not saving: %s\n", why)
+		return nil
+	}
+	// ── AND A COLLISION IS REFUSED, BECAUSE THERE IS NOBODY TO ASK ──
+	//
+	// This is the widget's unattended path: record, press F12, saved, no prompt and no
+	// review. It REPLACED a routine of the same name — the library kept one, the file held
+	// the second recording, and the line printed said `Learned` as though it were a fresh
+	// save. Of the three surfaces this is the one where a silent overwrite is worst, so it
+	// is the one that will not do it at all: the existing routine is named, it is left
+	// exactly as it is, and nothing is written.
+	rt, err := d.Keep(dr, scope, "", "")
 	if err != nil {
-		return err
+		mlog.Warn("record-auto: not saved", "route", dr.Name, "err", err)
+		fmt.Fprintf(d.Out, "Not saving: %v\n", err)
+		return nil
 	}
-	mlog.Info("record-auto: saving", "route", name, "app", app, "path", d.Reg.Path(rt))
-	if err := d.Reg.Save(rt, finalSrc); err != nil {
-		mlog.Error("record-auto: save failed", "route", name, "err", err)
-		return err
-	}
-	if err := d.Reg.WriteAssets(assets); err != nil {
-		return err
-	}
-	if data, mErr := json.Marshal(events); mErr == nil {
-		_ = d.Reg.SaveRecording(rt, data)
-	}
-	where := "everywhere"
-	if app != "" {
-		where = "in " + app
-	}
-	mlog.Info("record-auto: saved", "route", name, "app", app, "steps", len(steps))
-	fmt.Fprintf(d.Out, "Learned %q (%s), %d steps\n", name, where, len(steps))
+	mlog.Info("record-auto: saved", "route", dr.Name, "scope", string(scope),
+		"steps", len(dr.Steps), "path", d.Reg.Path(rt))
+	fmt.Fprintf(d.Out, "Learned %q (%s), %d steps\n", dr.Name,
+		scopeLabel(scope.mode(), dr.App), len(dr.Steps))
 	return nil
 }
 
@@ -1087,6 +1220,35 @@ func (d Deps) chooseSave(name string, canSimplify bool) learnAction {
 			fmt.Fprintln(d.Out, "Please answer y (save) or n (discard).")
 		}
 	}
+}
+
+// asTerminal is this Deps with the owner rule the terminal and the widget have always used.
+//
+// A COPY, so nothing a caller handed in is mutated: a `Deps` is passed by value everywhere and a
+// surface that found its own field changed by a call it made would be the kind of surprise this
+// project spends its comments on. One line, in one place, named after the thing it is for.
+func (d Deps) asTerminal() Deps {
+	d.OwnerTailOnly = true
+	return d
+}
+
+// confirmDefaultNo prints a prompt and reports whether the reply is an explicit yes.
+//
+// ENTER MEANS NO, which is the opposite of `confirm` one function down and is the whole reason
+// this exists. `confirm` is for questions whose two answers cost about the same; this is for the
+// one that does not — no costs a second attempt, and yes costs a routine and the demonstration
+// beside it, neither of which comes back. A person pressing Enter through a prompt they did not
+// read must not lose work by it.
+func (d Deps) confirmDefaultNo(prompt string) bool {
+	fmt.Fprint(d.Out, prompt)
+	if d.In == nil {
+		return false
+	}
+	switch strings.TrimSpace(strings.ToLower(readLine(d.In))) {
+	case "y", "yes":
+		return true
+	}
+	return false
 }
 
 // confirm prints a prompt and reports whether the reply is affirmative

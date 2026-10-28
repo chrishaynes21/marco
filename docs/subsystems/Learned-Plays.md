@@ -297,6 +297,21 @@ is, avoids what just failed for the rest of this attempt, and asks the same plan
 way — bounded, explained, and with nothing durable written about the failure. See
 [[ADR-099-a-failed-attempt-is-not-a-false-edge]].
 
+## And keeping what was shown is one set of rules
+
+A recording becomes a routine through one place, whichever surface took it: `orchestrator.Keep`
+decides whether the scope word means anything, whether the draft can be performed under the scope
+asked for, what is already where it would go, and whether a replacement is the one somebody agreed
+to — re-checked at the instant of writing, because between the question and the answer that
+routine can be deleted or saved again from a terminal.
+
+It did not used to. Studio held those rules and `marco learn` and the widget had a second copy of
+the pipeline without them, so learning a name twice replaced the first routine with nothing said,
+and two of the three scope answers wrote a routine that refuses every press. The surfaces now
+supply only the interaction: a card, a question whose Enter means NO, or — where nobody is
+looking — a refusal. What is deliberately not shared is what each path CAPTURES. See
+[[ADR-266-one-set-of-rules-for-keeping-a-recording]].
+
 ## Related
 
 - [[Plays]] — what the person is holding once this chain finishes: kind, scope, standing

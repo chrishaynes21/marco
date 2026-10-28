@@ -11286,3 +11286,84 @@ change with its own question, since the overlay does not own the foreground. Als
 to `internal/invoke`, a second execution path in Studio, a new scope, and argument extraction.
 
 See [[ADR-265-say-what-you-want-and-studio-offers-the-routine]], [[Plays]] and [[Invocation]].
+
+## 47. One set of rules for keeping a recording
+
+The consolidation that should have happened when Studio gained drafts, done now because the two
+things it was holding apart were both measured.
+
+### What the probes found
+
+`marco learn` and the widget never used Studio's draft workflow. They had a second implementation
+of the same pipeline — start the recorder, wait, simplify, write — and only Studio's copy had the
+rules a save has to obey. Two consequences, both reproduced before anything was changed:
+
+**A collision overwrote, silently.** `marco learn "the same name"` twice with different
+recordings: the second replaced the file, the library still held one routine, and the output said
+`Learned …` as though it were a fresh save. `saveTaught` went straight to `Reg.Save`, which
+truncates. Re-recording is what somebody testing a routine does all afternoon, which makes the
+likeliest casualty the routine they were comparing against.
+
+**Two of the three scope answers produced a routine that refuses every press.** With a
+window-checking click recorded, `c` (only here) and `g` (anywhere) both saved, and
+`Deps.Unrunnable()` — the same reader Studio greys the Play button with — reported the routine
+that had just been written.
+
+One expectation was wrong and is recorded as checked: `LearnAuto` **does** refuse an
+unrepresentable gesture. Not a gap.
+
+### The shape of the fix
+
+The enforcement moved **down** into `orchestrator.Keep`: whether a scope word means anything,
+whether this draft can be saved under the scope asked for, what is already where it would go, and
+whether a replacement is the one that was agreed to. `Learn` and `LearnAuto` are thin adapters
+over `Begin` → `Finish` → `Draft` → `Keep`, and Studio's `keep` now calls the same function
+instead of holding the checks itself.
+
+Each surface supplies only the interaction. Studio shows a card. `marco learn` names the exact
+application, scope and route — `notepad/context/the-same-name` — and asks, with **Enter meaning
+no**, because the two answers do not cost the same: no costs a second attempt and yes costs a
+routine and the demonstration beside it. The widget's unattended path **refuses** a collision
+outright, names what is there and preserves it, because it saves with nobody having looked.
+
+A replacement is re-derived and re-checked inside `Keep` at the instant of writing, so a routine
+deleted or saved again while the question was open is refused rather than overwritten. The test
+for that interleaves for real: the reader removes the routine as the `yes` is read.
+
+### What was deliberately NOT shared
+
+**The capture policy.** Studio states coordinate mode; the terminal and the widget state nothing
+and leave the hooks to the environment, which is what every caller before Studio did. Routing them
+through `Begin` preserves that exactly, so their routines still state no mode — truthfully. This
+is shared orchestration and shared save rules, and not an identical capture configuration.
+
+**The owner strip, which the suite caught me nearly flipping.** A window's rule is that the owner
+comes out wherever it is, because a window is glanced at mid-demonstration; the terminal's is the
+tail of a button-ended recording only, and `TestAGestureEndedRecordingIsNotStripped` exists
+precisely to record that changing that would be a separate decision. Putting both paths on one
+pipeline changed it in passing and three tests failed. It is now a stated field,
+`Deps.OwnerTailOnly`, defaulting to the window's rule because that is what `Finish` has always
+done — I had the default the wrong way round on the first attempt, and the draft tests said so.
+
+**`saveTaught` and `chooseScope` are retained** for `LearnVoice`, which is out of this slice.
+
+### And one loop bounded before it shipped
+
+The terminal's first save re-asked for a scope when the one it got was impossible. `readLine` on a
+closed stdin answers `""` for ever, so a terminal whose input had gone would have sat asking
+itself the same question until somebody killed it. It refuses and returns instead.
+
+### What holds it
+
+**13 of 13 mutations killed**, and the tests enter through `Deps.Learn` and `Deps.LearnAuto` — the
+production entrances — rather than through `Keep`. That matters here more than usual: both
+surfaces had `Save` underneath them already, so a test that exercised the rule without entering
+where a person does would have passed for the whole time the rule was missing.
+
+Seven cases: the collision through all three answers with the library counted; the unattended
+refusal; the interleaved replacement; the scope for all three terminal answers and the unattended
+path, with an ordinary recording as the control so none of it is satisfied by a surface that has
+stopped honouring anybody's choice; the mode stated to the recorder and read back off the file;
+and Cancel leaving nothing in the library at all.
+
+See [[ADR-266-one-set-of-rules-for-keeping-a-recording]].

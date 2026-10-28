@@ -7,25 +7,30 @@ package main
 // Nothing asked, nothing said, nothing kept. Re-recording is what somebody testing a routine does
 // all afternoon, which makes the likeliest casualty the very routine they were comparing against.
 //
-// # The policy is HERE and nowhere lower
+// # The policy USED to be here and nowhere lower
 //
-// The orchestrator, the overlay and `marco learn` overwrite on purpose: teaching a name again is
-// how you correct it there, and that is their contract rather than an oversight. So this window
-// refuses, and the layer underneath keeps the behaviour every other caller was written against.
+// This note said the overlay and `marco learn` overwrite on purpose — that teaching a name
+// again is how you correct it there, their contract rather than an oversight — and that this
+// window refused so the layer underneath could keep the behaviour every other caller was written
+// against. It was a decision about a window, and nobody ever made it about somebody's library:
+// learning a name twice replaced the first routine, with nothing asked and nothing said.
+//
+// So the rules moved DOWN, to `internal/orchestrator`'s `Keep`, and every surface obeys them.
+// What is left here is this window's interaction: a card that offers Replace, the three ways in,
+// and the trial journal. See [[ADR-266-one-set-of-rules-for-keeping-a-recording]].
 //
 // # And the check a save trusts is its own
 //
 // `Collision` exists so the page can offer the choice before anybody presses anything. It is not
-// what protects the library. Every save asks again, because between the question and the answer
-// somebody can save that name from a terminal — and a window trusting its earlier look would
-// overwrite at exactly that moment.
+// what protects the library. Every save asks again — inside `Keep` — because between the
+// question and the answer somebody can save that name from a terminal, and a surface trusting its
+// earlier look would overwrite at exactly that moment.
 //
 // Three ways in, one place that writes: as recorded, under another name, or over a routine named
 // out loud.
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/chaynes-simpleclouds/marco/internal/orchestrator"
@@ -33,16 +38,11 @@ import (
 )
 
 // Collision is what is already saved where this recording would go.
-type Collision struct {
-	Exists  bool   `json:"exists"`
-	ID      string `json:"id,omitempty"`   // <app>/<scope>/<slug> — the one that is there
-	Name    string `json:"name,omitempty"` // what the saved routine calls itself
-	SavedAt string `json:"saved_at,omitempty"`
-	// Says is the sentence the person reads. Why is why the question could not be asked
-	// at all — a scope nobody recognised, or nothing recorded to ask about.
-	Says string `json:"says,omitempty"`
-	Why  string `json:"why,omitempty"`
-}
+//
+// THE SHARED ONE, named here so the page's binding is unchanged. It was a copy of the same six
+// fields, and a copy of a thing two surfaces must agree about is a thing they can stop agreeing
+// about. See orchestrator.Collision.
+type Collision = orchestrator.Collision
 
 // Collision answers whether saving this recording under this scope would replace something.
 //
@@ -55,33 +55,14 @@ func (a *Acts) Collision(scope, app string) Collision {
 	return a.collisionFor(dr, scope, app)
 }
 
-// collisionFor is that question asked of one draft under one scope.
+// collisionFor is that question asked of one draft under one scope, through the shared backend.
 func (a *Acts) collisionFor(dr *orchestrator.Draft, scope, app string) Collision {
-	want, why := wantedScope(scope)
+	want, why := orchestrator.WantedScope(scope)
 	if why != "" {
 		return Collision{Why: why}
 	}
 	d := orchestrator.Deps{Reg: a.reg(), Out: &strings.Builder{}}
-	// THE IDENTITY A SAVE WOULD WRITE, from the generator's own derivation rather than
-	// from a second one here. See orchestrator.Deps.Target.
-	rt, err := d.Target(dr, want, strings.TrimSpace(app))
-	if err != nil {
-		return Collision{Why: err.Error()}
-	}
-	st, serr := os.Stat(a.reg().Path(rt))
-	if serr != nil {
-		return Collision{}
-	}
-	c := Collision{Exists: true, ID: routeID(rt), Name: dr.Name,
-		SavedAt: st.ModTime().Local().Format("2006-01-02 15:04")}
-	if raw, rerr := os.ReadFile(a.reg().Path(rt)); rerr == nil {
-		c.Name = orchestrator.NameIn(string(raw), rt.Slug)
-	}
-	c.Says = fmt.Sprintf("there is already a routine saved there: %q, kept on %s. "+
-		"Saving this one over it would replace its steps and the demonstration "+
-		"beside it, and neither can be got back. Give this one another name, or "+
-		"replace that routine on purpose.", c.Name, c.SavedAt)
-	return c
+	return d.Collision(dr, want, app)
 }
 
 // draftToSave is the recording waiting to be kept, or why there is nothing to keep.
@@ -168,44 +149,20 @@ func (a *Acts) ReplaceDraft(id, scope, app string) string {
 // `replacing` empty means a collision is refused. Named, it means this save may replace that one
 // identity and no other.
 func (a *Acts) keep(cp *capture, dr *orchestrator.Draft, scope, app, replacing string) string {
-	want, why := wantedScope(scope)
+	want, why := orchestrator.WantedScope(scope)
 	if why != "" {
 		return why
 	}
-	// ── AND A SCOPE ITS PRESSES CANNOT BE PERFORMED UNDER IS REFUSED, NOT REWRITTEN ──
+	// ── THE RULES ARE THE SHARED ONES AND THE INTERACTION IS THIS WINDOW'S ──
 	//
-	// Quietly saving it as something else would be this window deciding where somebody's
-	// routine works — the thing `wantedScope` exists to prevent — and saving it as asked
-	// would write a routine that refuses every press. So it says which scope it needs and
-	// why, and the person asks again.
-	if only := orchestrator.ScopeFor(dr); only != "" && want != only {
-		where := dr.App
-		if where == "" {
-			where = "the application it was recorded in"
-		}
-		return fmt.Sprintf("every press in this recording checks the window it was "+
-			"made in, and %q brings no window forward — so there would be "+
-			"nothing for those presses to be checked against and every one of "+
-			"them would refuse. Save it to run in %s with Marco bringing it "+
-			"forward.", want, where)
-	}
-	// ── WHAT IS THERE RIGHT NOW, asked again at the save ──
-	at := a.collisionFor(dr, scope, app)
-	switch {
-	case at.Why != "":
-		return at.Why
-	case replacing == "" && at.Exists:
-		return at.Says
-	case replacing != "" && !at.Exists:
-		return fmt.Sprintf("there is no routine %q to replace any more — it has "+
-			"gone since you chose it. Save this recording as it is.", replacing)
-	case replacing != "" && at.ID != replacing:
-		return fmt.Sprintf("this would not replace the routine you chose. You chose "+
-			"%q, and this recording would be saved as %q — press Save again "+
-			"and choose once more.", replacing, at.ID)
-	}
+	// A scope word nobody recognises, a scope these presses cannot be performed under, and
+	// a collision that was not consented to: all three used to be written out here, and
+	// `marco learn` had none of them. `Keep` is where they are now, so this window and
+	// that terminal cannot come to different conclusions about what saving means. What a
+	// refusal LOOKS like is still this window's: a sentence on a card, and a Replace
+	// button that names one routine.
 	d := orchestrator.Deps{Reg: a.reg(), Out: &strings.Builder{}}
-	rt, err := d.Save(dr, want, strings.TrimSpace(app))
+	rt, err := d.Keep(dr, want, app, replacing)
 	if err != nil {
 		return err.Error()
 	}

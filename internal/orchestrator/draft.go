@@ -201,10 +201,21 @@ func (c *Capture) Finish() *Draft {
 	d, name, argNames, stop := c.d, c.name, c.argNames, c.stop
 	byButton := waitForStop(d.Rec, &stop, d.StopWhen)
 	events := stripTrailingStop(d.Rec.Stop(), stop)
-	// THE OWNER'S WINDOW COMES OUT WHEREVER IT IS, not only at the end. See the
-	// package note above for why the tail alone is not enough here.
+	// ── THE OWNER'S WINDOW, UNDER WHICHEVER OF THE TWO RULES THIS DEPS ASKED FOR ──
+	//
+	// Everywhere for a surface that is glanced at, which is what the window needs and why
+	// the tail alone is not enough there; off the tail of a button-ended recording for
+	// everything else, which is what the terminal and the widget have always done. Both
+	// were decided on purpose and neither is this function's to pick. See
+	// Deps.OwnerEverywhere.
 	if d.Owner != "" || d.OwnerPID != 0 {
-		events = withoutRedundantReturns(withoutOwner(events, d.Owner, d.OwnerPID))
+		switch {
+		case !d.OwnerTailOnly:
+			events = withoutRedundantReturns(
+				withoutOwner(events, d.Owner, d.OwnerPID))
+		case byButton:
+			events = stripTrailingOwner(events, d.Owner, d.OwnerPID)
+		}
 	}
 
 	// THE MODE THIS CAPTURE RAN UNDER, not this Deps' now. The same value today — the

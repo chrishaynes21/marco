@@ -312,16 +312,7 @@ func (a *Acts) Routines() []Routine {
 // routes of one name — see Routine.ID. Not the file path: `Registry.Path` resolves a legacy
 // context route to wherever it actually is, which makes it an answer about the filesystem rather
 // than about the route, and an identity that changes when a file moves is not one.
-func routeID(rt routes.Route) string {
-	if rt.App == "" {
-		return routes.GlobalDir + "/" + rt.Slug
-	}
-	scope := routes.ContextDir
-	if rt.Focus {
-		scope = routes.FocusDir
-	}
-	return rt.App + "/" + scope + "/" + rt.Slug
-}
+func routeID(rt routes.Route) string { return orchestrator.RouteID(rt) }
 
 // scopeWord is where a routine works, in the three words the product uses for it.
 func scopeWord(rt routes.Route) string {
