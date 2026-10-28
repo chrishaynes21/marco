@@ -575,74 +575,143 @@ func (d Deps) LearnVoice(name string, env voicelearn.Env, phrases <-chan string,
 	return d.saveTaught(name, argNames, steps, app, nil)
 }
 
-// SimplifyRoute re-simplifies an already-saved route from its stored
-// demonstration — folding it as far as it goes (typing rhythm included) — shows
-// the result, and overwrites the route in place if confirmed. A route with no
-// stored recording (recorded before recordings were kept, or hand-written) can't
-// be re-simplified; record it again instead. Re-simplifying always starts from the
-// raw events, never the already-folded steps, so nothing is lost to an earlier
-// pass (e.g. repeated letters that a loop-fold would otherwise have swallowed).
+// SimplifyRoute re-renders an already-saved routine from its stored demonstration with the typed
+// runs folded further, shows what that would be, and replaces the routine if the person says so.
+//
+// # It goes through the review flow, and that closed four things
+//
+// This used to resolve a name, re-simplify, print, prompt and write. Each of those was wrong in a
+// way that had already been ruled on somewhere else:
+//
+//   - IT SIMPLIFIED UNDER THE ENVIRONMENT'S MODE. `d.learnOptions()` reads this process's idea of
+//     what a recording captures, and the simplification depends on it: with no anchor to wait on,
+//     the recorded gaps are the only waiting a routine has. A routine whose file states
+//     `coordinates`, simplified by a process launched with `$MARCO_CV=on`, had every gap capped to
+//     50ms and nothing put in its place — a menu pressed before it had drawn. The defect
+//     [[ADR-254-what-a-recording-captures-is-stated]] fixed in `Resave`, still here until now.
+//   - IT DELETED THE `// Recorded as:` LINE, because it wrote through `codegen.Route` rather than
+//     `RouteAs`. The other half of the same defect: a claim about somebody's afternoon edited out
+//     of their file by a tidy-up.
+//   - IT WROTE WITH `Reg.Save` AND `Reg.WriteAssets` — create-or-truncate on the source, and
+//     overwriting on the images. Both refused on the review path; see `Deps.Replace`.
+//   - AND NOTHING CHECKED THE FILE WAS STILL THE ONE IT HAD PRINTED, across a gap containing a
+//     human answering a prompt — the longest such window in this product.
+//
+// So the rebuild, the mode, the scope, the token, both digests and the writing are the review
+// flow's, and what is left here is a command: find exactly one routine, show it, ask, replace.
 func (d Deps) SimplifyRoute(name string) error {
-	rt, ok := d.Reg.Resolve(d.activeApp(), name)
-	if !ok {
-		return fmt.Errorf("I don't know %q", name)
-	}
-	data, ok := d.Reg.LoadRecording(rt)
-	if !ok {
-		return fmt.Errorf("I don't have a recording for %q, so I can't re-simplify it — record it again with: marco learn %q", name, name)
-	}
-	var events []recorder.RecordedEvent
-	if err := json.Unmarshal(data, &events); err != nil {
-		return fmt.Errorf("the recording for %q is unreadable: %w", name, err)
-	}
-	// Canonical name → the same file resolves and overwrites, even if the caller
-	// passed a loose phrasing that matched.
-	canon := strings.ReplaceAll(rt.Slug, "-", " ")
-	opts := d.learnOptions()
-	opts.TypingRhythmMs = simplify.AggressiveTypingRhythmMs
-	steps, refused := simplify.Simplify(events, opts)
-	d.enrichAnchors(steps) // re-derive text anchors lost when rebuilding from raw events
-	if len(steps) == 0 {
-		fmt.Fprintln(d.Out, "Nothing left after simplifying — leaving it as is.")
-		return nil
-	}
-	// AND A REFUSAL LEAVES THE SAVED ROUTINE ALONE, which is the right answer here and a
-	// different one from the two record paths: there is already a routine on disk, and
-	// replacing it with a rebuild that could not represent one of its gestures would lose
-	// something the person already has. Said, and nothing written.
-	if refused != nil {
-		mlog.Warn("simplify: refused", "route", name, "why", refused.Error())
-		fmt.Fprintf(d.Out, "Leaving it as it is: %s.\n", refused)
-		return nil
-	}
-	// Preserve the route's scope. A focus route keeps switching to its app (codegen
-	// prepends Activate); context/global don't, so strip any re-detected leading Activate.
-	codegenApp := ""
-	if rt.Focus {
-		codegenApp = rt.App
-	} else {
-		steps = stripLeadingActivate(steps)
-	}
-	src, assets, err := codegen.Route(canon, codegenApp, steps, d.Reg.ScopeDir(rt))
+	rt, err := d.oneRoutineCalled(name)
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(d.Out, "Simplified %q to %d steps:\n--- route ---\n%s\n", canon, len(steps), src)
-	// The overlay can't show the preview to confirm against, so simplify there is
-	// instant — SimplifySaves means "simplify and save" with no prompt.
+	p, err := d.Prepare(rt, RebuildSimplifyTyping)
+	if err != nil {
+		return err
+	}
+	// WHICH FILE THIS IS ABOUT, BEFORE ANYTHING ELSE. A name is what the person typed and
+	// a routine is a place; printing the place is what lets them stop if it is not the one
+	// they meant. See `oneRoutineCalled` for why this cannot be the wrong one.
+	fmt.Fprintf(d.Out, "%q in %s\n", p.Name, whereItLives(rt))
+	switch {
+	case p.Refused != "":
+		// A REFUSAL LEAVES THE SAVED ROUTINE ALONE, which is the right answer here
+		// and a different one from the record paths: there is already a routine on
+		// disk, and replacing it with a rebuild that could not represent one of its
+		// gestures would lose something the person already has.
+		mlog.Warn("simplify: refused", "route", rt.Slug, "why", p.Refused)
+		fmt.Fprintf(d.Out, "Leaving it as it is: %s\n", p.Refused)
+		return nil
+	case !p.Changes():
+		fmt.Fprintln(d.Out, "Simplifying it would change nothing — leaving it as is.")
+		return nil
+	}
+	fmt.Fprintf(d.Out, "%s\n--- route ---\n%s\n", p.Rebuild.Caution(), p.Now)
+	// AND A CALLER MAY SAY IN ADVANCE THAT IT CANNOT SHOW A PREVIEW.
+	//
+	// `SimplifySaves` is that statement, made by whoever built this `Deps`. It is not
+	// evidence of WHO the caller is — an environment variable cannot establish that, and
+	// a surface that can show a comparison must not be excused from doing so by one. The
+	// overlay sets it because it has no way to render two sources; Studio never does, and
+	// never reads it.
+	//
+	// What it skips is the QUESTION. It does not skip the preparation, the digests or the
+	// checked replacement below, so an unattended save still cannot truncate an image or
+	// write over a file that moved while this was deciding.
 	if !d.SimplifySaves && !d.confirm("Save the simplified version? [y]es / [n]o: ") {
 		fmt.Fprintln(d.Out, "Left unchanged.")
 		return nil
 	}
-	if err := d.Reg.Save(rt, src); err != nil {
+	if err := d.Replace(p); err != nil {
 		return err
 	}
-	if err := d.Reg.WriteAssets(assets); err != nil {
-		return err
-	}
-	fmt.Fprintf(d.Out, "Simplified %q → %s\n", canon, d.Reg.Path(rt))
+	fmt.Fprintf(d.Out, "Saved %q (%d steps) → %s\n", p.Name, len(p.assets)+countSteps(p.Now),
+		d.Reg.Path(rt))
 	return nil
 }
+
+// whereItLives is a routine's place, in the words the product uses for it.
+func whereItLives(rt routes.Route) string {
+	switch {
+	case rt.App == "":
+		return "no application (it works anywhere and switches nothing)"
+	case rt.Focus:
+		return rt.App + ", brought forward first"
+	}
+	return rt.App + ", only while it is in front"
+}
+
+// oneRoutineCalled is the lookup a command that REWRITES a file may make.
+//
+// # Why it is not Registry.Resolve
+//
+// Because `Resolve` is built for PERFORMING: it tries the foreground application's routes, then
+// any other application's focus route with that slug, then a global one. Reaching into another
+// application is exactly right for "do the thing I named" — a focus route brings its application
+// forward, so it works from wherever you are. It is exactly wrong for "rewrite the thing I
+// named": with `settings` saved for two applications, simplifying `settings` from a third would
+// find whichever came first in a sorted list and overwrite it.
+//
+// `marco simplify` already guards one half of this — it resolves exactly rather than by fuzzy
+// match, because a guess that rewrites a file destroys somebody's work — and the guard was
+// correct about the MATCHING and not about the SELECTION. An exact slug shared by two routines is
+// still two routines.
+//
+// So every routine with that slug is found, and more than one is a refusal naming them. A command
+// that takes a name cannot say which it meant, so the refusal says where the choice can be made.
+// Local to Simplify on purpose: `Resolve` is right for every caller that performs.
+func (d Deps) oneRoutineCalled(name string) (routes.Route, error) {
+	slug := routes.Slug(name)
+	if slug == "" {
+		return routes.Route{}, fmt.Errorf("%q is not a name I can look up", name)
+	}
+	var found []routes.Route
+	for _, rt := range d.Reg.List() {
+		if rt.Slug == slug {
+			found = append(found, rt)
+		}
+	}
+	switch len(found) {
+	case 0:
+		return routes.Route{}, fmt.Errorf("I don't know %q", name)
+	case 1:
+		return found[0], nil
+	}
+	var where []string
+	for _, rt := range found {
+		where = append(where, "  "+whereItLives(rt))
+	}
+	return routes.Route{}, fmt.Errorf("there are %d routines called %q and simplifying "+
+		"rewrites one of them, so I will not choose:\n%s\nOpen Studio and review a "+
+		"rebuilt version of the one you mean — its card says which application and "+
+		"scope it is in", len(found), name, strings.Join(where, "\n"))
+}
+
+// countSteps is how many `do` sentences a generated routine has, for the line a person reads.
+//
+// Counted off the SOURCE rather than carried from the draft, because the source is what was
+// written and a chain emits one `do` per action either way. It is a number in a message and
+// nothing depends on it.
+func countSteps(src string) int { return strings.Count(src, "    do ") }
 
 // enrichAnchors labels each DEMONSTRATED anchor — a click the recorder captured a button
 // template for — with what the available resolver hosts can recognise: the on-screen TEXT

@@ -82,6 +82,12 @@ type Prepared struct {
 	// Route is the exact routine this is about — the identity a replacement targets, and
 	// the one a caller selected. Not a name, which two routines can share.
 	Route routes.Route
+	// Rebuild is which of the two sets of rules this version was rendered under.
+	//
+	// PART OF THE REVIEW'S IDENTITY, so it is in the token: two reviews of one routine
+	// differing only in the choice that produced them are two different things to replace
+	// it with, and the person picked one of them. See `sealed`.
+	Rebuild Rebuild
 	// Name is what the routine calls itself, as its own header records it.
 	Name string
 	// Was is the saved source as it stands, and Now the source a replacement would write.
@@ -136,7 +142,13 @@ func (p Prepared) Changes() bool { return p.Replaceable() && p.Now != p.Was }
 // IT WRITES NOTHING. Not the source, not the assets, not the recording — a failure anywhere in
 // here leaves the library exactly as it was, which is why every exit is a returned error rather
 // than a partial state.
-func (d Deps) Prepare(rt routes.Route) (Prepared, error) {
+func (d Deps) Prepare(rt routes.Route, kind Rebuild) (Prepared, error) {
+	if !kind.known() {
+		// A WORD THIS DOES NOT KNOW IS NOT A CHOICE. Not defaulted to the gentler
+		// one either: a caller asking for rules nobody here can name is a caller
+		// about to show somebody a review labelled as something it is not.
+		return Prepared{}, fmt.Errorf("%q is not a way of rebuilding a routine", kind)
+	}
 	path := d.Reg.Path(rt)
 	raw, err := os.ReadFile(path)
 	if err != nil {
@@ -144,7 +156,7 @@ func (d Deps) Prepare(rt routes.Route) (Prepared, error) {
 			"compare a rebuilt version against: %w", rt.Slug, err)
 	}
 	src := string(raw)
-	p := Prepared{Route: rt, Name: NameIn(src, rt.Slug), Was: src,
+	p := Prepared{Route: rt, Rebuild: kind, Name: NameIn(src, rt.Slug), Was: src,
 		library:       d.Reg.Dir,
 		sourceAt:      routes.DigestOf(src),
 		WasGeneration: GenerationOf(src), Differences: GenerationDifferencesOf(src)}
@@ -189,7 +201,7 @@ func (d Deps) Prepare(rt routes.Route) (Prepared, error) {
 	// wait on in its place — a routine that then presses a menu before it has drawn,
 	// having been repaired. That is a defect this had, in `Resave`, and the reason
 	// `ModeOf` is read here too.
-	dr := d.DraftOf(p.Name, events, rt.App, "a review", ModeOf(src))
+	dr := d.draftFor(kind, p.Name, events, rt.App, "a review", ModeOf(src))
 	switch {
 	case dr == nil || len(dr.Steps) == 0:
 		p.Refused = "its demonstration contains nothing that can be performed"
@@ -415,6 +427,10 @@ func (p Prepared) sealed() Prepared {
 		// that brings its application forward and one that does not, and those
 		// are two files.
 		p.Route.Slug, p.Route.App, fmt.Sprint(p.Route.Focus), p.library,
+		// AND WHICH RULES IT WAS RENDERED UNDER. Two reviews of one routine
+		// differing only in the choice that produced them are two different
+		// things to replace it with, and the person picked one of them.
+		string(p.Rebuild),
 	}, "\x00"))
 	return p
 }

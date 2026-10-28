@@ -889,15 +889,104 @@ func ContractOf(src string) (Contract, []string) {
 // `plugins/e2e` carries all the way into its report.
 func (d Deps) DraftOf(name string, events []recorder.RecordedEvent, app, stoppedBy string,
 	mode RecordedAs) *Draft {
+	return d.draftFor(RebuildCurrent, name, events, app, stoppedBy, mode)
+}
+
+// ── WHICH RULES A REBUILD IS RENDERED UNDER ───────────────────────────────────
+
+// Rebuild is which rules a review's version was rendered under.
+//
+// # Why a bounded word and not a set of options
+//
+// Because a caller handing over simplifier settings is a caller deciding what somebody's routine
+// becomes, from outside the one place that knows what the choices MEAN. There are two choices, a
+// person picks between them by name, and the review says which one it is showing. Anything else
+// is a dial nobody can describe on a card.
+type Rebuild string
+
+const (
+	// RebuildCurrent renders the demonstration under today's generator rules and
+	// nothing else — the same simplification the original save used.
+	//
+	// The zero value on purpose: a caller that says nothing gets the rebuild that
+	// changes the least.
+	RebuildCurrent Rebuild = "current"
+	// RebuildSimplifyTyping is that, plus folding a typed run into one step across
+	// longer pauses.
+	//
+	// IT CHANGES TIMING, which is why it is a separate choice with its own sentence
+	// rather than an improvement applied quietly. See `(Rebuild) Caution`.
+	RebuildSimplifyTyping Rebuild = "simplify-typing"
+)
+
+// Offered is the two choices, in the order a surface should show them.
+func Offered() []Rebuild { return []Rebuild{RebuildCurrent, RebuildSimplifyTyping} }
+
+// known reports whether this is one of the two.
+func (r Rebuild) known() bool { return r == RebuildCurrent || r == RebuildSimplifyTyping }
+
+// Choice is the words on the control that asks for this rebuild.
+func (r Rebuild) Choice() string {
+	if r == RebuildSimplifyTyping {
+		return "Simplify typing pauses"
+	}
+	return "Rebuild with current rules"
+}
+
+// Caution is what this rebuild CHANGES about the routine, beyond the generator's own rules, in
+// the words a person reads before choosing it.
+//
+// # Why the simplified one has to say this
+//
+// Because "simplify" sounds like a tidy-up and is not one. Folding a typed run into a single step
+// removes the waits BETWEEN those keystrokes — up to a second of them — and a routine that typed
+// into a box which needed that second to catch up will now type into it faster than it did when
+// somebody watched it work. That is a behaviour change, chosen on purpose, and a person is owed
+// it in a sentence rather than in a diff of two sources they are being asked to compare.
+//
+// What it does NOT change is also worth stating, because the sentence above invites the question:
+// a wait that was not inside a typed run stays exactly as it was, and so do which button each
+// press used, which keys were held across what, and the routine stopping at the first action that
+// did not happen.
+func (r Rebuild) Caution() string {
+	if r != RebuildSimplifyTyping {
+		return ""
+	}
+	return "This folds each run of typing into one step, which removes the pauses " +
+		"between those keystrokes — up to a second of them. Everything else is " +
+		"unchanged: waits outside a typed run, which button each press used, which " +
+		"keys were held across what, and the routine stopping at the first action " +
+		"that did not happen."
+}
+
+// draftFor is a draft of one stored demonstration, under one of the two sets of rules.
+//
+// # The mode comes from the SAVED FILE for both of them
+//
+// `simplify` depends on the stated mode as much as the comment does: with no anchor to wait on,
+// the recorded gaps are the only waiting a routine has, so a routine whose file states
+// `coordinates` must keep them. Simplifying under the ENVIRONMENT's idea of the mode is the
+// defect [[ADR-254-what-a-recording-captures-is-stated]] fixed in `Resave` — a Studio launched
+// with `$MARCO_CV=on` capping every recorded gap to 50ms and putting nothing in its place, which
+// is a menu pressed before it has drawn — and `SimplifyRoute` had it until this slice. So both
+// callers reach the simplification through here, with the mode read off the file.
+func (d Deps) draftFor(kind Rebuild, name string, events []recorder.RecordedEvent,
+	app, stoppedBy string, mode RecordedAs) *Draft {
 
 	base, argNames := routes.SplitArgs(name)
-	// THE MODE GIVEN, AND NOT THIS DEPS'. A caller stating a mode here is describing a
-	// recording that already happened — a repair rebuilding a saved routine from the
-	// demonstration beside it — and the simplification depends on the mode as much as the
-	// comment does: see learnOptionsFor.
 	opts := d.learnOptionsFor(mode)
 	opts.ArgNames = argNames
+	if kind == RebuildSimplifyTyping {
+		// THE ONE OPTION THE CHOICE CHANGES, set here rather than taken from a
+		// caller: see Rebuild.
+		opts.TypingRhythmMs = simplify.AggressiveTypingRhythmMs
+	}
 	steps, refused := simplify.Simplify(events, opts)
+	// AND THE ANCHORS ARE RE-LABELLED, because rebuilding from raw events loses the text
+	// a previous pass read off each anchored press. `Capture.Finish` does this and the old
+	// `SimplifyRoute` did it; `DraftOf` did not, so a repair quietly dropped them. A no-op
+	// unless a Text or Vision host is wired, which is every coordinate-mode routine.
+	d.enrichAnchors(steps)
 	return &Draft{Name: base, Args: argNames,
 		Steps: steps, Events: events, Unrepresentable: reasonOf(refused),
 		App: app, StoppedBy: stoppedBy, Mode: mode}

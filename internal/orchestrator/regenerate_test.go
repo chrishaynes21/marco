@@ -139,7 +139,7 @@ func TestPreparingAndCancellingAVersionWritesNothing(t *testing.T) {
 	statingNoGeneration(t, d, rt)
 	before := theWholeLibrary(t, d)
 
-	p, err := d.Prepare(rt)
+	p, err := d.Prepare(rt, RebuildCurrent)
 	if err != nil {
 		t.Fatalf("preparing a version: %v", err)
 	}
@@ -183,7 +183,7 @@ func TestAReplacementWritesExactlyTheSourceThatWasReviewed(t *testing.T) {
 	d, rt := aSavedRoutineWithItsRecording(t)
 	statingNoGeneration(t, d, rt)
 	path := d.Reg.Path(rt)
-	p, err := d.Prepare(rt)
+	p, err := d.Prepare(rt, RebuildCurrent)
 	if err != nil {
 		t.Fatalf("preparing: %v", err)
 	}
@@ -218,7 +218,7 @@ func TestAReplacementWritesExactlyTheSourceThatWasReviewed(t *testing.T) {
 	// AND REPLACING AGAIN IS A NO-OP THAT SAYS SO. The routine has now been written by
 	// today's generator from its own recording, so rebuilding it again changes nothing
 	// — and offering to replace a file with itself is an offer to do nothing.
-	again, err := d.Prepare(rt)
+	again, err := d.Prepare(rt, RebuildCurrent)
 	if err != nil {
 		t.Fatalf("preparing the replaced routine: %v", err)
 	}
@@ -264,7 +264,7 @@ func TestTheScopeAReplacementUsesIsTheOneTheRoutineAlreadyHas(t *testing.T) {
 // replacing it WITHOUT that pane being current is not one.
 func TestAReplacementAfterTheRoutineChangedRefusesAndLeavesItAlone(t *testing.T) {
 	d, rt := aSavedRoutineWithItsRecording(t)
-	p, err := d.Prepare(rt)
+	p, err := d.Prepare(rt, RebuildCurrent)
 	if err != nil {
 		t.Fatalf("preparing: %v", err)
 	}
@@ -287,7 +287,7 @@ func TestAReplacementAfterTheRoutineChangedRefusesAndLeavesItAlone(t *testing.T)
 	}
 	// AND THE WAY FORWARD IS A FRESH REVIEW, which the refusal says and which works:
 	// the comparison is now against the routine as it stands.
-	after, err := d.Prepare(rt)
+	after, err := d.Prepare(rt, RebuildCurrent)
 	if err != nil {
 		t.Fatalf("reviewing the edited routine: %v", err)
 	}
@@ -308,7 +308,7 @@ func TestAReplacementAfterTheRecordingChangedRefusesAndLeavesItAlone(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	p, err := d.Prepare(rt)
+	p, err := d.Prepare(rt, RebuildCurrent)
 	if err != nil {
 		t.Fatalf("preparing: %v", err)
 	}
@@ -365,7 +365,7 @@ func TestARoutineWithNoDemonstrationIsExplainedAndCannotBeRebuilt(t *testing.T) 
 	}
 	before := theWholeLibrary(t, d)
 
-	_, err = d.Prepare(rt)
+	_, err = d.Prepare(rt, RebuildCurrent)
 	if err == nil {
 		t.Fatal("a routine with no demonstration was prepared for review anyway")
 	}
@@ -423,7 +423,7 @@ func TestARebuildTodaysRulesWouldRefuseIsShownAndCannotBeReplacedWith(t *testing
 	if err := d.Reg.SaveRecording(rt, raw); err != nil {
 		t.Fatal(err)
 	}
-	p, err := d.Prepare(rt)
+	p, err := d.Prepare(rt, RebuildCurrent)
 	if err != nil {
 		t.Fatalf("a recording today's rules refuse should be a reviewable answer, and "+
 			"preparing it errored: %v", err)
@@ -505,7 +505,7 @@ func TestAReplacementKeepsAScopeThatChangesWhatIsGenerated(t *testing.T) {
 		t.Fatalf("a context-scoped routine was generated with an Activate in it, so "+
 			"this case does not establish what it says:\n%s", was)
 	}
-	p, err := d.Prepare(rt)
+	p, err := d.Prepare(rt, RebuildCurrent)
 	if err != nil {
 		t.Fatalf("preparing: %v", err)
 	}
@@ -573,7 +573,7 @@ func TestTwoPreparationsOfOneRoutineAreTwoReviews(t *testing.T) {
 	d, rt := aSavedRoutineWithItsRecording(t)
 	statingNoGeneration(t, d, rt)
 
-	first, err := d.Prepare(rt)
+	first, err := d.Prepare(rt, RebuildCurrent)
 	if err != nil {
 		t.Fatalf("the first preparation: %v", err)
 	}
@@ -587,7 +587,7 @@ func TestTwoPreparationsOfOneRoutineAreTwoReviews(t *testing.T) {
 	if err := d.Reg.Save(rt, edited); err != nil {
 		t.Fatal(err)
 	}
-	second, err := d.Prepare(rt)
+	second, err := d.Prepare(rt, RebuildCurrent)
 	if err != nil {
 		t.Fatalf("the second preparation: %v", err)
 	}
@@ -636,7 +636,7 @@ func TestTwoPreparationsOfOneRoutineAreTwoReviews(t *testing.T) {
 func TestAPreparationThatWasAlteredDoesNotMatchItsToken(t *testing.T) {
 	d, rt := aSavedRoutineWithItsRecording(t)
 	statingNoGeneration(t, d, rt)
-	p, err := d.Prepare(rt)
+	p, err := d.Prepare(rt, RebuildCurrent)
 	if err != nil {
 		t.Fatalf("preparing: %v", err)
 	}
@@ -700,7 +700,7 @@ func TestARoutineThatBecameUnexplainableBetweenTheReadsIsRefused(t *testing.T) {
 	}
 	before := theWholeLibrary(t, d)
 
-	_, err = d.Prepare(rt)
+	_, err = d.Prepare(rt, RebuildCurrent)
 	if err == nil {
 		t.Fatal("a routine stating a generation this build cannot explain was " +
 			"prepared for review anyway, so the restriction is only as good as " +
@@ -744,7 +744,7 @@ func anAnchoredRoutine(t *testing.T) (Deps, routes.Route, string) {
 	if _, ok := d.Reg.LoadRecording(rt); !ok {
 		t.Fatal("the save left no demonstration beside the anchored routine")
 	}
-	p, err := d.Prepare(rt)
+	p, err := d.Prepare(rt, RebuildCurrent)
 	if err != nil {
 		t.Fatalf("preparing the anchored routine: %v", err)
 	}
@@ -770,7 +770,7 @@ func anAnchoredRoutine(t *testing.T) (Deps, routes.Route, string) {
 func TestAReplacementThatWouldOverwriteADifferentImageIsRefused(t *testing.T) {
 	d, rt, image := anAnchoredRoutine(t)
 	statingNoGeneration(t, d, rt)
-	p, err := d.Prepare(rt)
+	p, err := d.Prepare(rt, RebuildCurrent)
 	if err != nil {
 		t.Fatalf("preparing: %v", err)
 	}
@@ -819,7 +819,7 @@ func TestAReplacementThatWouldOverwriteADifferentImageIsRefused(t *testing.T) {
 func TestAnImageThatIsAlreadyTheRightOneIsNoConflict(t *testing.T) {
 	d, rt, image := anAnchoredRoutine(t)
 	statingNoGeneration(t, d, rt)
-	p, err := d.Prepare(rt)
+	p, err := d.Prepare(rt, RebuildCurrent)
 	if err != nil {
 		t.Fatalf("preparing: %v", err)
 	}
@@ -840,7 +840,7 @@ func TestAnImageThatIsAlreadyTheRightOneIsNoConflict(t *testing.T) {
 	if err := os.Remove(image); err != nil {
 		t.Fatal(err)
 	}
-	again, err := d.Prepare(rt)
+	again, err := d.Prepare(rt, RebuildCurrent)
 	if err != nil {
 		t.Fatalf("preparing again: %v", err)
 	}
@@ -892,11 +892,11 @@ func TestTwoRoutinesWithIdenticalContentsDoNotShareAToken(t *testing.T) {
 	statingNoGeneration(t, d, ark)
 	statingNoGeneration(t, d, discord)
 
-	first, err := d.Prepare(ark)
+	first, err := d.Prepare(ark, RebuildCurrent)
 	if err != nil {
 		t.Fatalf("preparing the first: %v", err)
 	}
-	second, err := d.Prepare(discord)
+	second, err := d.Prepare(discord, RebuildCurrent)
 	if err != nil {
 		t.Fatalf("preparing the second: %v", err)
 	}
@@ -937,7 +937,7 @@ func TestTwoRoutinesWithIdenticalContentsDoNotShareAToken(t *testing.T) {
 func TestAPreparationCannotBeReplacedWithInAnotherLibrary(t *testing.T) {
 	d, rt := aSavedRoutineWithItsRecording(t)
 	statingNoGeneration(t, d, rt)
-	p, err := d.Prepare(rt)
+	p, err := d.Prepare(rt, RebuildCurrent)
 	if err != nil {
 		t.Fatalf("preparing: %v", err)
 	}
@@ -963,11 +963,11 @@ func TestAPreparationCannotBeReplacedWithInAnotherLibrary(t *testing.T) {
 	// which is why this is said here — a token that answered the same for two libraries
 	// would be a value whose documented meaning is not true, and the next thing to key a
 	// map on it would be the thing that found out.
-	mine, err := d.Prepare(rt)
+	mine, err := d.Prepare(rt, RebuildCurrent)
 	if err != nil {
 		t.Fatalf("preparing in the first library: %v", err)
 	}
-	theirPrep, err := elsewhere.Prepare(rt)
+	theirPrep, err := elsewhere.Prepare(rt, RebuildCurrent)
 	if err != nil {
 		t.Fatalf("preparing in the second library: %v", err)
 	}
@@ -1020,7 +1020,7 @@ func mustRecording(t *testing.T, d Deps, rt routes.Route) []byte {
 func TestAnImageThatAlreadyHoldsTheRightPictureIsNotWrittenAgain(t *testing.T) {
 	d, rt, image := anAnchoredRoutine(t)
 	statingNoGeneration(t, d, rt)
-	p, err := d.Prepare(rt)
+	p, err := d.Prepare(rt, RebuildCurrent)
 	if err != nil {
 		t.Fatalf("preparing: %v", err)
 	}
@@ -1055,7 +1055,7 @@ func TestAnImageThatAlreadyHoldsTheRightPictureIsNotWrittenAgain(t *testing.T) {
 func TestAnImageThatCannotBeReadIsARefusal(t *testing.T) {
 	d, rt, image := anAnchoredRoutine(t)
 	statingNoGeneration(t, d, rt)
-	p, err := d.Prepare(rt)
+	p, err := d.Prepare(rt, RebuildCurrent)
 	if err != nil {
 		t.Fatalf("preparing: %v", err)
 	}
@@ -1096,7 +1096,7 @@ func TestAnImageThatCannotBeReadIsARefusal(t *testing.T) {
 func TestARefusalOnOneImageWritesNoneOfThem(t *testing.T) {
 	d, rt, image := anAnchoredRoutine(t)
 	statingNoGeneration(t, d, rt)
-	p, err := d.Prepare(rt)
+	p, err := d.Prepare(rt, RebuildCurrent)
 	if err != nil {
 		t.Fatalf("preparing: %v", err)
 	}
@@ -1158,7 +1158,7 @@ func TestARefusalOnOneImageWritesNoneOfThem(t *testing.T) {
 func TestAnImageThatAppearsAfterClassificationIsRefused(t *testing.T) {
 	d, rt, image := anAnchoredRoutine(t)
 	statingNoGeneration(t, d, rt)
-	p, err := d.Prepare(rt)
+	p, err := d.Prepare(rt, RebuildCurrent)
 	if err != nil {
 		t.Fatalf("preparing: %v", err)
 	}
