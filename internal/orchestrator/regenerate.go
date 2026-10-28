@@ -271,6 +271,26 @@ func (d Deps) Replace(p Prepared) error {
 		}
 		return fmt.Errorf("%q has no rebuilt version to be replaced with", p.Name)
 	}
+	// ── AND THE ROUTE IS HELD FOR THE REVALIDATION AND BOTH WRITES ──
+	//
+	// THE SAME LOCK EVERY OTHER WRITER IN THIS CONTRACT TAKES, and this one had not joined
+	// it. The digests below are read, the images are classified, and the source is
+	// written, which is three operations with two decisions in them — so a `Keep`
+	// holding the route could be committing while this validated, and this would then
+	// write over what it committed, having compared against the version before it.
+	//
+	// It is not a smaller gap than the one `Keep` has, it is the same gap from the other
+	// side: a lock protects writers that take it, and a writer that does not take it is
+	// not protected by anybody else taking it. Studio's Simplify and its generation
+	// rebuilds are both this path.
+	//
+	// Before the first read rather than before the write, because what has to be atomic is
+	// the COMPARISON and the write together. See routes.Registry.Lock.
+	hold, lerr := d.Reg.Lock(p.Route, SaveWithin)
+	if lerr != nil {
+		return fmt.Errorf("%q is left as it is: %w", p.Name, lerr)
+	}
+	defer hold.Release()
 	raw, err := os.ReadFile(d.Reg.Path(p.Route))
 	if err != nil {
 		return fmt.Errorf("%q could not be read back, so it is left as it is: %w",

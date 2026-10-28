@@ -11494,4 +11494,37 @@ cleanup rather than in an assertion, because the test itself took a hold and nev
 Windows will not remove a directory holding an open file. `Registry.Delete` now sweeps the
 rendezvous file too.
 
+### And the rebuild path joined the protocol
+
+A lock protects the writers that take it. `Keep` took it and `Deps.Replace` did not — the path
+behind Studio's **Simplify** and its **generation rebuilds**, which reads two digests, classifies
+the anchor images, and writes the source. Three operations with two decisions in them, outside the
+critical section: so a `Keep` holding the route could be committing while that rebuild validated,
+and the rebuild would then write over what it committed, having compared against the version before
+it.
+
+Not a smaller gap than the one the lock closed. The same gap, from the side that had not joined.
+
+It takes the hold before the first digest read and keeps it through the images and the source,
+which is the same rule `Keep` follows for the same reason: what has to be atomic is the comparison
+and the write *together*, and that is not something a file write can give you.
+
+### What holds it
+
+**7 of 7 mutations killed**, two of them new: the rebuild not taking the lock at all, and taking
+it after it had already validated.
+
+The cross-path test is deterministic in the same way as the two-save one. `Keep` pauses inside its
+lock after validating; the rebuild is attempted with digests that are still entirely current,
+because the save has written nothing; it cannot proceed, which is asserted on the file rather than
+the clock; the save finishes; and the rebuild revalidates, finds the routine has been saved since
+its review was built, and refuses with the save's work intact.
+
+The control — a rebuild prepared against what is on disk now — goes through, and also proves every
+hold was given back, since a leaked one would have made it wait out `SaveWithin` and refuse. Its
+assertion is that the file is the version that was REVIEWED rather than that the file changed: a
+rebuild of a routine already written under current rules can legitimately come out byte-identical,
+and the promise is that what somebody looked at is what got written. The first version of that
+assertion was the stronger one, and it failed for the right reason.
+
 See [[ADR-266-one-set-of-rules-for-keeping-a-recording]].

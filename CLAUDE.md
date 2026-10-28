@@ -182,7 +182,10 @@ go run ./cmd/gate                      # its first stage alone, which needs no s
   (`routes.Registry.Create`, `O_CREATE|O_EXCL`) because a check and a write are two instants —
   and the version check and both writes sit inside a CROSS-PROCESS LOCK on that route
   (`routes.Registry.Lock`, `LockFileEx`, released by the OS when the process ends), because atomic
-  writing does not make the comparison before it atomic.
+  writing does not make the comparison before it atomic. EVERY WRITER TAKES IT: `Deps.Replace`,
+  behind Studio's Simplify and its generation rebuilds, validated and wrote outside the lock and
+  has joined — a lock protects the writers that take it, and nobody else taking it protects one
+  that does not.
   Each surface supplies only the interaction — Studio a card,
   `marco learn` a question naming the exact application/scope/route with ENTER MEANING NO, and the
   widget's unattended `LearnAuto` a refusal, because it saves with nobody having looked. What is

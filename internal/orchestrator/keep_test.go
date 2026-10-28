@@ -892,3 +892,125 @@ func sourceAt(t *testing.T, reg routes.Registry, rt routes.Route) string {
 	}
 	return string(raw)
 }
+
+// AND A REBUILD TAKES THE SAME LOCK, OR THE LOCK PROTECTS NOTHING.
+//
+// A lock protects the writers that take it. `Keep` took it and `Deps.Replace` — the path behind
+// Studio's Simplify and its generation rebuilds — did not, so the two could still lose each
+// other's work: the rebuild read the digests while a `Keep` was deciding, and wrote over what
+// that `Keep` committed, having compared against the version before it. Not a smaller gap than
+// the one the lock closed; the same gap, from the side that had not joined the protocol.
+//
+// Deterministic, like the two-`Keep` case: `Keep` pauses inside its lock after validating, and
+// the rebuild CANNOT proceed, so nothing here depends on timing to be true.
+func TestARebuildWaitsForASaveAndThenRefusesStaleConsent(t *testing.T) {
+	t.Setenv("MARCO_CV", "off")
+	d, rt := aSavedRoutineWithItsRecording(t)
+	statingNoGeneration(t, d, rt)
+	v1 := mustReadFile(t, d.Reg.Path(rt))
+
+	// A REVIEW IS PREPARED AND LEFT OPEN, which is a person looking at the comparison.
+	p, err := d.Prepare(rt, RebuildCurrent)
+	if err != nil {
+		t.Fatalf("preparing a version: %v", err)
+	}
+	if !p.Replaceable() {
+		t.Fatalf("the preparation offers nothing to replace with (refused: %q)",
+			p.Refused)
+	}
+
+	// ── AND A SAVE OF THE SAME ROUTINE IS IN FLIGHT, PAUSED AFTER IT VALIDATED ──
+	saving := d
+	validated, resume := make(chan struct{}), make(chan struct{})
+	saving.AfterValidating = func() {
+		close(validated)
+		<-resume
+	}
+	dr := saving.DraftOf(p.Name, aPlainDemonstration("k"), "arkascended", "a test",
+		Unstated)
+	at := saving.Collision(dr, ScopeAppAnywhere, "arkascended")
+	if !at.Exists {
+		t.Fatalf("there is nothing at the target to replace: %+v", at)
+	}
+	doneSave := make(chan error, 1)
+	go func() {
+		_, err := saving.Keep(dr, ScopeAppAnywhere, "arkascended",
+			Consent{ID: at.ID, Source: at.Source, Recording: at.Recording})
+		doneSave <- err
+	}()
+	<-validated
+
+	// ── THE REBUILD IS TAKEN WHILE THAT SAVE HOLDS THE ROUTE ──
+	//
+	// Its digests are still current: the save has validated and written nothing. The only
+	// thing wrong with this rebuild is that it is second.
+	doneRebuild := make(chan error, 1)
+	go func() { doneRebuild <- d.Replace(p) }()
+	select {
+	case err := <-doneRebuild:
+		t.Fatalf("the rebuild wrote while a save held the route: %v", err)
+	case <-time.After(250 * time.Millisecond):
+	}
+	if now := mustReadFile(t, d.Reg.Path(rt)); now != v1 {
+		t.Fatalf("something was written while the save was paused:\n%s", now)
+	}
+
+	// ── THE SAVE FINISHES ──
+	close(resume)
+	if err := <-doneSave; err != nil {
+		t.Fatalf("the save refused: %v", err)
+	}
+	afterSave := mustReadFile(t, d.Reg.Path(rt))
+	if afterSave == v1 {
+		t.Fatal("the save wrote nothing, so the rest of this says nothing")
+	}
+
+	// ── AND THE REBUILD REVALIDATES AGAINST WHAT THE SAVE LEFT ──
+	errRebuild := <-doneRebuild
+	if errRebuild == nil {
+		t.Fatal("the rebuild replaced a routine that had been saved since the review " +
+			"was built")
+	}
+	if !strings.Contains(errRebuild.Error(), "saved again since the version you reviewed") {
+		t.Errorf("the refusal does not say what changed: %v", errRebuild)
+	}
+	if now := mustReadFile(t, d.Reg.Path(rt)); now != afterSave {
+		t.Errorf("the save's version was written over by the rebuild:\n%s", now)
+	}
+
+	// ── THE CONTROL: A REBUILD PREPARED AGAINST WHAT IS THERE NOW GOES THROUGH ──
+	//
+	// Without which every refusal above is satisfied by a rebuild that has stopped
+	// working. It also proves the holds were given back: a leaked one would have made
+	// this wait out SaveWithin and refuse.
+	fresh, err := d.Prepare(rt, RebuildCurrent)
+	if err != nil {
+		t.Fatalf("preparing again: %v", err)
+	}
+	if !fresh.Replaceable() {
+		t.Skipf("the routine as the save left it offers nothing to rebuild (refused: "+
+			"%q), so the control cannot be made", fresh.Refused)
+	}
+	if err := d.Replace(fresh); err != nil {
+		t.Fatalf("a rebuild prepared against what is there now was refused: %v", err)
+	}
+	// AND WHAT IS ON DISK IS THE VERSION THAT WAS REVIEWED.
+	//
+	// Asserted against the review rather than against "it changed": a rebuild of a
+	// routine the save had already written under current rules can legitimately come out
+	// byte-identical, and the promise is that what somebody looked at is what got
+	// written.
+	if now := mustReadFile(t, d.Reg.Path(rt)); now != fresh.Now {
+		t.Errorf("what was written is not the version that was reviewed:\n%s", now)
+	}
+}
+
+// mustReadFile is one file's contents, and a failure naming it.
+func mustReadFile(t *testing.T, path string) string {
+	t.Helper()
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("reading %s: %v", path, err)
+	}
+	return string(raw)
+}
