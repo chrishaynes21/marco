@@ -308,7 +308,7 @@ func TestAHotkeyRunReachesAnAuthorisedActionWithoutFrom(t *testing.T) {
 	}
 	// 4. AND THE AUTHORISED ACTION HAPPENED — written down, not pressed.
 	rec := theOnlyRecord(t)
-	if rec.Sent == 0 {
+	if mustSay(t, rec) == 0 {
 		// AND WHICH WINDOW IT WAS LOOKING AT WHEN IT DID NOT.
 		//
 		// This assertion's verdict is a function of the desktop it ran on. The
@@ -335,8 +335,12 @@ func TestAHotkeyRunReachesAnAuthorisedActionWithoutFrom(t *testing.T) {
 			"the screen the point was approved on",
 			rec.Outcome, rec.Because, front.Application, front.Title, front.Bounds)
 	}
-	if rec.Real {
-		t.Fatal("the run sent REAL input; this test must never do that")
+	// AND IT SENT NO REAL INPUT, which this test must never do. The record has to SAY
+	// so: a finished run that is silent about it is a record this assertion cannot
+	// make, and "silent" would otherwise read as "not live".
+	if live, said := rec.SaidLive(); !said || live {
+		t.Fatalf("the run sent REAL input, or does not say whether it did (said=%v "+
+			"live=%v); this test must never send real input", said, live)
 	}
 	if code == 2 {
 		t.Errorf("the command refused the invocation itself:\n%s", said)

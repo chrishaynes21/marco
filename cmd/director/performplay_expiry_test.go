@@ -185,8 +185,8 @@ func TestAnAnswerAfterTheDeadlineAuthorisesNothing(t *testing.T) {
 
 	// AND THE RECORD SAYS THE CLOCK ENDED IT, not that somebody cancelled.
 	rec := theOnlyRunRecord(t)
-	if rec.Sent != 0 {
-		t.Errorf("the record says %d action(s) were sent", rec.Sent)
+	if mustSay(t, rec) != 0 {
+		t.Errorf("the record says %d action(s) were sent", mustSay(t, rec))
 	}
 	if rec.Outcome == RunCancelled {
 		t.Errorf("expiry was recorded as a cancellation, which says somebody chose " +

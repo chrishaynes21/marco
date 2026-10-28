@@ -214,8 +214,8 @@ func TestAnAbsentOptionalSourceIsRecordedAsAStartupFailure(t *testing.T) {
 					"which is not something the application did",
 					rec.Outcome, RunFailed)
 			}
-			if rec.Sent != 0 {
-				t.Errorf("%d action(s) sent by a run that never began", rec.Sent)
+			if mustSay(t, rec) != 0 {
+				t.Errorf("%d action(s) sent by a run that never began", mustSay(t, rec))
 			}
 			if !strings.Contains(rec.Because, tc.wants) ||
 				!strings.Contains(rec.Because, tc.why) {

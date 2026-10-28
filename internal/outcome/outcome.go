@@ -86,6 +86,33 @@ const (
 	// see the package note above.
 	Unverified Outcome = "unverified"
 	// Failed is it having been tried, and gone wrong.
+	//
+	// # A GUARD'S REFUSAL ARRIVES HERE, AND THAT IS A KNOWN LIMITATION
+	//
+	// A routine whose press could not be checked against the window it was demonstrated
+	// in REFUSES rather than pressing — which is the guard working exactly as intended,
+	// and is a decision rather than a malfunction. It reaches a person as `failed`,
+	// because `cmd/marco` maps every execution error onto this word and the guard's
+	// refusal is an execution error.
+	//
+	// So is a secret that could not be looked up, a routine that stopped at an action
+	// which did not happen, and a key the route-end sweep could not release. Each of them
+	// is "it having been tried, and gone wrong" in the sense this word is defined in, and
+	// none of them is what a person means by `failed`.
+	//
+	// What carries the distinction is the REASON, and it is carried everywhere: the
+	// sentence is printed on the run's own output, stored in the record's `because`, and
+	// shown on the card. Those sentences say what refused and what it lacked — "the window
+	// is a different size", "that secret is not set" — which is the information a person
+	// acts on. The word is the coarse channel and the reason is the precise one.
+	//
+	// RECLASSIFYING IS A SEPARATE CHANGE and deliberately not made here. The seven words
+	// are a closed set that every surface and every stored record is written against, and
+	// a run that used to say `failed` saying `refused` changes what a front end does with
+	// it, what an exit code means, and what every record already on disk means by
+	// comparison. That is worth doing on purpose, with the surfaces in hand, and not as a
+	// side effect of a release. See
+	// [[ADR-263-the-alpha-is-the-studio-stack-and-it-says-what-it-is]].
 	Failed Outcome = "failed"
 )
 

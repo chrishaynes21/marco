@@ -69,13 +69,22 @@ type RunRecord struct {
 	Application string `json:"application,omitempty"`
 	Step        int    `json:"step,omitempty"`
 	Started     string `json:"started"`
-	Ended       string `json:"ended"`
+	Ended       string `json:"ended,omitempty"`
 	// Outcome is the one word, and Because the sentence the run itself gave.
 	Outcome RunOutcome `json:"outcome"`
 	Because string     `json:"because,omitempty"`
 	// Sent is how many programs reached a computer, and Real whether this was --live.
-	Sent int  `json:"actions_sent"`
-	Real bool `json:"live"`
+	//
+	// POINTERS, AND THAT IS THE POINT. Zero is a real answer — a run that was refused
+	// before the first action sent nothing, and saying so is true — and an attempt that
+	// never finished is a different fact. The provisional record left for a run that dies
+	// before finalisation set neither, and with plain values it published
+	// `"actions_sent": 0` and `"live": false`: a killed supervised run claiming nothing
+	// reached a computer and that it had not been live, about a run that may have pressed
+	// a dozen things for real. Absent is the truth, and the same reason `cmd/marco`'s
+	// `input_actions` is a pointer.
+	Sent *int  `json:"actions_sent,omitempty"`
+	Real *bool `json:"live,omitempty"`
 	// Layout says the run held the fixed-layout replay licence: it pressed where
 	// somebody clicked, in a window of the size they clicked it in, and asked nothing
 	// about the screen. The one variable a coordinate-replay trial is ABOUT, and two
@@ -86,13 +95,18 @@ type RunRecord struct {
 	// The three verification counts, kept apart for the reason the report keeps them
 	// apart: an unconfirmed action is neither a success nor a failure.
 	//
+	// POINTERS, for the reason above and for ADR-253's: three zeroes read as a run that
+	// asked the question and found nothing, where omission is the truth — the question was
+	// never asked. That is already why a ROUTINE's record omits them; a supervised
+	// attempt that never finished is the same claim about the same numbers.
+	//
 	// ONE TAG PER FIELD, and the first version of this had one tag for all three —
 	// `json:"verified,contradicted,unconfirmed"` on a single declaration, which names
 	// every one of them "verified" and treats the rest as encoding options. The record
 	// would have carried one number three times under one key.
-	Verified     int `json:"verified"`
-	Contradicted int `json:"contradicted"`
-	Unconfirmed  int `json:"unconfirmed"`
+	Verified     *int `json:"verified,omitempty"`
+	Contradicted *int `json:"contradicted,omitempty"`
+	Unconfirmed  *int `json:"unconfirmed,omitempty"`
 	// Act and ActSource are the PLAY this run performed, when it performed one: the name
 	// it was selected by and the digest of its own source.
 	//
@@ -215,3 +229,27 @@ func outcomeOfRun(rep workflowrun.Report, cancelled bool) RunOutcome {
 // citeRun is the line a person copies into a bug report, and the line a front end that spawned
 // this run reads back. One shape, in runref, for exactly that reason.
 func citeRun(id, path string) string { return runref.Cite(id, path) }
+
+// SaidSent is how many programs reached a computer, and whether this record says at all.
+//
+// Two values because there are three states and a plain `int` can only carry two: a run that
+// sent nothing, a run that sent some, and an attempt that never finished — whose record says
+// nothing about it. See the field.
+//
+// Every reader that used to compare `Sent` with a number goes through here, so "the record is
+// silent" can never be read as "the run sent none". That reading is the one the pointer exists to
+// make impossible, and a helper that hid it behind a zero would put it straight back.
+func (r RunRecord) SaidSent() (int, bool) {
+	if r.Sent == nil {
+		return 0, false
+	}
+	return *r.Sent, true
+}
+
+// SaidLive is whether this was a live run, and whether the record says.
+func (r RunRecord) SaidLive() (bool, bool) {
+	if r.Real == nil {
+		return false, false
+	}
+	return *r.Real, true
+}

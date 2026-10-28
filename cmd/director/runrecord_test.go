@@ -86,7 +86,8 @@ func TestARunRecordIsWrittenWhereItsReferenceSaysItIs(t *testing.T) {
 	got, err := saveRun(RunRecord{
 		Version: 1, Run: id, Workflow: "ark graphics live",
 		Application: "arkascended", Outcome: RunVerified,
-		Sent: 1, Real: true, Verified: 1,
+		Sent: ptr(1), Real: ptr(true),
+		Verified: ptr(1), Contradicted: ptr(2), Unconfirmed: ptr(3),
 	})
 	if err != nil {
 		t.Fatalf("saving: %v", err)
@@ -98,11 +99,61 @@ func TestARunRecordIsWrittenWhereItsReferenceSaysItIs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("the reference retrieves nothing: %v", err)
 	}
-	// AND THE THREE COUNTS ARE THREE FIELDS. The first version declared them on one
-	// line with one tag, which names all three "verified" and keeps one number.
+	// AND THE THREE COUNTS ARE THREE FIELDS WITH THREE NUMBERS. The first version
+	// declared them on one line with one tag, which names all three "verified" and
+	// keeps one number — so three DISTINCT values are set and read back, which that
+	// bug cannot survive. Presence alone could not tell one key from three.
 	var back map[string]any
 	if err := json.Unmarshal(b, &back); err != nil {
 		t.Fatalf("the record is not readable JSON: %v", err)
+	}
+	for k, want := range map[string]float64{
+		"verified": 1, "contradicted": 2, "unconfirmed": 3,
+	} {
+		got, ok := back[k]
+		if !ok {
+			t.Errorf("the record has no %q field: %s", k, b)
+			continue
+		}
+		if got != want {
+			t.Errorf("the record says %q is %v, want %v — which is what one tag "+
+				"for three fields looks like: %s", k, got, want, b)
+		}
+	}
+	// AND A COUNT A FINISHED RECORD CARRIES IS CARRIED EVEN WHEN IT IS ZERO, because
+	// zero verified is a real answer and absence means the question was never asked.
+	//
+	// Marshalled rather than saved: the claim is about the ENCODING, and `saveRun`
+	// writes into a reservation this record has not got.
+	zero := 0
+	zb, err := json.Marshal(RunRecord{Version: 1, Run: "r", Outcome: RunVerified,
+		Sent: &zero, Verified: &zero})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, k := range []string{"actions_sent", "verified"} {
+		if !strings.Contains(string(zb), `"`+k+`":0`) {
+			t.Errorf("a finished record does not carry %q as zero, so a run that "+
+				"sent nothing is indistinguishable from one nobody can speak "+
+				"for: %s", k, zb)
+		}
+	}
+	// AND AN ATTEMPT THAT NEVER FINISHED CARRIES NEITHER. The provisional record sets
+	// none of them, and with plain values it published `"actions_sent": 0` and
+	// `"live": false` — a killed supervised run claiming nothing reached a computer and
+	// that it had not been live, about a run that may have pressed a dozen things for
+	// real.
+	pb, err := json.Marshal(RunRecord{Version: 1, Run: "r", Outcome: RunStarted,
+		Because: "reserved; this attempt had not finished"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, k := range []string{"actions_sent", "live", "verified", "contradicted",
+		"unconfirmed", "ended"} {
+		if strings.Contains(string(pb), `"`+k+`"`) {
+			t.Errorf("an unfinished attempt's record claims %q, which nobody can "+
+				"know about it: %s", k, pb)
+		}
 	}
 	for _, k := range []string{"verified", "contradicted", "unconfirmed"} {
 		if _, ok := back[k]; !ok {

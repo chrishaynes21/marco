@@ -212,8 +212,8 @@ func TestThePlaysRecordIsWrittenFromItsAccount(t *testing.T) {
 	default:
 		t.Errorf("a run that pressed nothing was recorded %q", rec.Outcome)
 	}
-	if rec.Sent != 0 {
-		t.Errorf("the record says %d action(s) were sent", rec.Sent)
+	if mustSay(t, rec) != 0 {
+		t.Errorf("the record says %d action(s) were sent", mustSay(t, rec))
 	}
 }
 

@@ -75,8 +75,8 @@ func TestAWindowThatCannotBeAcquiredIsRecordedAsFailed(t *testing.T) {
 	if rec.Outcome != RunFailed {
 		t.Errorf("outcome %q, want %q", rec.Outcome, RunFailed)
 	}
-	if rec.Sent != 0 {
-		t.Errorf("%d action(s) sent by a run that never acquired a window", rec.Sent)
+	if mustSay(t, rec) != 0 {
+		t.Errorf("%d action(s) sent by a run that never acquired a window", mustSay(t, rec))
 	}
 	if rec.Workflow != "a routine" {
 		t.Errorf("the record does not name the routine: %+v", rec)
@@ -121,8 +121,8 @@ func TestAStartPromptCancellationIsRecordedAsCancelled(t *testing.T) {
 		t.Errorf("outcome %q, want %q — a run somebody stopped is not a run that "+
 			"failed", rec.Outcome, RunCancelled)
 	}
-	if rec.Sent != 0 {
-		t.Errorf("%d action(s) sent by a run cancelled at the start prompt", rec.Sent)
+	if mustSay(t, rec) != 0 {
+		t.Errorf("%d action(s) sent by a run cancelled at the start prompt", mustSay(t, rec))
 	}
 }
 
@@ -186,7 +186,7 @@ func TestAStopSaidAnywhereReachesASupervisedRun(t *testing.T) {
 		t.Errorf("outcome %q, want %q — a run somebody stopped is not a run that "+
 			"failed", rec.Outcome, RunCancelled)
 	}
-	if rec.Sent != 0 {
-		t.Errorf("%d action(s) sent by a run that was stopped", rec.Sent)
+	if mustSay(t, rec) != 0 {
+		t.Errorf("%d action(s) sent by a run that was stopped", mustSay(t, rec))
 	}
 }
