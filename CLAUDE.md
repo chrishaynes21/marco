@@ -108,6 +108,8 @@ go -C plugins/overlay build -o overlay.exe .
 plugins/studio/build.cmd                 # Studio: NEVER a plain `go build` — see below
 plugins/vision/build.cmd                 # Windows: the ONNX backend (needs gcc)
 .\overlay.cmd                          # Windows: launches the overlay stack
+.\gate.ps1                             # the release gate: suites, bundle, install, EVERY scenario
+go run ./cmd/gate                      # its first stage alone, which needs no screen
 ```
 - **`director.exe` must sit beside `marco.exe`.** `marco` finds it by looking next to its own
   executable (`$DIRECTOR_BIN` overrides), and it is not optional: it is what starts the Director
@@ -140,6 +142,23 @@ plugins/vision/build.cmd                 # Windows: the ONNX backend (needs gcc)
   not contain that code at all. And to SEE the page without a window, render
   `frontend/index.html` in headless Edge with `window.go` stubbed; the page waits for the
   Wails bindings and paints nothing until they exist.
+- **`go test ./...` is not the gate, because a skip is green.** Studio’s suite printed `ok`
+  while every test that presses Play SKIPPED — the `marco.exe` they spawn could not be rebuilt —
+  and the reason it could not be rebuilt was eight `marco do` processes from earlier runs still
+  holding the file open, each with the recorder’s global hooks installed. Each silence explained
+  the other. So `cmd/gate` asks the two questions `go test` does not: a skip is tolerated only
+  when **`gate-skips.txt`** declares it by name with a reason (an undeclared skip fails, and so
+  does a stale declaration whose test ran and did not skip), and a product binary running after a
+  suite that was not running before it is a finding — described into the run’s directory before
+  anything is ended, and ended only when it is this run’s to end. **Add a declaration when you add
+  a skip, in the same change.** `gate.ps1` runs that, then packs the bundle, installs it from an
+  isolated directory and runs EVERY registered desktop scenario against the installed binaries;
+  `-Only` is a partial run and says so. See
+  [[ADR-264-the-gate-answers-for-what-did-not-run]].
+- **A `.ps1` in this tree must be ASCII, or carry a BOM.** Windows PowerShell 5.1 reads a
+  BOM-less file as ANSI, so a box-drawing character or an em dash in a script written as plain
+  UTF-8 becomes a parse error with a mangled caret — which is what the first `gate.ps1` did,
+  before a single stage ran.
 - **`director capture-game-session` is the L0 recorder** (frames + observed inputs on one
   clock, nothing injected) and `go run ./cmd/perceptionreplay -frames -stride N <dir>` replays
   the pixels through the production perception path. `-frames` is a BOOL and the directory is

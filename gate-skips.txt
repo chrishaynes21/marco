@@ -1,0 +1,71 @@
+# The skips this gate tolerates, and why.
+#
+# A `t.Skip` is GREEN, and `go test ./...` prints `ok` over a package in which every test that
+# matters declined. So a skip is tolerated here only when it is DECLARED — by package, by test
+# name, with a reason somebody wrote — and `cmd/gate` fails on any skip that is not in this file.
+#
+# It fails on a STALE entry too: one whose test ran and did not skip. A list of excuses nobody
+# prunes stops describing anything, and an entry naming a test that has been renamed is an
+# exemption doing nothing while the renamed test's next skip arrives undeclared.
+#
+# A reason beginning `BROKEN:` is a DEFECT, not a decision: a test that no longer establishes what
+# it was written for. Those are counted and printed apart on every run, including a green one,
+# because they are parked findings rather than settled answers.
+#
+# Format:  <package> <TestName> — the reason
+#
+# See [[ADR-264-the-gate-answers-for-what-did-not-run]].
+
+# ── REAL INPUT ON A REAL DESKTOP, OPT-IN ──────────────────────────────────────
+# These perform real presses into a window on whoever's screen is in front of the machine. They
+# are off by default on purpose: a suite somebody runs while working must not take their keyboard.
+github.com/chaynes-simpleclouds/marco/internal/acceptance TestDesktopAcceptance — performs REAL INPUT into a fixture window; set MARCO_ACCEPT_DESKTOP=1
+github.com/chaynes-simpleclouds/marco/internal/acceptance TestDesktopScrolling — performs REAL INPUT into a fixture window; set MARCO_ACCEPT_DESKTOP=1
+github.com/chaynes-simpleclouds/marco/internal/acceptance TestMarcoDoesNotBelieveAnOutcomeItDidNotGet — performs REAL INPUT into a fixture window; set MARCO_ACCEPT_DESKTOP=1
+github.com/chaynes-simpleclouds/marco/internal/acceptance TestStopReachesAnInterpretationInFlight — performs REAL INPUT into a fixture window; set MARCO_ACCEPT_DESKTOP=1
+github.com/chaynes-simpleclouds/marco/cmd/director TestRealDesktopTeachingE2E — performs REAL INPUT through the Director; set MARCO_E2E_DESKTOP=1
+github.com/chaynes-simpleclouds/marco/internal/platform/winprovider TestLiveConfirmCost — launches and closes a program on this desktop; set MARCO_LIVE_WINDOW_TEST=1
+github.com/chaynes-simpleclouds/marco/internal/platform/winprovider TestLiveConfirmDoesNotEnumerate — launches and closes a program on this desktop; set MARCO_LIVE_WINDOW_TEST=1
+github.com/chaynes-simpleclouds/marco/internal/platform/winprovider TestLiveWindowLifecycle — launches and closes a program on this desktop; set MARCO_LIVE_WINDOW_TEST=1
+github.com/chaynes-simpleclouds/marco/internal/acceptance TestNaturalLanguageProbe — the dogfood probe, which asks a resolver and a desktop for things; set MARCO_PROBE=1
+
+# ── BENCHES, SWEEPS AND TOOLS, WHICH ARE NOT CHECKS ───────────────────────────
+# Perception measurement and the tools that regenerate its ground truth. A sweep that took minutes
+# on every ordinary run would be the reason nobody ran the suite; a tool that rewrote a corpus
+# would be a test with an opinion about the tree.
+github.com/chaynes-simpleclouds/marco/internal/director/visionbench TestClassicalAblation — an ablation sweep, not a check; set MARCO_CLASSICAL_ABLATE=1
+github.com/chaynes-simpleclouds/marco/internal/director/visionbench TestClassicalGroundTruthPrecision — a ground-truth sweep, not a check; set MARCO_CLASSICAL_ABLATE=1
+github.com/chaynes-simpleclouds/marco/internal/director/visionbench TestClassicalDump — a tool that lists candidates; set MARCO_CLASSICAL_DUMP=1
+github.com/chaynes-simpleclouds/marco/internal/director/visionbench TestGenerateV2Truth — a tool that REWRITES the v2 ground truth; set MARCO_WRITE_TRUTH=1
+github.com/chaynes-simpleclouds/marco/internal/director/visionbench TestSanitiseV2PauseFrames — a tool that rewrites corpus frames in place; set MARCO_SANITIZE=1
+github.com/chaynes-simpleclouds/marco/internal/director/visionbench TestLiveShadowOverARealScreen — needs a captured frame; set MARCO_SHADOW_FRAME
+github.com/chaynes-simpleclouds/marco/internal/director/visionbench TestStrideCostOnARealScreen — needs a full-resolution capture; set MARCO_SHADOW_FRAME
+github.com/chaynes-simpleclouds/marco/internal/director/visionbench TestScreenParserCalibration — a screen-parser bench; set MARCO_SP=1
+github.com/chaynes-simpleclouds/marco/internal/director/visionbench TestScreenParserHeldOut — a screen-parser bench; set MARCO_SP=1
+github.com/chaynes-simpleclouds/marco/internal/director/visionbench TestScreenParserBySequence — a screen-parser bench; set MARCO_SP=1
+github.com/chaynes-simpleclouds/marco/internal/director/visionbench TestV2SizeFloor — a v2 detector bench; set MARCO_V2=1
+github.com/chaynes-simpleclouds/marco/internal/director/visionbench TestV2Stride — a v2 detector bench; set MARCO_V2=1
+github.com/chaynes-simpleclouds/marco/internal/director/visionbench TestV2PathologicalBackends — a v2 detector bench; set MARCO_V2=1
+github.com/chaynes-simpleclouds/marco/cmd/director TestTransitionAuditPerFrame — needs a real ONNX runtime and a corpus; set MARCO_TRANSITION_AUDIT=1
+
+# ── A TEST THAT IS ALSO ITS OWN CHILD ─────────────────────────────────────────
+# The helper-process pattern: the test binary re-executes itself with an environment variable set,
+# and the branch that is the child declines when it is the parent. Structural, and permanent.
+github.com/chaynes-simpleclouds/marco/internal/director/service TestStartupLogHelperProcess — the child half of a helper-process test; it declines when it is the parent
+
+# ── PARKED FINDINGS: GATES THAT NO LONGER GATE ────────────────────────────────
+# Found by this gate on its first run, which is what it is for. Each of these builds a scenario and
+# then declines because the scenario did not produce the condition the test is about — so it has
+# been establishing nothing, for however long, while printing `ok`. They are perception and
+# rehearsal work rather than alpha work, so they are parked here rather than fixed or deleted: see
+# [[Roadmap]] item 37.
+github.com/chaynes-simpleclouds/marco/internal/director/observe TestTheSegmenterRecordsHowLongItCouldNotPlaceTheScreen — BROKEN: the script no longer produces an unplaceable frame, so the mutation gate its own note describes ("deleting g.unsettled++ must fail this") cannot fail
+github.com/chaynes-simpleclouds/marco/internal/director/observe TestALongerBlackoutIsRecordedAsLonger — BROKEN: the script produces no unplaceable interval at all, so nothing compares a long blackout with a short one
+github.com/chaynes-simpleclouds/marco/cmd/director TestAnAnsweredQuestionIsNoLongerOffered — BROKEN: the fixture holds no open rehearsal question, so the behaviour the test names is never reached
+
+# ── MORE TESTS THAT ARE ALSO THEIR OWN CHILDREN ───────────────────────────────
+# The overlay's intake and stop tests spawn the test binary as a child and assert what it got.
+# The branch that IS the child declines when nobody spawned it, which is every ordinary run.
+github.com/chaynes-simpleclouds/marco/plugins/overlay TestOverlaySleeperHelper — the child half of a helper-process test; it declines unless startSleeper spawned it
+github.com/chaynes-simpleclouds/marco/plugins/overlay TestOverlayEchoHelper — the child half of a helper-process test; it declines unless runEchoChild spawned it
+github.com/chaynes-simpleclouds/marco/plugins/overlay TestOverlayEnvDumpHelper — the child half of a helper-process test; it declines unless envOfNextChild spawned it

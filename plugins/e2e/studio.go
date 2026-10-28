@@ -76,6 +76,10 @@ func startStudio(b *bundle, art *artifacts, store string) (*studioRun, error) {
 		return nil, fmt.Errorf("starting Studio: %w", err)
 	}
 	s.pid = uint32(s.cmd.Process.Pid)
+	// REMEMBERED, SO IT CAN BE ASKED ABOUT AFTERWARDS. A Studio that exits leaves the
+	// `marco` and the `director` it spawned with a parent id that names nothing, and a walk
+	// down from this process would lose them. See weStarted.
+	weStarted(s.pid)
 	if ok, saw := fileAppears(60*time.Second, s.evidence); !ok {
 		s.close()
 		return nil, fmt.Errorf("Studio's page never reported that it rendered (%s). A "+

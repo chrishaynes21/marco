@@ -1538,6 +1538,12 @@ invisible to a green suite, and so was the stale window that hid its fix.
 
 > **MUCH OF THE MECHANISM BELOW IS NOW CHECKED BY A HARNESS, AND THE RECORDING IS NOT.**
 >
+> And that harness is the LAST stage of `gate.ps1`, which is the release gate: the suites and what
+> declined or outlived them, the packed bundle, that bundle installed from an isolated directory,
+> and then every registered scenario against those installed binaries. Run `.\gate.ps1` for the
+> whole of it; `plugins\e2e\run.cmd` on its own is the desktop half, and `-only` is a partial run
+> that the report says so about. See [[ADR-264-the-gate-answers-for-what-did-not-run]].
+>
 > `plugins\e2e\run.cmd` drives the real Studio against a deterministic application on the real
 > desktop, unattended, in about half a minute. It covers **playing** a routine end to end and
 > asserts what the application actually received, a **moved** window keeping the press, a

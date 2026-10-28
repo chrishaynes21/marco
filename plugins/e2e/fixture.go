@@ -165,6 +165,7 @@ func startFixture(b *bundle, art *artifacts, stubborn bool, extra ...string) (*f
 		return nil, fmt.Errorf("starting the fixture: %w", err)
 	}
 	f.pid = uint32(f.cmd.Process.Pid)
+	weStarted(f.pid) // see the note in startStudio
 	if ok, saw := fileAppears(15*time.Second, f.state); !ok {
 		f.close()
 		return nil, fmt.Errorf("the fixture never wrote its oracle (%s), so its "+

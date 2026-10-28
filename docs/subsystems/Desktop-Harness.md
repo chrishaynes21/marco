@@ -518,6 +518,47 @@ was what answered. Run twice: against the first packaged alpha, and again agains
 after the recorder's publication fence and the launcher's activation and path closures, with the
 same eleven results. See [[ADR-263-the-alpha-is-the-studio-stack-and-it-says-what-it-is]].
 
+## The whole gate, in the order it runs
+
+`gate.ps1` is the release gate and this harness is its last stage, because it is the only part
+that takes somebody’s screen:
+
+1. **the suites**, with what declined and what outlived them (`cmd/gate`)
+2. **the bundle**, packed from this tree (`pack.ps1`)
+3. **the bundle installed** from an isolated directory, reporting what it is made of
+4. **every registered scenario** against those installed binaries
+
+Each stage is worth something only if the one before it passed. A harness run against binaries
+whose own suite is failing tells you about the harness, and a bundle validated from the tree it
+was built in cannot tell you whether an installation works.
+
+**`-only` is not the gate.** It runs the scenarios whose names contain a word, which is a partial
+run, and the harness already exits 2 rather than 0 for one — the scenario that did not run is the
+one whose question nobody asked. `gate.ps1` prints the same thing when it is given `-Only`.
+
+## And nothing a scenario started is still running
+
+Asked after EVERY scenario, not once at the end: attribution, because the scenario that leaked is
+the one worth looking at, and containment, because a Studio or a `marco` left running changes what
+the next scenario sees.
+
+A survivor is a watched binary running now that was not running before — by COMPARISON, because
+something the owner already had open is not this run’s doing, and by PATH, because the binary a
+scenario spawns and the one in somebody’s own Marco are both `marco.exe`. Everything about it is
+written into that scenario’s artifacts first, with the scenario’s own run records copied out of
+the store this harness is about to delete. Only then is it ended, and only when it is this run’s
+to end: a child of this run, or an orphan. `marco do` somebody started in their own shell is
+reported and left alone.
+
+**A scenario that passed and left a child running becomes a finding**, because a run that reports
+it finished while the process performing it is still there has not established what it says. Its
+own evidence is kept beside the finding; the verdict is what is replaced, not the account.
+
+The bound is twenty seconds, which is Marco’s own number rather than one somebody liked: a
+recording’s shutdown gives itself three bounded waits of five seconds each, and the process still
+has to exit after them. See [[ADR-264-the-gate-answers-for-what-did-not-run]], and the eight
+`marco do` processes that were found on this desktop hours after the tests that spawned them.
+
 ## The gate for a change to chords
 
 `plugins\e2e\run.cmd -only keys` is the regression gate for an executable change to the chord

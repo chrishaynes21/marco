@@ -59,6 +59,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/chaynes-simpleclouds/marco/internal/gate"
 	"github.com/chaynes-simpleclouds/marco/internal/marcopaths"
 	"github.com/chaynes-simpleclouds/marco/internal/mlog"
 )
@@ -157,6 +158,25 @@ func main() {
 	checks = append(checks, checked)
 	fmt.Printf("%s\n", checked)
 
+	// AND THE SECOND PRECONDITION: THAT THIS HARNESS CAN SEE WHAT IS RUNNING.
+	//
+	// Every scenario is followed by a check that nothing it started is still running, and a
+	// check that cannot be made must not read as one that found nothing. Eight `marco do`
+	// processes outlived the tests that spawned them by hours on this machine, each with
+	// the recorder's global hooks still installed, and the only account of them that ever
+	// existed was a build failing on a locked file. See nothingIsStillRunning.
+	if _, err := gate.Snapshot(); err != nil {
+		finish(art, m, checks, nil, cannot("what is running on this machine cannot "+
+			"be read, so a child outliving a scenario could not be noticed: %v",
+			err), started, run, *keep)
+		return
+	}
+	children := fmt.Sprintf("children: every scenario is followed by a check that nothing "+
+		"it started is still running %s after it finished, and a survivor is a "+
+		"failure rather than a note", settling)
+	checks = append(checks, children)
+	fmt.Printf("%s\n", children)
+
 	var results []result
 	// ONE WORLD, AND A NUMBER PER SCENARIO.
 	//
@@ -186,7 +206,12 @@ func main() {
 		fmt.Printf("\n%s — %s\n", s.name, s.about)
 		w.scenarioN = i + 1
 		w.art = art.scope(fmt.Sprintf("%02d-%s", i+1, slug(s.name)))
+		before, _ := gate.Snapshot()
 		r := s.run(w)
+		// AND NOTHING IT STARTED IS STILL RUNNING, which replaces the result when
+		// something is: a scenario that reports a finished run while the process
+		// performing it is still there has not established what it says.
+		r = nothingIsStillRunning(w, before, r)
 		r.name, r.layer, r.about = s.name, s.layer, s.about
 		results = append(results, r)
 		if r.skipped {

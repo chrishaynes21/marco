@@ -87,6 +87,11 @@ func aRecordingThatWillNotFinishShuttingDown(readyNow bool) *winRecorder {
 
 // A HOOK THREAD THAT NEVER REPORTED STARTING DOES NOT WEDGE THE SHUTDOWN.
 func TestAHookThreadThatNeverStartedDoesNotWedgeTheShutdown(t *testing.T) {
+	// AND IT PUTS THE PACKAGE BACK, because abandoning a recording sets `recWedged`
+	// and nothing in this process may record afterwards. Left set, it made
+	// `TestAnUnconsumedArmDoesNotSurviveIntoTheNextRecording` SKIP on the refusal from
+	// `Start` — a real test quietly not running, three files away, for hours.
+	aCleanPackage(t)
 	r := aRecordingThatWillNotFinishShuttingDown(false)
 	done := make(chan struct{})
 	go func() { defer close(done); r.Stop() }()
@@ -119,6 +124,7 @@ func TestAHookThreadThatNeverStartedDoesNotWedgeTheShutdown(t *testing.T) {
 // through the pump's own bound first and then through the poller's — which is the ordering a real
 // shutdown has, and the reason the total is bounded rather than merely each part.
 func TestAPollerThatNeverComesBackDoesNotWedgeTheShutdown(t *testing.T) {
+	aCleanPackage(t) // see the note on the test above
 	r := aRecordingThatWillNotFinishShuttingDown(true)
 	done := make(chan struct{})
 	started := time.Now()

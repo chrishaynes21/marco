@@ -1520,6 +1520,32 @@ timing: a routine's recorded gaps are the only waiting it has when there is no a
 application is twenty seconds of pause that either belongs in the routine or does not, and
 somebody has to decide which. That decision is the work, not the filtering.
 
+## 37. Three gates that no longer gate -- OPEN, found by the gate
+
+**What it would tell us:** whether three tests that have been printing `ok` establish anything.
+Today they do not, and the first run of `cmd/gate` is what said so.
+
+Each builds a scenario, discovers the scenario did not produce the condition it is about, and
+SKIPS:
+
+- `internal/director/observe` `TestTheSegmenterRecordsHowLongItCouldNotPlaceTheScreen` -- its
+  script no longer produces an unplaceable frame. Its own doc comment says *"deleting
+  `g.unsettled++` must fail this"*, and it cannot.
+- `internal/director/observe` `TestALongerBlackoutIsRecordedAsLonger` -- no unplaceable interval
+  at all, so nothing compares a long blackout with a short one.
+- `cmd/director` `TestAnAnsweredQuestionIsNoLongerOffered` -- the fixture holds no open rehearsal
+  question, so the behaviour the test names is never reached.
+
+**They are declared, not ignored.** `gate-skips.txt` carries each one with a reason beginning
+`BROKEN:`, which the gate counts and prints apart on every run, green or not -- a skip that is a
+defect rather than a decision. So the gate passes and keeps saying they are there.
+
+**What the work is:** deciding, for each, whether the behaviour still exists to be gated. The
+segmenter's unplaceable state may have been made unreachable by a later change, in which case the
+gate is testing a case the product no longer has and the right answer is to delete it and say so.
+That is a judgement about perception, not a test repair, which is why it is here rather than in
+the alpha. See [[ADR-264-the-gate-answers-for-what-did-not-run]].
+
 ## Deferred, with reasons
 
 - **Grounding DINO on GPU** — the 9.6s that sank it is a CPU-only `torch` artefact, but it
