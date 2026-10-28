@@ -11259,6 +11259,26 @@ case exercised two labels that differ as strings and are ONE candidate to the ma
 (`settings-in-ark` beside a routine genuinely slugged `settings-ark`), which is the only thing the
 `nlu.Key` check is for. That case is now a test.
 
+### And the resolver is now told which application
+
+One wiring omission outlived both corrections: `SuggestRoutine` passed `""` as the Advisor's
+context, so the target filtered the candidates and appeared in the window and **Ollama never
+received it**. Studio knew which application was meant and the resolver did not — and the
+ambiguity answer added in the same round says a shared name is "asked about with the target
+stated", which was not true of the asking.
+
+The reasoning for passing nothing had been written for a different question. An application Studio
+worked out for *itself* would be a fiction, because Studio owns the foreground whenever somebody
+types into it. But this one is not worked out: it is the one the person chose, and it is exactly
+what the resolver is best placed to use. It is context for the question, not another filter on the
+answer — eligibility is unchanged, so a global routine and an anywhere-in-application one are
+still offered whatever is chosen.
+
+Held by a test that captures the Advisor's `app` argument: it equals the chosen target, and with no
+target stated it stays empty rather than being filled in with something invented. Two mutations
+gate it — passing nothing, and passing something that is not the target. The live test against the
+real model was re-run with the target now in the prompt and still returns the whole identity.
+
 ### Not in this slice
 
 Overlay wiring — the widget still has its exact-only door, and giving it this is a separate

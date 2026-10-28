@@ -335,8 +335,22 @@ func (a *Acts) SuggestRoutine(request, target string) Suggestion {
 		return said
 	}
 
+	// AND THE RESOLVER IS TOLD WHICH APPLICATION, which is the same fact that filtered
+	// the candidates and is shown beside the request.
+	//
+	// It used to be told nothing, and the reasoning for that was about a DIFFERENT
+	// question. Studio owns the foreground whenever somebody types into it, so an
+	// application it worked out for itself would have been a fiction — but this is not
+	// worked out, it is the one the person chose, and withholding it left the resolver
+	// guessing at exactly the thing it is best placed to settle. Worse, the ambiguity
+	// answer below says a shared name is "asked about with the target stated", which was
+	// not true of the asking.
+	//
+	// Nothing about ELIGIBILITY changes: a global routine and an anywhere-in-application
+	// one are offered whatever is chosen, and an in-place one only for its own
+	// application. This is context for the question, not another filter on the answer.
 	dec := dispatch.New(a.suggestAdvisor()).
-		Decide(context.Background(), request, labels, "")
+		Decide(context.Background(), request, labels, target)
 	said.Kind, said.Source = dec.Intent, dec.Source
 	said.Resolver = resolverSentence(a.suggestAdvisor(), dec.Advisor)
 	said.Reply = dec.Reply

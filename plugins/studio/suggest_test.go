@@ -357,13 +357,17 @@ type recordingAdvisor struct {
 	offers dispatch.Decision
 	ok     bool
 	labels []string
+	// app is the context it was given, which is the fact the window has and the
+	// resolver used not to be told.
+	app string
 }
 
 func (r *recordingAdvisor) Advise(_ context.Context, _ string, labels []string,
-	_ string) (dispatch.Decision, bool) {
+	app string) (dispatch.Decision, bool) {
 
 	r.asked++
 	r.labels = labels
+	r.app = app
 	return r.offers, r.ok
 }
 
@@ -451,6 +455,52 @@ func TestTheAnswerSaysWhetherTheResolverTookPart(t *testing.T) {
 			t.Errorf("the resolver was offered %q, which is an identity and not a "+
 				"label", l)
 		}
+	}
+}
+
+// AND THE RESOLVER IS TOLD WHICH APPLICATION THE PERSON CHOSE.
+//
+// The target filtered the candidates and is shown beside the request, and the resolver was being
+// told nothing — so Studio knew which application was meant and Ollama did not. The
+// reasoning for passing nothing was about a different question: an application Studio worked out
+// for ITSELF would be a fiction, because Studio owns the foreground whenever somebody types into
+// it. This one is not worked out. It is the one they picked, and it is what the resolver is best
+// placed to use.
+func TestTheResolverIsToldWhichApplicationWasTargeted(t *testing.T) {
+	a := aLibraryWithOneRoutine(t)
+	rs := a.Routines()
+	if len(rs) != 1 || rs[0].App == "" {
+		t.Fatalf("the library holds %+v, want one routine with an application", rs)
+	}
+
+	told := &recordingAdvisor{}
+	a.advisor = told
+	if said := a.SuggestRoutine("make the pictures nicer", rs[0].App); said.Target != rs[0].App {
+		t.Fatalf("the answer was read against %q, want %q", said.Target, rs[0].App)
+	}
+	if told.asked != 1 {
+		t.Fatalf("the resolver was asked %d time(s)", told.asked)
+	}
+	if told.app != rs[0].App {
+		t.Errorf("the resolver was told the application is %q, want the target the "+
+			"person chose, %q", told.app, rs[0].App)
+	}
+
+	// AND WITH NO TARGET STATED IT IS TOLD NOTHING, rather than something invented. An
+	// anywhere-in-application routine is still offered, because it brings its own
+	// application forward; what is absent is the claim about what is in front.
+	none := &recordingAdvisor{}
+	a.advisor = none
+	said := a.SuggestRoutine("make the pictures nicer", "")
+	if said.Offered == 0 {
+		t.Fatalf("nothing was offered with no target, so this says nothing: %+v", said)
+	}
+	if none.asked != 1 {
+		t.Fatalf("the resolver was asked %d time(s) with no target", none.asked)
+	}
+	if none.app != "" {
+		t.Errorf("with no target stated the resolver was told the application is %q",
+			none.app)
 	}
 }
 
