@@ -52,6 +52,7 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/director/runref"
 	"github.com/chaynes-simpleclouds/marco/internal/director/runstate"
 	"github.com/chaynes-simpleclouds/marco/internal/director/workflowstore"
+	"github.com/chaynes-simpleclouds/marco/internal/dispatch"
 	"github.com/chaynes-simpleclouds/marco/internal/driver"
 	"github.com/chaynes-simpleclouds/marco/internal/marcopaths"
 	"github.com/chaynes-simpleclouds/marco/internal/orchestrator"
@@ -163,6 +164,9 @@ type Acts struct {
 	// see play.go.
 	listing func() []windowref.Candidate
 	lifting func(h uintptr, pid uint32) (leading, checked bool)
+	// advisor is the resolver a typed request is read with, or a test's stand-in. Nil in
+	// every production path, which means ask the configured plugin; see suggest.go.
+	advisor dispatch.Advisor
 	// revision is this window's own build, substitutable for the same reason the
 	// three above are: a test binary carries no VCS stamp, so the one pair this
 	// has to get right — two builds that genuinely differ — cannot otherwise be

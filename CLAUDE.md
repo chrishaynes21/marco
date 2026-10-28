@@ -172,6 +172,18 @@ go run ./cmd/gate                      # its first stage alone, which needs no s
   BOM-less file as ANSI, so a box-drawing character or an em dash in a script written as plain
   UTF-8 becomes a parse error with a mangled caret — which is what the first `gate.ps1` did,
   before a single stage ran.
+- **Studio can be ASKED for a routine in words, and the resolver it asks was dead.**
+  `internal/dispatch` + `plugins/llama` + a local Ollama had a Dispatcher, an Advisor, a
+  trust-but-verify `validate` and `$MARCO_RESOLVER` pinned by `setup.ps1` — reached only by
+  `marco dispatch` and the `marco assistant` REPL, which nothing launches. The widget never called
+  it. So `Acts.SuggestRoutine` reuses it and SELECTS a routine; the thing that runs one is still
+  the Play button. Three rules worth keeping straight: the TARGET APPLICATION IS STATED, never
+  inferred (Studio owns the foreground, and "it has a window" would erase the difference between
+  context and focus); the resolver is offered slug-shaped LABELS whose uniqueness is checked on
+  `nlu.Key`, the matcher’s own reduction, and the answer is a key into a map that is NEVER
+  resolved again; and a decision says which arm answered, because two of the three need no model
+  and a window that never reached Ollama would look exactly like one that did. See
+  [[ADR-265-say-what-you-want-and-studio-offers-the-routine]].
 - **`director capture-game-session` is the L0 recorder** (frames + observed inputs on one
   clock, nothing injected) and `go run ./cmd/perceptionreplay -frames -stride N <dir>` replays
   the pixels through the production perception path. `-frames` is a BOOL and the directory is

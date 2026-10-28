@@ -532,6 +532,28 @@
          an old one can be sitting next to this window unread. Nothing is lost and nothing
          is moved; the honest failure of changing the rule is silence, so it says its name. -->
     <div class="banner hide" style="margin-top:8px" id="libElsewhere"></div>
+    <!-- SAY WHAT YOU WANT, AND STUDIO SELECTS THE ROUTINE IT THINKS YOU MEANT.
+         IT SELECTS. It does not run: the thing that runs one is the Play button below,
+         pressed by a person, with the guards it already had. See suggest.go. -->
+    <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <input id="askBox" type="text" placeholder="say what you want, in your own words"
+        aria-label="Say what you want" style="flex:1;min-width:220px">
+      <!-- THE TARGET APPLICATION, STATED AND NOT INFERRED.
+           An in-place routine works only while its application is in front, so it is
+           offered only when that application is the target. Studio owns the foreground
+           whenever somebody types in here, so reading the foreground would answer
+           "Studio" - and treating "it has a window" as eligibility would erase the
+           difference between the two application scopes. -->
+      <label class="muted" for="askTarget">in</label>
+      <select id="askTarget" aria-label="Target application"></select>
+      <button id="askBtn" class="secondary">Find it</button>
+    </div>
+    <div class="muted" style="margin-top:6px" id="askSaid"></div>
+    <!-- AND WHO ANSWERED, WHICH IS NOT DECORATION.
+         Two of the three arms need no model at all, so this window could work, look
+         right, and never once reach the resolver somebody installed. It says which
+         answered and what part the configured resolver had. -->
+    <div class="muted mach" style="margin-top:4px;font-size:11.5px" id="askWho"></div>
     <div id="routineList" style="margin-top:12px"></div>
     <div class="muted hide" id="routineNone">Nothing has been recorded yet. Record one
       above and it appears here.</div>
@@ -945,6 +967,11 @@
    paintLive(); show('acts'); loadActs(); loadDemos(); loadHistory(); loadApps()
    loadLibrary()
    poll(); pollLearning(); pollCapture(); pollRepairs(); pollRoutines()
+   pollAskTargets()
+   $('askBtn').onclick = askForRoutine
+   $('askBox').onkeydown = (e) => {
+     if (e.key === 'Enter') { e.preventDefault(); askForRoutine() }
+   }
    // AND READINESS ON THE NEXT TICK, WHICH IS NOT A STYLE CHOICE.
    //
    // This callback runs SYNCHRONOUSLY when the bindings are already there, part-way
@@ -1690,6 +1717,68 @@
      '  ·  director ' + (r.director || '?') + '  ·  library ' + (r.library || '?') +
      (r.installation ? '\n' + r.installation : '') +
      '\n' + (r.limits || ''))
+ }
+
+ // ── SAY WHAT YOU WANT ────────────────────────────────────────────────────────
+ //
+ // One call, one answer, and nothing starts. `SuggestRoutine` names a routine by its
+ // WHOLE identity, which is what a card already carries, so selecting it is the same
+ // thing clicking the card does - and Play is then the button it always was.
+ let askTargets = ''
+ function pollAskTargets(){
+   acts.SuggestTargets().then(ts => {
+     ts = ts || []
+     const sig = ts.map(t => [t.app, t.open, t.context].join('\u0001')).join('\u0000')
+     if (sig === askTargets) { return }
+     askTargets = sig
+     const sel = $('askTarget')
+     const had = sel.value
+     sel.innerHTML = ''
+     // NOTHING IS A REAL CHOICE AND IS THE DEFAULT. With no target stated, no in-place
+     // routine is offered - which is the honest answer rather than a guess at which
+     // application somebody meant.
+     const none = document.createElement('option')
+     none.value = ''
+     none.textContent = 'no application'
+     sel.appendChild(none)
+     ts.forEach(t => {
+       const o = document.createElement('option')
+       o.value = t.app
+       // OPEN IS A HINT AND NOT A FILTER: it is shown so somebody can see that the
+       // application their in-place command needs is not running, and it does not
+       // decide what is offered, because the choice is theirs.
+       o.textContent = t.app + (t.open ? '' : ' (not running)')
+       sel.appendChild(o)
+     })
+     if (had) { sel.value = had }
+   }).finally(() => setTimeout(pollAskTargets, 4000))
+ }
+
+ let asking = false
+ function askForRoutine(){
+   const text = $('askBox').value.trim()
+   if (asking) { return }
+   if (!text) { $('askSaid').textContent = 'say what you want, in your own words'; return }
+   asking = true
+   $('askBtn').disabled = true
+   $('askSaid').textContent = 'asking...'
+   $('askWho').textContent = ''
+   acts.SuggestRoutine(text, $('askTarget').value).then(sug => {
+     sug = sug || {}
+     $('askSaid').textContent = sug.reply || ''
+     // THE TARGET BESIDE THE REQUEST, read off the answer rather than off what this
+     // page sent, so the two cannot disagree about which application it was read
+     // against.
+     const against = sug.target ? ('in ' + sug.target) : 'no application targeted'
+     $('askWho').textContent = against + '  ·  ' + (sug.offered || 0) +
+       ' routine(s) offered  ·  ' + (sug.source || '?') + '  ·  ' + (sug.resolver || '')
+     if (sug.kind === 'run' && sug.id) {
+       // SELECTED, NOT RUN. Exactly what clicking the card does.
+       chosenRoutine = sug.id; shownRoutines = ''; drawRoutines()
+       const card = $('routine-' + sug.id.replace(/[^a-z0-9]+/gi, '-'))
+       if (card) { card.scrollIntoView({block:'nearest'}) }
+     }
+   }).finally(() => { asking = false; $('askBtn').disabled = false })
  }
 
  let shownRoutines = ''

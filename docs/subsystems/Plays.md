@@ -123,6 +123,16 @@ same fact as its own field so a shortened column cannot drop it, and the CLI row
 anywhere (brings chrome forward)`. Collapsing focus into either neighbour must fail
 `TestFocusIsPresentedDistinctlyFromContext` and `TestFocusReadsDifferentlyFromContext`.
 
+**And a request in words is read against a STATED application.** Studio takes a request in a
+person’s own words and selects the routine it names, and the three scopes decide what is even
+eligible: a global play always, a focus play from wherever you are because it brings its own
+application forward, and a context play ONLY when its application is the one the person targeted.
+The target is chosen rather than inferred — Studio owns the foreground whenever somebody types
+into it, and treating "this application has a window" as eligibility would make every running
+application’s in-place commands reachable from anywhere, which is what focus already means. With
+no target stated, no context play is offered and the answer says so. See
+[[ADR-265-say-what-you-want-and-studio-offers-the-routine]].
+
 `ScopeOf` tests **app-less first, then Focus** — the same order `Registry.dir` uses to choose the
 folder, so the label cannot disagree with the location. The copy this replaced tested `Focus`
 first, and would have called an app-less play "focus" the moment a Route was built from user input
@@ -324,4 +334,6 @@ the foreground when you type that command is a terminal
   that made `teach` the one internal name worth renaming
 - [[ADR-086-one-acquisition-one-word-one-request]] — the rename that carried it out
 - [[ADR-080-a-learned-play-is-asked-for-from-anywhere]] — why a learned Play is focus-scoped
+- [[ADR-265-say-what-you-want-and-studio-offers-the-routine]] — asking for one in words,
+  which scopes are eligible, and why the resolver’s part is visible
 - [[Glossary]] — the words, in one place

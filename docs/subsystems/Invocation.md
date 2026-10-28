@@ -350,6 +350,25 @@ and not a file.
 | what happened | `Outcome`, announced on `[result] ` |
 | how a front end renders it | `plugins/overlay/outcome.go`, reading that line |
 
+## And asking for one in words, which is a different door
+
+`invoke.Decide` is EXACT for a play on purpose: "near enough" is a judgement, and judgement is
+Director's. So a request that is not a play’s own name goes to Director to be read against the
+screen, and nothing in that door ever consults a language model about which saved routine somebody
+meant.
+
+Studio has a second door, and it is a SUGGESTION rather than an invocation. It reads a request in
+a person’s own words, offers the eligible routines to the optional resolver plugin, and SELECTS
+the one that comes back — by its whole identity, which is then handed to the Play button that was
+already there. Nothing in it starts a process, and what it hands over arrives at this door through
+the explicit-identity arm, where no phrase is looked up again.
+
+The resolver it asks (`internal/dispatch` — `plugins/llama` — a local Ollama) was built, tested
+and configured by the installer long before this, and **was reached by nothing a person uses**:
+the widget never called it. That is why a decision now says which arm answered and whether the
+configured resolver was absent, answered, or asked and silent. See
+[[ADR-265-say-what-you-want-and-studio-offers-the-routine]].
+
 ## Related
 
 - [[Plays]] — the durable behaviour on the other side of the door

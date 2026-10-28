@@ -92,6 +92,11 @@ const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCA
 window.go = {main: {
   Backend: {Loaded: () => Promise.resolve()},
   Acts: {
+    // THE ASK BOX. Bound at startup, so a stub without it is a page that paints
+    // nothing - which is the right failure: a binding the page calls and the window
+    // does not export is exactly the defect these harnesses exist to catch.
+    SuggestTargets: () => Promise.resolve([]),
+    SuggestRoutine: () => Promise.resolve({kind: 'none'}),
     Demonstrations: () => { window.__demos++; return Promise.resolve([D]) },
     Saved: () => Promise.resolve([]),
     History: () => Promise.resolve([]),
@@ -210,6 +215,11 @@ let tick = 0
 window.go = {main: {
   Backend: {Loaded: () => Promise.resolve()},
   Acts: {
+    // THE ASK BOX. Bound at startup, so a stub without it is a page that paints
+    // nothing - which is the right failure: a binding the page calls and the window
+    // does not export is exactly the defect these harnesses exist to catch.
+    SuggestTargets: () => Promise.resolve([]),
+    SuggestRoutine: () => Promise.resolve({kind: 'none'}),
     Demonstrations: () => Promise.resolve([]),
     Saved: () => Promise.resolve([ACT]),
     History: () => Promise.resolve([]),
@@ -345,6 +355,11 @@ window.__scopeRedraws = 0
 window.go = {main: {
   Backend: {Loaded: () => Promise.resolve()},
   Acts: {
+    // THE ASK BOX. Bound at startup, so a stub without it is a page that paints
+    // nothing - which is the right failure: a binding the page calls and the window
+    // does not export is exactly the defect these harnesses exist to catch.
+    SuggestTargets: () => Promise.resolve([]),
+    SuggestRoutine: () => Promise.resolve({kind: 'none'}),
     Demonstrations: () => Promise.resolve([]),
     Saved: () => Promise.resolve([]),
     History: () => Promise.resolve([]),
@@ -451,6 +466,11 @@ const libraryHarness = `
 window.go = {main: {
   Backend: {Loaded: () => Promise.resolve()},
   Acts: {
+    // THE ASK BOX. Bound at startup, so a stub without it is a page that paints
+    // nothing - which is the right failure: a binding the page calls and the window
+    // does not export is exactly the defect these harnesses exist to catch.
+    SuggestTargets: () => Promise.resolve([]),
+    SuggestRoutine: () => Promise.resolve({kind: 'none'}),
     Demonstrations: () => Promise.resolve([]),
     Saved: () => Promise.resolve([]),
     History: () => Promise.resolve([]),
@@ -622,6 +642,11 @@ window.__as = ''
 window.go = {main: {
   Backend: {Loaded: () => Promise.resolve()},
   Acts: {
+    // THE ASK BOX. Bound at startup, so a stub without it is a page that paints
+    // nothing - which is the right failure: a binding the page calls and the window
+    // does not export is exactly the defect these harnesses exist to catch.
+    SuggestTargets: () => Promise.resolve([]),
+    SuggestRoutine: () => Promise.resolve({kind: 'none'}),
     Demonstrations: () => Promise.resolve([]),
     Saved: () => Promise.resolve([]),
     History: () => Promise.resolve([]),
@@ -715,6 +740,11 @@ const historyHarness = `
 window.go = {main: {
   Backend: {Loaded: () => Promise.resolve()},
   Acts: {
+    // THE ASK BOX. Bound at startup, so a stub without it is a page that paints
+    // nothing - which is the right failure: a binding the page calls and the window
+    // does not export is exactly the defect these harnesses exist to catch.
+    SuggestTargets: () => Promise.resolve([]),
+    SuggestRoutine: () => Promise.resolve({kind: 'none'}),
     Demonstrations: () => Promise.resolve([]),
     Saved: () => Promise.resolve([]),
     Routines: () => Promise.resolve([]),

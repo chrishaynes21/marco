@@ -36,6 +36,11 @@ const generationHarness = `
 window.go = {main: {
   Backend: {Loaded: () => Promise.resolve()},
   Acts: {
+    // THE ASK BOX. Bound at startup, so a stub without it is a page that paints
+    // nothing - which is the right failure: a binding the page calls and the window
+    // does not export is exactly the defect these harnesses exist to catch.
+    SuggestTargets: () => Promise.resolve([]),
+    SuggestRoutine: () => Promise.resolve({kind: 'none'}),
     Demonstrations: () => Promise.resolve([]),
     Saved: () => Promise.resolve([]),
     Applications: () => Promise.resolve([]),
@@ -411,6 +416,11 @@ func TestTheWindowSaysRecordingWatchesEverythingBeforeRecord(t *testing.T) {
 window.go = {main: {
   Backend: {Loaded: () => Promise.resolve()},
   Acts: {
+    // THE ASK BOX. Bound at startup, so a stub without it is a page that paints
+    // nothing - which is the right failure: a binding the page calls and the window
+    // does not export is exactly the defect these harnesses exist to catch.
+    SuggestTargets: () => Promise.resolve([]),
+    SuggestRoutine: () => Promise.resolve({kind: 'none'}),
     Demonstrations: () => Promise.resolve([]),
     Saved: () => Promise.resolve([]),
     Applications: () => Promise.resolve([]),

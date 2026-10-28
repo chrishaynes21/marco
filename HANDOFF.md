@@ -11117,3 +11117,120 @@ running**. The eight orphans' cause remains unresolved, physical recording captu
 EXERCISED, and full packaged acceptance of this tree has not been run.
 
 See [[ADR-264-the-gate-answers-for-what-did-not-run]] and [[Desktop-Harness]].
+
+## 46. Say what you want, and the resolver that was never being called
+
+The first product slice after the release-gate work, and the correction in its title is the part
+worth reading.
+
+### The resolver was complete, installed, and dead
+
+`internal/dispatch` has had all of this for a long time: a `Dispatcher` with a documented policy,
+an `Advisor` interface, a `PluginAdvisor` that shells out over a tiny JSON protocol, and a
+`validate` that accepts a `run` only when the proposed route is one the caller offered.
+`plugins/llama` answers that protocol against a local Ollama. `setup.ps1` pins `$MARCO_RESOLVER`
+and `$MARCO_ASSISTANT` at the built plugin. On a set-up machine it was configured and ready.
+
+Its callers were `marco dispatch "<phrase>" --json` and `converseTurn` in the `marco assistant`
+REPL — a developer surface the file itself says nothing launches. **The widget never called it.**
+The overlay's one door is `marco do --source=typed <phrase>`, whose play lookup is exact and
+deliberately not fuzzy; anything else goes to Director. The legacy audit had already filed
+`$MARCO_RESOLVER` as a zombie and nobody had acted on it.
+
+So this slice reuses an existing resolver **that the widget was not actually calling** — the
+Architect's own correction to the brief, kept here because the shape is this repository's most
+repeated defect: complete code with no caller, invisible from the outside.
+
+### Which is why a decision now says who answered
+
+Two of `Decide`'s three arms need no model at all. An exact name runs offline; a near miss asks
+*did you mean*. Both are indistinguishable, in their answers, from the Advisor having decided — so
+a window built on this could work, look right, be demonstrated, and never once reach Ollama.
+
+`Decision.Source` is now `exact` / `advisor` / `fallback` / `none`, and `Decision.Advisor` is
+`absent` / `answered` / **`silent`**. The third is the state that used to be invisible: configured,
+asked, and with nothing to say, which on a machine where Ollama is down looks exactly like a
+machine where nobody configured anything. Studio renders both beside the request. It does not
+claim *which* kind of silence, because `Advise` reports "I have nothing" for a declining plugin, a
+missing plugin, a dead server and an unparseable reply alike, and inventing a distinction would be
+a guess about somebody's machine.
+
+### The target application is stated, never inferred
+
+`Acts.SuggestRoutine(request, target)` reads a request against the three scopes: a global routine
+always eligible, an anywhere-in-application routine eligible from wherever you are because it
+brings its own application forward, and an in-place routine offered **only** when its application
+is the stated target.
+
+Two inferences were available and both are wrong. Studio owns the foreground whenever somebody
+types into it, so reading the foreground answers "Studio". And treating *this application has a
+window* as eligibility would make every running application's in-place commands reachable from
+anywhere — which is what anywhere-in-application already means, so it would erase the difference
+between the two app scopes. With no target stated, no in-place routine is offered and the answer
+says so. Whether a target is running is a **hint and not a filter**: Play raises it, and the
+choice is the person's.
+
+### A label is offered and an identity comes back
+
+The resolver is handed slug-shaped **labels**, not identities. An identity is path-shaped and the
+deterministic matcher strips non-alphanumerics *without inserting a space*, so
+`ark/context/settings` reduces to `arkcontextsettings` and matches nothing anybody would type.
+
+Uniqueness is checked on `nlu.Key` — the function `nlu.Resolve` itself calls, now exported for
+exactly this — because two labels that differ as strings can be **one candidate** to the matcher: a
+hyphen is a space and `in` is a stop word, so a derived `settings-in-ark` collides with a routine
+genuinely slugged `settings-ark`. A second copy of a normalization is how a surface comes to
+believe two labels are distinct while the matcher cannot tell them apart.
+
+And every routine claims its own slug **in a pass of its own** before anything derives a label.
+One pass gave whoever the listing put first whatever it asked for, so a routine really called
+`settings-in-ark` could lose its own name to a label derived for `settings` saved in Ark. Both
+stayed distinct and both mapped correctly — it was arbitrary on the listing's order, which is the
+kind of thing that is right in the test and wrong on somebody's machine. The mutation gate found
+that: two label mutations survived the first run only because of ordering, and the fix was the
+code rather than the test.
+
+The returned label is a key into a map and is **never resolved again**. The whole identity is what
+Play is given, and Play is unchanged.
+
+### What holds it
+
+Eleven new tests, and **18 of 18 mutations killed** across the scope boundaries, the labels, the
+observability and the page.
+
+The page ones render the real `index.html` in headless Edge and assert what the window does with
+an answer: the request and the target arrive together, both targets are offered with "not running"
+shown, the named routine's card is **selected**, `PlayRoutine` is called **zero** times, and the
+window says which arm answered — including the silence, and including *not* reporting a silence
+when nothing was configured.
+
+And one test asks the real plugin and the real model server, because a stand-in Advisor
+establishes nothing about the connection and a suite of stand-ins is exactly what the dead
+resolver already had. *adjust ark video quality* → `arkascended/focus/ark-graphics`, in 0.8s warm.
+Declared in `gate-skips.txt`, so a machine where nothing was asked says so instead of printing
+`ok`.
+
+### What the probe found, including what it could not explain
+
+The label-echo probe ran before any of this was written, because converse mode matches a route
+name **exactly** with no token fallback: a model that paraphrases the label it was offered is
+discarded safely and silently, and silently for exactly the ambiguous case the labels exist for.
+
+Disambiguated slug-shaped labels echo exactly, 6/6 warm, ~0.5s each. Of seven phrasings, six
+resolved identically three times each. The seventh — *make the visuals in the dinosaur game look
+nicer* — is read by `llama3.2:3b` as a request to teach a new command, 3/3. That reached Ollama
+and came back; it is the model's reach and not a defect, and it is why the live test is a
+demonstration that the connection works rather than a claim about comprehension.
+
+One thing is **not explained**. The very first converse call of the session returned nothing at
+all, which degraded to the deterministic arm exactly as designed. A cold load after
+`ollama stop` measured 2.6s and worked, and it did not recur in sixteen later calls, so the cause
+is unestablished and recorded rather than guessed at.
+
+### Not in this slice
+
+Overlay wiring — the widget still has its exact-only door, and giving it this is a separate
+change with its own question, since the overlay does not own the foreground. Also out: any change
+to `internal/invoke`, a second execution path in Studio, a new scope, and argument extraction.
+
+See [[ADR-265-say-what-you-want-and-studio-offers-the-routine]], [[Plays]] and [[Invocation]].

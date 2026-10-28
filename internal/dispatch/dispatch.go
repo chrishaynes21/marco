@@ -40,6 +40,40 @@ const (
 	IntentNone    = "none"    // nothing to do (only when input is empty)
 )
 
+// WHICH ARM DECIDED, and whether the Advisor took part at all.
+//
+// # Why a decision says where it came from
+//
+// Because the three arms of [Dispatcher.Decide] are indistinguishable in their answers, and two
+// of them need no model. An exact route name runs offline, and a near miss asks "did you mean",
+// both without the Advisor ever being consulted — so a surface built on this can work, look
+// right, and never once reach the thing somebody installed. That is a shape this product has
+// shipped before: complete code with no caller, which nothing could see from the outside.
+//
+// So the arm is part of the answer, and so is the Advisor's participation, which is separate: an
+// exact match is reported as exact even when an Advisor is configured, because the Advisor was
+// not asked. A caller may show both. Nothing here BRANCHES on them.
+const (
+	SourceExact    = "exact"    // the deterministic matcher: the name was the route's own
+	SourceAdvisor  = "advisor"  // the Advisor proposed it and it validated
+	SourceFallback = "fallback" // the deterministic near-miss or learn arm
+	SourceNone     = "none"     // empty input
+
+	// AdvisorAbsent, AdvisorSilent and AdvisorAnswered are the three states worth telling
+	// a person apart. Absent is a configuration fact, Answered is a working one, and
+	// Silent is the one that used to be invisible.
+	//
+	// SILENT DOES NOT SAY WHICH, deliberately: [Advisor.Advise] reports "I have nothing"
+	// for a plugin that declined, a plugin that is not there, a model server that is down
+	// and a reply that would not parse, and this package cannot tell them apart without
+	// the interface carrying an error. What a caller can say truthfully is that the
+	// configured resolver was asked and did not answer, which is what matters to somebody
+	// wondering whether theirs is working.
+	AdvisorAbsent   = "absent"
+	AdvisorSilent   = "silent"
+	AdvisorAnswered = "answered"
+)
+
 // Decision is a validated instruction for the caller. Intent is always one of the
 // constants above.
 type Decision struct {
@@ -47,6 +81,10 @@ type Decision struct {
 	Route  string // IntentRun: a slug guaranteed to be in the offered routes
 	Name   string // IntentLearn: the new command's name
 	Reply  string // IntentChat/IntentClarify: something to say to the user
+	// Source is which arm decided, and Advisor whether the Advisor took part. Both are
+	// set by Decide; Propose sets them for the one arm it is. See the constants above.
+	Source  string
+	Advisor string
 }
 
 // Advisor is an optional intelligence source consulted for input the
@@ -80,14 +118,16 @@ func New(a Advisor) Dispatcher { return Dispatcher{Advisor: a} }
 func (d Dispatcher) Decide(ctx context.Context, input string, routes []string, app string) Decision {
 	input = strings.TrimSpace(input)
 	if input == "" {
-		return Decision{Intent: IntentNone}
+		return Decision{Intent: IntentNone, Source: SourceNone, Advisor: d.advisorState()}
 	}
 
 	// 1. Deterministic, offline, free: an exact route name just runs — no model call
-	//    for the common case.
+	//    for the common case. Reported as exact even with an Advisor configured, because
+	//    the Advisor was not asked: see the Source constants.
 	m := nlu.Resolve(input, routes)
 	if m.Exact {
-		return Decision{Intent: IntentRun, Route: m.Route}
+		return Decision{Intent: IntentRun, Route: m.Route, Source: SourceExact,
+			Advisor: d.advisorState()}
 	}
 
 	// 2. Optional intelligence. Trust-but-verify: we re-check the proposal
@@ -98,15 +138,39 @@ func (d Dispatcher) Decide(ctx context.Context, input string, routes []string, a
 
 	// 3. Deterministic fallback: a near match asks to confirm; anything else is a new
 	//    command to learn (Marco learns what it is shown).
+	//
+	// AND THE ADVISOR'S SILENCE IS CARRIED HERE, which is the whole point of saying where
+	// an answer came from: this arm is what a surface sees when the resolver somebody
+	// installed is not running, and it used to be indistinguishable from the same arm on
+	// a machine that never configured one.
+	advisor := d.advisorState()
+	if advisor == AdvisorAnswered {
+		advisor = AdvisorSilent // it was asked, above, and had nothing usable
+	}
 	thr := d.ClarifyMin
 	if thr == 0 {
 		thr = defaultClarify
 	}
 	if m.Route != "" && m.Score >= thr {
 		return Decision{Intent: IntentClarify, Route: m.Route,
-			Reply: "Did you mean " + prettify(m.Route) + "?"}
+			Reply:   "Did you mean " + prettify(m.Route) + "?",
+			Source:  SourceFallback,
+			Advisor: advisor}
 	}
-	return Decision{Intent: IntentLearn, Name: input}
+	return Decision{Intent: IntentLearn, Name: input, Source: SourceFallback,
+		Advisor: advisor}
+}
+
+// advisorState is whether an Advisor is wired at all.
+//
+// `AdvisorAnswered` here means only "there is one to ask"; Decide narrows it to Silent when the
+// asking produced nothing. Kept apart so the no-Advisor case is never reported as a silence,
+// which would tell somebody their resolver is broken when they have not configured one.
+func (d Dispatcher) advisorState() string {
+	if d.Advisor == nil {
+		return AdvisorAbsent
+	}
+	return AdvisorAnswered
 }
 
 // Propose returns ONLY the Advisor's validated suggestion — no deterministic
@@ -123,7 +187,15 @@ func (d Dispatcher) Propose(ctx context.Context, input string, routes []string, 
 	if !ok {
 		return Decision{}, false
 	}
-	return validate(proposal, routes)
+	dec, ok := validate(proposal, routes)
+	if !ok {
+		return Decision{}, false
+	}
+	// AND IT SAYS SO ITSELF. An Advisor cannot set these: they are facts about who was
+	// asked, not part of the proposal, and a plugin claiming its answer was an exact
+	// deterministic match would be claiming something only this package can know.
+	dec.Source, dec.Advisor = SourceAdvisor, AdvisorAnswered
+	return dec, true
 }
 
 // validate turns a raw proposal into a trustworthy Decision, or reports it unusable.

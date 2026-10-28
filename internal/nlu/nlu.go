@@ -21,6 +21,21 @@ var stop = map[string]bool{
 	"of": true, "on": true, "for": true, "please": true, "my": true, "me": true,
 }
 
+// Key is what this matcher reduces one candidate to before comparing anything.
+//
+// Exported because a CALLER that builds the candidate list has to be able to ask whether two of
+// its candidates are distinguishable HERE. Two labels that are different strings and the same key
+// are one candidate as far as this package is concerned — `settings-in-ark` and `settings-ark`
+// both reduce to "settings ark", because a hyphen is a space and "in" is a stop word — so a
+// caller offering both has offered an ambiguity it cannot resolve from the answer.
+//
+// It is this function rather than a copy of it in the caller because the rule has exactly one
+// owner: Resolve below calls it for every candidate, so a caller's uniqueness check and this
+// matcher's comparison can never come to different conclusions about the same two strings. A
+// second copy of a normalization is how a surface comes to believe two labels are distinct while
+// the matcher behind it cannot tell them apart.
+func Key(candidate string) string { return normalize(strings.ReplaceAll(candidate, "-", " ")) }
+
 // Resolve returns the best-matching route for input among the given route slugs.
 // Route is "" when nothing is a reasonable candidate.
 func Resolve(input string, routes []string) Match {
@@ -30,7 +45,7 @@ func Resolve(input string, routes []string) Match {
 	}
 	best := Match{}
 	for _, r := range routes {
-		nr := normalize(strings.ReplaceAll(r, "-", " "))
+		nr := Key(r)
 		if nr == "" {
 			continue
 		}
