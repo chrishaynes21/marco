@@ -309,8 +309,9 @@ func aStoppedDragLetsGoWhereItGotTo(w *world) result {
 	if err := st.s.stopNow(); err != nil {
 		// A STOP THAT CANNOT BE RAISED IS NOT A FINDING ABOUT DRAGS, and this says
 		// which of the two it is rather than reporting a gesture that ignored Stop.
-		// `internal/stopsignal.Raise` has been seen to fail with Access is denied on
-		// this platform and has never been reproduced as a test failure.
+		// `internal/stopsignal.Raise` fails with Access is denied whenever anything
+		// holds the generation file open, which a watcher polling it does every
+		// 100ms — reproduced on 2026-10-27 and now reported in words.
 		st.fail()
 		return fail(started, fmt.Sprintf("the stop could not be raised while the "+
 			"drag was in flight, so what the stop would have done with the "+

@@ -104,10 +104,12 @@ func stoppingARunEndsItAsCancelled(w *world) result {
 	if err := st.s.press("cancelBtn2"); err != nil {
 		// A STOP THAT CANNOT BE RAISED IS NOT A SCENARIO FAILURE YET.
 		//
-		// `internal/stopsignal.Raise` has been seen to fail with Access is denied on
-		// this platform and has never been reproduced as a test failure. If this is
-		// that, the scenario says so rather than reporting it as a routine that
-		// ignored Stop — and the artifact directory has the screen it happened on.
+		// `internal/stopsignal.Raise` fails with Access is denied whenever anything
+		// holds the generation file open, which a watcher polling it does every
+		// 100ms — reproduced deterministically on 2026-10-27 and now reported in
+		// words rather than as a permissions error. If this is that, the scenario
+		// says so rather than reporting it as a routine that ignored Stop, and the
+		// artifact directory has the screen it happened on.
 		st.fail()
 		return fail(started, fmt.Sprintf("Studio's Stop could not be pressed: %v", err))
 	}

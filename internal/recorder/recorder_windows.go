@@ -188,8 +188,25 @@ var anchorKey = func() string {
 	return AnchorKey()
 }()
 
-// anchorArmed is set by a tap of the anchor key and consumed by the next click,
-// which is then captured as a template — even when MARCO_ANCHORS is off.
+// anchorArmed is set by a tap of the anchor key and consumed by the next click, which is then
+// captured as a template.
+//
+// # Not "even when MARCO_ANCHORS is off", which is what this said
+//
+// It said the arming survives the anchor switch being off, and that was true when it was written
+// and is not true now. A recording that STATES coordinate mode takes the picture away: the gate
+// is `!plainCoordinates.Load() && anchorArmed.Load()`, so an armed click in a stated coordinate
+// recording captures nothing.
+//
+// The distinction is the one [[ADR-254-what-a-recording-captures-is-stated]] turns on. The
+// SWITCH is a setting of a process — `$MARCO_ANCHORS`, read once at start-up — and the arming
+// does still survive that, which is what the sentence was about. The stated MODE is a claim about
+// one recording, and it wins: a routine saved in coordinate mode may not come back carrying a
+// picture, because a press found by matching one cannot be stopped at and would make the whole
+// guarded routine unsaveable.
+//
+// Comment only; see `recordClickDown` for the gate itself and for why it reads
+// `plainCoordinates` rather than `anchoring()`.
 var anchorArmed atomic.Bool
 
 // stopKey is the recording's stop gesture, read from $MARCO_STOP_KEY (default F12).

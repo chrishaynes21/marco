@@ -48,6 +48,7 @@ package stopsignal
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -132,7 +133,37 @@ func Raise(home string) error {
 	}
 	if err := os.Rename(name, Path(home)); err != nil {
 		os.Remove(name)
-		return err
+		// WHAT THIS MEANS, BECAUSE "Access is denied" SENDS SOMEBODY TO THE WRONG PLACE.
+		//
+		// # The investigation, and what it established
+		//
+		// This failure was recorded as unexplained for a while: three desktop scenarios
+		// carry a note saying `Raise` "has been seen to fail with Access is denied".
+		// Reproduced deterministically on 2026-10-27 — `os.Rename` over this file fails
+		// with exactly that whenever ANY process holds it open, and a watcher polling the
+		// generation holds it open every 100ms to read it. So the stop is most likely to
+		// fail at precisely the moment it matters: when something is listening for one.
+		//
+		// A hypothesis was ruled out in the same sitting. Opening the reader with
+		// `FILE_SHARE_DELETE` does NOT help: `MoveFileEx` with REPLACE_EXISTING still
+		// refuses an open target, so the conflict is not the reader's sharing mode and
+		// cannot be fixed there.
+		//
+		// # And nothing is retried here
+		//
+		// A bounded retry would very likely succeed — the conflicting window is one short
+		// read — and it is a POLICY about how hard to try to stop somebody's computer,
+		// which is not a decision to take inside an error path. What is fixed is the
+		// sentence: a stop that did not go out says so, says why, and says that trying
+		// again is the thing to do. Both entrances already surface this — `marco stop`
+		// logs it and still asks the execution authority, and Studio's Stop button returns
+		// it to the page — so the words are what reach a person.
+		//
+		// See [[ADR-263-the-alpha-is-the-studio-stack-and-it-says-what-it-is]].
+		return fmt.Errorf("the stop was not raised in %s, so nothing watching this "+
+			"store has been asked to stop: the generation file could not be "+
+			"replaced while something has it open. Press stop again (%w)",
+			home, err)
 	}
 	return nil
 }

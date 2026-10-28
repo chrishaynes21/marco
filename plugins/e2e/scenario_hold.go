@@ -207,8 +207,11 @@ func aStoppedRunLetsGoOfTheKey(w *world) result {
 	if err := st.s.press("cancelBtn2"); err != nil {
 		// A STOP THAT CANNOT BE RAISED IS NOT A FINDING ABOUT HOLDS YET, and this
 		// scenario says which of the two it is rather than reporting a routine that
-		// ignored Stop. `internal/stopsignal.Raise` has been seen to fail with Access
-		// is denied on this platform and has never been reproduced as a test failure.
+		// ignored Stop.
+		//
+		// `internal/stopsignal.Raise` fails with Access is denied whenever anything
+		// holds the generation file open, which a watcher polling it does every
+		// 100ms — reproduced on 2026-10-27 and now reported in words.
 		st.fail()
 		return fail(started, fmt.Sprintf("Studio's Stop could not be pressed while the "+
 			"routine was holding %q, so what the stop would have done with the "+
