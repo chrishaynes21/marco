@@ -385,7 +385,39 @@ func (r *winRecorder) Stop() []RecordedEvent {
 	//
 	// Bounded, because a pump that has somehow already died must not wedge the caller
 	// either, and because a shutdown that cannot be completed is a thing to SAY.
-	<-r.ready
+	// ── AND THE TWO WAITS EITHER SIDE OF IT ARE BOUNDED TOO ──
+	//
+	// The pump wake above has been bounded since the 600-second timeouts. These two were
+	// not, and one of them is how a completed run came to report nothing at all.
+	//
+	// WHAT WAS SEEN, on 2026-10-27: `plugins/studio`'s own suite, under the load of its
+	// headless-browser tests, intermittently left a played routine unfinished. The child
+	// had run the program — its last log line was the routine's own — and then said
+	// nothing for thirty seconds, with no outcome word and the window's one run slot still
+	// claimed. Roughly one run in six. In isolation it finishes in half a second.
+	//
+	// WHAT THAT POINTS AT, and it is a pointer rather than a proof: `<-r.pollStopped`
+	// waits for the app-switch poller, whose one blocking call is `winctx.Active()` — a
+	// foreground-window read. A window whose owning thread is not pumping makes a
+	// window-data read block, and a desktop full of browser windows coming and going is
+	// exactly that desktop. The poller checks `r.done` between ticks, so it finishes
+	// "either way" only once that call returns.
+	//
+	// So both receives get the same treatment the pump wake has, for the same reason given
+	// there: a shutdown that cannot be completed is a thing to SAY. A run that finished
+	// its program must report that it finished — leaving the caller wedged is the one
+	// outcome that is wrong whatever the cause — and each bound has its OWN sentence, so
+	// the next occurrence says which wait expired instead of needing this paragraph again.
+	//
+	// NOT A FIX CLAIMED. Nothing here establishes why the poller was late; it establishes
+	// that a late poller no longer costs the run its report. See
+	// [[ADR-263-the-alpha-is-the-studio-stack-and-it-says-what-it-is]].
+	if !waitedFor(r.ready, hookShutdownBound) {
+		fmt.Fprintf(os.Stderr, "\n[marco: this recording's hook thread never reported "+
+			"that it had started, so its hooks could not be taken off. They stay "+
+			"installed until this process exits. Nothing more is being recorded.]\n")
+		return r.abandon()
+	}
 	woken := false
 	deadline := time.Now().Add(5 * time.Second)
 	for {
@@ -401,27 +433,34 @@ func (r *winRecorder) Stop() []RecordedEvent {
 			break
 		}
 	}
-	<-r.pollStopped // watches r.done, so it finishes either way
+	if !waitedFor(r.pollStopped, hookShutdownBound) {
+		fmt.Fprintf(os.Stderr, "\n[marco: this recording's app-switch poller did not "+
+			"come back — it is most likely inside a foreground-window read that has "+
+			"not returned. The recording is stopped and what was captured is "+
+			"complete; the poller stops when that read returns.]\n")
+	}
 	if !woken {
-		// REPORTED, NOT RECOVERED, and deliberately not forced. The hooks can only be
-		// removed by a thread that is not answering, and closing captureReqs while a
-		// callback can still send into it would panic inside a hook — which is a worse
-		// end to a run than a hook that outlives it. So: stop recording, say what is
-		// left behind, and hand back what was captured.
-		recActive.Store(false)
+		// REPORTED, NOT RECOVERED. See abandon for what is and is not done, and why
+		// nothing is forced.
 		fmt.Fprintf(os.Stderr, "\n[marco: this recording's keyboard and mouse hooks could "+
 			"not be taken off — the thread that installed them did not answer. They stay "+
 			"installed until this process exits. Nothing more is being recorded.]\n")
-		r.done = nil
-		recMu.Lock()
-		out := recBuf
-		recBuf = nil
-		recMu.Unlock()
-		resolveImages(out, winctx.ImageOf)
-		return out
+		return r.abandon()
 	}
 	close(captureReqs) // safe now: nothing sends after the hooks are gone
-	<-r.captureStopped // let queued templates finish writing back before we read recBuf
+	// AND THE TEMPLATE WRITER, BOUNDED LIKE THE OTHER TWO.
+	//
+	// It finishes when `captureReqs` closes, and what it does in between is screen capture
+	// and image encoding — work that can be slow and whose one failure mode is the same as
+	// the poller's: a call into the window system that has not come back. The same rule
+	// applies for the same reason, and what is lost by giving up is the template of a press
+	// whose picture was still being written, which is a thing to SAY rather than a thing to
+	// wait on for ever. See hookShutdownBound.
+	if !waitedFor(r.captureStopped, hookShutdownBound) {
+		fmt.Fprintf(os.Stderr, "\n[marco: a picture of one press was still being "+
+			"written when this recording stopped, and has not finished. The "+
+			"demonstration is complete apart from that one picture.]\n")
+	}
 	recActive.Store(false)
 	recMu.Lock()
 	out := recBuf
@@ -708,3 +747,49 @@ func captureFullFrameRGBA() *image.RGBA {
 // readiness check claiming it would be claiming something it had not done. See Start, and the
 // note on `anchorKey` for what Windows does to a hook it does not like.
 func Available() bool { return true }
+
+// hookShutdownBound is how long a shutdown waits for one of its own goroutines.
+//
+// Generous against the thing it is bounding and short against a person: a foreground-window read
+// that has not returned in this long is not about to, and a run that reports nothing is worse
+// than a run that reports what it did and says what it could not tidy up.
+const hookShutdownBound = 5 * time.Second
+
+// waitedFor reports whether a channel closed within a bound.
+//
+// One function, because there are two of these and a second copy of a select is how two bounds
+// come to differ. It returns whether it arrived rather than how long it took: every caller's next
+// question is "and what do I say".
+func waitedFor(ch <-chan struct{}, bound time.Duration) bool {
+	select {
+	case <-ch:
+		return true
+	case <-time.After(bound):
+		return false
+	}
+}
+
+// abandon stops recording and hands back what was captured, having given up on the hooks.
+//
+// The tail of `Stop` for the case where the installing thread cannot be reached at all. Lifted
+// out because there are two ways to reach it now — a pump that never answered and a thread that
+// never reported starting — and the one thing that must be identical either way is what is left
+// behind: recording off, the buffer handed over, and `done` cleared so a second Stop is a no-op.
+//
+// NOTHING IS FORCED. The hooks can only be removed by a thread that is not answering, and closing
+// `captureReqs` while a callback can still send into it would panic inside a hook — a worse end
+// to a run than a hook that outlives it.
+func (r *winRecorder) abandon() []RecordedEvent {
+	recActive.Store(false)
+	r.done = nil
+	recMu.Lock()
+	out := recBuf
+	recBuf = nil
+	recMu.Unlock()
+	// AND THE PROCESS IMAGES, like the ordinary tail. A run whose hooks could not be
+	// taken off still produced a demonstration, and a demonstration missing the program
+	// behind each press is one `simplify` reads differently — so the give-up path may
+	// not be the ordinary path minus a step.
+	resolveImages(out, winctx.ImageOf)
+	return out
+}

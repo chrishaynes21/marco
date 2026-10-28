@@ -387,3 +387,86 @@ func kindsAsked(t *testing.T, title string) string {
 	}
 	return m[1]
 }
+
+// THE WINDOW SAYS THAT RECORDING WATCHES EVERYTHING, BEFORE ANYBODY PRESSES RECORD.
+//
+// A release requirement rather than a nicety. The recorder's hooks are global: every press and
+// key anywhere on the desktop enters the demonstration, and the only thing left out is Studio's
+// own interactions. A person demonstrating is demonstrating the whole desktop — answer a message
+// halfway through and the reply is in the routine — and the product said so nowhere.
+//
+// RENDERED, because a sentence nobody draws is not a disclosure. The backend returning it and the
+// page having an element for it are two facts, and only something that runs the page can join
+// them: a guard reading the source would pass on a page that computed the text into a hidden div.
+//
+// And it must not claim the opposite either. Recording only a chosen window does not exist, so
+// the sentence says that, and this asserts it says that — a disclosure that implied a bound would
+// be worse than none.
+func TestTheWindowSaysRecordingWatchesEverythingBeforeRecord(t *testing.T) {
+	browser := aBrowser()
+	if browser == "" {
+		t.Skip("no headless Chromium on this machine to render the page in")
+	}
+	const harness = `
+window.go = {main: {
+  Backend: {Loaded: () => Promise.resolve()},
+  Acts: {
+    Demonstrations: () => Promise.resolve([]),
+    Saved: () => Promise.resolve([]),
+    Applications: () => Promise.resolve([]),
+    Pictures: () => Promise.resolve([]),
+    Picture: () => Promise.resolve(''),
+    Learning: () => Promise.resolve({active: false}),
+    Watch: () => Promise.resolve({act: '', active: false, transcript: null}),
+    History: () => Promise.resolve([]),
+    Unrunnable: () => Promise.resolve([]),
+    Library: () => Promise.resolve({dir: 'C:/x/routes'}),
+    Routines: () => Promise.resolve([]),
+    Recording: () => Promise.resolve({active: false,
+      captures: 'Where you press and how long you pause.',
+      everywhere: 'While this is recording, Marco watches your keyboard and mouse ' +
+                  'EVERYWHERE — every application, not just the one you are ' +
+                  'demonstrating in. Studio\u0027s own window is the one exception ' +
+                  'and is left out. Recording only a chosen window is not something ' +
+                  'Marco can do yet.'}),
+  },
+}}
+setTimeout(() => {
+  const el = document.getElementById('capEverywhere')
+  const hidden = el.classList.contains('hide')
+  const said = hidden ? '' : el.textContent
+  document.title =
+    ' shown=' + (hidden ? 0 : 1) +
+    ' everywhere=' + (said.includes('EVERYWHERE') ? 1 : 0) +
+    ' apps=' + (said.includes('every application') ? 1 : 0) +
+    ' exception=' + (said.includes('own window is the one exception') ? 1 : 0) +
+    ' notyet=' + (said.includes('not something Marco can do yet') ? 1 : 0) +
+    ' undef=' + (said.includes('undefined') ? 1 : 0)
+}, 2500)
+`
+	title := renderForCounters(t, browser, harness)
+	n := func(key string) int {
+		m := regexp.MustCompile(`\b` + key + `=(\d+)`).FindStringSubmatch(title)
+		if m == nil {
+			t.Fatalf("no %s in %q", key, title)
+		}
+		v, _ := strconv.Atoi(m[1])
+		return v
+	}
+	if n("shown") != 1 {
+		t.Fatalf("the disclosure is not on screen before Record: %q", title)
+	}
+	for _, c := range []struct{ key, what string }{
+		{"everywhere", "that recording watches everywhere"},
+		{"apps", "that it is every application and not only the one being demonstrated in"},
+		{"exception", "that Studio's own window is the exception"},
+		{"notyet", "that recording only a chosen window is not something Marco can do"},
+	} {
+		if n(c.key) != 1 {
+			t.Errorf("the disclosure does not say %s: %q", c.what, title)
+		}
+	}
+	if n("undef") != 0 {
+		t.Errorf("the disclosure rendered as `undefined`: %q", title)
+	}
+}

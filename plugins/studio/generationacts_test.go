@@ -14,7 +14,9 @@ package main
 // See [[ADR-262-a-routine-states-which-generation-wrote-it]].
 
 import (
+	"encoding/json"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -533,5 +535,103 @@ func TestTwoRoutinesWithTheSameContentsAreTwoReviews(t *testing.T) {
 	}
 	if raw, _ := os.ReadFile(a.reg().Path(discord)); string(raw) != string(otherWas) {
 		t.Errorf("replacing one routine rewrote the other:\n%s", raw)
+	}
+}
+
+// AN INSTALLED MARCO SAYS WHAT IT IS MADE OF, PIECE BY PIECE, AND NOTICES A REPLACED FILE.
+//
+// `Build` is THIS window's revision and a bundle is five binaries — and the one piece that is
+// not Go has no revision at all, because the accessibility provider is built by the .NET
+// Framework compiler that ships with Windows. So a line showing only this window's revision
+// would be a label standing in for an identity.
+//
+// The hashes are verified against disk rather than trusted, because a manifest is a claim and a
+// claim about files anybody can replace is worth exactly what the check behind it is worth.
+//
+// See [[ADR-263-the-alpha-is-the-studio-stack-and-it-says-what-it-is]].
+func TestAnInstalledMarcoSaysWhatItIsMadeOf(t *testing.T) {
+	// A TREE IS NOT A BROKEN INSTALLATION. The test binary runs from a temporary
+	// directory with no manifest beside it, which is what a development build looks
+	// like — said as what it is rather than reported as a fault.
+	made, problems := whatThisInstallationIsMadeOf()
+	if len(problems) != 0 {
+		t.Errorf("a build with no manifest beside it is reported as a problem: %+v",
+			problems)
+	}
+	if !strings.Contains(made, "built in a tree") {
+		t.Errorf("a build with no manifest says %q", made)
+	}
+
+	// AND AN INSTALLATION SAYS WHAT IT IS. Written beside the test binary, which is
+	// where the real one sits beside studio.exe.
+	exe, err := os.Executable()
+	if err != nil {
+		t.Skip("this platform cannot say where the test binary is")
+	}
+	dir := filepath.Dir(exe)
+	at := filepath.Join(dir, "manifest.json")
+	if _, err := os.Stat(at); err == nil {
+		t.Skip("something already put a manifest beside the test binary")
+	}
+	// THE MANIFEST DESCRIBES THE TEST BINARY ITSELF, because it is the one file
+	// certain to be there and certain not to change under us.
+	self := filepath.Base(exe)
+	sum, err := hashOf(exe)
+	if err != nil {
+		t.Fatal(err)
+	}
+	write := func(files []bundled) {
+		raw, err := json.Marshal(bundleManifest{Version: "abc1234-2026", Packed: "now",
+			Files: files})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(at, raw, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Cleanup(func() { _ = os.Remove(at) })
+
+	write([]bundled{{File: self, SHA256: sum, Revision: "abc1234"}})
+	made, problems = whatThisInstallationIsMadeOf()
+	if len(problems) != 0 {
+		t.Errorf("an installation whose files are what it says is reported as a "+
+			"problem: %+v", problems)
+	}
+	for _, says := range []string{"Marco abc1234-2026", self, "abc1234"} {
+		if !strings.Contains(made, says) {
+			t.Errorf("the line does not say %q: %q", says, made)
+		}
+	}
+	// A PIECE WITH NO REVISION IS SAID TO HAVE NONE, not shown as blank. That is the
+	// accessibility provider's real state and the reason the manifest carries hashes.
+	write([]bundled{{File: self, SHA256: sum}})
+	made, _ = whatThisInstallationIsMadeOf()
+	if !strings.Contains(made, "not a Go binary") {
+		t.Errorf("a piece with no revision is reported as %q", made)
+	}
+	// AND A FILE THAT IS NOT WHAT THE MANIFEST SAYS IS A PROBLEM.
+	write([]bundled{{File: self, SHA256: strings.Repeat("0", 64), Revision: "abc1234"}})
+	_, problems = whatThisInstallationIsMadeOf()
+	if len(problems) != 1 {
+		t.Fatalf("a replaced file is reported as %d problem(s)", len(problems))
+	}
+	if !strings.Contains(problems[0].Says, "contents have changed") {
+		t.Errorf("the problem says %q", problems[0].Says)
+	}
+	// AND A FILE THE MANIFEST NAMES AND THAT IS NOT THERE IS A DIFFERENT PROBLEM.
+	write([]bundled{{File: "no-such-thing.exe", SHA256: sum, Revision: "abc1234"}})
+	_, problems = whatThisInstallationIsMadeOf()
+	if len(problems) != 1 || !strings.Contains(problems[0].Says, "not on disk") {
+		t.Errorf("a missing file is reported as %+v", problems)
+	}
+	// AND A MANIFEST THAT CANNOT BE READ SAYS SO RATHER THAN SAYING NOTHING.
+	if err := os.WriteFile(at, []byte("{not json"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	made, problems = whatThisInstallationIsMadeOf()
+	if made != "" || len(problems) != 1 ||
+		!strings.Contains(problems[0].Says, "cannot be read") {
+		t.Errorf("an unreadable manifest gives %q and %+v", made, problems)
 	}
 }

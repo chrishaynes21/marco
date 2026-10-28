@@ -993,6 +993,11 @@ func (a *Acts) Run(act, application string, live, reading bool) string {
 // child at a time, one transcript, one structured stream, and a window that can stop it. What
 // differs is four flags, and a second copy of this plumbing is how the two would drift.
 func (a *Acts) start(p Performance) string {
+	// AND NOT THROUGH WHATEVER IS ON PATH. The same rule the Play path is under, at the
+	// other door a person can spawn a child from. See theBundleIsIncomplete.
+	if why := theBundleIsIncomplete("director.exe", directorBin()); why != "" {
+		return why
+	}
 	act, application, live, reading := p.Act, p.Application, p.Live, p.Reading
 	// THE ONE SLOT, CLAIMED. See `reserve`, which is shared with the other kind of run
 	// this window can start — a saved routine — because "may anything run now" has to

@@ -489,6 +489,13 @@ func (a *Acts) doCommand(r Routine) (bin string, args, env []string) {
 
 // startRoutine claims the one run slot and spawns `marco do` for this routine.
 func (a *Acts) startRoutine(r Routine) string {
+	// AND NOT THROUGH WHATEVER IS ON PATH. Asked before the slot is claimed, because a
+	// reservation released on the way back out is a window that was briefly busy for no
+	// reason — and because this is a fact about the installation rather than about the
+	// run, so it does not depend on anything the run is about. See theBundleIsIncomplete.
+	if why := theBundleIsIncomplete("marco.exe", marcoBin()); why != "" {
+		return why
+	}
 	if why := a.reserve(kindRoutine); why != "" {
 		return why
 	}

@@ -176,6 +176,12 @@ func (a *Acts) Applications() []string {
 // Returns "" when the recorder has been started, or the sentence to show the person. Everything
 // refusable is refused before the application is brought forward.
 func (a *Acts) Learn(name, application string, seconds int) string {
+	// AND NOT THROUGH WHATEVER IS ON PATH. The recorder a learn spawns is the director,
+	// and a learn watched by a build nobody chose is the day of recordings this rule
+	// exists because of. See theBundleIsIncomplete.
+	if why := theBundleIsIncomplete("director.exe", directorBin()); why != "" {
+		return why
+	}
 	name = strings.TrimSpace(name)
 	application = strings.TrimSpace(application)
 	switch {

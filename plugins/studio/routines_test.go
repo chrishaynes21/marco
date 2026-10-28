@@ -75,12 +75,39 @@ func routineWithID(rs []Routine, id string) (Routine, bool) {
 // asserting.
 func playing(t *testing.T, a *Acts, name string) string {
 	t.Helper()
+	withAMarcoBeside(t)
 	r, found := routineCalled(a.Routines(), name)
 	if !found {
 		t.Fatalf("there is no routine called %q in the library: %+v", name,
 			a.Routines())
 	}
 	return a.PlayRoutine(r.ID)
+}
+
+// withAMarcoBeside states where marco is, for a test about something else.
+//
+// # Why a test has to say this at all
+//
+// Because Studio REFUSES to spawn a child it cannot point at, rather than handing a bare name
+// to `exec.Command` and getting whatever is on PATH — see theBundleIsIncomplete. A test binary
+// runs from a temporary directory with nothing beside it, so without this every test that
+// presses Play gets the incomplete-bundle refusal instead of the thing it is about.
+//
+// It names the repo root's `marco.exe` when there is one and says MARCO_BIN. There is no
+// fallback to a bare name, which is the point: `os.Stat("marco.exe")` resolves against the
+// WORKING directory and `exec.Command("marco.exe")` resolves against PATH, and a test that
+// confused the two is how this was found.
+func withAMarcoBeside(t *testing.T) {
+	t.Helper()
+	if filepath.IsAbs(marcoBin()) {
+		return
+	}
+	abs, err := filepath.Abs(filepath.Join("..", "..", "marco.exe"))
+	if err != nil || !fileThere(abs) {
+		t.Skipf("no marco.exe at the repo root to point at (%s): build it and this "+
+			"runs", abs)
+	}
+	t.Setenv("MARCO_BIN", abs)
 }
 
 // ── THE LIBRARY, LISTED ───────────────────────────────────────────────────────
@@ -850,18 +877,7 @@ func TestALibraryLeftBesideTheLaunchDirectoryIsNamed(t *testing.T) {
 // built beside it. That is a real gap and the two halves above are why it is not a hole: what is
 // handed to the command and what is made of its answer are both covered unconditionally.
 func TestPlayingARoutineRunsItAndReportsWhatItSaid(t *testing.T) {
-	bin := marcoBin()
-	if _, err := os.Stat(bin); err != nil {
-		if found := filepath.Join("..", "..", "marco.exe"); fileThere(found) {
-			abs, aerr := filepath.Abs(found)
-			if aerr != nil {
-				t.Skip("no marco to spawn")
-			}
-			t.Setenv("MARCO_BIN", abs)
-		} else {
-			t.Skipf("no marco to spawn (%s): build it and this runs", bin)
-		}
-	}
+	withAMarcoBeside(t)
 	dir := t.TempDir()
 	t.Setenv("MARCO_ROUTES", dir)
 	a := newActs(t.TempDir())
@@ -889,7 +905,24 @@ func TestPlayingARoutineRunsItAndReportsWhatItSaid(t *testing.T) {
 		t.Fatalf("pressing Play: %s", why)
 	}
 	if !a.awaitRun(30 * time.Second) {
-		t.Fatal("the run did not finish")
+		// WHERE IT STOPPED, NOT JUST THAT IT DID.
+		//
+		// This failed under suite load and passed in isolation, and "the run did not
+		// finish" is the one sentence that cannot say which half is stuck: a child
+		// still running its program, a child that exited with its output still in the
+		// pipe, or a child that ran everything and did not exit.
+		//
+		// So the failure reads the RUN RECORD the child claimed — which is the
+		// artifact that exists for exactly this, and whose `ended` field is absent
+		// while the attempt has not finished. A record with no `ended` says the child
+		// never reached its own end; one with an outcome says the child finished and
+		// this window did not notice.
+		w := a.Watch()
+		t.Fatalf("the run did not finish in 30s.\n"+
+			"  active:     %v\n  outcome:    %q\n  reference:  %q\n"+
+			"  record:     %s\n  transcript: %d line(s)\n%s",
+			w.Active, w.Outcome, w.Reference, theRecordSays(a, w.Reference),
+			len(w.Transcript), strings.Join(w.Transcript, "\n"))
 	}
 	w := a.Watch()
 	if w.Outcome != string(outcome.Performed) {
@@ -1378,4 +1411,21 @@ func TestAnOrdinaryStopSaysOnlyThatItStopped(t *testing.T) {
 		strings.Contains(w.Said, "It said:") {
 		t.Errorf("a plain stop reads as %q", w.Said)
 	}
+}
+
+// theRecordSays is the run record a stuck run claimed, or why there is none.
+//
+// For the diagnostic above. The record is the product's own account of an attempt and it is
+// written BEFORE the first input, so it exists even for a run that never reached its end — which
+// is the whole reason it is written then. `ended` absent means the child never finished.
+func theRecordSays(a *Acts, reference string) string {
+	if reference == "" {
+		return "the run cited no reference, so there is no record to look in"
+	}
+	at := filepath.Join(a.home, "runs", reference+".json")
+	raw, err := os.ReadFile(at)
+	if err != nil {
+		return fmt.Sprintf("no record at %s (%v)", at, err)
+	}
+	return string(raw)
 }

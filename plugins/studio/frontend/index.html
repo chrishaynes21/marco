@@ -397,6 +397,21 @@
          same demonstration could save or be refused with nothing on screen to say why.
          See recording.go. -->
     <div class="muted" style="margin-top:6px" id="capCaptures"></div>
+    <!-- AND WHERE IT WILL CAPTURE, WHICH IS EVERYWHERE.
+         A release requirement, and not a nicety. The recorder's hooks are global: every press
+         and key anywhere on the desktop enters the demonstration, attributed to whatever
+         window was in the foreground at that instant. The only thing left out is Studio's own
+         interactions. So a person demonstrating is demonstrating the whole desktop — answer a
+         message halfway through and the reply is in the routine — and until now the product
+         said that nowhere.
+
+         It is deliberately NOT a claim that recording is bounded to the window being
+         demonstrated in. That does not exist; see Roadmap 36 and the Demonstrations note. The
+         playback window CHECK is a different thing and is not this.
+
+         From the backend, like the line above it, so the day recording does become bounded the
+         sentence changes with it rather than going quietly stale. -->
+    <div class="banner" style="margin-top:8px" id="capEverywhere"></div>
     <div class="row" style="margin-top:10px"><label style="width:7em">call it</label>
       <input type="text" id="capName" placeholder="what you will ask Marco for"></div>
     <div class="row" style="margin-top:10px">
@@ -1459,6 +1474,11 @@
      // Blank when the backend states nothing, which is the honest rendering of a
      // statement that is not being made — never a guess at which mode it might be.
      text($('capCaptures'), r.captures || '')
+     // AND WHERE IT CAPTURES, WHICH IS EVERYWHERE. From the backend, and shown both
+     // before a recording and during one — during is when it matters, because the card
+     // is on screen the whole time somebody is away doing the thing. See the element.
+     text($('capEverywhere'), r.everywhere || '')
+     showing($('capEverywhere'), !!r.everywhere)
      text($('capReviewCaptures'), r.captures || '')
      showing($('capCaptures'), !!r.captures)
      showing($('capReviewCaptures'), !!r.captures)
@@ -1660,8 +1680,15 @@
    // it; and nothing here has looked at a screen, started an application or sent a
    // press. A readiness panel that implied otherwise would be a false claim in the one
    // place somebody trusts before they start.
+   // WHAT THIS INSTALLATION IS MADE OF, when it is one.
+   //
+   // `build` is THIS window's revision and a bundle is five binaries; the installation line
+   // is each of their revisions and every file's hash, verified against disk. A tree has no
+   // manifest and says so instead, which is why this is a line of its own rather than a
+   // replacement for the one below. See whatThisInstallationIsMadeOf.
    text($('readyMachine'), 'studio ' + (r.build || '?') + '  ·  marco ' + (r.marco || '?') +
      '  ·  director ' + (r.director || '?') + '  ·  library ' + (r.library || '?') +
+     (r.installation ? '\n' + r.installation : '') +
      '\n' + (r.limits || ''))
  }
 

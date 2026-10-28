@@ -124,3 +124,114 @@ func stagedTable(t *testing.T, src string) map[string]string {
 	}
 	return out
 }
+
+// AND THE BUNDLE SHIPS STUDIO, BUILT SO THAT IT OPENS A WINDOW.
+//
+// # What was shipped before, and what it cost
+//
+// The installer staged `marco`, `marco-macros`, `director`, `overlay` and `uia`, and the
+// launcher ran the overlay serve stack. No root script mentioned Studio and the README never
+// did — so the record → Stop → review → Save → Play flow, and every guard in it, reached nobody
+// who installed Marco. It existed only as a development build.
+//
+// And the consequence is sharper than a missing feature: the shipped overlay can record and can
+// simplify, and when it spawns the simplify child it says so has no preview. So an installed
+// Marco could WRITE a routine and could not show anybody what it was about to write, which makes
+// every guard that depends on a review unreachable.
+//
+// # Why this reads source text, and what it cannot establish
+//
+// Same reason as the test above: `plugins/marco-app` and `plugins/studio` are separate modules
+// with no go.work, so `go test ./...` here never reaches either. A guard living there is a guard
+// nobody executes.
+//
+// It cannot establish that the PACKED artifact is correct — only that the script asks for the
+// right thing. `pack.ps1` checks the built bytes for the Wails guard's own message box, which is
+// the only check that can tell the two builds apart, and the packaged bundle is exercised from an
+// isolated location separately.
+//
+// See [[ADR-263-the-alpha-is-the-studio-stack-and-it-says-what-it-is]].
+func TestTheBundleShipsStudioAsItsFrontDoor(t *testing.T) {
+	src := readRepoFile(t, "plugins/marco-app/main.go")
+	pack := readRepoFile(t, "pack.ps1")
+	table := stagedTable(t, src)
+
+	// 1. STUDIO IS EXTRACTED, AND BESIDE THE TWO CHILDREN IT SPAWNS.
+	//
+	// Studio spawns the `marco.exe` and `director.exe` beside ITSELF, not the ones beside
+	// each other — so the three have to land in one directory. They all land in bin\, which
+	// satisfies that and `marco`'s own two lookups at once.
+	for _, asset := range []string{"studio.exe", "marco.exe", "director.exe"} {
+		dest, ok := table[asset]
+		if !ok {
+			t.Errorf("the installer does not extract %s. Studio spawns the marco "+
+				"and director beside ITSELF, so all three have to be in one "+
+				"directory or a current window runs whatever is on PATH.", asset)
+			continue
+		}
+		if strings.Contains(dest, "/") {
+			t.Errorf("the installer extracts %s to %q, which is not beside the "+
+				"others — Studio looks in its own directory and would find "+
+				"nothing there", asset, dest)
+		}
+	}
+
+	// 2. IT IS BUILT WITH THE WAILS TAGS, AND THE BUILD IS CHECKED.
+	//
+	// A plain `go build` of Studio produces a binary that opens NO WINDOW: without
+	// `production`, Wails compiles a CreateApp that shows a message box and exits. The
+	// binary is otherwise ordinary — flags, usage, `-acts` and `-proof` all work — so one
+	// sat in the tree looking current until somebody double-clicked it.
+	for _, want := range []string{"desktop,production", "-H windowsgui"} {
+		if !strings.Contains(pack, want) {
+			t.Errorf("pack.ps1 does not build Studio with %q, so the bundle would "+
+				"ship a studio.exe that opens no window and says so only in a "+
+				"message box", want)
+		}
+	}
+	if !strings.Contains(pack, "will not build without the correct build tags") {
+		t.Error("pack.ps1 does not check the built studio.exe for the Wails guard's " +
+			"own message box, which is the only way to tell the two builds apart " +
+			"without opening a window on somebody's desktop")
+	}
+
+	// 3. EVERY GO BINARY'S REVISION IS CHECKED AT PACK TIME.
+	//
+	// `go build` stamps the VCS revision only for a package in the main module of the
+	// build, so one built from outside its module answers "unknown" — the mistake
+	// `build.cmd` made with the director once. A bundle of those makes every run record
+	// unciteable, and `build` is the field that would have named the stale recorder.
+	if !strings.Contains(pack, "vcs.revision") {
+		t.Error("pack.ps1 never asks a staged binary what revision it was built from, " +
+			"so a bundle of unstamped binaries would ship and every run record " +
+			"would say `unknown`")
+	}
+	if !strings.Contains(pack, "manifest.json") {
+		t.Error("pack.ps1 writes no manifest, so nothing in the bundle says what each " +
+			"piece is — and the one component that is not Go has no VCS stamp to " +
+			"ask for, only the hash of its bytes")
+	}
+	if _, ok := table["manifest.json"]; !ok {
+		t.Error("the manifest is written at pack time and not extracted, so an " +
+			"installed Marco cannot say what it is made of")
+	}
+
+	// 4. AND THE OVERLAY IS NOT STARTED BY DEFAULT, WHICH IS THE WHOLE POINT.
+	//
+	// It is still shipped and still works. A launcher that opened both would put two front
+	// doors on one desktop, and a launcher that opened only the overlay is what this fixes.
+	if !strings.Contains(src, "--overlay") {
+		t.Error("the launcher has no explicit way to ask for the legacy overlay, so " +
+			"either it is gone or it is still the default")
+	}
+	studio := strings.Index(src, "func runStudio")
+	overlay := strings.Index(src, "func runOverlay")
+	if studio < 0 || overlay < 0 {
+		t.Fatal("the launcher does not have one entrance per surface, so which one " +
+			"starts is decided somewhere other than in one place")
+	}
+	if _, ok := table["overlay.exe"]; !ok {
+		t.Error("the overlay was removed from the bundle; it is meant to stay " +
+			"available, just not started")
+	}
+}

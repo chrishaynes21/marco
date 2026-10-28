@@ -33,7 +33,11 @@ package main
 // See [[ADR-254-what-a-recording-captures-is-stated]] for the slice this is part of.
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -51,6 +55,17 @@ type Readiness struct {
 	// and a recorder built a day apart cost the owner a day of recordings, and the only
 	// way to tell was comparing file timestamps. See internal/buildid.
 	Build string `json:"build"`
+	// Installation is what this installed Marco is made of, piece by piece — each Go
+	// binary's revision and every file's hash, from the manifest the bundle carries, with
+	// the hashes verified against what is on disk.
+	//
+	// Separate from `Build` because `Build` is THIS binary and a bundle is five of them,
+	// and because the one piece that is not Go has no revision to report: the
+	// accessibility provider is built by the .NET Framework compiler that ships with
+	// Windows and is identified by its bytes alone. A line that showed only this window's
+	// revision would be a label standing in for an identity. See
+	// whatThisInstallationIsMadeOf.
+	Installation string `json:"installation,omitempty"`
 	// Marco and Director are the executables this window would spawn, and Library the
 	// directory it reads and writes routines in. Shown whether or not anything is wrong
 	// with them: this is the line somebody checks when the window and the command
@@ -109,14 +124,17 @@ const readinessLimits = "This is what Marco has checked on this machine just now
 // exists nowhere else. `Registry.Save` does the same write, and `Routines` skips the file either
 // way — it is not a `.marco` and has no entrance.
 func (a *Acts) Ready() Readiness {
+	made, madeProblems := whatThisInstallationIsMadeOf()
 	out := Readiness{
-		Build:    a.myBuild(),
-		Marco:    marcoBin(),
-		Director: directorBin(),
-		Library:  a.routesDir,
-		Problems: []Problem{},
-		Limits:   readinessLimits,
+		Build:        a.myBuild(),
+		Installation: made,
+		Marco:        marcoBin(),
+		Director:     directorBin(),
+		Library:      a.routesDir,
+		Problems:     []Problem{},
+		Limits:       readinessLimits,
 	}
+	out.Problems = append(out.Problems, madeProblems...)
 	// ── WHICH BINARY IS THIS ──
 	//
 	// "unknown" is what `buildid` answers when the toolchain left no VCS stamp, which is
@@ -250,4 +268,145 @@ func aLibraryThatCanBeWritten(dir string) (Problem, bool) {
 	_ = f.Close()
 	_ = os.Remove(name)
 	return Problem{}, false
+}
+
+// theBundleIsIncomplete names a child this window cannot spawn safely, or "" when it can.
+//
+// # Why a bare name is a refusal and not a fallback
+//
+// `marcoBin` and `directorBin` answer an absolute path when the sibling is there or when
+// somebody named one, and a BARE NAME when neither is true. A bare name handed to
+// `exec.Command` is resolved against PATH — so on a machine with a development tree on PATH,
+// an installed Studio with a missing sibling performs routines through a binary nobody chose,
+// of whatever age, and every window in sight looks current. That is the defect that cost the
+// owner a day of recordings, arriving from the one direction a packaged install can take it.
+//
+// `Ready` has reported this for a while and did not stop it: the problem it raised for the
+// on-PATH case blocked nothing, so the window warned and then spawned it anyway. For a shipped
+// alpha that has to be a refusal, because an incomplete bundle is a thing to be told about
+// rather than a thing to work around — see
+// [[ADR-263-the-alpha-is-the-studio-stack-and-it-says-what-it-is]].
+//
+// The explicit overrides still win. `$MARCO_BIN` and `$DIRECTOR_BIN` are statements by whoever
+// started this window, and an absolute path that does not exist is a different complaint, made
+// by `whereverTheSpawnWouldFind` and reported in the panel.
+func theBundleIsIncomplete(what, resolved string) string {
+	if filepath.IsAbs(resolved) {
+		return ""
+	}
+	return fmt.Sprintf("this Marco is incomplete: there is no %s beside this window, and "+
+		"running whichever one is on PATH would be running a build nobody here "+
+		"chose. Reinstall Marco, or point %s_BIN at the one you mean",
+		what, strings.ToUpper(strings.TrimSuffix(what, ".exe")))
+}
+
+// ── WHAT THIS INSTALLATION IS MADE OF ─────────────────────────────────────────
+
+// bundled is one piece of an installed Marco, as the bundle's manifest records it.
+type bundled struct {
+	File     string `json:"file"`
+	SHA256   string `json:"sha256"`
+	Revision string `json:"revision"`
+}
+
+// bundleManifest is what `pack.ps1` wrote beside these binaries.
+type bundleManifest struct {
+	Version string    `json:"version"`
+	Packed  string    `json:"packed"`
+	Files   []bundled `json:"files"`
+}
+
+// whatThisInstallationIsMadeOf reports each piece of a packaged Marco, or nothing in a tree.
+//
+// # Why the manifest and not each binary's own answer
+//
+// Because only some of them can answer. `internal/buildid` reads the VCS stamp `go build` leaves,
+// which works for every Go binary here and does not exist for the accessibility provider — that
+// one is built by the .NET Framework `csc.exe` that ships with Windows and carries no such stamp.
+// A report that asked each binary what it was would therefore be silent about the one component
+// whose identity nobody can otherwise establish.
+//
+// So `pack.ps1` asks each Go binary at pack time, through `go version -m`, and hashes everything.
+// A revision says which SOURCE a binary came from; a hash says whether THIS is that binary. The
+// manifest carries both, and this verifies the hashes against what is actually on disk — because
+// a manifest is a claim, and a claim about files anybody can replace is worth exactly as much as
+// the check behind it.
+//
+// # And a tree is not a broken installation
+//
+// A development build has no manifest and never will: `build.cmd` makes the binaries and writes
+// nothing beside them. That is reported as what it is rather than as a problem, because the
+// window's own `Build` and the two sibling checks already cover a tree — and a diagnostic that
+// cried about a development build would be one nobody reads on an installation.
+//
+// See [[ADR-263-the-alpha-is-the-studio-stack-and-it-says-what-it-is]].
+func whatThisInstallationIsMadeOf() (string, []Problem) {
+	exe, err := os.Executable()
+	if err != nil {
+		return "", nil
+	}
+	at := filepath.Join(filepath.Dir(exe), "manifest.json")
+	raw, err := os.ReadFile(at)
+	if err != nil {
+		return "not an installed Marco: these binaries were built in a tree, so there " +
+			"is no manifest of what they are", nil
+	}
+	var m bundleManifest
+	if err := json.Unmarshal(raw, &m); err != nil {
+		return "", []Problem{{
+			Says: "this installation's manifest cannot be read, so nothing here can " +
+				"say what it is made of: " + err.Error(),
+			Do: "reinstall Marco",
+		}}
+	}
+	var said []string
+	var problems []Problem
+	for _, f := range m.Files {
+		where := filepath.Join(filepath.Dir(exe), filepath.FromSlash(f.File))
+		// THE PROVIDER IS NOT WHERE THE MANIFEST NAMES IT. `uia.exe` is laid out
+		// under `plugins\uia\` because that is where `marco` looks; the manifest
+		// names the asset. Checked where it LANDS, through the one table that knows.
+		if f.File == "uia.exe" {
+			where = filepath.Join(filepath.Dir(exe), "plugins", "uia", "uia.exe")
+		}
+		id := f.Revision
+		if id == "" {
+			id = "no revision (not a Go binary)"
+		}
+		got, err := hashOf(where)
+		switch {
+		case err != nil:
+			problems = append(problems, Problem{
+				Says: fmt.Sprintf("%s is in this installation's manifest and is "+
+					"not on disk: %s", f.File, where),
+				Do: "reinstall Marco",
+			})
+			continue
+		case got != f.SHA256:
+			problems = append(problems, Problem{
+				Says: fmt.Sprintf("%s is not the file this installation was "+
+					"packaged with — its contents have changed since", f.File),
+				Do: "reinstall Marco, or if you replaced it on purpose, know that " +
+					"nothing here can say what it is",
+			})
+			continue
+		}
+		said = append(said, fmt.Sprintf("%s %s", f.File, id))
+	}
+	return fmt.Sprintf("Marco %s, packaged %s: %s", m.Version, m.Packed,
+		strings.Join(said, " · ")), problems
+}
+
+// hashOf is the SHA-256 of a file, lowercase hex, as the manifest records it.
+func hashOf(path string) (string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
 }

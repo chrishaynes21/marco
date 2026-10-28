@@ -143,6 +143,9 @@ type Recording struct {
 	// check. See orchestrator.RecordedAs.
 	Mode     string `json:"mode,omitempty"`
 	Captures string `json:"captures,omitempty"`
+	// Everywhere is WHERE a recording captures, which is everywhere, and is a release
+	// requirement rather than a nicety. See everywhereSentence.
+	Everywhere string `json:"everywhere,omitempty"`
 	// Review says a draft is waiting: the capture has ended and nothing is on disk.
 	// This is the state the Stop button exists to reach.
 	Review bool `json:"review,omitempty"`
@@ -446,7 +449,8 @@ func (a *Acts) Recording() Recording {
 		// capture fills with its own mode, so the page needs no second question and
 		// no sentence of its own.
 		return Recording{Mode: string(studioCaptures),
-			Captures: capturesSentence(studioCaptures)}
+			Captures:   capturesSentence(studioCaptures),
+			Everywhere: everywhereSentence()}
 	}
 	out := Recording{Name: c.name,
 		StopKey: recorder.ParseStopKey(os.Getenv("MARCO_STOP_KEY")).Label()}
@@ -457,6 +461,10 @@ func (a *Acts) Recording() Recording {
 	// promising coordinates. The sentence is the window's; the word is the recording's.
 	out.Mode = string(c.mode)
 	out.Captures = capturesSentence(c.mode)
+	// AND WHERE, WHICH DOES NOT CHANGE WHILE ONE IS RUNNING. Said during a recording as
+	// well as before one, because the card is on screen the whole time somebody is away
+	// doing the thing — and that is when it matters.
+	out.Everywhere = everywhereSentence()
 	// AND WHICH ROUTINE THIS IS A SECOND RECORDING OF, when it is one.
 	if g := c.again; g != nil {
 		out.Again, out.AgainName, out.AgainScope = g.id, g.name, g.scope
@@ -870,4 +878,37 @@ func (a *Acts) Resave(id string) string {
 	}
 	return fmt.Sprintf("there is no routine %q that needs saving again — press "+
 		"Refresh and choose it again", id)
+}
+
+// everywhereSentence is where a recording captures, which is everywhere, said before it starts.
+//
+// # Why this has to be said out loud
+//
+// Because the recorder's hooks are GLOBAL. Every press and key anywhere on the desktop enters the
+// demonstration, attributed to whatever window was in the foreground at that instant, with an app
+// switch emitted whenever that changes — which is by design, and is how `Activate` comes to be in
+// a routine at all. The only thing removed is Studio's own interactions, by process, so that a
+// glance at this window mid-demonstration does not become a drag from the application to Marco
+// and back.
+//
+// So a person demonstrating is demonstrating the whole desktop. Answer a message halfway through
+// and the reply is in the routine. The product relied on them not doing anything else and said so
+// nowhere, which is the kind of thing a person finds out by finding it in a file.
+//
+// # And it does not claim the opposite either
+//
+// Recording only the chosen window does not exist — see Roadmap 36 and the Demonstrations note.
+// The playback window CHECK is a different thing: it re-bases a press onto a window that moved and
+// refuses one that changed, at the instant before acting, and it is not a bound on what a
+// recording captures or on where input may land. A reader who found the check could reasonably
+// conclude this was covered, so this says it is not.
+//
+// From the backend rather than written into the page, like the sentence above it, so the day
+// recording does become bounded this changes with it rather than going quietly stale.
+func everywhereSentence() string {
+	return "While this is recording, Marco watches your keyboard and mouse EVERYWHERE — " +
+		"every application, not just the one you are demonstrating in. Anything you do " +
+		"in the meantime becomes part of the routine. Studio's own window is the one " +
+		"exception and is left out. Recording only a chosen window is not something " +
+		"Marco can do yet."
 }

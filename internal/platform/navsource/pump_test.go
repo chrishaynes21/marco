@@ -249,3 +249,142 @@ func callsIn(t *testing.T, file string) map[string]bool {
 	})
 	return out
 }
+
+// A HOOK SITE'S SHUTDOWN HAS NO UNBOUNDED WAIT.
+//
+// # The hole this closes, which was in this very file
+//
+// `TestAPumpWakeupIsRetriedRatherThanPostedOnce` demands the wakeup is posted in a loop, and its
+// own failure message says "with a bound so a pump that has already died cannot wedge the caller
+// either". The bound was in the PROSE and not in the check — so a site could satisfy every test
+// here and still wedge its caller on a different channel, two lines away from the one that was
+// checked.
+//
+// `internal/recorder` did. Its pump wake was bounded; the receives either side of it were not,
+// and one of them waited for the app-switch poller — whose one blocking call is a
+// foreground-window read, which blocks when the window's owning thread is not pumping. Under the
+// load of `plugins/studio`'s browser tests, roughly one run in six, a played routine that had
+// finished its program reported NOTHING: no outcome, the window's run slot still claimed, thirty
+// seconds of silence. In isolation it finished in half a second. See
+// [[ADR-263-the-alpha-is-the-studio-stack-and-it-says-what-it-is]].
+//
+// # What counts as unbounded, and why that is exactly the right question
+//
+// A bare `<-ch` STATEMENT. A receive inside a `select` is a different AST node — a comm clause —
+// so a wait with a timeout beside it does not match, and that is the whole distinction: the rule
+// is not "do not wait", it is "do not wait without a way out". A shutdown that cannot be
+// completed is a thing to say; one that cannot be left is a hang.
+//
+// It is deliberately about the SHUTDOWN and not about every receive in a file: a hook site's
+// other goroutines may block on a channel for as long as they like, and the app-switch poller in
+// `internal/recorder` does exactly that on purpose. Which function is the shutdown is answered
+// rather than guessed — see bareReceives.
+func TestAHookSiteShutdownHasNoUnboundedWait(t *testing.T) {
+	var checked []string
+	for _, name := range hookSites(t) {
+		checked = append(checked, name)
+		for _, where := range bareReceives(t, name) {
+			t.Errorf("%s waits on a channel with no way out, at %s. A hook site's "+
+				"shutdown runs while a thread may be inside a call that has not "+
+				"returned — a window-data read, a screen capture — and a receive "+
+				"with no timeout beside it then never ends. Whoever spawned this "+
+				"process waits for ever and the run reports nothing at all. Put "+
+				"it in a select with a bound and say what was left behind",
+				name, where)
+		}
+	}
+	if len(checked) < 2 {
+		t.Errorf("only %d hook site(s) were checked (%v); two are known to exist, so "+
+			"this test is checking less than it reads as", len(checked), checked)
+	}
+}
+
+// bareReceives is every `<-ch` used as a statement inside a file's SHUTDOWN.
+//
+// # Which function is the shutdown, answered rather than guessed
+//
+// The one that wakes the pump: `procPostThreadMessageW` is how a blocking `GetMessage` is told to
+// return, so the function posting it is by definition the one taking the hooks off. Scoping to it
+// is what makes this rule narrow enough to be true — a hook site's other goroutines may block on
+// a channel for as long as they like, and the poller in `internal/recorder` does exactly that on
+// purpose.
+//
+// # And as a STATEMENT, which is the whole distinction
+//
+// `x := <-ch` and `case <-ch:` are other AST nodes, and the second is the bounded form this rule
+// asks for. A statement receive is a wait whose only outcome is arriving.
+func bareReceives(t *testing.T, file string) []string {
+	t.Helper()
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, file, nil, 0)
+	if err != nil {
+		return nil
+	}
+	var out []string
+	// bare records a receive used as a statement, which is a wait whose only outcome is
+	// arriving. Shared by the walk and by the select-clause bodies it recurses into.
+	bare := func(n ast.Node) bool {
+		stmt, ok := n.(*ast.ExprStmt)
+		if !ok {
+			return true
+		}
+		if u, ok := stmt.X.(*ast.UnaryExpr); ok && u.Op == token.ARROW {
+			out = append(out, fset.Position(stmt.Pos()).String())
+		}
+		return true
+	}
+	for _, decl := range f.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Body == nil || !wakesThePump(fn) {
+			continue
+		}
+		ast.Inspect(fn.Body, func(n ast.Node) bool {
+			switch node := n.(type) {
+			case *ast.GoStmt:
+				// NOT INSIDE A GOROUTINE THIS FUNCTION STARTS. A shutdown
+				// that hands a wait to a goroutine has not made the caller
+				// wait for it, and the goroutine is not what is bounded.
+				return false
+			case *ast.SelectStmt:
+				// A SELECT IS THE BOUNDED FORM, which is the one thing this
+				// rule is asking for — so its clauses are not candidates.
+				//
+				// And this cannot be left to the node type: a `case <-ch:`
+				// wraps its receive in an `ExprStmt` exactly like a bare one,
+				// so a walk that only looked at statements flagged every
+				// timeout-bounded wait in the tree as unbounded. The clause
+				// BODIES are still walked, because a bare receive inside one
+				// is as unbounded as anywhere else.
+				for _, c := range node.Body.List {
+					if clause, ok := c.(*ast.CommClause); ok {
+						for _, s := range clause.Body {
+							ast.Inspect(s, bare)
+						}
+					}
+				}
+				return false
+			}
+			return bare(n)
+		})
+	}
+	return out
+}
+
+// wakesThePump reports whether this function posts the message that ends a blocking pump.
+func wakesThePump(fn *ast.FuncDecl) bool {
+	found := false
+	ast.Inspect(fn.Body, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		if sel, ok := call.Fun.(*ast.SelectorExpr); ok {
+			if id, ok := sel.X.(*ast.Ident); ok &&
+				id.Name == "procPostThreadMessageW" {
+				found = true
+			}
+		}
+		return true
+	})
+	return found
+}
