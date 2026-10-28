@@ -10677,3 +10677,74 @@ tree.
 **Physical recording capture remains NOT EXERCISED.**
 
 See [[ADR-263-the-alpha-is-the-studio-stack-and-it-says-what-it-is]].
+
+### §42b — three P1s against §42, and the first was mine
+
+`0d0306f`. The review of the release-hardening work found three, and the one that mattered most
+was introduced by that work.
+
+**The launcher decided where the data was.** I had it set `MARCO_HOME` and `MARCO_ROUTES` to its
+own installation directory, with a comment explaining that the launcher states which store this
+installation uses. The reasoning was wrong twice: it overrode an explicit `$MARCO_HOME` somebody
+had set, and it pointed away from the shared default `%APPDATA%\marco` that every other way into
+Marco resolves. **An existing Studio user would have installed the alpha and been shown an empty
+library** — routines exactly where they left them, nothing saying so.
+
+The lesson is the one ADR-252 is about and I walked straight into it from the other side: there is
+one resolver and the way to honour it is to ASK NOTHING. `plugins/marco-app` cannot even import
+`marcopaths` — it is its own module — which should have been the signal that resolving there was
+wrong rather than an obstacle to work around. The launcher sets neither now and seeds no starter
+routine, which needed the library resolved and wrote into somebody's data from an installer.
+`MARCO_BIN` stays, because that names an executable.
+
+The guard is an assertion about an ABSENCE, by name, ignoring comments — because the note that
+records this fix necessarily names what it must not do, and a check that matched a comment would
+fail on its own explanation.
+
+**And the conflict is named by the window, which ADR-252 promised and never shipped.**
+`marcopaths.Elsewhere` was written for *"the window names any library-shaped directory beside its
+launch location that holds routines and says what to do about it; nothing is adopted or moved"* —
+and **nothing ever called it**. A complete mechanism with no caller, in a repository whose own
+memory note is "prove wiring by deleting it". It is wired into readiness now, and the case is real
+because the old launcher created it: every overlay-era bundle kept its routines under
+`%LOCALAPPDATA%\Marco\routes`.
+
+**An interrupted upgrade left mixed binaries.** Components were written into `bin\` in turn, and
+Windows refuses to overwrite an executing file — so an upgrade failed PART WAY with the earlier
+files already replaced, while the error said "nothing has been changed". That sentence was the only
+untrue thing in it: a new Studio beside an old marco and an old director is exactly the mixed
+installation the sibling discipline exists to prevent, and it looks current from every direction.
+
+Each version stages into `bin-<version>` and `bin\` is replaced only once every file is written.
+Staging can fail halfway and cost nothing. The activation is a directory swap — the one step that
+can still fail against running binaries — so the old `bin\` is put back on failure. Either the
+whole new version is in use or the whole old one is.
+
+**Recorder workers could reach a later recording.** The bound I added in §42 made `Stop` return,
+and returning is exactly what let the poller and the capture worker outlive it. Both publish
+through package state: a late foreground read appended an app switch to somebody else's
+demonstration, and an old capture could write a picture into whatever event was at its index. So
+the fix for one finding opened the next, which is worth remembering about bounded waits — the
+thing you stopped waiting for is still running.
+
+Both are fenced by session, and for the poller the check is AFTER the sample, because
+`winctx.Active()` is the call that blocks and the instant that matters is the one it returns in.
+The decision the poller makes twice is one function now: the fence went into one of the two call
+sites first and a mutation found it.
+
+**And a further recording is refused outright.** The hooks cannot be fenced from Go at all — C
+callbacks that gate on `recActive`, which the next `Start` sets true again, so an abandoned
+recording's still-installed hooks would feed the new one. A session number cannot reach a C
+callback, so recording is over until the process restarts. That is the honest consequence of hooks
+that are still installed, and it is what the shutdown's own message already said.
+
+**Verified against the packaged bundle from isolation**, which is the only place these are
+visible: a populated store in the shared default is found (`theirs` listed), an explicit
+`MARCO_HOME` wins (`mine over here` listed), and an older bundled library is named with both paths
+and its routine still on disk.
+
+**Physical recording capture remains NOT EXERCISED.** And the Architect's note stands: the stop
+investigation explains the sharing conflict and does not establish reliable stop delivery during
+it.
+
+See [[ADR-263-the-alpha-is-the-studio-stack-and-it-says-what-it-is]].

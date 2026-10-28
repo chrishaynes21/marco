@@ -2,7 +2,7 @@
 type: adr
 status: accepted
 date: 2026-10-27
-decision: "ACCEPTED — THE ALPHA IS THE STUDIO STACK, SHIPPED, AND IT SAYS WHAT IT IS. `pack.ps1` built the engine, the Director, the accessibility provider and the overlay, and the launcher ran the overlay serve stack; no root script mentioned Studio and the README never did. So record → Stop → review → Save → Play, and every guard in [[ADR-251-a-press-checks-the-window-it-was-recorded-in]], [[ADR-259-a-guarded-drag-is-two-points-in-one-window]], [[ADR-260-a-press-is-a-button-and-a-place]], [[ADR-261-typed-text-is-a-sequence-of-submissions]] and [[ADR-262-a-routine-states-which-generation-wrote-it]], reached NOBODY who installed Marco. And the consequence is sharper than a missing feature: the shipped overlay can record and can simplify, and it sets the no-preview option because it cannot render two sources — so an installed Marco could WRITE a routine and could not show anybody what it was about to write, which makes every guard that depends on a review unreachable. Studio is therefore staged and OPENED, built with the Wails tags, and `pack.ps1` checks the built bytes for the guard's own message box because that is the only way to tell a windowless build from a working one without opening a window on somebody's desktop. The overlay is still shipped, still works, and starts only with `--overlay`: it is a different product surface rather than an older version of this one, and it is asked for. `marco.exe` and `director.exe` land BESIDE `studio.exe`, because Studio spawns the ones beside ITSELF — one layout satisfies that and `marco`'s own two lookups at once. AN INCOMPLETE BUNDLE IS A REFUSAL: `marcoBin`/`directorBin` answer a bare name when there is no sibling, which `exec.Command` resolves against PATH, so an installed Studio with a missing sibling performed routines through a binary nobody chose, of whatever age, with every window looking current — readiness had reported it for a while and blocked nothing, and Play, Run and Learn refuse it now. An upgrade blocked by a running Studio SAYS to close it rather than killing a window that may hold a draft existing nowhere else. A BUNDLE CARRIES A MANIFEST: every file's hash, and every Go binary's revision asked of the binary itself through `go version -m`, with a binary that carries no revision FAILING the pack rather than shipping — `unknown` is what a package built from outside its module answers, and a bundle of those makes every run record unciteable. The accessibility provider has no such stamp, being built by the .NET compiler that ships with Windows, so it is identified by its bytes; Studio reports all of it, verifies the hashes against disk because a manifest is a claim, and prints it without opening a window, since a bundle that will not start is exactly the case where the report has to be reachable without starting it. GLOBAL RECORDING IS DISCLOSED BEFORE RECORD, in the window and in the README: the hooks are global, every press and key anywhere on the desktop enters the demonstration with Studio's own interactions excepted, and recording only a chosen window is NOT something Marco can do — this alpha does not claim it. THE README LED WITH THE WRONG PRODUCT, promising 'nothing to record' and saying `performed` means Marco looked again and confirmed it; `performed` on a routine means every action was SUBMITTED and none refused, because `internal/outcome`'s own definition is conditional — 'for a Play whose arrival could be checked, it means checked' — and the README was reading the condition off. VALIDATED BY RUNNING THE ARTIFACT from an isolated directory with no repository and no development PATH, which found three defects no unit test could reach: a manifest written with a byte-order mark that Go's JSON refuses, a manifest listing the embed's own version label as an installed component, and the launcher's closing line still describing the overlay. The harness can now test an INSTALLED Marco — launch, seeded playback, cancellation, reporting, review/cancel/replace, all green against the bundle. AND THE WORK FOUND A 30-SECOND HANG ON THE SHIPPED PLAY PATH: a run that finished its program reported nothing, slot still claimed, one run in six under load. Deductively one of the two unbounded channel receives either side of the pump wake, since the wake itself has been bounded since the 600-second timeouts; both are bounded now with their own sentences, and the tree-walking test refuses any bare receive in a hook site's shutdown rather than putting the bound in its prose. PHYSICAL RECORDING CAPTURE REMAINS NOT EXERCISED."
+decision: "ACCEPTED — THE ALPHA IS THE STUDIO STACK, SHIPPED, AND IT SAYS WHAT IT IS. `pack.ps1` built the engine, the Director, the accessibility provider and the overlay, and the launcher ran the overlay serve stack; no root script mentioned Studio and the README never did. So record → Stop → review → Save → Play, and every guard in [[ADR-251-a-press-checks-the-window-it-was-recorded-in]], [[ADR-259-a-guarded-drag-is-two-points-in-one-window]], [[ADR-260-a-press-is-a-button-and-a-place]], [[ADR-261-typed-text-is-a-sequence-of-submissions]] and [[ADR-262-a-routine-states-which-generation-wrote-it]], reached NOBODY who installed Marco. And the consequence is sharper than a missing feature: the shipped overlay can record and can simplify, and it sets the no-preview option because it cannot render two sources — so an installed Marco could WRITE a routine and could not show anybody what it was about to write, which makes every guard that depends on a review unreachable. Studio is therefore staged and OPENED, built with the Wails tags, and `pack.ps1` checks the built bytes for the guard's own message box because that is the only way to tell a windowless build from a working one without opening a window on somebody's desktop. The overlay is still shipped, still works, and starts only with `--overlay`: it is a different product surface rather than an older version of this one, and it is asked for. `marco.exe` and `director.exe` land BESIDE `studio.exe`, because Studio spawns the ones beside ITSELF — one layout satisfies that and `marco`'s own two lookups at once. AN INCOMPLETE BUNDLE IS A REFUSAL: `marcoBin`/`directorBin` answer a bare name when there is no sibling, which `exec.Command` resolves against PATH, so an installed Studio with a missing sibling performed routines through a binary nobody chose, of whatever age, with every window looking current — readiness had reported it for a while and blocked nothing, and Play, Run and Learn refuse it now. An upgrade blocked by a running Studio SAYS to close it rather than killing a window that may hold a draft existing nowhere else. A BUNDLE CARRIES A MANIFEST: every file's hash, and every Go binary's revision asked of the binary itself through `go version -m`, with a binary that carries no revision FAILING the pack rather than shipping — `unknown` is what a package built from outside its module answers, and a bundle of those makes every run record unciteable. The accessibility provider has no such stamp, being built by the .NET compiler that ships with Windows, so it is identified by its bytes; Studio reports all of it, verifies the hashes against disk because a manifest is a claim, and prints it without opening a window, since a bundle that will not start is exactly the case where the report has to be reachable without starting it. GLOBAL RECORDING IS DISCLOSED BEFORE RECORD, in the window and in the README: the hooks are global, every press and key anywhere on the desktop enters the demonstration with Studio's own interactions excepted, and recording only a chosen window is NOT something Marco can do — this alpha does not claim it. THE README LED WITH THE WRONG PRODUCT, promising 'nothing to record' and saying `performed` means Marco looked again and confirmed it; `performed` on a routine means every action was SUBMITTED and none refused, because `internal/outcome`'s own definition is conditional — 'for a Play whose arrival could be checked, it means checked' — and the README was reading the condition off. VALIDATED BY RUNNING THE ARTIFACT from an isolated directory with no repository and no development PATH, which found three defects no unit test could reach: a manifest written with a byte-order mark that Go's JSON refuses, a manifest listing the embed's own version label as an installed component, and the launcher's closing line still describing the overlay. The harness can now test an INSTALLED Marco — launch, seeded playback, cancellation, reporting, review/cancel/replace, all green against the bundle. AND THE WORK FOUND A 30-SECOND HANG ON THE SHIPPED PLAY PATH: a run that finished its program reported nothing, slot still claimed, one run in six under load. Deductively one of the two unbounded channel receives either side of the pump wake, since the wake itself has been bounded since the 600-second timeouts; both are bounded now with their own sentences, and the tree-walking test refuses any bare receive in a hook site's shutdown rather than putting the bound in its prose. AND THREE P1s THE REVIEW FOUND, THE FIRST OF THEM THIS SLICE'S OWN: the launcher SET `MARCO_HOME` and `MARCO_ROUTES` to its own installation directory, overriding an explicit setting and pointing away from the shared `%APPDATA%\marco` every other way into Marco resolves — an existing Studio user would have installed the alpha and been shown an EMPTY LIBRARY — so installation and data resolution are separate now, the launcher seeds nothing, and the older bundled installation's data is NAMED by the window through `marcopaths.Elsewhere`, which ADR-252 promised and which had no caller at all; an interrupted upgrade LEFT MIXED BINARIES, because components were written into `bin\` in turn and Windows refuses to overwrite an executing file, so each version now stages into its own directory and `bin\` is replaced only when every file is written, with the old one put back if the swap fails; and RECORDER WORKERS COULD REACH A LATER RECORDING after a bounded shutdown gave up — both are fenced by session, with the poller's check AFTER the sample because the read is what blocks, and a further recording is refused outright because the hooks are C callbacks a session number cannot reach. PHYSICAL RECORDING CAPTURE REMAINS NOT EXERCISED."
 supersedes: []
 affects:
   - execution
@@ -197,6 +197,71 @@ that missed that flagged every bounded wait in the tree.
   verify.
 - **Orphan images, anchored-press propagation, the CV default** — still parked.
 
+## Three things the review found, and the first was this slice's own
+
+**The launcher decided where the data was.** Increment 1 had it set `MARCO_HOME` and
+`MARCO_ROUTES` to its own installation directory, on the reasoning that the launcher states which
+store this installation uses. That reasoning was wrong twice over: it overrode an explicit
+`$MARCO_HOME` somebody had set, and it pointed away from the shared default `%APPDATA%\marco` that
+every other way into Marco resolves. **An existing Studio user would have installed the alpha and
+been shown an empty library**, with their routines exactly where they left them and nothing saying
+so.
+
+Installation and data resolution are separate now. The launcher sets neither, and seeds no starter
+routine — which needed the library resolved and wrote into somebody's data from an installer.
+`MARCO_BIN` stays, because that names an executable: it is the marco this bundle unpacked, and a
+child that found another would be a different build.
+
+`plugins/marco-app` is its own module and cannot import `internal/marcopaths`, which is the reason
+the answer must not be derived there at all — a second resolver is exactly
+[[ADR-252-a-library-is-a-place-and-a-routine-is-played-where-it-was-made]]'s defect. The guard is
+therefore an assertion about the ABSENCE of a thing, by name, in the one file that could
+reintroduce it, ignoring comments: the note that records this fix necessarily names what it must
+not do.
+
+**And the conflict is named by the window, which ADR-252 promised and never shipped.** An older
+bundled installation does have data under `%LOCALAPPDATA%\Marco\routes`, because the launcher put
+it there. `marcopaths.Elsewhere` was written for exactly that case — *"the window names any
+library-shaped directory beside its launch location that holds routines and says what to do about
+it; nothing is adopted or moved, because choosing between two libraries is the person's"* — and
+**nothing ever called it**. A complete mechanism with no caller, which is this repository's own
+recorded failure mode. It is wired into readiness now, with both paths, the one setting that
+chooses between them, and nothing moved or merged by anybody.
+
+**An interrupted upgrade left mixed binaries.** Components were written into `bin\` in turn, and
+Windows refuses to overwrite an executing file — so an upgrade while anything from the last one
+was running failed PART WAY, with the files before the failure already replaced, while the error
+said *"nothing has been changed"*. A new Studio beside an old `marco` and an old `director` is
+precisely the mixed installation the sibling discipline exists to prevent, and it looks current
+from every direction.
+
+Each version now stages into its own directory — `bin-<version>` — and `bin\` is replaced only
+once every file is written. Staging can fail halfway and cost nothing, because nothing is using
+it. The activation is a directory swap, which is the one step that can still fail against running
+binaries, so on failure the old `bin\` is put back and the message says to close Marco. **Either
+the whole new version is in use or the whole old one is.** Previous versions are left on disk:
+a directory that was in use a moment ago is not something to remove while its processes may still
+be exiting, and it is what makes the fallback possible.
+
+**Recorder workers could reach a later recording.** `Stop` is bounded, so a shutdown that cannot
+complete gives up and returns — and the app-switch poller and the capture worker are still
+running, and both publish through this package's global state. A late foreground read appended an
+app switch to somebody else's demonstration as a step they never performed; an old capture could
+write a picture into whatever event was at its index now.
+
+Both are fenced by **session**, taken when the recording starts and compared immediately before
+publishing — and for the poller the check is AFTER the sample rather than before it, because
+`winctx.Active()` is the call that blocks and the instant that matters is the one it returns in.
+The decision the poller makes twice is one function, because the fence went into one of the two
+call sites first and a mutation found it.
+
+**And a further recording is refused outright**, because the hooks cannot be fenced from Go at all.
+They are C callbacks with no context of their own; they gate on `recActive`, and the next `Start`
+would set that true again — so an abandoned recording's hooks, still installed because the thread
+that owns them never answered, would feed the new one. A session number cannot reach a C callback.
+So recording is over for the life of the process and says a restart is what fixes it, which is
+what the shutdown's own message already said: *they stay installed until this process exits.*
+
 ## What is unchanged
 
 - The CLI. `marco do`, `marco learn`, `marco simplify` and the rest are untouched, and
@@ -236,6 +301,29 @@ that missed that flagged every bounded wait in the tree.
 - `cmd/director` `TestARunRecordIsWrittenWhereItsReferenceSaysItIs` — the three counts as three
   keys with three DISTINCT values, a finished record carrying a real zero, and an unfinished one
   carrying none of them.
+- `plugins/marco-app` `TestTheLauncherDoesNotDecideWhereTheDataIs` — the ABSENCE of
+  `Setenv("MARCO_HOME")`, `Setenv("MARCO_ROUTES")` and `seedHello`, by name, in the one file that
+  could reintroduce them, ignoring comments — because the note recording the fix necessarily names
+  what it must not do. With the control that `MARCO_BIN` is still named, or the test is satisfied
+  by a launcher that says nothing at all.
+- `plugins/marco-app` `TestInstallingPutsTheWholeBundleWhereItIsLookedFor`,
+  `TestAFailedUpgradeLeavesThePreviousBundleWhole` — every staged component where the table says,
+  the stamp inside the version it describes, a same-version install rewriting nothing, and a
+  failure on a LATER component leaving every file of the previous version as it was. The failure is
+  arranged with a directory where a file has to go, which fails on any platform and needs no
+  running process, and it lands after the first component — the only case that could ever have
+  produced a mixture.
+- `plugins/studio` `TestASecondLibraryIsNamedAndNothingIsMoved` — a library beside the binary that
+  is not the one in use, named with both paths and the one setting that chooses, the other
+  library's routine still there afterwards, and nothing said when the library in use IS that one.
+  `marcopaths.Elsewhere` had no caller at all before this.
+- `internal/recorder` `TestAWorkerHeldAcrossATimeoutCannotReachALaterRecording` — a shutdown that
+  gives up, a later recording REFUSED with what to do about it, and an abandoned recording's late
+  publish dropped even so. The refusal protects a real process; the fence makes the workers
+  correct, and a build that only refused would be one line from being wrong again.
+- `internal/recorder` `TestAnAbandonedPollersSampleIsNotRecorded` — the decision the poller makes
+  twice, asked directly, because the goroutine that asks it cannot be started in a test and a
+  mutation taking the fence out of ONE call site survived a test that only exercised `mine`.
 - `plugins/e2e` `TestOnlyAStaleElementIsRetried` — a stale element retried once and a control that
   was never there, one that is disabled, a window that has gone and a failing bridge each returned
   as findings.
