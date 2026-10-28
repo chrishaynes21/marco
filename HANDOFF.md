@@ -10748,3 +10748,86 @@ investigation explains the sharing conflict and does not establish reliable stop
 it.
 
 See [[ADR-263-the-alpha-is-the-studio-stack-and-it-says-what-it-is]].
+
+### §42c — three boundaries, and one of them was the previous fix's own edge
+
+`cec9e65`. The review of §42b found three, and the first is the same lesson one layer in: a
+check and a write are two moments unless they are one step.
+
+**The recorder fence was asked before publication rather than with it.** Each worker asked whether
+the global state was still its own and then wrote into it. A worker could pass that question, be
+descheduled, and publish after a later `Start` had emptied the buffer — and the session was raised
+BESIDE the lock rather than under it, so the replacement itself was two steps and a worker could
+be let through between those as well. The fence I added in §42b was correct in both halves and
+still not a fence.
+
+`recMu` guards the session now as well as the state it describes. `beginRecording` raises the
+session and empties the buffer under one acquisition; `recordAppSwitch` and `attach` each ask the
+fence and make their writes under that same lock. Two things fell out of doing it properly: the
+poller's `last` advances only when publication succeeded, because a sample remembered as recorded
+when it was dropped would silence the next real switch to that application; and the foreground the
+hooks tag every press with is published inside the fence, or an abandoned poller decides which
+application a LATER recording was in.
+
+**And WHERE the fence is read cannot be tested behaviourally.** Move `mineUnderLock` one line up,
+above `recMu.Lock()`, and every behavioural test still passes while the gap is open again — no test
+can pause a goroutine between two adjacent lines. So the rule is checked where it is written, by
+name, with a deferred unlock not counted as an unlock. The mutation that found this was my own
+first draft's shape.
+
+**Activation ignored a failed recovery.** It ignored the clearing of the recovery directory and the
+rollback's own error, so an activation that failed AND a rollback that failed reported itself as
+the case where the rollback worked — *"the version you had is still the one in use"* — about an
+installation that was not there. That is the one sentence a person in that position must not be
+told: it sends them to close a Marco that is not running instead of looking on their own disk,
+where their previous version is sitting under another name.
+
+Both are handled, and a failed rollback names the recovery directory and what to do with it. The
+recovery directory is cleared only when there IS an installation to move into it, so a rollback
+that failed leaves the one copy of their previous version alone until something is activated over
+it. **The failed rollback needed a seam** — it is an ORDER of two renames, not a state on disk:
+whatever makes a directory unmovable makes it unmovable in both directions. The other three
+outcomes need none, and the test that was there exercised `stage`, which is the half that can fail
+for free.
+
+**A relative data override resolved against the installation.** The children start from `bin\` so
+that a sibling they spawn by a bare name cannot be resolved against whatever directory somebody
+double-clicked the launcher in — and that moved the meaning of a relative `$MARCO_HOME` or
+`$MARCO_ROUTES` with it. `MARCO_ROUTES=routes` in a terminal means `.\routes` there; the same words
+through the launcher meant `bin\routes`. ADR-252's defect arriving by the back door, through the
+fix for the launcher's previous one.
+
+An override somebody SET is made absolute against the directory this process was started in,
+before any child is started from anywhere else. **It answers nothing**, which is the line that
+keeps it from being a second resolver: an override nobody set stays unset, an absolute one is
+untouched, and `marcopaths` decides what any of it means as it always did. The only thing done is
+to spell a path somebody else wrote against the directory they wrote it in, which is the one fact
+the launcher has and the child does not.
+
+**Verified against the packaged bundle from isolation**, which is where these are visible.
+`MARCO_ROUTES=routes` typed in an unrelated directory resolved to THAT directory's library,
+against the counterfactual — the same words given to the child started in `bin\` the way the
+launcher starts it, which resolved to `bin\routes`. The shared default is still found with
+nothing set. And an upgrade attempted while a file in `bin\` was held open was refused with
+`bin\` whole at the version it had and the new one left staged beside it; released, it activated
+whole with the previous version kept. That path is the FIRST rename failing, which is the common
+real case; the rollback is the second one failing after the first succeeded, which is why it has
+a seam and a test rather than a demonstration.
+
+**And the installed bundle passed all eleven desktop scenarios again** — `play` 1 of 1, `runs`
+3 of 3, `generation` 2 of 2, `text` 1 of 1, `button` 4 of 4 — with nothing left running
+afterwards.
+
+**Eight hung `marco do` processes were on this desktop**, from test runs between 18:57 and 21:30,
+each with the recorder's global hooks still installed. They are what the thirty-second hang looks
+like when it never ends, and they were invisible: the child's `MARCO_HOME` is the test's temporary
+directory, so the run record it reserved went away with the test that made it. They also LOCK the
+repo-root `marco.exe`, which is how they were found — `withAMarcoBeside` had been skipping every
+Play test in Studio's suite because the binary could not be rebuilt. Stopped, rebuilt, and the
+suite then ran with no skips at all and left no child behind. One clean run is not a fix and
+nothing here claims the cause; what is new is that the symptom has a name and a way to look for
+it.
+
+**Physical recording capture remains NOT EXERCISED.**
+
+See [[ADR-263-the-alpha-is-the-studio-stack-and-it-says-what-it-is]].

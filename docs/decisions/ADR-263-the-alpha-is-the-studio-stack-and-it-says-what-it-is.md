@@ -165,6 +165,18 @@ full of browser windows is exactly that desktop — but **that is a pointer, not
 nothing here claims the cause is resolved. What is fixed is that a run which finished its program
 now reports that it finished.
 
+**And sometimes it never ends at all.** On 2026-10-27, eight `marco do --play=says-hello`
+processes were found still running on this desktop from test runs between 18:57 and 21:30 — each
+with the recorder's global hooks installed, hours after the test that spawned it had finished.
+That is the same symptom with no end to it, and it was invisible for a reason worth writing down:
+the child's `$MARCO_HOME` is the test's temporary directory, so the run record it reserved went
+away with the test that made it. There was nothing left to read. They also hold the repo-root
+`marco.exe` open, which is what makes them visible at all — `withAMarcoBeside` had been SKIPPING
+every Play test in Studio's suite, because a locked binary cannot be rebuilt and a stale one is
+not run. Stopped, rebuilt, and the suite then ran with no skips and left no child behind. One
+clean run is not a fix and nothing here claims the cause; what is new is that the symptom has a
+name and somewhere to look for it.
+
 **And the rule is generalised rather than patched.**
 `TestAPumpWakeupIsRetriedRatherThanPostedOnce` demanded the wakeup be posted in a loop and put the
 BOUND in its own failure message — prose, not a check. So a site could satisfy every test and
@@ -405,6 +417,18 @@ not.
   was never there, one that is disabled, a window that has gone and a failing bridge each returned
   as findings.
 - `plugins/e2e` **the installed bundle, run on a desktop on 2026-10-27**: `play` 1 of 1, `runs`
-  3 of 3, `generation` 2 of 2 — launch, seeded playback, cancellation, reporting, and
-  review/cancel/replace, every run record naming the INSTALLED binary's revision rather than the
-  tree's, which is itself the evidence that the bundle was what answered.
+  3 of 3, `generation` 2 of 2, `text` 1 of 1, `button` 4 of 4 — launch, seeded playback,
+  cancellation, reporting, review/cancel/replace, typed text and the guarded press, every run
+  record naming the INSTALLED binary's revision rather than the tree's, which is itself the
+  evidence that the bundle was what answered. Run again at `cec9e65` after the three closures
+  below, with the same eleven results and nothing left running afterwards.
+- **And the artifact, from an isolated directory** with `LOCALAPPDATA` and `APPDATA` pointed away
+  from the owner's install, no repository and PATH cut to the system directories. A first install
+  reporting every Go binary's revision and no problems. A relative `MARCO_ROUTES=routes` typed in
+  an unrelated directory resolving to THAT directory's library — against the counterfactual, which
+  is the same words given to the child started in `bin\` as the launcher starts it, resolving to
+  `bin\routes`. The shared default still found with nothing set at all. And an upgrade attempted
+  while a file in `bin\` was held open: refused, with `bin\` still whole at the version it had
+  and the new one left staged beside it; then, with the file released, activated whole with the
+  previous version kept in `bin-previous`. The rollback path itself is not reachable this way and
+  has its own test — it is an order of two renames, not a state on disk.

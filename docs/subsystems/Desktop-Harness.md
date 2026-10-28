@@ -510,11 +510,13 @@ packed correctly and installed from an older copy.
 a shipped component; no installation has one, and one that did would be a product shipping its own
 test surface.
 
-On 2026-10-27 the installed bundle passed `play` 1 of 1, `runs` 3 of 3 and `generation` 2 of 2 —
-launch, seeded playback, cancellation, reporting and review/cancel/replace — with every run record
-naming the INSTALLED binary's revision rather than the tree's, which is itself the evidence that
-the bundle was what answered. See
-[[ADR-263-the-alpha-is-the-studio-stack-and-it-says-what-it-is]].
+On 2026-10-27 the installed bundle passed `play` 1 of 1, `runs` 3 of 3, `generation` 2 of 2,
+`text` 1 of 1 and `button` 4 of 4 — launch, seeded playback, cancellation, reporting,
+review/cancel/replace, typed text and the guarded press — with every run record naming the
+INSTALLED binary's revision rather than the tree's, which is itself the evidence that the bundle
+was what answered. Run twice: against the first packaged alpha, and again against the bundle built
+after the recorder's publication fence and the launcher's activation and path closures, with the
+same eleven results. See [[ADR-263-the-alpha-is-the-studio-stack-and-it-says-what-it-is]].
 
 ## The gate for a change to chords
 
