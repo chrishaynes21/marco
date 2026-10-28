@@ -110,8 +110,14 @@ foreach ($f in $required) {
 # the director once — and a shipped bundle of them would make every run record unciteable.
 Write-Host "==> writing the bundle manifest" -ForegroundColor Cyan
 $goBins = @("studio.exe", "marco.exe", "marco-macros.exe", "director.exe", "overlay.exe")
+# THE COMPONENTS, WHICH IS NOT THE SAME LIST AS THE STAGED ASSETS.
+#
+# `version.txt` is the embed's own LABEL — its contents are this manifest's `version` field —
+# and it is never extracted, so listing it as a component made a correct installation report
+# "version.txt is in this manifest and is not on disk". Caught by running the bundle.
+$components = $required | Where-Object { $_ -ne "version.txt" }
 $entries = @()
-foreach ($f in $required) {
+foreach ($f in $components) {
     $path = Join-Path $assets $f
     $hash = (Get-FileHash -Algorithm SHA256 -Path $path).Hash.ToLower()
     $rev = ""

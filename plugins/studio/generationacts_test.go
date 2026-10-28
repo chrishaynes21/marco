@@ -607,7 +607,7 @@ func TestAnInstalledMarcoSaysWhatItIsMadeOf(t *testing.T) {
 	// accessibility provider's real state and the reason the manifest carries hashes.
 	write([]bundled{{File: self, SHA256: sum}})
 	made, _ = whatThisInstallationIsMadeOf()
-	if !strings.Contains(made, "not a Go binary") {
+	if !strings.Contains(made, "identified by its hash") {
 		t.Errorf("a piece with no revision is reported as %q", made)
 	}
 	// AND A FILE THAT IS NOT WHAT THE MANIFEST SAYS IS A PROBLEM.

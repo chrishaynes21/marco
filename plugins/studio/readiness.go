@@ -381,7 +381,7 @@ func whatThisInstallationIsMadeOf() (string, []Problem) {
 		}
 		id := f.Revision
 		if id == "" {
-			id = "no revision (not a Go binary)"
+			id = "no revision — identified by its hash"
 		}
 		got, err := hashOf(where)
 		switch {
