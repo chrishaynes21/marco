@@ -90,12 +90,21 @@ func New() Recorder { return &winRecorder{} }
 // Package-level capture state — the hook callbacks are C callbacks and can only
 // reach package state. Only one recorder is active at a time.
 var (
+	// recMu guards the capture state below AND the session number that says whose it is.
+	//
+	// ONE LOCK FOR BOTH, because a worker asking whether the state is still its own and
+	// then writing into it is two moments, and the state can be replaced in between. The
+	// session was raised BESIDE this lock rather than under it, and every fence was read
+	// BEFORE the lock was taken — so a worker could pass its check, be descheduled, and
+	// publish into the recording that replaced it. That is what this lock closes: a
+	// publication decides and writes under one acquisition, and `beginRecording` takes the
+	// same lock to raise the session and empty the buffer it describes.
 	recMu     sync.Mutex
 	recBuf    []RecordedEvent
 	recPub    chan RecordedEvent
 	recActive atomic.Bool
 	// recSession is which recording the global state above belongs to, raised by every
-	// Start.
+	// Start, under recMu.
 	//
 	// # Why a session number and not a flag
 	//
@@ -110,6 +119,10 @@ var (
 	// writing. An old poller's late app switch is then dropped instead of appearing in a
 	// later recording, and an old capture cannot write a picture into whatever event
 	// happens to be at its index now.
+	//
+	// THE COMPARISON AND THE WRITE ARE ONE STEP, under recMu — see `mineUnderLock`, and
+	// `beginRecording` for the half of that which is about the replacement. A fence read
+	// before the lock is a fence a worker can be past while the recording is replaced.
 	//
 	// See [[ADR-263-the-alpha-is-the-studio-stack-and-it-says-what-it-is]].
 	recSession atomic.Int64
@@ -265,11 +278,7 @@ func (r *winRecorder) Start() error {
 			"recorded now would be fed by them as well. Close Marco and open it " +
 			"again")
 	}
-	r.session = recSession.Add(1)
-	recMu.Lock()
-	recBuf = nil
-	recPub = make(chan RecordedEvent, 1024)
-	recMu.Unlock()
+	r.beginRecording()
 	lastMoveNanos.Store(0)
 	recActive.Store(true)
 	// WHAT THIS RECORDING CAPTURES, FROM THE CALLER THAT STARTED IT. Published before
@@ -339,31 +348,13 @@ func (r *winRecorder) Start() error {
 			if img == nil {
 				continue
 			}
-			// AND IS THIS STILL OUR RECORDING? A capture that came back after a
-			// shutdown gave up on it would write a picture into whatever event is
-			// at its index in a LATER recording's buffer. See mine.
-			if !r.mine() {
-				continue
-			}
-			recMu.Lock()
-			if req.idx >= 0 && req.idx < len(recBuf) {
-				recBuf[req.idx].Image = img
-				recBuf[req.idx].ClickX, recBuf[req.idx].ClickY = clickLX, clickLY
-				if color != "" {
-					recBuf[req.idx].Color = color
-				}
-				// Re-centre the recorded click on the button centre, shifting the
-				// window-relative offset by the same delta so both stay consistent.
-				if recenter {
-					dx, dy := newX-recBuf[req.idx].X, newY-recBuf[req.idx].Y
-					recBuf[req.idx].X, recBuf[req.idx].Y = newX, newY
-					if recBuf[req.idx].WinRel {
-						recBuf[req.idx].RelX += dx
-						recBuf[req.idx].RelY += dy
-					}
-				}
-			}
-			recMu.Unlock()
+			// AND IS THIS STILL OUR RECORDING? Asked inside `attach`, under the one
+			// lock that writes: a capture that came back after a shutdown gave up on
+			// it would otherwise put a picture into whatever event is at its index in
+			// a LATER recording's buffer.
+			r.attach(captured{idx: req.idx, img: img, color: color,
+				clickLX: clickLX, clickLY: clickLY,
+				x: newX, y: newY, recenter: recenter})
 		}
 	}()
 
@@ -373,15 +364,15 @@ func (r *winRecorder) Start() error {
 	go func() {
 		defer close(r.pollStopped)
 		last := ""
-		// ONE DECISION, ASKED TWICE. The first sample and every later one differ only
-		// in what `last` is — "" before anything has been seen — so a second copy of
-		// the condition here is a second place for it to drift, and it did: the
-		// session fence was added to one of them first. See appSwitchToRecord.
-		if app := winctx.Active(); r.appSwitchToRecord(app, last) {
-			last = app
-			foreApp.Store(app)
-			record(RecordedEvent{Kind: EvAppSwitch, KeyName: app, T: time.Now()})
-		}
+		// ONE DECISION, ASKED TWICE. The first sample and every later one differ
+		// only in what `last` is — "" before anything has been seen — so a second
+		// copy of the condition here is a second place for it to drift, and it did:
+		// the session fence was added to one of them first. See sampled.
+		//
+		// AND THE TIME IS TAKEN AFTER THE SAMPLE, which is what the left-to-right
+		// evaluation of these arguments means: `winctx.Active()` is the call that
+		// blocks, so the instant worth recording is the one it came back in.
+		last = r.sampled(winctx.Active(), last, time.Now())
 		t := time.NewTicker(appPollInterval)
 		defer t.Stop()
 		for {
@@ -389,12 +380,7 @@ func (r *winRecorder) Start() error {
 			case <-r.done:
 				return
 			case <-t.C:
-				if app := winctx.Active(); r.appSwitchToRecord(app, last) {
-					last = app
-					foreApp.Store(app)
-					record(RecordedEvent{Kind: EvAppSwitch, KeyName: app,
-						T: time.Now()})
-				}
+				last = r.sampled(winctx.Active(), last, time.Now())
 			}
 		}
 	}()
@@ -876,32 +862,150 @@ func (r *winRecorder) abandon() []RecordedEvent {
 	return out
 }
 
-// mine reports whether the global recording state still belongs to this recorder.
+// beginRecording makes the global capture state this recorder's.
 //
-// Asked by a worker immediately before it publishes anything. A shutdown that could not complete
-// leaves the poller and the capture worker running — the poller inside a foreground-window read
-// that has not returned, the capture inside screen work — and either of them can come back after
-// a later recording has started. Without this, an old poller's app switch appears in somebody
-// else's demonstration and an old capture writes a picture into whatever event is at its index
-// now. See recSession.
-func (r *winRecorder) mine() bool { return recSession.Load() == r.session }
+// THE SESSION IS RAISED UNDER `recMu`, WITH THE BUFFER IT DESCRIBES. It used to be raised beside
+// the lock — `recSession.Add(1)` and then `recMu.Lock()` on the next line — so the replacement
+// was two steps and a worker could be let through between them: it read a session that had
+// already moved on, or read the old one and wrote into a buffer that had already been emptied.
+// Under one acquisition a worker's publication is entirely before this or entirely after it.
+//
+// Its own function so a test can arrange the replacement without installing hooks, which is a
+// thing this package may not do in a test. See
+// `TestARecordingIsNotReplacedWhileAWorkerIsPublishing`.
+func (r *winRecorder) beginRecording() {
+	recMu.Lock()
+	r.session = recSession.Add(1)
+	recBuf = nil
+	recPub = make(chan RecordedEvent, 1024)
+	recMu.Unlock()
+}
 
-// appSwitchToRecord is whether a sampled foreground app is one to record right now.
+// mineUnderLock reports whether the global recording state still belongs to this recorder.
 //
-// Three questions, and the third is the one that was missing. The sample has to have found an
-// application at all; it has to be a CHANGE from the last one recorded, which for the first
-// sample means any application at all; and the global recording state has to still belong to this
-// recording.
+// `recMu` MUST BE HELD, and that is the point rather than a caller's convenience — which is why
+// the name says so, since the compiler cannot. This is read to decide a publication, and a
+// decision taken before the lock is one that can already be wrong by the time the write happens:
+// the worker passes, is descheduled, a later `Start` empties the buffer, and the write lands in
+// somebody else's recording.
 //
-// That third question is asked AFTER the sample rather than before it, and the ordering is the
-// point: `winctx.Active()` is the call that blocks, so the instant that matters is the one it
-// returns in. A shutdown that gave up while the poller was inside that read leaves it to come
-// back later — possibly after another recording has started — and an app switch appearing in
-// somebody else's demonstration is a step they never performed.
+// A shutdown that could not complete is what leaves a worker to ask this late. The poller is
+// inside a foreground-window read that has not returned and the capture is inside screen work;
+// `Stop` is bounded, so it gives up and returns while both are still running. See recSession.
+func (r *winRecorder) mineUnderLock() bool { return recSession.Load() == r.session }
+
+// anAppSwitchToRecord is whether a sampled foreground app is a switch worth recording at all.
 //
-// Its own function because the loop asks it twice, and a condition written twice is one that
-// drifts: the fence went into one of the two first. See mine, and
+// Two questions, not three. The sample has to have found an application, and it has to be a
+// CHANGE from the last one recorded — which for the first sample means any application at all.
+//
+// THE SESSION FENCE USED TO BE THE THIRD QUESTION HERE, and that was the defect: this is asked
+// where the sample comes back, and the write happened afterwards, so a recording could be
+// replaced between the two. It moved to `recordAppSwitch`, where the write is, and is asked under
+// the lock that write takes.
+//
+// Still its own function because the loop asks it twice, and a condition written twice is one
+// that drifts: the fence went into one of the two first. See
 // `TestAnAbandonedPollersSampleIsNotRecorded`.
-func (r *winRecorder) appSwitchToRecord(app, last string) bool {
-	return app != "" && app != last && r.mine()
+func anAppSwitchToRecord(app, last string) bool { return app != "" && app != last }
+
+// sampled records a foreground sample as an app switch when it is one, and answers what the
+// poller's `last` becomes.
+//
+// THE WHOLE OF THE POLLER'S DECISION, in one function because the loop makes it twice — once for
+// the application the demonstration began in and once per tick — and a decision written twice is
+// one that drifts: the session fence went into one of the two copies first.
+//
+// `last` ADVANCES ONLY WHEN THE SWITCH WAS RECORDED. Publication can refuse it even when the
+// sample was eligible, because the recording may have been replaced while the foreground read was
+// blocked — and a sample remembered as recorded when it was dropped would silence the next real
+// switch to that application.
+func (r *winRecorder) sampled(app, last string, at time.Time) string {
+	if anAppSwitchToRecord(app, last) && r.recordAppSwitch(app, at) {
+		return app
+	}
+	return last
+}
+
+// recordAppSwitch publishes a foreground sample as this recording's app switch, and reports
+// whether it did.
+//
+// THE FENCE AND THE WRITES ARE ONE STEP. Two things reach the global state here — the event
+// itself, and the foreground the hooks tag every press with — and both were in the gap: the
+// session was asked where the sample came back, so a poller whose read returned late could pass
+// that question and then append a step nobody performed to somebody else's demonstration, and
+// tag their presses with an application that was not in front of them.
+//
+// `winctx.Active()` is the call that blocks, which is why the instant that matters is this one
+// rather than the one the sample was asked about.
+func (r *winRecorder) recordAppSwitch(app string, at time.Time) bool {
+	ev := RecordedEvent{Kind: EvAppSwitch, KeyName: app, T: at}
+	recMu.Lock()
+	if !r.mineUnderLock() {
+		recMu.Unlock()
+		return false
+	}
+	recBuf = append(recBuf, ev)
+	pub := recPub
+	// AND THE FOREGROUND THE HOOKS READ, under the same lock and for the same reason: an
+	// abandoned poller that published it would have the next recording's presses tagged
+	// with an application nobody was in. See foreApp.
+	foreApp.Store(app)
+	recMu.Unlock()
+	if pub != nil {
+		select {
+		case pub <- ev:
+		default:
+		}
+	}
+	return true
+}
+
+// captured is what the capture worker came back with: a picture, and where the click really was.
+//
+// One value rather than eight parameters, because it travels out of the worker as one thing and
+// either lands whole or is dropped whole.
+type captured struct {
+	idx              int
+	img              []byte
+	color            string
+	clickLX, clickLY int
+	// x, y and recenter are where the click moved to when the auto-crop re-centred it on
+	// the button it landed in.
+	x, y     int
+	recenter bool
+}
+
+// attach writes a finished capture onto the event it was taken for, and reports whether it did.
+//
+// THE FENCE AND THE WRITE ARE ONE STEP, under the lock a later `Start` takes to raise the session
+// and empty the buffer. Asked before the lock — which is how this was written — the answer could
+// be true and the write still land in the recording that replaced it, putting a picture of
+// somebody's old press onto whatever event is at that index now.
+//
+// The bounds check belongs to the same acquisition for the same reason: an index into a buffer is
+// only an index into the buffer it was taken from.
+func (r *winRecorder) attach(c captured) bool {
+	recMu.Lock()
+	defer recMu.Unlock()
+	if !r.mineUnderLock() || c.idx < 0 || c.idx >= len(recBuf) {
+		return false
+	}
+	ev := &recBuf[c.idx]
+	ev.Image = c.img
+	ev.ClickX, ev.ClickY = c.clickLX, c.clickLY
+	if c.color != "" {
+		ev.Color = c.color
+	}
+	// Re-centre the recorded click on the button centre, shifting the window-relative
+	// offset by the same delta so both stay consistent.
+	if c.recenter {
+		dx, dy := c.x-ev.X, c.y-ev.Y
+		ev.X, ev.Y = c.x, c.y
+		if ev.WinRel {
+			ev.RelX += dx
+			ev.RelY += dy
+		}
+	}
+	return true
 }

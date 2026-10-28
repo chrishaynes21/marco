@@ -249,11 +249,12 @@ running, and both publish through this package's global state. A late foreground
 app switch to somebody else's demonstration as a step they never performed; an old capture could
 write a picture into whatever event was at its index now.
 
-Both are fenced by **session**, taken when the recording starts and compared immediately before
-publishing — and for the poller the check is AFTER the sample rather than before it, because
+Both are fenced by **session**, taken when the recording starts and compared where the publication
+is made — and for the poller that is AFTER the sample rather than before it, because
 `winctx.Active()` is the call that blocks and the instant that matters is the one it returns in.
 The decision the poller makes twice is one function, because the fence went into one of the two
-call sites first and a mutation found it.
+call sites first and a mutation found it. The first version of this compared *immediately before*
+publishing, which was still two moments; see the review below.
 
 **And a further recording is refused outright**, because the hooks cannot be fenced from Go at all.
 They are C callbacks with no context of their own; they gate on `recActive`, and the next `Start`
@@ -262,14 +263,60 @@ that owns them never answered, would feed the new one. A session number cannot r
 So recording is over for the life of the process and says a restart is what fixes it, which is
 what the shutdown's own message already said: *they stay installed until this process exits.*
 
+## Three boundaries the second review found
+
+**The recorder fence was checked before publication rather than with it.** Each worker asked
+whether the global state was still its own and then wrote into it — two moments, and a recording
+can be replaced between them. A worker could pass its check, be descheduled, and publish after a
+later `Start` had emptied the buffer. The session was also raised BESIDE the lock rather than under
+it, so the replacement itself was two steps and a worker could be let through between those as
+well. Checking first and writing second is not a fence, however correct each half is on its own —
+and the finding is reachable from a worker timing out alone, since `recWedged` only covers hooks
+that were abandoned.
+
+`recMu` now guards the session as well as the state it describes. `beginRecording` raises the
+session and empties the buffer under one acquisition, and each publication — `recordAppSwitch` for
+the poller, `attach` for the capture worker — asks the fence and makes its writes under that same
+lock. The poller's `last` advances only when publication succeeded, because a sample remembered as
+recorded when it was dropped would silence the next real switch to that application. And the
+foreground the hooks tag every press with is published inside the fence too: an abandoned poller
+that wrote it would have the NEXT recording's presses attributed to an application nobody was in.
+
+**Activation silently ignored a failed recovery.** It ignored the clearing of the recovery
+directory and it ignored the rollback's own error. So an activation that failed AND a rollback that
+failed reported itself as the case where the rollback worked — *"the version you had is still the
+one in use"* — about an installation that was not there. That is the one sentence a person in that
+position must not be told: it sends them to close a Marco that is not running instead of looking on
+their own disk, where their previous version is sitting under another name. Both errors are handled
+now, and the message for a failed rollback names the recovery directory and what to do with it. The
+recovery directory is cleared only when there IS an installation to move into it, so a rollback
+that failed leaves the one copy of the previous version alone until something is activated over it.
+
+**A relative data override resolved against the installation.** The children are started from
+`bin\` so that a sibling they spawn by a bare name cannot be resolved against whatever directory
+somebody double-clicked the launcher in — and that moved the meaning of a RELATIVE `$MARCO_HOME`
+or `$MARCO_ROUTES` with it. `MARCO_ROUTES=routes` in a terminal means `.\routes` THERE; the same
+words through the launcher meant `bin\routes`. A different library from the same invocation, which
+is exactly
+[[ADR-252-a-library-is-a-place-and-a-routine-is-played-where-it-was-made]]'s defect arriving by the
+back door.
+
+So an override SOMEBODY SET is made absolute against the directory this process was started in,
+before any child is started from anywhere else. That is not a second resolver and it answers
+nothing: an override nobody set stays unset, an absolute one is untouched, and `marcopaths` decides
+what any of it means as it always did. The only thing done is to spell a path somebody else wrote
+against the directory they wrote it in, which is the one fact the launcher has and the child does
+not.
+
 ## What is unchanged
 
 - The CLI. `marco do`, `marco learn`, `marco simplify` and the rest are untouched, and
   `$MARCO_BIN`/`$DIRECTOR_BIN`/`$MARCO_ROUTES` keep their meanings.
-- The store and library rules. `internal/marcopaths` still answers where both are; the launcher
-  states which store this installation uses rather than deriving it.
-- User data across an upgrade. The routines directory is seeded once, on first run, and never
-  rewritten.
+- The store and library rules. `internal/marcopaths` still answers where both are, and the
+  launcher answers nothing: it states which marco it unpacked and no more. A relative
+  `$MARCO_HOME` or `$MARCO_ROUTES` keeps the directory it named where it was typed.
+- User data across an upgrade. Nothing is seeded, moved or rewritten, by an installer or by
+  anybody else.
 - The seven outcome words, and every record already on disk.
 - `Resave`, which is still the immediate repair for a routine that cannot press anything.
 
@@ -323,7 +370,37 @@ what the shutdown's own message already said: *they stay installed until this pr
   correct, and a build that only refused would be one line from being wrong again.
 - `internal/recorder` `TestAnAbandonedPollersSampleIsNotRecorded` — the decision the poller makes
   twice, asked directly, because the goroutine that asks it cannot be started in a test and a
-  mutation taking the fence out of ONE call site survived a test that only exercised `mine`.
+  mutation taking the fence out of ONE call site survived a test that only exercised `mine`. The
+  fence is no longer one of those questions: see the three below.
+- `internal/recorder` `TestAPausedWorkerPublishesIntoNothing` — a worker paused AFTER its
+  eligibility check, the next recording started, and the worker released only then: neither the
+  poller's switch nor the capture's picture reaches the later recording, its press is not moved,
+  and its foreground is not re-decided. The test this replaced changed the session BEFORE asking
+  eligibility, which the broken shape passes too.
+- `internal/recorder` `TestARecordingIsNotReplacedWhileAWorkerIsPublishing` — the other half of
+  "under the same synchronization": a replacement cannot complete while the publication lock is
+  held, and does complete once it is released. A negative assertion with a window, which is the
+  honest shape for "this does not happen" — what it rejects is an atomic add, which waits for
+  nothing, so the failure is deterministic.
+- `internal/recorder` `TestTheSessionFenceIsReadUnderTheLock` — and WHERE in each function the
+  fence is read, which neither test above can see: move it one line up, above `recMu.Lock()`, and
+  both still pass while the gap is open again. No test can pause a goroutine between two adjacent
+  lines, so the rule is checked where it is written — by name, with a deferred unlock not counted
+  as an unlock, and with a control that there are two publications to find.
+- `plugins/marco-app` `TestActivationPutsTheStagedVersionInUse`,
+  `TestAFailedActivationPutsThePreviousVersionBack`,
+  `TestAFailedRollbackSaysWhereThePreviousVersionIs`,
+  `TestARecoveryDirectoryThatCannotBeClearedIsNotIgnored` — the four outcomes of an activation:
+  the staged version in use with the previous one kept, a failure with the previous version back
+  and whole, a failure whose rollback also failed naming where their Marco is and NOT claiming one
+  is in use, and a recovery directory that cannot be emptied refused before anything is moved. The
+  failed rollback needs a seam, because it is an ORDER of two renames rather than a state on disk;
+  the other three need none. A first install that fails claims no recovery, because there was none.
+- `plugins/marco-app` `TestARelativeLibraryOverrideKeepsTheDirectoryItNamed`,
+  `TestTheLauncherInventsNoLibraryWhenNobodyNamedOne` — a relative override from an unrelated
+  launch directory resolving to the populated library that was THERE, with the routine in it and
+  nothing under the installation; and the line that keeps this from being a resolver: nobody's
+  override stays nobody's, and an absolute one is returned exactly as it was.
 - `plugins/e2e` `TestOnlyAStaleElementIsRetried` — a stale element retried once and a control that
   was never there, one that is disabled, a window that has gone and a failing bridge each returned
   as findings.

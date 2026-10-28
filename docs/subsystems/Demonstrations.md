@@ -527,6 +527,30 @@ was covered.
 
 **Still open**, and tracked as such: see [[Roadmap]].
 
+## A recording that could not be stopped, and the two workers that outlive it
+
+`Stop` is BOUNDED — a shutdown that cannot complete says so and returns, because a run that
+finished its program must report that it finished. The consequence of returning is that the
+app-switch poller and the capture worker are still running: the poller inside a foreground-window
+read that has not come back, the capture inside screen work and image encoding. Both publish
+through package state, because the hooks are C callbacks and can reach nothing else.
+
+So each takes the **session** its recording was given and compares it where it publishes, under
+the one lock a later recording takes to raise the session and empty the buffer. Deciding and
+writing have to be the same step: asked first and written afterwards, a worker can pass the check,
+be descheduled, and append an app switch nobody performed to somebody else's demonstration, or
+write a picture onto whatever press is at its index now. The foreground the hooks tag presses with
+is published inside the same fence, or an abandoned poller decides which application a later
+recording was in.
+
+**And a recording whose HOOKS could not be taken off ends recording for the process.** That is not
+a fence but a refusal, because a session number cannot reach a C callback: the hooks gate on
+`recActive`, the next `Start` would set it true again, and an abandoned recording's still-installed
+hooks would feed the new one. It says a restart is what fixes it, which is what the shutdown's own
+message already said.
+
+[[ADR-263-the-alpha-is-the-studio-stack-and-it-says-what-it-is]]
+
 ## A routine offers to be recorded again, and that offer replaces nothing
 
 Re-recording is the ordinary activity of getting a routine right, and it used to mean reading the

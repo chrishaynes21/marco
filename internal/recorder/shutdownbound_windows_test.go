@@ -32,10 +32,41 @@ package recorder
 // See [[ADR-263-the-alpha-is-the-studio-stack-and-it-says-what-it-is]].
 
 import (
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"strings"
 	"testing"
 	"time"
 )
+
+// aCleanPackage takes the capture state this package keeps, and puts it back afterwards.
+//
+// All of it is global — the session number, the buffer, the live channel, the wedged flag and the
+// foreground the hooks tag presses with — because the hook callbacks are C callbacks and can
+// reach nothing else. Every test here replaces a recording, so the order they run in would
+// otherwise be part of what they assert.
+func aCleanPackage(t *testing.T) {
+	t.Helper()
+	wasWedged, wasSession := recWedged.Load(), recSession.Load()
+	wasFore := foreApp.Load()
+	recMu.Lock()
+	wasBuf, wasPub := recBuf, recPub
+	recMu.Unlock()
+	t.Cleanup(func() {
+		recWedged.Store(wasWedged)
+		recSession.Store(wasSession)
+		recMu.Lock()
+		recBuf, recPub = wasBuf, wasPub
+		recMu.Unlock()
+		// NOT IF THERE WAS NO SAMPLE YET: an atomic.Value refuses a nil, and
+		// "nothing has been sampled" is the state a fresh process is in.
+		if wasFore != nil {
+			foreApp.Store(wasFore)
+		}
+	})
+	recWedged.Store(false)
+}
 
 // aRecordingThatWillNotFinishShuttingDown is a recorder waiting on channels nobody closes.
 //
@@ -134,14 +165,7 @@ func TestAPollerThatNeverComesBackDoesNotWedgeTheShutdown(t *testing.T) {
 //
 // See [[ADR-263-the-alpha-is-the-studio-stack-and-it-says-what-it-is]].
 func TestAWorkerHeldAcrossATimeoutCannotReachALaterRecording(t *testing.T) {
-	// A CLEAN SLATE, because this is package state and a previous test may have wedged
-	// it. Restored afterwards so the order of tests in this package cannot matter.
-	wasWedged, wasSession := recWedged.Load(), recSession.Load()
-	t.Cleanup(func() {
-		recWedged.Store(wasWedged)
-		recSession.Store(wasSession)
-	})
-	recWedged.Store(false)
+	aCleanPackage(t)
 
 	// THE ABANDONED RECORDING. Its session is taken the way Start takes one, and its
 	// shutdown gives up: nothing ever closes `stopped` or `pollStopped`.
@@ -173,16 +197,19 @@ func TestAWorkerHeldAcrossATimeoutCannotReachALaterRecording(t *testing.T) {
 	// Asserted separately, because the refusal above is what protects a real process and
 	// the fence is what makes the workers correct: a build that only refused would be one
 	// line from being wrong again the day somebody allowed recording to resume.
-	recSession.Add(1) // as a later Start would
-	if old.mine() {
-		t.Fatal("the abandoned recording still believes the global state is its own")
-	}
+	//
+	// The ORDERING this depends on — eligible first, replaced second, released last — is
+	// what `TestAPausedWorkerPublishesIntoNothing` is about. Here it is enough that the
+	// late publish goes nowhere.
+	next := &winRecorder{}
+	next.beginRecording() // as a later Start would
 	recMu.Lock()
 	recBuf = []RecordedEvent{{Kind: EvKey, KeyName: "a"}}
 	recMu.Unlock()
 	// WHAT THE POLLER DOES WHEN ITS READ FINALLY RETURNS, in the one line that matters.
-	if old.mine() {
-		record(RecordedEvent{Kind: EvAppSwitch, KeyName: "somebody-elses-window"})
+	if old.recordAppSwitch("somebody-elses-window", time.Now()) {
+		t.Error("an abandoned poller published an app switch into a later recording, " +
+			"which is a step nobody performed in somebody else's demonstration")
 	}
 	recMu.Lock()
 	n, kind := len(recBuf), recBuf[0].Kind
@@ -191,53 +218,276 @@ func TestAWorkerHeldAcrossATimeoutCannotReachALaterRecording(t *testing.T) {
 		t.Errorf("a later recording's buffer holds %d event(s) starting with %v after "+
 			"an abandoned poller came back", n, kind)
 	}
-	// AND A RECORDER OF THE CURRENT SESSION IS NOT FENCED OUT, or the check above is
-	// satisfied by one that drops everything.
-	current := &winRecorder{session: recSession.Load()}
-	if !current.mine() {
+	// AND THE RECORDING OF THE CURRENT SESSION IS NOT FENCED OUT, or the check above is
+	// satisfied by a fence that drops everything.
+	if !next.recordAppSwitch("its-own-window", time.Now()) {
 		t.Error("the current recording is fenced out of its own state")
 	}
 }
 
-// AN ABANDONED POLLER'S SAMPLE IS NOT RECORDED, AND A LIVE ONE'S IS.
+// A WORKER PAUSED AFTER ITS ELIGIBILITY CHECK PUBLISHES INTO NOTHING.
+//
+// # The finding
+//
+// The fence was read where a worker came back, and the write happened afterwards — two moments.
+// A worker could pass its check, pause, and publish after a new recording had reset the buffer:
+// an app switch appended to somebody else's demonstration, or a picture written onto whatever
+// press is at that index now. Checking first and writing second is not a fence, however correct
+// each half is on its own.
+//
+// # Why the order this test runs in is the whole of it
+//
+// Because the test it replaces changed the session BEFORE asking eligibility, which the broken
+// shape passes too: it established only that the question had an answer. This one asks
+// eligibility while the recording is still the worker's, starts the next recording, and releases
+// the worker only then.
+//
+// There is no instant between the two halves to pause in any more — the fence is read under the
+// lock that writes — so what a paused worker now meets is the lock, and on the other side of it
+// the session has moved. What the test can still do is hold the worker where the gap used to be,
+// which is what this is.
+//
+// See [[ADR-263-the-alpha-is-the-studio-stack-and-it-says-what-it-is]].
+func TestAPausedWorkerPublishesIntoNothing(t *testing.T) {
+	aCleanPackage(t)
+
+	// ── THE RECORDING THE TWO WORKERS BELONG TO ──
+	old := &winRecorder{}
+	old.beginRecording()
+	idx := recordIndexed(RecordedEvent{Kind: EvClick, X: 10, Y: 20})
+
+	// ── AND EACH OF THEM IS ELIGIBLE, ASKED HERE AND NOT LATER ──
+	//
+	// The poller's eligibility is its sample being an application and being a change; the
+	// capture's is holding an index into the buffer it was taken from. Both are true at
+	// this instant, which is the instant the broken shape asked about.
+	if !anAppSwitchToRecord("notepad", "") {
+		t.Fatal("the poller's sample is not eligible, so this test cannot pause after " +
+			"an eligibility check that passed")
+	}
+	if idx != 0 {
+		t.Fatalf("the capture's index is %d, so this recording is not the one it was "+
+			"taken from", idx)
+	}
+
+	// ── THE NEXT RECORDING STARTS WHILE BOTH ARE PAUSED ──
+	next := &winRecorder{}
+	next.beginRecording()
+	if !next.recordAppSwitch("its-own-app", time.Now()) {
+		t.Fatal("a live recording cannot publish its own app switch")
+	}
+	keep := recordIndexed(RecordedEvent{Kind: EvClick, X: 90, Y: 90})
+
+	// ── AND NOW THEY ARE RELEASED ──
+	if old.recordAppSwitch("somebody-elses-window", time.Now()) {
+		t.Error("a paused poller published into the recording that replaced its own")
+	}
+	if old.attach(captured{idx: idx, img: []byte("a picture of an old press"),
+		color: "0x00FF00", clickLX: 1, clickLY: 2, x: 77, y: 88, recenter: true}) {
+		t.Error("a paused capture wrote onto the recording that replaced its own")
+	}
+
+	// ── WHAT THE LATER RECORDING HOLDS ──
+	recMu.Lock()
+	got := append([]RecordedEvent(nil), recBuf...)
+	recMu.Unlock()
+	if len(got) != keep+1 {
+		t.Fatalf("the later recording holds %d event(s), want the %d it recorded "+
+			"itself: %+v", len(got), keep+1, got)
+	}
+	ev := got[keep]
+	if ev.Image != nil {
+		t.Error("an abandoned capture put a picture of an old press onto a press in a " +
+			"later recording")
+	}
+	if ev.Color != "" {
+		t.Errorf("an abandoned capture wrote the colour %q onto a later recording's "+
+			"press", ev.Color)
+	}
+	if ev.X != 90 || ev.Y != 90 {
+		t.Errorf("an abandoned capture moved a later recording's click to %d,%d, so it "+
+			"would be replayed somewhere nobody pressed", ev.X, ev.Y)
+	}
+	if ev.Kind == EvAppSwitch {
+		t.Error("an abandoned poller's switch is where the later recording's press " +
+			"should be")
+	}
+	if fore := foreground(); fore != "its-own-app" {
+		t.Errorf("the foreground the hooks tag presses with is %q, so an abandoned "+
+			"poller decided which application a later recording was in", fore)
+	}
+
+	// ── AND THE RECORDING THAT OWNS THE STATE IS NOT FENCED OUT ──
+	//
+	// Or every assertion above is satisfied by a publication that drops everything.
+	if !next.attach(captured{idx: keep, img: []byte("its own picture"),
+		color: "0x0000FF", clickLX: 3, clickLY: 4, x: 91, y: 92, recenter: true}) {
+		t.Fatal("a live recording cannot attach a picture to its own press")
+	}
+	recMu.Lock()
+	mine := recBuf[keep]
+	recMu.Unlock()
+	if string(mine.Image) != "its own picture" || mine.X != 91 || mine.Y != 92 ||
+		mine.Color != "0x0000FF" || mine.ClickX != 3 || mine.ClickY != 4 {
+		t.Errorf("a live recording's own capture did not land: %+v", mine)
+	}
+
+	// ── AND A DROPPED SAMPLE IS NOT REMEMBERED AS RECORDED ──
+	//
+	// `last` is what the next tick compares against. A poller that advanced it on a
+	// publication that was refused would go quiet about that application: the switch was
+	// dropped, and the next sample of it is "no change".
+	if got := old.sampled("somebody-elses-window", "notepad", time.Now()); got != "notepad" {
+		t.Errorf("an abandoned poller advanced its last-recorded application to %q "+
+			"although nothing was recorded", got)
+	}
+	if got := next.sampled("another-app", "its-own-app", time.Now()); got != "another-app" {
+		t.Errorf("a live poller did not advance its last-recorded application: %q", got)
+	}
+}
+
+// AND A RECORDING IS NOT REPLACED WHILE A WORKER IS PUBLISHING.
+//
+// The other half of "under the same synchronization". The fence is read under `recMu`, which
+// fences nothing unless the replacement takes that lock too — and it did not: `recSession.Add(1)`
+// sat on the line BEFORE `recMu.Lock()`, so the session could move while a worker was inside a
+// publication, and the buffer that worker was writing into could be emptied a moment later.
+//
+// A NEGATIVE ASSERTION WITH A WINDOW, which is the honest shape for "this does not happen": what
+// it rejects completes immediately — an atomic add waits for nothing — so the failure is
+// deterministic, and the pass is a window in which nothing happened.
+func TestARecordingIsNotReplacedWhileAWorkerIsPublishing(t *testing.T) {
+	aCleanPackage(t)
+
+	recMu.Lock()
+	was := recSession.Load()
+	replaced := make(chan struct{})
+	go func() {
+		defer close(replaced)
+		(&winRecorder{}).beginRecording()
+	}()
+	select {
+	case <-replaced:
+		recMu.Unlock()
+		t.Fatal("a new recording replaced the session while the publication lock was " +
+			"held, so a worker inside a publication can have the state it is " +
+			"writing into taken out from under it")
+	case <-time.After(100 * time.Millisecond):
+	}
+	if now := recSession.Load(); now != was {
+		t.Errorf("the session moved from %d to %d while the publication lock was held",
+			was, now)
+	}
+	recMu.Unlock()
+
+	// AND IT COMPLETES ONCE THE LOCK IS FREE, or the wait above proved nothing: a
+	// replacement that never happens is not a replacement that waited.
+	select {
+	case <-replaced:
+	case <-time.After(10 * time.Second):
+		t.Fatal("a recording could not be replaced after the publication lock was " +
+			"released")
+	}
+	if recSession.Load() == was {
+		t.Error("the session never moved, so nothing here is about a replacement")
+	}
+}
+
+// AND THE FENCE IS READ UNDER THE LOCK, EVERYWHERE IT IS READ.
+//
+// The two tests above establish that a publication's fence and its write are one step, and that a
+// replacement has to take the same lock. Neither can see WHERE in a function the fence is read:
+// move `mineUnderLock` one line up, above `recMu.Lock()`, and both still pass while the gap the
+// finding was about is open again. No test can pause a goroutine between two adjacent lines, so
+// the rule is checked where it is written.
+//
+// The name is the rule — a reader that must hold the lock says so — and this is what makes that
+// more than a comment. A deferred unlock is not an unlock yet: `attach` takes the lock and defers
+// its release on the next line, which in source order would otherwise read as a release before
+// the fence.
+func TestTheSessionFenceIsReadUnderTheLock(t *testing.T) {
+	const file = "recorder_windows.go"
+	f, err := parser.ParseFile(token.NewFileSet(), file, nil, 0)
+	if err != nil {
+		t.Fatalf("parsing %s: %v", file, err)
+	}
+	reads := 0
+	for _, d := range f.Decls {
+		fn, ok := d.(*ast.FuncDecl)
+		if !ok || fn.Body == nil {
+			continue
+		}
+		held := false
+		ast.Inspect(fn.Body, func(n ast.Node) bool {
+			// A DEFERRED UNLOCK IS NOT AN UNLOCK YET. It runs when the function
+			// returns, so the lock is still held by everything after it.
+			if d, ok := n.(*ast.DeferStmt); ok {
+				return !isCallTo(d.Call, "recMu", "Unlock")
+			}
+			call, ok := n.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			switch {
+			case isCallTo(call, "recMu", "Lock"):
+				held = true
+			case isCallTo(call, "recMu", "Unlock"):
+				held = false
+			case isCallTo(call, "r", "mineUnderLock"):
+				reads++
+				if !held {
+					t.Errorf("%s reads the session fence without holding "+
+						"recMu, so the recording can be replaced "+
+						"between the check and the write", fn.Name.Name)
+				}
+			}
+			return true
+		})
+	}
+	// AND THERE IS A FENCE TO FIND. A rename, or a publication that stopped asking,
+	// would otherwise satisfy this by having nothing to check.
+	if reads < 2 {
+		t.Errorf("%d publication(s) read the session fence; the poller and the capture "+
+			"worker are two", reads)
+	}
+}
+
+// isCallTo reports whether a call is `recv.name(...)`.
+func isCallTo(call *ast.CallExpr, recv, name string) bool {
+	sel, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok || sel.Sel.Name != name {
+		return false
+	}
+	id, ok := sel.X.(*ast.Ident)
+	return ok && id.Name == recv
+}
+
+// A SAMPLE WORTH RECORDING, AND THREE THAT ARE NOT.
 //
 // The decision the poller makes twice, asked directly. The goroutine that asks it cannot be
 // started in a test — `Start` installs real low-level hooks — so the decision is its own function
 // and this is what holds it. A mutation taking the session fence out of ONE of the two call sites
-// is what made that necessary, and it survived a test that only exercised `mine`.
+// is what made that necessary.
+//
+// THE FENCE IS NO LONGER ONE OF THESE QUESTIONS, and that is the finding this file's later tests
+// are about: asked here, it would be asked where the sample came back and acted on afterwards.
+// It moved to `recordAppSwitch`, under the lock that writes. What is left here is what can be
+// decided from the sample alone.
 func TestAnAbandonedPollersSampleIsNotRecorded(t *testing.T) {
-	was := recSession.Load()
-	t.Cleanup(func() { recSession.Store(was) })
-
-	live := &winRecorder{session: recSession.Add(1)}
 	// THE FIRST SAMPLE: nothing recorded yet, so any application is a change.
-	if !live.appSwitchToRecord("notepad", "") {
+	if !anAppSwitchToRecord("notepad", "") {
 		t.Error("the first sample of a live recording is not recorded, so a " +
 			"demonstration would not say which application it began in")
 	}
 	// AND A LATER ONE, only when it differs.
-	if !live.appSwitchToRecord("chrome", "notepad") {
+	if !anAppSwitchToRecord("chrome", "notepad") {
 		t.Error("a change of application is not recorded")
 	}
-	if live.appSwitchToRecord("notepad", "notepad") {
+	if anAppSwitchToRecord("notepad", "notepad") {
 		t.Error("the same application is recorded again, so a demonstration fills up " +
 			"with switches to where it already was")
 	}
-	if live.appSwitchToRecord("", "notepad") {
+	if anAppSwitchToRecord("", "notepad") {
 		t.Error("a sample that found no application is recorded as a switch to none")
-	}
-
-	// THE ABANDONED ONE. Its session is no longer the current one, which is what a
-	// later Start leaves behind — and its read may return at any time after that.
-	old := &winRecorder{session: live.session}
-	recSession.Add(1)
-	for _, c := range []struct{ app, last string }{
-		{"somebody-elses-window", ""},
-		{"somebody-elses-window", "notepad"},
-	} {
-		if old.appSwitchToRecord(c.app, c.last) {
-			t.Errorf("an abandoned poller's sample of %q is recorded, so an app "+
-				"switch nobody performed appears in a later recording", c.app)
-		}
 	}
 }

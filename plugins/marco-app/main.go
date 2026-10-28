@@ -13,13 +13,14 @@
 // guard that depends on a review was unreachable to whoever installed it. The overlay is still
 // here, still works, and starts only when asked with --overlay.
 //
-// # Nothing is told where anything is, except the store
+// # Nothing is told where anything is
 //
 // The Director, the accessibility provider and Studio's own two children are laid out where each
 // LOOKS for them: director.exe beside marco.exe, plugins\uia\uia.exe under it, and marco.exe and
 // director.exe beside studio.exe — which is the same directory, so one layout satisfies all of
-// it. The store and the library ARE stated, because this launcher is what decides which
-// installation this is; see run.
+// it. The store and the library are NOT stated: `internal/marcopaths` answers where they are, for
+// every binary at once, and an installer that answered too would be a second resolver. See run,
+// and `keepRelativeOverrides` for the one thing this launcher does to a path somebody else set.
 //
 // It is its own module (stdlib only) so a plain `go build ./...` in the engine never needs the
 // staged binaries; build the bundle with pack.ps1.
@@ -33,6 +34,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"syscall"
 )
 
@@ -121,6 +123,9 @@ func run() error {
 	//
 	// See [[ADR-263-the-alpha-is-the-studio-stack-and-it-says-what-it-is]].
 	os.Setenv("MARCO_BIN", filepath.Join(binDir, "marco.exe"))
+	if err := keepRelativeOverrides(); err != nil {
+		return err
+	}
 	fmt.Printf("Marco %s\n", string(ver))
 
 	rest := os.Args[1:]
@@ -183,6 +188,55 @@ func runOverlay(binDir string, args []string) error {
 	cmd.Dir = binDir
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
 	return cmd.Run()
+}
+
+// dataOverrides are the environment variables that say where somebody's data is.
+//
+// The two `internal/marcopaths` reads, named here as strings because this is its own module and
+// cannot import it — which is also why nothing here derives what they MEAN. A list rather than
+// every variable in the environment because most of them are not paths: a rule that rewrote
+// `MARCO_VISION_SIZE` or `MARCO_STOP_KEY` would be a rule about words that happen to look like
+// files.
+var dataOverrides = []string{"MARCO_HOME", "MARCO_ROUTES"}
+
+// keepRelativeOverrides makes a relative override mean the directory it meant where it was typed.
+//
+// # The defect
+//
+// The children are started from `bin\` — see runStudio — so a sibling they spawn by a bare name
+// cannot be resolved against whatever directory somebody double-clicked this launcher in. That
+// moves the meaning of a RELATIVE `$MARCO_HOME` or `$MARCO_ROUTES` with it: `MARCO_ROUTES=routes`
+// in a terminal means `.\routes` THERE, and the same words through this launcher meant
+// `bin\routes` — a different library from the same invocation, which is the defect the one
+// resolver exists to prevent, arriving by the back door.
+//
+// # Why this is not a second resolver
+//
+// Because it answers nothing. An override that is absent stays absent, an absolute one is
+// untouched, and `marcopaths` decides what any of it means as it always did. The only thing done
+// here is to spell a path somebody else wrote against the directory they wrote it in, which is
+// the one fact this process has and the child does not.
+//
+// Done before the child's directory changes, and for the overlay as well as for Studio: both
+// start from `bin\`.
+func keepRelativeOverrides() error {
+	for _, name := range dataOverrides {
+		was := strings.TrimSpace(os.Getenv(name))
+		if was == "" || filepath.IsAbs(was) {
+			continue
+		}
+		// AGAINST THIS PROCESS'S DIRECTORY, which is the invocation's: this runs
+		// before any child is started from anywhere else.
+		abs, err := filepath.Abs(was)
+		if err != nil {
+			return fmt.Errorf("%s is %s, and this directory cannot be resolved to "+
+				"say which one that is: %w", name, was, err)
+		}
+		if err := os.Setenv(name, abs); err != nil {
+			return fmt.Errorf("%s could not be set to %s: %w", name, abs, err)
+		}
+	}
+	return nil
 }
 
 func localAppData() string {
@@ -268,26 +322,82 @@ func stage(dir, ver string) error {
 }
 
 // activate makes a staged directory the one in use, or leaves the old one exactly as it was.
+//
+// # The three ways out, and the third one used to claim the second one's guarantee
+//
+// It activates; or it fails and the version that was there is back; or it fails and the recovery
+// cannot be completed either — which is the one case where somebody is left with no Marco at all.
+// The previous version of this ignored both the clearing of the recovery directory and the
+// rollback's own error, so the third case reported itself as the second: "the version you had is
+// still the one in use", about an installation that was not there. That is the one sentence a
+// person in that position must not be told, because it sends them to look at a running Marco
+// instead of at their own disk.
+//
+// So each of those errors is handled, and the message for the third names the directory their
+// previous version is in and what to do with it.
+//
+// # What is left on disk, and why
+//
+// `bin-previous` is the version that was in use, moved aside for the length of one rename. It is
+// cleared only when there IS an installation to move into it — so a rollback that failed leaves
+// it alone: `bin\` does not exist in that case, there is nothing to move aside on the next
+// attempt, and the one copy of their previous version survives until something is activated over
+// it.
 func activate(binDir, staged string) error {
-	old := binDir + "-previous"
-	_ = os.RemoveAll(old)
+	recovery := binDir + "-previous"
+	movedAside := false
 	if _, err := os.Stat(binDir); err == nil {
-		if err := os.Rename(binDir, old); err != nil {
+		// THE RECOVERY DIRECTORY HAS TO BE EMPTY FIRST, and this is where that is
+		// decided rather than hoped for. An earlier attempt can have left one, and a
+		// rename onto it fails — which was reported as the installation being in
+		// use, which is a different thing to go and do something about.
+		if err := os.RemoveAll(recovery); err != nil {
+			return fmt.Errorf("the previous version at %s could not be cleared, so "+
+				"there is nowhere to keep the version you have while this one "+
+				"is installed. Nothing has been changed: %w", recovery, err)
+		}
+		if err := rename(binDir, recovery); err != nil {
 			return inUse(err, "Marco")
 		}
+		movedAside = true
 	}
-	if err := os.Rename(staged, binDir); err != nil {
+	if err := rename(staged, binDir); err != nil {
+		if !movedAside {
+			// NOTHING WAS MOVED ASIDE, so there was no version here to lose: this
+			// is a first install that did not finish.
+			return inUse(err, "Marco")
+		}
 		// PUT THE OLD ONE BACK. The window between these two renames is the only
 		// moment this installation is not whole, and leaving it there would be worse
 		// than the mixed binaries this function exists to avoid: there would be no
 		// Marco at all.
-		if _, serr := os.Stat(old); serr == nil {
-			_ = os.Rename(old, binDir)
+		if rerr := rename(recovery, binDir); rerr != nil {
+			return fmt.Errorf("this version could not be installed (%v), and the "+
+				"version you had could not be put back (%v). It is complete "+
+				"and it is at %s — close Marco and anything it started, then "+
+				"run this again, or rename that directory to %s: %w",
+				err, rerr, recovery, binDir, err)
 		}
-		return inUse(err, "Marco")
+		return fmt.Errorf("this version was not installed, and the version you had is "+
+			"still the one in use. Close Marco — the Studio window and anything "+
+			"it started — and run this again: %w", err)
 	}
 	return nil
 }
+
+// rename is os.Rename, replaced by a test to arrange a failure that is a MOMENT rather than a
+// state.
+//
+// A rollback that cannot complete needs the SECOND rename above to fail after the first has
+// already happened, and no arrangement of files on disk does that: whatever makes a directory
+// unmovable makes it unmovable in both directions, and a test cannot step between two adjacent
+// lines. The alternative to a seam is an untested recovery path, and this is the path that
+// decides whether somebody still has a Marco.
+//
+// The first rename is deliberately NOT through it. That one is reachable from a test by ordinary
+// means — a directory in the way is enough — and a seam in front of it would be a second way to
+// fake what a real upgrade already does.
+var rename = os.Rename
 
 // inUse says what to do about a file something is holding, or passes the error on.
 //
