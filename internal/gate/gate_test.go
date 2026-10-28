@@ -53,74 +53,195 @@ func TestASurvivorIsEstablishedByComparison(t *testing.T) {
 	}
 }
 
+// at is a moment in a synthetic run, so a written-down tree can have an ancestry that could
+// really have happened: a child never starts before the process that started it.
+//
+// Every one of these trees needs start times now, which is the point. A pid on its own cannot say
+// which process it is, so a table of bare pids is a table of a thing the gate no longer believes
+// in. See Identity.
+func at(seconds int) time.Time {
+	return time.Date(2026, 10, 28, 9, 0, 0, 0, time.UTC).
+		Add(time.Duration(seconds) * time.Second)
+}
+
 // AND A BROKEN CHAIN STILL LEADS TO THE CHILD, WHEN THE LINK WAS WRITTEN DOWN IN TIME.
 //
 // The case this is for: the test binary exits and the `marco` it spawned keeps running, with a
 // parent id that now names nothing. A walk that only followed live parents would lose exactly the
-// process the gate is hunting — so what carries it across the gap is a pid this run recorded
-// while the chain was still there, which is what Note is for.
+// process the gate is hunting — so what carries it across the gap is an instance this run
+// recorded while the chain was still there, which is what Note is for.
+//
+// This is also the regression case for the child that outlives its parent: its ownership was
+// established in its own right while both were alive, and stays established afterwards.
 func TestOwnershipIsEstablishedWhileTheChainIsAlive(t *testing.T) {
 	// WHILE IT IS ALIVE: the gate (1), its `go test` (2), the test binary (3), and the
-	// `marco` it spawned (4), all present at once.
+	// `marco` it spawned (4), all present at once — and all identifiable, which is what
+	// each link of the walk is checked against.
 	alive := []Process{
-		{PID: 2, Parent: 1, Name: "go.exe"},
-		{PID: 3, Parent: 2, Name: "studio.test.exe"},
-		{PID: 4, Parent: 3, Name: "marco.exe"},
-		{PID: 8, Parent: 7, Name: "powershell.exe"},
-		{PID: 9, Parent: 8, Name: "marco.exe"}, // somebody else's, in their own shell
+		{PID: 1, Parent: 0, Name: "gate.exe", Since: at(0)},
+		{PID: 2, Parent: 1, Name: "go.exe", Since: at(1)},
+		{PID: 3, Parent: 2, Name: "studio.test.exe", Since: at(2)},
+		{PID: 4, Parent: 3, Name: "marco.exe", Since: at(3)},
+		{PID: 8, Parent: 7, Name: "powershell.exe", Since: at(1)},
+		{PID: 9, Parent: 8, Name: "marco.exe", Since: at(2)}, // somebody else's shell
 	}
-	o := Owned(1)
+	o := Owned()
+	o.Establish(Identity{PID: 1, Since: at(0)})
 	if learned := o.Note(alive); learned != 3 {
 		t.Errorf("one sample below this run learned %d process(es), want the three "+
 			"below it: %v", learned, o.Pids())
 	}
-	for _, want := range []uint32{1, 2, 3, 4} {
+	for _, want := range []Identity{{PID: 1, Since: at(0)}, {PID: 2, Since: at(1)},
+		{PID: 3, Since: at(2)}, {PID: 4, Since: at(3)}} {
 		if !o.Has(want) {
-			t.Errorf("pid %d was below this run and was not established as its, so "+
-				"a child it leaves behind would be left running", want)
+			t.Errorf("%s was below this run and was not established as its, so a "+
+				"child it leaves behind would be left running", want)
 		}
 	}
 	// AND NOTHING THAT WAS NEVER BELOW IT, however long it is watched. This is the half
 	// that keeps the sweep safe to run on somebody's machine.
-	for _, never := range []uint32{7, 8, 9} {
+	for _, never := range []Identity{{PID: 7, Since: at(0)}, {PID: 8, Since: at(1)},
+		{PID: 9, Since: at(2)}} {
 		if o.Has(never) {
-			t.Errorf("pid %d was never below this run and was claimed as its", never)
+			t.Errorf("%s was never below this run and was claimed as its", never)
 		}
 	}
 	// NOW THE CHAIN BREAKS: `go test` and the test binary are both gone, and the child
 	// carries a parent id that names nothing.
-	after := []Process{{PID: 4, Parent: 3, Name: "marco.exe"}}
-	mine, why := OursToEnd(Process{PID: 4, Parent: 3, Name: "marco.exe"}, after, o)
+	child := Process{PID: 4, Parent: 3, Name: "marco.exe", Since: at(3)}
+	after := []Process{child}
+	mine, why := OursToEnd(child, after, o)
 	if !mine {
 		t.Errorf("a child of this run was not recognised once its parent had exited, "+
 			"which is the shape the eight that went unnoticed had: %q", why)
 	}
 	// AND A RUN THAT NEVER WATCHED CANNOT CLAIM IT, which is the price of this and is
 	// stated rather than guessed around: the finding stands, the process is left alone.
-	if mine, _ := OursToEnd(Process{PID: 4, Parent: 3}, after, Owned(1)); mine {
+	fresh := Owned()
+	fresh.Establish(Identity{PID: 1, Since: at(0)})
+	if mine, _ := OursToEnd(child, after, fresh); mine {
 		t.Error("a process whose whole ancestry is gone was claimed by a run that " +
 			"never saw it")
 	}
 }
 
+// AND A PID IS NOT A PROCESS, WHICH IS THE SAME MISTAKE ONE LEVEL DOWN.
+//
+// What was remembered here was a bare pid, indefinitely. Windows hands a pid back out once its
+// process has gone, so the label outlived the thing it was attached to: the run would meet the
+// number again, claim whatever now held it, AND CLAIM EVERYTHING BELOW IT — because the walk
+// upwards stopped at the remembered number and called the whole line ours.
+func TestAReusedPidIsNotTheProcessThisRunStarted(t *testing.T) {
+	o := Owned()
+	o.Establish(Identity{PID: 100, Since: at(0)}) // the gate itself
+
+	// THIS RUN STARTED PID 101 AND SAW IT, so it is established — as an instance.
+	first := []Process{
+		{PID: 100, Parent: 1, Name: "gate.exe", Since: at(0)},
+		{PID: 101, Parent: 100, Name: "go.exe", Since: at(1)},
+	}
+	if learned := o.Note(first); learned != 1 {
+		t.Fatalf("the suite below this run was not established (%d learned), so the "+
+			"rest of this would pass for the wrong reason", learned)
+	}
+
+	// THEN IT EXITED AND SOMEBODY ELSE GOT THE NUMBER: a shell of their own, with a
+	// `marco do` under it. Neither is anything to do with this run.
+	stranger := Process{PID: 101, Parent: 500, Name: "powershell.exe", Since: at(60)}
+	theirs := Process{PID: 102, Parent: 101, Name: "marco.exe", Since: at(61)}
+	now := []Process{
+		{PID: 100, Parent: 1, Name: "gate.exe", Since: at(0)},
+		{PID: 500, Parent: 400, Name: "explorer.exe", Since: at(50)},
+		stranger, theirs,
+	}
+	if learned := o.Note(now); learned != 0 {
+		t.Errorf("watching learned %d process(es) from a snapshot in which this run "+
+			"owns nothing new: %v", learned, o.Pids())
+	}
+	if o.Has(stranger.Instance()) {
+		t.Error("a process that was given a pid this run once started was claimed as " +
+			"this run's")
+	}
+	if mine, why := OursToEnd(stranger, now, o); mine {
+		t.Errorf("the process now holding a pid this run started was claimed as its "+
+			"to end: %q", why)
+	}
+	// AND NOT ITS CHILDREN EITHER, which is the half that would have killed somebody's
+	// work: the walk up from the child reaches the reused number, not an instance.
+	if mine, why := OursToEnd(theirs, now, o); mine {
+		t.Errorf("a child of the process now holding a reused pid was claimed as this "+
+			"run's to end: %q", why)
+	}
+
+	// AND A PROCESS OLDER THAN THE PROCESS ITS PARENT ID NAMES DID NOT COME FROM IT.
+	//
+	// The same reuse in the middle of a line: whatever started it is gone, and the gate
+	// happens to hold the number now. A walk that checked only the ends would claim it.
+	older := Process{PID: 104, Parent: 100, Name: "marco.exe", Since: at(-30)}
+	with := append(now, older)
+	if learned := o.Note(with); learned != 0 {
+		t.Errorf("a process older than its own parent was established as below it: %v",
+			o.Pids())
+	}
+	if mine, why := OursToEnd(older, with, o); mine {
+		t.Errorf("a process that started before the process its parent id names was "+
+			"claimed as this run's to end: %q", why)
+	}
+}
+
+// AND A SURVIVOR NOTHING CAN IDENTIFY IS A FINDING AND NOT A KILL.
+//
+// A process this account may not open answers nothing for its start time, and nothing is a real
+// answer here: it cannot be told apart from another process that has since been given the same
+// pid. There is no fallback to the bare pid, because that fallback IS the defect.
+func TestAProcessWithNoStartTimeIsNotEnded(t *testing.T) {
+	o := Owned()
+	o.Establish(Identity{PID: 100, Since: at(0)})
+	nameless := Process{PID: 101, Parent: 100, Name: "marco.exe"} // no start time
+	now := []Process{{PID: 100, Parent: 1, Name: "gate.exe", Since: at(0)}, nameless}
+
+	if learned := o.Note(now); learned != 0 {
+		t.Errorf("a process with no start time was established as this run's: %v",
+			o.Pids())
+	}
+	mine, why := OursToEnd(nameless, now, o)
+	if mine {
+		t.Errorf("a process that cannot be identified was claimed as this run's to "+
+			"end: %q", why)
+	}
+	for _, says := range []string{"start time could not be read", "same pid",
+		"nothing has been done"} {
+		if !strings.Contains(why, says) {
+			t.Errorf("the explanation does not say %q: %q", says, why)
+		}
+	}
+	// AND AN UNKNOWN IDENTITY IS NOT EQUAL TO ANOTHER UNKNOWN ONE, which is what keeps
+	// every comparison above from treating "nobody knows" as a match.
+	if (Identity{PID: 101}).Is(Identity{PID: 101}) {
+		t.Error("two processes neither of which could be identified were called the " +
+			"same process")
+	}
+}
+
 // AND WHETHER A SURVIVOR MAY BE ENDED IS A SECOND QUESTION.
 func TestOnlyThisRunsChildrenAreEnded(t *testing.T) {
-	o := Owned(100)
+	o := Owned()
+	o.Establish(Identity{PID: 100, Since: at(0)})
 	now := []Process{
-		{PID: 100, Parent: 1, Name: "gate.exe"},
-		{PID: 101, Parent: 100, Name: "go.exe"},
-		{PID: 102, Parent: 101, Name: "marco.exe"},
-		{PID: 200, Parent: 201, Name: "powershell.exe"},
-		{PID: 202, Parent: 200, Name: "marco.exe"}, // started by hand, in a live shell
-		{PID: 300, Parent: 999, Name: "marco.exe"}, // orphaned, and nobody knows whose
+		{PID: 100, Parent: 1, Name: "gate.exe", Since: at(0)},
+		{PID: 101, Parent: 100, Name: "go.exe", Since: at(1)},
+		{PID: 102, Parent: 101, Name: "marco.exe", Since: at(2)},
+		{PID: 200, Parent: 201, Name: "powershell.exe", Since: at(1)},
+		{PID: 202, Parent: 200, Name: "marco.exe", Since: at(2)}, // started by hand
+		{PID: 300, Parent: 999, Name: "marco.exe", Since: at(3)}, // orphaned, whose?
 	}
-	mine, why := OursToEnd(Process{PID: 102, Parent: 101}, now, o)
+	mine, why := OursToEnd(now[2], now, o)
 	if !mine || !strings.Contains(why, "this run") {
 		t.Errorf("a child of this run is not ours to end: %v, %q", mine, why)
 	}
 	// SOMEBODY ELSE'S IS LEFT ALONE, and the sentence says so: `marco do` started in a
 	// shell while the suite was running is the same program and not the same process.
-	mine, why = OursToEnd(Process{PID: 202, Parent: 200}, now, o)
+	mine, why = OursToEnd(now[4], now, o)
 	if mine {
 		t.Error("a process somebody started in their own shell was claimed as this " +
 			"run's to end")
@@ -138,7 +259,8 @@ func TestOnlyThisRunsChildrenAreEnded(t *testing.T) {
 	// the gate and close the shell, and what is left is indistinguishable from a child of
 	// this run that lost its parent. So the finding stands, the evidence is kept, and the
 	// process is not touched.
-	mine, why = OursToEnd(Process{PID: 300, Parent: 999}, now, o)
+	orphan := now[5]
+	mine, why = OursToEnd(orphan, now, o)
 	if mine {
 		t.Error("an orphan nothing connects to this run was claimed as this run's to " +
 			"end, which would kill a process somebody started themselves")
@@ -152,12 +274,17 @@ func TestOnlyThisRunsChildrenAreEnded(t *testing.T) {
 	}
 	// AND THE SAME ORPHAN IS OURS ONCE THIS RUN CAN SHOW IT STARTED WHAT STARTED IT,
 	// which is the difference between the two and is the only thing that licenses a kill.
-	o.Started(999)
-	if mine, why := OursToEnd(Process{PID: 300, Parent: 999}, now, o); !mine {
-		t.Errorf("an orphan below a pid this run started is not ours to end: %q", why)
+	// ITS PARENT HAS TO BE THERE TO BE IDENTIFIED: a number this run remembers is not on
+	// its own a reason, which is the reuse case above.
+	withParent := append(now, Process{PID: 999, Parent: 100, Name: "studio.exe",
+		Since: at(2)})
+	o.Establish(Identity{PID: 999, Since: at(2)})
+	if mine, why := OursToEnd(orphan, withParent, o); !mine {
+		t.Errorf("an orphan below an instance this run started is not ours to end: %q",
+			why)
 	}
 	// AND A RUN WITH NO OWNERSHIP AT ALL ENDS NOTHING.
-	if mine, why := OursToEnd(Process{PID: 102, Parent: 101}, now, nil); mine {
+	if mine, why := OursToEnd(now[2], now, nil); mine {
 		t.Errorf("a sweep with nothing established ended something anyway: %q", why)
 	}
 }

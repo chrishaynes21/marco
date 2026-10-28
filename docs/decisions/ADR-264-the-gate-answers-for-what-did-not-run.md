@@ -2,12 +2,13 @@
 type: adr
 status: accepted
 date: 2026-10-28
-decision: "ACCEPTED — THE GATE ANSWERS FOR WHAT DID NOT RUN, AND FOR WHAT OUTLIVED IT. `go test ./...` answers one question and a release gate needs three: did anything fail, did anything DECLINE to run, and did anything the tests started OUTLIVE them. The second and third are not hypothetical and they hid each other for hours: Studio's suite printed `ok` while every test that presses Play SKIPPED, because the binary they spawn could not be rebuilt — and the reason it could not be rebuilt was eight `marco do` processes from earlier runs still holding the file open, each with the recorder's global low-level hooks still installed. A skip is green, and nothing looks for a child. So a skip is now tolerated ONLY when `gate-skips.txt` declares it, by package and test name, with a reason somebody wrote; an undeclared skip fails the gate, and so does a STALE declaration whose test ran and did not skip, because a list of excuses nobody prunes stops describing anything. A reason beginning `BROKEN:` marks a declared skip that is a DEFECT rather than a decision, counted and printed apart on every run including a green one. And a watched product binary that is running now and was not running before is a FINDING: established by comparison, because something the owner already had open is not the gate's doing; described into the run's directory BEFORE anything is done about it, because the eight that went unnoticed had their run records in temporary stores that went away with the tests that made them; and ended only when this run can SHOW it started it. An orphan was first treated as this run's on the reasoning that nothing was left which could be waiting for it, which is the absence of somebody else's claim and not ownership: start `marco do` in a shell during the gate and close the shell, and what is left is indistinguishable from a child of this run that lost its parent. So ownership is POSITIVE ONLY — something this run started, or something seen below it while that chain was still intact, which is why the lineage is sampled DURING each suite rather than reconstructed from the wreckage afterwards — and anything else is reported, preserved and LEFT RUNNING. Nothing is ended until the description of it is on disk and the write has been CHECKED, because a survivor killed with nothing left behind to read is the exact state the eight were found in. The desktop harness asks the same question after EVERY scenario rather than once at the end, for attribution and for containment, and preserves that scenario's run records before ending anything; a scenario that passed and left a child running is turned into a finding, because a run that reports it finished while the process performing it is still there has not established what it says. `gate.ps1` is the whole of it in order — the suites, the packed bundle, its installation from an isolated directory, then EVERY registered scenario against those installed binaries. Packing is asked three ways, because `pack.ps1` reports a bad bundle by THROWING and `$LASTEXITCODE` then holds the zero the last successful native command left: the exception is caught, the exit code is checked, and — the only one of the three that is evidence — the bundle on disk must be one this run produced, or the gate stops before anything is installed. And every narrowing switch adds a line to the verdict: `-SuitesOnly`, `-Installed` and `-Only` each end with what the run DID NOT ASK, where all three used to end with the same sentence as a whole run. The first run found four things: three helper-process skips nobody had declared, and `TestAnUnconsumedArmDoesNotSurviveIntoTheNextRecording` skipping because two bounded-shutdown tests left `recWedged` set for the whole package — a real test silently not running, three files away. Three more declarations are BROKEN rather than expected: two mutation gates in `internal/director/observe` and one rehearsal test in `cmd/director` build a scenario, find it did not produce the condition they are about, and decline. PHYSICAL RECORDING CAPTURE REMAINS NOT EXERCISED, and the eight orphans' CAUSE REMAINS UNRESOLVED: one clean run does not close it, and what this changes is that a recurrence is exposed and contained rather than silent."
+decision: "ACCEPTED — THE GATE ANSWERS FOR WHAT DID NOT RUN, AND FOR WHAT OUTLIVED IT. `go test ./...` answers one question and a release gate needs three: did anything fail, did anything DECLINE to run, and did anything the tests started OUTLIVE them. The second and third are not hypothetical and they hid each other for hours: Studio's suite printed `ok` while every test that presses Play SKIPPED, because the binary they spawn could not be rebuilt — and the reason it could not be rebuilt was eight `marco do` processes from earlier runs still holding the file open, each with the recorder's global low-level hooks still installed. A skip is green, and nothing looks for a child. So a skip is now tolerated ONLY when `gate-skips.txt` declares it, by package and test name, with a reason somebody wrote; an undeclared skip fails the gate, and so does a STALE declaration whose test ran and did not skip, because a list of excuses nobody prunes stops describing anything. A reason beginning `BROKEN:` marks a declared skip that is a DEFECT rather than a decision, counted and printed apart on every run including a green one. And a watched product binary that is running now and was not running before is a FINDING: established by comparison, because something the owner already had open is not the gate's doing; described into the run's directory BEFORE anything is done about it, because the eight that went unnoticed had their run records in temporary stores that went away with the tests that made them; and ended only when this run can SHOW it started it. An orphan was first treated as this run's on the reasoning that nothing was left which could be waiting for it, which is the absence of somebody else's claim and not ownership: start `marco do` in a shell during the gate and close the shell, and what is left is indistinguishable from a child of this run that lost its parent. So ownership is POSITIVE ONLY — something this run started, or something seen below it while that chain was still intact, which is why the lineage is sampled DURING each suite rather than reconstructed from the wreckage afterwards — and anything else is reported, preserved and LEFT RUNNING. AND A PID IS NOT A PROCESS, which is the same mistake one level down and was got wrong second: what was remembered was a bare pid, indefinitely, and Windows hands a pid back out once its process has gone — so a run that started pid 7384, watched it exit and later met that number again would have claimed somebody else{Q}s process AND EVERYTHING BELOW IT, because the walk upwards stopped at the remembered number and called the whole line its. What is remembered is an IDENTITY: the pid and the moment that pid started running. Every step of an ancestry walk is checked against it and not just the ends — a parent must be present with the identity this run established, and a child cannot have started BEFORE its parent, which is what rules out a parent id naming a replacement for the process that really did the starting — a line through a parent that has already exited is no longer followed at all, because there is nothing left to identify it by, and the kill itself opens the process ONCE and compares the start time ON THE HANDLE IT IS ABOUT TO TERMINATE, because the pid came out of a snapshot and a snapshot is a photograph. A process whose start time cannot be read is not identified, so it is reported and left running; there is no fallback to the bare pid, because that fallback is the defect. Nothing is ended until the description of it is on disk and the write has been CHECKED, because a survivor killed with nothing left behind to read is the exact state the eight were found in. The desktop harness asks the same question after EVERY scenario rather than once at the end, for attribution and for containment, and preserves that scenario's run records before ending anything; a scenario that passed and left a child running is turned into a finding, because a run that reports it finished while the process performing it is still there has not established what it says. `gate.ps1` is the whole of it in order — the suites, the packed bundle, its installation from an isolated directory, then EVERY registered scenario against those installed binaries. Packing is asked three ways, because `pack.ps1` reports a bad bundle by THROWING and `$LASTEXITCODE` then holds the zero the last successful native command left: the exception is caught, the exit code is checked, and — the only one of the three that is evidence — the bundle on disk must be one this run produced, or the gate stops before anything is installed. And every narrowing switch adds a line to the verdict: `-SuitesOnly`, `-Installed` and `-Only` each end with what the run DID NOT ASK, where all three used to end with the same sentence as a whole run. The first run found four things: three helper-process skips nobody had declared, and `TestAnUnconsumedArmDoesNotSurviveIntoTheNextRecording` skipping because two bounded-shutdown tests left `recWedged` set for the whole package — a real test silently not running, three files away. Three more declarations are BROKEN rather than expected: two mutation gates in `internal/director/observe` and one rehearsal test in `cmd/director` build a scenario, find it did not produce the condition they are about, and decline. PHYSICAL RECORDING CAPTURE REMAINS NOT EXERCISED, and the eight orphans' CAUSE REMAINS UNRESOLVED: one clean run does not close it, and what this changes is that a recurrence is exposed and contained rather than silent."
 supersedes: []
 affects:
   - execution
 source_paths:
   - internal/gate/gate.go
+  - internal/gate/gate_windows.go
   - internal/gate/ownership.go
   - internal/gate/ledger.go
   - cmd/gate/main.go
@@ -107,6 +108,34 @@ can be deduced from the wreckage, so `gate.Ownership.Note` is given a snapshot e
 while a suite runs and remembers whatever is then below a pid already known. A process whose whole
 ancestry both appeared and died between two samples cannot be established and is left running with
 the report saying why. That is the honest limit, and it is stated rather than papered over.
+
+**And a pid is not a process.** The same mistake one level down, and the one this got wrong
+second. What was remembered was a bare pid, indefinitely — and Windows hands a pid back out once
+its process has gone, soon and from a small table, so during a gate that spawns a Studio, a
+director and a `marco` per scenario the same number comes round again. The label outlived the
+thing it was attached to: a run that started pid 7384, watched it exit and later met pid 7384
+would have claimed somebody else’s process, **and everything below it**, because the walk upwards
+stopped at the remembered number and called the whole line its.
+
+So what is remembered is an **identity** — the pid and the moment that pid started running, read
+from `GetProcessTimes` through the same path for every use of it, so two readings of one process
+compare exactly equal and two processes sharing a pid never do. Three consequences, every one of
+them a narrowing:
+
+- A process whose start time cannot be read is **not identified**, so it is not claimed and not
+  ended. There is no fallback to the bare pid; that fallback is the defect.
+- Every step of an ancestry walk is checked, not just its ends. A parent has to be in the snapshot
+  **with the identity this run established**, and a child cannot have started before its parent —
+  which is what rules out a parent id naming a *replacement* for the process that really started
+  it. A line through a parent that has already exited is no longer followed at all, because there
+  is nothing left to identify it by; what carries ownership across that gap is `Note`, which
+  claims the child in its own right while its parent is still alive.
+- **The kill checks the handle it is about to use.** The pid came out of a snapshot, and a
+  snapshot is a photograph: between the photograph and the kill the process can exit and its
+  number be handed on. So `gate.End` opens the process once, reads the start time from that
+  handle, compares it to the identity written down, and terminates **that same handle** — a handle
+  names a kernel object rather than a number, so nothing can be swapped underneath it. It takes an
+  `Identity` and not a `uint32`, so there is no longer a way to express the old call.
 
 ## And nothing is ended until the evidence is on disk
 
@@ -217,10 +246,27 @@ refusals, and the recording path.
 - `internal/gate` `TestOwnershipIsEstablishedWhileTheChainIsAlive` — one sample below this run
   establishes the three processes under it and nothing that was never under it; the chain is then
   broken and the child is still recognised; and a run that never watched declines to claim it.
+  Which is also the case for a child that OUTLIVES its parent: its ownership was established in
+  its own right while both were alive, and stays established afterwards.
+- `internal/gate` `TestAReusedPidIsNotTheProcessThisRunStarted` — a pid this run started and saw,
+  then exited and given to somebody else’s shell: neither the replacement nor the `marco do` under
+  it is claimed, watching learns nothing from the snapshot it appears in, and a process older than
+  the process its parent id names is refused as well — which is the same reuse in the middle of
+  a line, and is what a walk that checked only its ends would have claimed.
+- `internal/gate` `TestAProcessWithNoStartTimeIsNotEnded` — a survivor the platform would not
+  identify is reported and left running, with the sentence saying it cannot be told apart from
+  another process given the same pid; and two identities neither of which is known are not equal.
+- `internal/gate` `TestTheProcessEndedIsTheOneThatWasWrittenDown` — against a REAL process, which
+  is where the handle is the whole question: an identity whose start time is not the one on the
+  handle is REFUSED and the process is still running afterwards, a bare pid with no start time is
+  refused too, and then the identity that was written down IS ended — without which every
+  refusal above is satisfied by an End that ends nothing at all.
 - `internal/gate` `TestOnlyThisRunsChildrenAreEnded` — a child of this run is ours, a process with
   a live foreign parent is LEFT ALONE with the sentence naming the parent, an orphan nothing
   connects to this run is LEFT ALONE TOO, the same orphan becomes ours once this run can show it
-  started what started it, and a sweep with no ownership at all ends nothing.
+  started what started it — and only while that process is THERE to be identified, because a
+  number this run remembers is not on its own a reason — and a sweep with no ownership at all ends
+  nothing.
 - `internal/gate` `TestASurvivorIsDescribedBeforeItIsEnded` — pid, image, parent, when it started
   and that it started during this run.
 - `internal/gate` `TestTheLedgerRequiresAReason` — comments and blank lines, both dash forms, a
@@ -271,9 +317,12 @@ refusals, and the recording path.
 - `plugins/e2e` `TestNothingIsEndedWhenTheEvidenceCannotBeKept` — a survivor this run does own,
   with an artifacts directory that cannot be written: nothing is ended, and the finding does not
   claim otherwise.
-- `plugins/e2e` `TestThisRunRemembersWhatItStarted` and
-  `TestEveryProcessThisHarnessStartsIsRememberedAndSweptFor` — every function in the package that
-  starts a process also remembers it, something calls the sweep, `main` takes the two
-  snapshots it needs and starts the lineage watcher exactly once, and an orphan nothing connects
-  to this run is a finding rather than a kill. By walking the package rather than naming the two
-  places, because naming one place is how the second was missed the last time.
+- `plugins/e2e` `TestThisRunRemembersWhatItStarted` — against a REAL process this run starts:
+  its identity is remembered, the same pid with a different start time is NOT it, a child seen
+  below it stays this run’s once its parent has gone, and an orphan nothing connects to this run
+  is a finding rather than a kill.
+- `plugins/e2e` `TestEveryProcessThisHarnessStartsIsRememberedAndSweptFor` — every function in the
+  package that starts a process also remembers it, something calls the sweep, and `main` takes the
+  two snapshots it needs and starts the lineage watcher exactly once. By walking the package
+  rather than naming the two places, because naming one place is how the second was missed the
+  last time.

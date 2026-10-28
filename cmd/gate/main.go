@@ -262,7 +262,15 @@ func (r *run) suite(m module) {
 	}
 	// THE SUITE ITSELF IS THE FIRST THING THIS RUN KNOWS IT STARTED, and everything the
 	// tests spawn is established from it while they are running. See watchWhatItStarts.
-	r.own.Started(uint32(cmd.Process.Pid))
+	//
+	// AND A PID IS NOT ENOUGH TO KNOW IT BY. The identity is the pid and when that pid
+	// started, read here while the process is certainly alive, because afterwards the
+	// number may belong to somebody else. If it cannot be read, this run establishes
+	// nothing below this suite and says so — the sweep still reports what it finds, and
+	// ends none of it.
+	if _, err := r.own.Started(uint32(cmd.Process.Pid)); err != nil {
+		r.findings = append(r.findings, fmt.Sprintf("%s: %v", m.dir, err))
+	}
 	settled := r.watchWhatItStarts()
 	failed, skipped := r.readTestStream(stdout)
 	waitErr := cmd.Wait()
@@ -482,7 +490,10 @@ func (r *run) endWhatItMay(where string, left, now []gate.Process, w gate.Watchi
 			stayed = append(stayed, fmt.Sprintf("%s (%d): %s", v.p.Name, v.p.PID, v.why))
 			continue
 		}
-		if err := gate.End(v.p.PID); err != nil {
+		// BY IDENTITY, which is checked again on the handle this kills: the pid
+		// came out of a snapshot, and between the snapshot and here the process
+		// can have gone and its number been handed to something else.
+		if err := gate.End(v.p.Instance()); err != nil {
 			stayed = append(stayed, fmt.Sprintf("%s (%d) could not be ended: %v",
 				v.p.Name, v.p.PID, err))
 			continue

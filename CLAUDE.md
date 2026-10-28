@@ -157,7 +157,10 @@ go run ./cmd/gate                      # its first stage alone, which needs no s
   found in; a failed write means nothing is ended. And an ORPHAN IS A FINDING, NOT A LICENCE —
   somebody can start `marco do` in a shell during a run and close the shell, and what is left is
   indistinguishable from a child of the run, so ownership is positive only and the lineage is
-  sampled while the run is happening.
+  sampled while the run is happening. AND A PID IS NOT A PROCESS: Windows hands the number back
+  out, so what is remembered is the pid AND when that pid started, every link of the ancestry is
+  checked against that, and `gate.End` compares the start time on the HANDLE IT KILLS — it takes a
+  `gate.Identity`, so the old kill-by-number cannot be written any more.
 - **`gate.ps1` is the whole gate**: the suites, then the bundle packed from this tree, then that
   bundle installed from an isolated directory, then EVERY registered desktop scenario against the
   installed binaries. Packing is asked three ways, because `pack.ps1` reports a bad bundle by

@@ -47,9 +47,10 @@ const settling = 20 * time.Second
 
 // ours is what this run can SHOW it started, which is the only thing it may end.
 //
-// Kept by pid even after a process has exited, because the chain breaks: a Studio that exits
-// leaves the `marco` it spawned with a parent id that names nothing, and a walk from a live
-// process would lose exactly the child worth finding. A dead pid still carries its children.
+// Kept as identities — a pid AND when that pid started — because a pid on its own is a slot that
+// Windows hands out again, and a run that spawns a Studio, a director and a marco per scenario
+// will meet the same number twice. A remembered bare pid would have claimed whatever held it
+// next, and everything below that.
 //
 // AND NOTHING IS INFERRED INTO IT. An orphan used to be called this run's on the reasoning that
 // nothing was left which could be waiting for it — but somebody can start `marco do` in a shell
@@ -57,7 +58,16 @@ const settling = 20 * time.Second
 var ours = gate.Owned(uint32(os.Getpid()))
 
 // weStarted records a process this run started, at the moment it started it.
-func weStarted(pid uint32) { ours.Started(pid) }
+//
+// AT THE MOMENT, because that is the only time its identity can be read: afterwards the process
+// is gone and the pid may be somebody else's. One that cannot be identified is not remembered as
+// a bare pid — it is said out loud, and the sweep will report whatever it leaves behind and end
+// none of it.
+func weStarted(pid uint32) {
+	if _, err := ours.Started(pid); err != nil {
+		fmt.Fprintf(os.Stderr, "e2e: %v\n", err)
+	}
+}
 
 // watchWhatWeStart writes down the lineage below this run WHILE IT IS STILL THERE, and answers
 // with the function that stops it.
@@ -194,7 +204,8 @@ func afterTheSweep(w *world, left, now []gate.Process, r result) result {
 			lefta = append(lefta, fmt.Sprintf("%s (%d): %s", p.Name, p.PID, why))
 			continue
 		}
-		if err := gate.End(p.PID); err != nil {
+		// BY IDENTITY, rechecked on the handle this kills: see gate.End.
+		if err := gate.End(p.Instance()); err != nil {
 			lefta = append(lefta, fmt.Sprintf("%s (%d) could not be ended: %v",
 				p.Name, p.PID, err))
 			continue

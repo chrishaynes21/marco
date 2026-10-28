@@ -54,6 +54,53 @@ type Process struct {
 	Since  time.Time
 }
 
+// Instance is which process this is: see Identity.
+func (p Process) Instance() Identity { return Identity{PID: p.PID, Since: p.Since} }
+
+// Identity is one process INSTANCE — a pid and the moment that pid started running.
+//
+// # A pid is not a process
+//
+// Windows hands a pid back out once the process holding it has gone, and it does so soon: the
+// numbers are small, they are allocated from a table, and a run that spawns a few hundred
+// processes will see the same one twice. So a pid on its own is a SLOT, not a thing. A run that
+// remembered "pid 7384 is mine", watched it exit, and later met pid 7384 again would be meeting
+// somebody else's process wearing this run's label — and would end it, and everything below it,
+// for the same reason the orphan clause used to: a label that outlives what it was attached to.
+//
+// The start time is what makes the pid name one process. It is read from the same place for every
+// use of it (GetProcessTimes, through the snapshot or directly), so two readings of one process
+// compare exactly equal, and two different processes sharing a pid never do.
+//
+// # And an identity that is missing is not an identity
+//
+// A process this account may not open answers nothing for its start time, and nothing is a real
+// answer here rather than a zero to compare against: an unknown identity is never equal to
+// anything, including another unknown one. Everything that decides a kill asks Known first, and
+// what cannot be identified is reported and left running.
+type Identity struct {
+	PID   uint32
+	Since time.Time
+}
+
+// Known reports whether this is an identity at all, rather than a pid with nothing to pin it to.
+func (i Identity) Known() bool { return i.PID != 0 && !i.Since.IsZero() }
+
+// Is reports whether two readings name the same process instance.
+//
+// Never true of an unknown identity, which is the whole of why this is a method and not `==`.
+func (i Identity) Is(other Identity) bool {
+	return i.Known() && other.Known() && i.PID == other.PID && i.Since.Equal(other.Since)
+}
+
+// String is how a report names a process instance.
+func (i Identity) String() string {
+	if !i.Known() {
+		return fmt.Sprintf("pid %d, whose start time could not be read", i.PID)
+	}
+	return fmt.Sprintf("pid %d started %s", i.PID, i.Since.Format("2006-01-02 15:04:05.000"))
+}
+
 // Watching is a set of executables a gate is watching for survivors.
 //
 // Paths rather than names, because a name is not an identity: the binary a test spawns and the
@@ -160,14 +207,5 @@ func Describe(p Process, since time.Time) string {
 	return out
 }
 
-// End stops a process this gate has established is its own to end.
-func End(pid uint32) error {
-	p, err := os.FindProcess(int(pid))
-	if err != nil {
-		return fmt.Errorf("pid %d: %w", pid, err)
-	}
-	if err := p.Kill(); err != nil {
-		return fmt.Errorf("ending pid %d: %w", pid, err)
-	}
-	return nil
-}
+// End stops a process this gate has established is its own to end, and is in the platform files
+// because the identity has to be checked on the HANDLE IT KILLS. See End in gate_windows.go.

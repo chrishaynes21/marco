@@ -563,6 +563,15 @@ written into that scenario’s artifacts first, with the scenario’s own run re
 the store this harness is about to delete — and if that cannot be written, NOTHING IS TOUCHED,
 because the evidence is the only thing that licenses ending a survivor at all.
 
+**And a pid is not a process.** What was remembered was a bare pid, and Windows hands a pid back
+out once its process has gone — so during a run that spawns a Studio, a director and a `marco`
+per scenario, a remembered number would have claimed whatever held it next, and everything below
+that. What is remembered is the pid AND the moment that pid started running; every link of an
+ancestry walk is checked against that, a line through a parent that has already exited is not
+followed at all, and the kill compares the start time ON THE HANDLE IT TERMINATES, because the pid
+came out of a snapshot and a snapshot is a photograph. Anything that cannot be identified is
+reported and LEFT RUNNING.
+
 **And it is ended only when this run can SHOW it started it.** An orphan was first treated as
 this run’s on the reasoning that nothing was left which could be waiting for it, which is the
 absence of somebody else’s claim and not ownership: somebody can start `marco do` in a shell

@@ -11043,3 +11043,77 @@ gate does, not only in what it says. Physical recording capture remains NOT EXER
 reliable Stop delivery during the sharing conflict remains unestablished.
 
 See [[ADR-264-the-gate-answers-for-what-did-not-run]] and [[Desktop-Harness]].
+
+## 45. A pid is not a process
+
+The fifth finding, and the same mistake as the fourth one level down. Ownership had just been made
+positive only — but what it remembered was a **bare pid, indefinitely**. Windows hands a pid back
+out once the process holding it has gone, soon and from a small table, so during a gate that
+spawns a Studio, a director and a `marco` per scenario the same number comes round again. The
+label outlived the thing it was attached to. A run that started pid 7384, watched it exit and
+later met pid 7384 would have claimed somebody else's process — **and everything below it**,
+because the walk upwards stopped at the remembered number and called the whole line its. Walking
+up rather than down makes no difference to this: it is the number that is wrong, not the
+direction.
+
+So what is remembered is an **identity**: the pid *and* the moment that pid started running, read
+through `GetProcessTimes` by the same path for every use of it, so two readings of one process
+compare exactly equal and two processes sharing a pid never do. An identity with no start time is
+not an identity and is never equal to anything, including another unknown one.
+
+Three consequences, every one of them a narrowing:
+
+- **A process whose start time cannot be read is not identified**, so it is not claimed and not
+  ended. There is no fallback to the bare pid; that fallback is the defect.
+- **Every step of an ancestry walk is checked, not just its ends.** A parent has to be in the
+  snapshot with the identity this run established, and a child cannot have started before its
+  parent — which is what rules out a parent id naming a *replacement* for the process that really
+  did the starting. And a line through a parent that has **already exited** is no longer followed
+  at all, because there is nothing left to identify it by. What carries ownership across that gap
+  is the watcher, which claims the child in its own right while its parent is still alive; by the
+  time the parent has gone, the child's own identity is what answers. That case has a test of its
+  own, because it is the one the whole sampling design exists for.
+- **The kill checks the handle it is about to use.** The pid came out of a snapshot, and a
+  snapshot is a photograph: between the photograph and the kill the process can exit and its
+  number be handed on. `gate.End` now opens the process **once**, reads the start time from that
+  handle, compares it to the identity written down, and terminates **that same handle** — a handle
+  names a kernel object rather than a number, so nothing can be swapped underneath it.
+
+And it takes a `gate.Identity` rather than a `uint32`, so the old call cannot be written any more.
+That is the strongest form this could take: the compiler refuses a kill by number, in this package
+and in the harness, rather than a test noticing one.
+
+### What holds it
+
+Three new tests and two rewritten, and **11 of 12 mutations killed**:
+
+- `internal/gate` `TestAReusedPidIsNotTheProcessThisRunStarted` — a pid this run started and saw,
+  then exited and given to somebody else's shell: neither the replacement nor the `marco do` under
+  it is claimed, watching learns nothing from the snapshot it appears in, and a process *older*
+  than the process its parent id names is refused as well — the same reuse in the middle of a
+  line, and what a walk that checked only its ends would have claimed.
+- `internal/gate` `TestAProcessWithNoStartTimeIsNotEnded` — reported, left running, and the
+  sentence says it cannot be told apart from another process given the same pid.
+- `internal/gate` `TestTheProcessEndedIsTheOneThatWasWrittenDown` — against a **real** process,
+  because the handle is the whole question. There is no way to make Windows reuse a particular pid
+  on demand, so the condition is produced from the other side, which is the same condition as the
+  code sees it: an identity whose start time is not the one on the handle is refused and the
+  process is still running afterwards; a bare pid is refused too; and then the identity that *was*
+  written down is ended — without which every refusal above is satisfied by an End that ends
+  nothing at all.
+- `plugins/e2e` `TestThisRunRemembersWhatItStarted` — rewritten against a real process this run
+  starts: its identity is remembered, the same pid with a different start time is **not** it, and
+  a child seen below it stays this run's once its parent has gone.
+
+One mutation survived and was recorded rather than contrived against: dropping the "no start time"
+arm of the watcher's own guard changes no behaviour, because an unidentifiable process has a zero
+start time, which is before every parent time there can be, so the ordering test refuses it one
+line later. It stays, with a comment saying exactly that — the same treatment `Watching.has`
+already gives its own unfalsifiable check, for the same reason.
+
+**What is unchanged.** Containment is narrower again, deliberately: a survivor this run cannot
+identify, or whose ancestry runs through a process that has already gone, is reported and **left
+running**. The eight orphans' cause remains unresolved, physical recording capture remains NOT
+EXERCISED, and full packaged acceptance of this tree has not been run.
+
+See [[ADR-264-the-gate-answers-for-what-did-not-run]] and [[Desktop-Harness]].

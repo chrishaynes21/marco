@@ -276,9 +276,11 @@ func TestAnOrphanThatIsNobodysChildIsNotEnded(t *testing.T) {
 		own: gate.Owned(uint32(os.Getpid())), covered: map[string]bool{}}
 
 	// A pid no process has, so that a sweep which did try to end it would be visibly
-	// wrong rather than quietly lethal.
+	// wrong rather than quietly lethal — AND WITH A START TIME, because a survivor
+	// nothing can identify is refused for a different reason, and this is the case about
+	// an orphan rather than the case about an unidentifiable process.
 	stranger := gate.Process{PID: 4294967291, Parent: 4294967290, Name: "marco.exe",
-		Path: marco}
+		Path: marco, Since: time.Now().Add(-time.Minute)}
 	r.endWhatItMay("a test", []gate.Process{stranger}, []gate.Process{stranger},
 		gate.Watch(marco), time.Second)
 

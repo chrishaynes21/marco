@@ -15,6 +15,7 @@ import (
 	"go/token"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -65,8 +66,15 @@ func TestASurvivingChildIsAFindingAndNotEndedBlind(t *testing.T) {
 
 	// A SURVIVOR WHOSE PARENT IS STILL RUNNING AND IS NOT OURS: `marco do` started in
 	// somebody's own shell while a scenario was in flight. A finding, and not ours to end.
-	theirs := gate.Process{PID: 4294967290, Parent: 4294967286, Name: "marco.exe", Path: w.b.marco}
-	now := []gate.Process{theirs, {PID: 4294967286, Name: "powershell.exe"}}
+	//
+	// WITH START TIMES, because a pid on its own is not a process: a survivor nothing can
+	// identify is a finding too, and a different one, so this has to be the case it says
+	// it is. See gate.Identity.
+	began := time.Now().Add(-time.Minute)
+	theirs := gate.Process{PID: 4294967290, Parent: 4294967286, Name: "marco.exe",
+		Path: w.b.marco, Since: began}
+	now := []gate.Process{theirs,
+		{PID: 4294967286, Name: "powershell.exe", Since: began.Add(-time.Minute)}}
 
 	got := afterTheSweep(w, []gate.Process{theirs}, now, pass(time.Now(), "it all worked"))
 	if got.passed || got.skipped {
@@ -130,30 +138,72 @@ func TestAScenarioThatLeftNothingRunningIsReportedAsItWas(t *testing.T) {
 	}
 }
 
-// AND THIS RUN KNOWS WHAT IT STARTED, INCLUDING AFTER IT HAS EXITED.
+// AND THIS RUN KNOWS WHAT IT STARTED, AS AN INSTANCE AND NOT AS A NUMBER.
 //
-// Because the chain breaks: a Studio that exits leaves the `marco` it spawned with a parent id
-// that names nothing, so the pid is remembered when it is started rather than looked up when it
-// is wanted.
+// Two things at once, because they failed one after the other. The chain breaks: a Studio that
+// exits leaves the `marco` it spawned with a parent id that names nothing, so the link is written
+// down while it is there rather than looked for when it is wanted. And a pid is a SLOT: Windows
+// hands it back out once its process has gone, and a run that spawns a Studio, a director and a
+// marco per scenario will meet the same number twice. What is remembered is the pid and the
+// moment that pid started running.
 func TestThisRunRemembersWhatItStarted(t *testing.T) {
-	if !ours.Has(uint32(os.Getpid())) {
+	at, err := gate.StartedAt(uint32(os.Getpid()))
+	if err != nil {
+		t.Fatalf("this process cannot be identified, so nothing below it could be "+
+			"attributed to this run: %v", err)
+	}
+	me := gate.Identity{PID: uint32(os.Getpid()), Since: at}
+	if !ours.Has(me) {
 		t.Fatalf("this process is not among what this run owns (%v), so nothing "+
 			"below it could be attributed to this run", ours.Pids())
 	}
-	weStarted(31337)
-	if !ours.Has(31337) {
-		t.Fatal("a process this run started was not remembered")
+
+	// A REAL PROCESS, because its identity is read from the kernel at the moment it
+	// starts and there is nowhere else it could come from. A sleeping shell: what is
+	// under test is the remembering.
+	child := exec.Command("powershell", "-NoProfile", "-Command", "Start-Sleep -Seconds 30")
+	if err := child.Start(); err != nil {
+		t.Fatal(err)
 	}
-	// AND A CHILD OF SOMETHING THIS RUN STARTED IS THIS RUN'S, though its parent is gone.
-	child := gate.Process{PID: 999, Parent: 31337, Name: "marco.exe"}
-	mine, why := gate.OursToEnd(child, []gate.Process{child}, ours)
+	t.Cleanup(func() {
+		_ = child.Process.Kill()
+		_, _ = child.Process.Wait()
+	})
+	pid := uint32(child.Process.Pid)
+	weStarted(pid)
+	began, err := gate.StartedAt(pid)
+	if err != nil {
+		t.Fatalf("a process this run just started could not be identified: %v", err)
+	}
+	if !ours.Has(gate.Identity{PID: pid, Since: began}) {
+		t.Fatalf("a process this run started was not remembered: %v", ours.Pids())
+	}
+	// AND THE SAME NUMBER WITH A DIFFERENT START TIME IS NOT IT, which is the whole of
+	// what stops a pid Windows hands out again from carrying this run's licence to kill.
+	if ours.Has(gate.Identity{PID: pid, Since: began.Add(time.Second)}) {
+		t.Error("a different process that was given the same pid was claimed as this " +
+			"run's, which would end somebody's own work and everything below it")
+	}
+
+	// AND A CHILD SEEN BELOW IT STAYS THIS RUN'S ONCE ITS PARENT HAS GONE, which is what
+	// the watcher is for: the link is established while it exists, and the child's own
+	// identity is what answers afterwards.
+	parent := gate.Process{PID: pid, Parent: me.PID, Name: "powershell.exe", Since: began}
+	kid := gate.Process{PID: 999, Parent: pid, Name: "marco.exe",
+		Since: began.Add(time.Second)}
+	if learned := ours.Note([]gate.Process{parent, kid}); learned != 1 {
+		t.Fatalf("watching below this run learned %d process(es), want the child",
+			learned)
+	}
+	mine, why := gate.OursToEnd(kid, []gate.Process{kid}, ours)
 	if !mine {
 		t.Errorf("a child of a Studio this run started is not ours to end: %q", why)
 	}
 	// AND AN ORPHAN NOTHING CONNECTS TO THIS RUN IS A FINDING AND NOT A KILL: somebody
 	// can start `marco do` in a shell during a run and close the shell, and this harness
 	// runs on their machine.
-	stranger := gate.Process{PID: 998, Parent: 31336, Name: "marco.exe"}
+	stranger := gate.Process{PID: 998, Parent: 31336, Name: "marco.exe",
+		Since: began.Add(time.Second)}
 	mine, why = gate.OursToEnd(stranger, []gate.Process{stranger}, ours)
 	if mine {
 		t.Errorf("an orphan this run cannot account for was claimed as its to end: %q",
@@ -182,9 +232,14 @@ func TestNothingIsEndedWhenTheEvidenceCannotBeKept(t *testing.T) {
 	// AND A SURVIVOR THIS RUN DOES OWN, so that the only thing stopping the kill is the
 	// failed write. Its pid is one no live process has, and it is never ended because the
 	// evidence cannot be kept — which is what this asserts.
+	self, err := gate.StartedAt(uint32(os.Getpid()))
+	if err != nil {
+		t.Fatalf("this process cannot be identified: %v", err)
+	}
 	mine := gate.Process{PID: 4294967293, Parent: uint32(os.Getpid()), Name: "marco.exe",
-		Path: w.b.marco}
-	now := []gate.Process{mine, {PID: uint32(os.Getpid()), Name: "e2e.test.exe"}}
+		Path: w.b.marco, Since: time.Now()}
+	now := []gate.Process{mine,
+		{PID: uint32(os.Getpid()), Name: "e2e.test.exe", Since: self}}
 	if ok, _ := gate.OursToEnd(mine, now, ours); !ok {
 		t.Fatal("the survivor this is about is not even ours to end, so the test " +
 			"would pass for the wrong reason")
