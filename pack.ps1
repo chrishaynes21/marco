@@ -129,7 +129,16 @@ foreach ($f in $required) {
     $entries += [pscustomobject]@{ file = $f; sha256 = $hash; revision = $rev }
 }
 $manifest = [pscustomobject]@{ version = $ver; packed = (Get-Date -Format "o"); files = $entries }
-$manifest | ConvertTo-Json -Depth 4 | Set-Content -Path (Join-Path $assets "manifest.json") -Encoding utf8
+# WITHOUT A BYTE-ORDER MARK, which is not a detail and was caught by running the bundle.
+#
+# `Set-Content -Encoding utf8` in Windows PowerShell writes a BOM, and Go's `json.Unmarshal`
+# refuses one: `invalid character 'ï' looking for beginning of value`. So the first packed
+# bundle reported "this installation's manifest cannot be read — reinstall Marco" about a
+# manifest that was perfectly correct, on a fresh install, from an isolated directory. No unit
+# test could have seen it; running the artifact saw it immediately.
+$json = $manifest | ConvertTo-Json -Depth 4
+[System.IO.File]::WriteAllText((Join-Path $assets "manifest.json"), $json,
+    (New-Object System.Text.UTF8Encoding $false))
 $required += "manifest.json"
 foreach ($e in $entries) {
     Write-Host ("    {0,-18} {1,-14} {2}" -f $e.file, $e.revision, $e.sha256.Substring(0, 12)) -ForegroundColor DarkGray

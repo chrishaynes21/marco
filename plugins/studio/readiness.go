@@ -33,6 +33,7 @@ package main
 // See [[ADR-254-what-a-recording-captures-is-stated]] for the slice this is part of.
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -351,6 +352,15 @@ func whatThisInstallationIsMadeOf() (string, []Problem) {
 		return "not an installed Marco: these binaries were built in a tree, so there " +
 			"is no manifest of what they are", nil
 	}
+	// AND A BYTE-ORDER MARK IS NOT A BROKEN MANIFEST.
+	//
+	// `json.Unmarshal` refuses one outright, and every Windows tool that writes text is
+	// one keystroke away from adding it — `Set-Content -Encoding utf8` in Windows
+	// PowerShell does, which is how the first packed bundle came to report "reinstall
+	// Marco" about a manifest that was correct. The producer writes none now; this
+	// survives one anyway, because a reader that fails on it tells somebody to reinstall
+	// over an encoding.
+	raw = bytes.TrimPrefix(raw, []byte{0xEF, 0xBB, 0xBF})
 	var m bundleManifest
 	if err := json.Unmarshal(raw, &m); err != nil {
 		return "", []Problem{{

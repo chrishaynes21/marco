@@ -619,11 +619,33 @@ func TestAnInstalledMarcoSaysWhatItIsMadeOf(t *testing.T) {
 	if !strings.Contains(problems[0].Says, "contents have changed") {
 		t.Errorf("the problem says %q", problems[0].Says)
 	}
-	// AND A FILE THE MANIFEST NAMES AND THAT IS NOT THERE IS A DIFFERENT PROBLEM.
+	// AND A MANIFEST NAMING A FILE THAT IS NOT THERE IS A DIFFERENT PROBLEM AGAIN.
 	write([]bundled{{File: "no-such-thing.exe", SHA256: sum, Revision: "abc1234"}})
 	_, problems = whatThisInstallationIsMadeOf()
 	if len(problems) != 1 || !strings.Contains(problems[0].Says, "not on disk") {
 		t.Errorf("a missing file is reported as %+v", problems)
+	}
+	// AND BACK TO A GOOD ONE, so the two cases below are about the ENCODING and the
+	// SHAPE of the manifest rather than about its contents.
+	write([]bundled{{File: self, SHA256: sum, Revision: "abc1234"}})
+	// AND A BYTE-ORDER MARK IS NOT A BROKEN MANIFEST. The first packed bundle had
+	// one — `Set-Content -Encoding utf8` writes it — and reported "reinstall Marco"
+	// about a manifest that was correct. Found by running the artifact from an
+	// isolated directory, which no unit test could have done.
+	raw, err := os.ReadFile(at)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(at, append([]byte{0xEF, 0xBB, 0xBF}, raw...), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	withBOM, problems := whatThisInstallationIsMadeOf()
+	if len(problems) != 0 {
+		t.Errorf("a manifest with a byte-order mark on it is reported as unreadable: "+
+			"%+v", problems)
+	}
+	if !strings.Contains(withBOM, "Marco abc1234-2026") {
+		t.Errorf("a manifest with a byte-order mark read as %q", withBOM)
 	}
 	// AND A MANIFEST THAT CANNOT BE READ SAYS SO RATHER THAN SAYING NOTHING.
 	if err := os.WriteFile(at, []byte("{not json"), 0o644); err != nil {
