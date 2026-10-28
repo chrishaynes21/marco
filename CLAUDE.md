@@ -149,11 +149,21 @@ go run ./cmd/gate                      # its first stage alone, which needs no s
   the other. So `cmd/gate` asks the two questions `go test` does not: a skip is tolerated only
   when **`gate-skips.txt`** declares it by name with a reason (an undeclared skip fails, and so
   does a stale declaration whose test ran and did not skip), and a product binary running after a
-  suite that was not running before it is a finding — described into the run’s directory before
-  anything is ended, and ended only when it is this run’s to end. **Add a declaration when you add
-  a skip, in the same change.** `gate.ps1` runs that, then packs the bundle, installs it from an
-  isolated directory and runs EVERY registered desktop scenario against the installed binaries;
-  `-Only` is a partial run and says so. See
+  suite that was not running before it is a finding. **Add a declaration when you add a skip, in
+  the same change.**
+- **And a survivor is written down before it is touched, and ended only when the run can SHOW it
+  started it.** Both halves were wrong once. The description is committed and the write CHECKED
+  first, because a process killed with nothing left behind to read is the state the eight were
+  found in; a failed write means nothing is ended. And an ORPHAN IS A FINDING, NOT A LICENCE —
+  somebody can start `marco do` in a shell during a run and close the shell, and what is left is
+  indistinguishable from a child of the run, so ownership is positive only and the lineage is
+  sampled while the run is happening.
+- **`gate.ps1` is the whole gate**: the suites, then the bundle packed from this tree, then that
+  bundle installed from an isolated directory, then EVERY registered desktop scenario against the
+  installed binaries. Packing is asked three ways, because `pack.ps1` reports a bad bundle by
+  THROWING and `$LASTEXITCODE` then holds a stale zero: catch, exit code, and the bundle itself
+  must be one this run produced. And `-SuitesOnly`, `-Installed` and `-Only` each end with what
+  the run DID NOT ASK, rather than with the sentence a whole run gets. See
   [[ADR-264-the-gate-answers-for-what-did-not-run]].
 - **A `.ps1` in this tree must be ASCII, or carry a BOM.** Windows PowerShell 5.1 reads a
   BOM-less file as ANSI, so a box-drawing character or an em dash in a script written as plain

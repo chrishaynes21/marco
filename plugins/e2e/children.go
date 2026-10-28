@@ -32,7 +32,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/chaynes-simpleclouds/marco/internal/gate"
@@ -46,28 +45,48 @@ import (
 // number somebody liked.
 const settling = 20 * time.Second
 
-// ours is every process this run has started, kept by pid even after it has exited.
+// ours is what this run can SHOW it started, which is the only thing it may end.
 //
-// Because the chain breaks: a Studio that exits leaves the `marco` it spawned with a parent id
-// that names nothing, and a walk down from this process would lose exactly the child worth
-// finding. A dead pid still carries its children. See gate.Descendants.
-var ours struct {
-	mu   sync.Mutex
-	pids []uint32
-}
+// Kept by pid even after a process has exited, because the chain breaks: a Studio that exits
+// leaves the `marco` it spawned with a parent id that names nothing, and a walk from a live
+// process would lose exactly the child worth finding. A dead pid still carries its children.
+//
+// AND NOTHING IS INFERRED INTO IT. An orphan used to be called this run's on the reasoning that
+// nothing was left which could be waiting for it — but somebody can start `marco do` in a shell
+// during a run and close the shell, and what is left is indistinguishable. See gate.Ownership.
+var ours = gate.Owned(uint32(os.Getpid()))
 
-// weStarted records a process this run started.
-func weStarted(pid uint32) {
-	ours.mu.Lock()
-	defer ours.mu.Unlock()
-	ours.pids = append(ours.pids, pid)
-}
+// weStarted records a process this run started, at the moment it started it.
+func weStarted(pid uint32) { ours.Started(pid) }
 
-// roots is this process and everything it has started, as the tops of trees this run owns.
-func roots() []uint32 {
-	ours.mu.Lock()
-	defer ours.mu.Unlock()
-	return append([]uint32{uint32(os.Getpid())}, ours.pids...)
+// watchWhatWeStart writes down the lineage below this run WHILE IT IS STILL THERE, and answers
+// with the function that stops it.
+//
+// Because afterwards there is nothing to read it from. A scenario's Studio spawns the `marco`
+// that performs a routine and then exits; the `director` below that one has a parent id naming
+// something gone. Sampled while they are alive, each of those links is established, and what this
+// never saw it declines to claim rather than guessing. See gate.Ownership.
+func watchWhatWeStart() func() {
+	done, stopped := make(chan struct{}), make(chan struct{})
+	go func() {
+		defer close(stopped)
+		tick := time.NewTicker(2 * time.Second)
+		defer tick.Stop()
+		for {
+			if snap, err := gate.Snapshot(); err == nil {
+				ours.Note(snap)
+			}
+			select {
+			case <-done:
+				return
+			case <-tick.C:
+			}
+		}
+	}()
+	return func() {
+		close(done)
+		<-stopped
+	}
 }
 
 // watching is the binaries under test, whose survival is a finding.
@@ -114,6 +133,8 @@ func whatSurvived(b *bundle, before []gate.Process) (left, now []gate.Process) {
 			return nil, nil
 		}
 		now = snap
+		// WHILE A STUDIO ON ITS WAY OUT IS STILL ABOVE WHAT IT SPAWNED.
+		ours.Note(snap)
 		left = gate.Survivors(before, snap, w)
 		if len(left) == 0 || time.Now().After(deadline) {
 			return left, now
@@ -151,11 +172,24 @@ func afterTheSweep(w *world, left, now []gate.Process, r result) result {
 		fmt.Fprintf(&said, "\nrun records as they stood: %s\n", kept)
 	}
 	path := w.art.keep("surviving-children.txt", []byte(said.String()))
+	// AND IF IT COULD NOT BE WRITTEN, NOTHING IS TOUCHED.
+	//
+	// The evidence is the only thing that licenses ending a survivor at all: a process
+	// killed with nothing left behind to read is the exact state the eight were found in,
+	// and a run whose artifacts directory has gone would have reproduced it exactly.
+	if path == "" {
+		return result{why: fmt.Sprintf("%d process(es) this scenario started were "+
+			"still running %s after it finished, and nothing was done to any "+
+			"of them because what is known about them could not be written "+
+			"down: %s", len(left), settling,
+			strings.Join(namesAndPids(left), ", ")),
+			evidence: append(r.evidence, r.firstLine()), took: r.took}
+	}
 
 	// ── AND ONLY THEN IS ANYTHING ENDED ──
 	var ended, lefta []string
 	for _, p := range left {
-		mine, why := anyOfOurs(p, now)
+		mine, why := gate.OursToEnd(p, now, ours)
 		if !mine {
 			lefta = append(lefta, fmt.Sprintf("%s (%d): %s", p.Name, p.PID, why))
 			continue
@@ -180,23 +214,6 @@ func afterTheSweep(w *world, left, now []gate.Process, r result) result {
 	// THE SCENARIO'S OWN RESULT IS REPLACED, PASS OR NOT. A run that reports it finished
 	// while the process performing it is still there has not established what it says.
 	return result{why: why, evidence: append(r.evidence, r.firstLine()), took: r.took}
-}
-
-// anyOfOurs reports whether a survivor belongs to one of this run's trees.
-//
-// Every root is tried because the harness starts more than one thing and a scenario's Studio may
-// have exited before its own child did. The last explanation is kept for the report, so a process
-// left alone says whose it looked like.
-func anyOfOurs(p gate.Process, now []gate.Process) (bool, string) {
-	why := ""
-	for _, root := range roots() {
-		mine, said := gate.OursToEnd(p, now, root)
-		if mine {
-			return true, said
-		}
-		why = said
-	}
-	return false, why
 }
 
 // keepTheRunRecords copies this scenario's run records into its artifacts, and says where.

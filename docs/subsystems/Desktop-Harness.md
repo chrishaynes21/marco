@@ -531,13 +531,24 @@ that takes somebody’s screen:
 3. **the bundle installed** from an isolated directory, reporting what it is made of
 4. **every registered scenario** against those installed binaries
 
-Each stage is worth something only if the one before it passed. A harness run against binaries
-whose own suite is failing tells you about the harness, and a bundle validated from the tree it
-was built in cannot tell you whether an installation works.
+Each stage is worth something only if the one before it passed, so each one has to establish
+that the one before it HAPPENED. A harness run against binaries whose own suite is failing tells
+you about the harness, and a bundle validated from the tree it was built in cannot tell you
+whether an installation works.
+
+**And stage 4 is only about this tree if stage 2 produced the bundle.** `pack.ps1` reports a bad
+bundle by `throw`ing, and `$LASTEXITCODE` then holds the zero that the last native command which
+SUCCEEDED left behind — so an exit-code check saw a successful packing, and this harness ran
+against whatever `dist\Marco.exe` was already on disk, which could be from any build at all. The
+installed-bundle result is the whole provenance claim of stages 3 and 4, and it would have been
+about a bundle nobody could name. Packing is now asked three ways: the exception is caught, the
+exit code is checked, and the bundle must be one this run produced.
 
 **`-only` is not the gate.** It runs the scenarios whose names contain a word, which is a partial
 run, and the harness already exits 2 rather than 0 for one — the scenario that did not run is the
-one whose question nobody asked. `gate.ps1` prints the same thing when it is given `-Only`.
+one whose question nobody asked. `gate.ps1` prints the same thing when it is given `-Only`, and
+its verdict now ends with what the run DID NOT ASK: `-SuitesOnly`, `-Installed` and `-Only` used
+to end with the same sentence as a whole run, which made the sentence worth nothing.
 
 ## And nothing a scenario started is still running
 
@@ -549,9 +560,17 @@ A survivor is a watched binary running now that was not running before — by CO
 something the owner already had open is not this run’s doing, and by PATH, because the binary a
 scenario spawns and the one in somebody’s own Marco are both `marco.exe`. Everything about it is
 written into that scenario’s artifacts first, with the scenario’s own run records copied out of
-the store this harness is about to delete. Only then is it ended, and only when it is this run’s
-to end: a child of this run, or an orphan. `marco do` somebody started in their own shell is
-reported and left alone.
+the store this harness is about to delete — and if that cannot be written, NOTHING IS TOUCHED,
+because the evidence is the only thing that licenses ending a survivor at all.
+
+**And it is ended only when this run can SHOW it started it.** An orphan was first treated as
+this run’s on the reasoning that nothing was left which could be waiting for it, which is the
+absence of somebody else’s claim and not ownership: somebody can start `marco do` in a shell
+during a run and close the shell, and what is left is indistinguishable from a child of this run
+that lost its parent. So this run writes down the lineage below it every two seconds WHILE
+SCENARIOS ARE RUNNING — a Studio exits and the `marco` it spawned carries a parent id naming
+nothing, so there is no path left to be found afterwards — and anything it cannot account for is
+reported, kept and LEFT RUNNING.
 
 **A scenario that passed and left a child running becomes a finding**, because a run that reports
 it finished while the process performing it is still there has not established what it says. Its

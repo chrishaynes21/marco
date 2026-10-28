@@ -10935,3 +10935,111 @@ diagnoses it. What changed is that a recurrence is exposed and contained rather 
 **Physical recording capture remains NOT EXERCISED.**
 
 See [[ADR-264-the-gate-answers-for-what-did-not-run]].
+
+## 44. Four gaps in the gate's own failure paths
+
+The gate passed. The second review read its failure paths instead of its result, and found four
+places where the gate would be wrong about something it had never been asked to be right about.
+All four are closed, each with a bounded automated case rather than another walkthrough.
+
+### An orphan is not necessarily yours
+
+`OursToEnd` authorised a kill because the parent had disappeared. That is not ownership. It is the
+absence of somebody else's claim, and the two come apart in a case anybody can produce by
+accident: start `marco do` in a shell while the gate is running, then close the shell. The process
+is orphaned, it is at a watched path, it appeared during the run, and it is **not the gate's to
+kill**. Nothing about it distinguishes it from a child of this run that lost its parent, which is
+exactly why absence cannot be the test.
+
+So ownership is positive only, in a new `internal/gate/ownership.go`: a pid is this run's when
+this run started it, or when it was **seen below something this run started while that chain was
+still intact**. Everything else is reported, preserved and left running.
+
+**Which forced the harder half.** The reason the orphan clause was there at all is that the chain
+breaks: a Studio exits and the `marco` it spawned carries a parent id naming a process nobody can
+ask about any more, with the test binary above it gone too. Afterwards there is no path from the
+gate to the child — that is precisely the shape of the eight — so nothing can be deduced from the
+wreckage. The lineage is therefore **sampled while the run is happening**: `Ownership.Note` is
+given a snapshot every two seconds beside each suite and beside the whole harness run, and
+remembers whatever is then below a pid already known. A process whose entire ancestry both
+appeared and died between two samples cannot be established and is left running with the report
+saying why. That limit is stated rather than papered over.
+
+`Descendants` is gone, replaced by a walk UP from the survivor, which is the direction the
+question is actually asked in.
+
+### Packaging could fail while the gate carried on
+
+`pack.ps1` sets its own `Stop` preference and reports a bad bundle by **throwing** — a missing
+`director.exe`, a Studio built without the Wails tags, a binary carrying no VCS revision.
+`$LASTEXITCODE` then holds whatever the last native command that SUCCEEDED left, which is zero.
+
+I probed the mechanism before changing anything, and it is one step over from the report: a plain
+`throw` does terminate the caller, even under `Continue` — but it terminates it with a raw
+exception and **no stage table and no verdict at all**, so a run that died in packing left nothing
+behind saying where it got to. The hole the report describes is real for the shapes either side of
+it, both reproduced: a `pack.ps1` that is **missing** (`CommandNotFoundException` is
+non-terminating, `$LASTEXITCODE` keeps its stale zero, and the script carries straight on), and a
+`pack.ps1` that swallows a failure of its own with `-ErrorAction SilentlyContinue` and exits 0. In
+both, stage 3 installs and stage 4 gates **whatever `dist\Marco.exe` was already there** — which
+could be from any build at all, while stages 3 and 4 are the entire provenance claim of the alpha.
+
+Packing is now asked three ways, because each catches a different shape of the same failure: the
+exception is caught, the exit code is checked, and — the only one of the three that is actually
+evidence — the bundle on disk must be one **this run** produced. Two arms there too: written
+during the packing, or at least not the file that was there before it began, because `go build -o`
+dates its output now while `Copy-Item` PRESERVES a write time. Writing that check found my first
+version of it rejecting a legitimately new bundle, which is what the control case is for.
+
+And there is now exactly **one place the script can end**, so a failing stage cannot exit past the
+stage table, and it exits with that stage's own code.
+
+### Evidence is persisted before anything is terminated
+
+`lookForSurvivors` accumulated the description in memory, killed the processes, and wrote the file
+afterwards — with the write's error discarded. So the one run that mattered was the one that lost
+everything: a gate whose diagnostics directory could not be written would have killed every
+survivor and left exactly the silence the eight were found in.
+
+The description is now committed and the write **checked** before anything is ended; what was
+ended or left running is appended to the same file afterwards. A failed write means nothing is
+touched at all, and the finding says so. The same rule was wrong the same way in the harness,
+where `artifacts.keep` returns `""` on failure and the sweep went on regardless.
+
+### A partial run no longer gets the full-success sentence
+
+`-SuitesOnly`, `-Installed` and `-Only` all ended with "the suites, the packaged bundle, its
+installation, and every registered scenario" — a claim about a bundle the run never packed and
+scenarios it never selected. Each switch now adds a line to the verdict naming **what the run did
+not ask**, and a narrowed run ends with `PASSED WHAT IT RAN, WHICH WAS NOT THE GATE`. The pass is
+real; what it was a pass OF is the part that was being overstated.
+
+### What holds it
+
+Nine new or rewritten tests, and **15 of 15 mutations killed**:
+
+- `internal/gate` — ownership established while the chain is alive and not after; an unrelated
+  orphan left alone; the same orphan claimed once the run can show it started what started it; a
+  sweep with no ownership ending nothing.
+- `cmd/gate` — nothing ended when the diagnostics cannot be written, asserted against a **real**
+  child that is still running afterwards; an orphan nobody can account for written down as
+  `LEFT RUNNING`; and the wiring, by walking the command.
+- `cmd/gate/script_windows_test.go` — the **real `gate.ps1`**, run against a stand-in tree with a
+  `pack.ps1` written per case: one that throws after a successful native command, one that reports
+  success and produces nothing, a narrowed run, a suites-only run, and a whole run as the control
+  without which "not the gate" could be printed unconditionally forever. No window, no screen,
+  about a second each.
+- `plugins/e2e` — nothing ended when the artifacts cannot be kept; `main` starts the lineage
+  watcher exactly once.
+
+A sixteenth was removed rather than killed: seeding the walk with the survivor's own parent id
+is unfalsifiable, because a survivor always comes out of the snapshot it is compared against. It
+is now a stated contract instead of an untestable line.
+
+**What is unchanged.** The eight orphans' cause remains unresolved, and this makes containment
+narrower rather than wider: a recurrence whose ancestry this run cannot establish is now reported
+and **left running** instead of killed. That is the safe direction, and it is a change in what the
+gate does, not only in what it says. Physical recording capture remains NOT EXERCISED, and
+reliable Stop delivery during the sharing conflict remains unestablished.
+
+See [[ADR-264-the-gate-answers-for-what-did-not-run]] and [[Desktop-Harness]].

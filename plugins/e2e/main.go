@@ -177,6 +177,15 @@ func main() {
 	checks = append(checks, children)
 	fmt.Printf("%s\n", children)
 
+	// AND WHO STARTED WHAT, WRITTEN DOWN WHILE IT IS STILL THERE TO SEE.
+	//
+	// A survivor may only be ended when this run can show it started it, and after a
+	// scenario there is often no path left from here to the child: the Studio that
+	// spawned it has exited and the id it carries names nothing. So the lineage is
+	// sampled throughout rather than reconstructed at the end. See watchWhatWeStart.
+	stopWatching := watchWhatWeStart()
+	defer stopWatching()
+
 	var results []result
 	// ONE WORLD, AND A NUMBER PER SCENARIO.
 	//

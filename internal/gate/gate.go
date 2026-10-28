@@ -26,9 +26,10 @@
 // test's temporary directory, so the run record it reserved went away with the test that made it.
 //
 // A survivor is therefore established by COMPARISON — running now, not running before — and
-// whether it may be ended is a separate question from whether it is a finding. See OursToEnd:
-// something the tests started is theirs to end, and something somebody else started is not, even
-// when it is the same program. Nothing here guesses which.
+// whether it may be ended is a separate question from whether it is a finding. See OursToEnd and
+// Ownership: something this run can show it started is its to end, and something else is not,
+// even when it is the same program and even when nothing is left that could be waiting for it.
+// Nothing here guesses which.
 //
 // See [[ADR-264-the-gate-answers-for-what-did-not-run]].
 package gate
@@ -133,47 +134,9 @@ func Survivors(before, now []Process, w Watching) []Process {
 	return out
 }
 
-// Descendants is every process below a root, including the root.
-//
-// Needed because the chain can be broken: a test binary exits and the `marco` it spawned keeps
-// running with a parent id that now names nothing. So the walk is repeated until it stops
-// growing, and a dead ancestor's id still carries its children — which is exactly the case this
-// is for.
-func Descendants(now []Process, root uint32) map[uint32]bool {
-	in := map[uint32]bool{root: true}
-	for grew := true; grew; {
-		grew = false
-		for _, p := range now {
-			if !in[p.PID] && in[p.Parent] {
-				in[p.PID] = true
-				grew = true
-			}
-		}
-	}
-	return in
-}
-
-// OursToEnd reports whether a survivor is this run's to end, and why.
-//
-// TWO QUESTIONS, NOT ONE. That a process is a finding does not make it a thing this gate may
-// kill: `marco do` somebody started in their own shell while the suite was running is a survivor
-// by every test above and is not ours. So it is ours when it is below this process — the gate, its
-// `go test`, the test binary, the child — or when it is an ORPHAN, whose parent is gone. Anything
-// else is reported and left alone, with the sentence saying which it was.
-func OursToEnd(p Process, now []Process, self uint32) (bool, string) {
-	if Descendants(now, self)[p.PID] {
-		return true, "started by this run"
-	}
-	for _, other := range now {
-		if other.PID == p.Parent {
-			return false, fmt.Sprintf("its parent %s (%d) is still running, so this "+
-				"is somebody else's process and nothing has been done to it",
-				other.Name, other.PID)
-		}
-	}
-	return true, fmt.Sprintf("orphaned — the process that started it (%d) is gone",
-		p.Parent)
-}
+// Whether a survivor may be ENDED is a second question, and it is asked in ownership.go: a
+// process is this run's only when this run can show it started it. An orphan is not evidence of
+// anything, and used to be treated as though it were.
 
 // Describe is one survivor, in the detail a person needs before it is ended.
 //

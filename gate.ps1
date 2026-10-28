@@ -12,6 +12,12 @@
 # built in cannot tell you whether an installation works; and the desktop half must be the LAST
 # thing, because it is the only part that takes somebody's screen.
 #
+# -- AND A RUN THAT WAS NARROWED IS NOT THE GATE -------------------------------
+#
+# -SuitesOnly, -Installed and -Only each leave a question nobody asked, so each one adds a line
+# to $narrowed and the verdict reports what the pass is a pass OF. A partial run used to end with
+# the same sentence as a whole one, which made the sentence worth nothing.
+#
 # -- WHAT RUNNING THIS DOES TO YOUR MACHINE ------------------------------------
 #
 # Stage 1 opens nothing. Stage 3 installs into a temporary directory with LOCALAPPDATA and APPDATA
@@ -19,8 +25,9 @@
 # opens two windows of its own and lets Marco perform REAL INPUT into its own fixture window on
 # your actual screen -- so do not type during it.
 #
-# It ends processes only when they are its own: a child of this run, or an orphan whose parent is
-# gone. Something you started yourself is reported and left alone.
+# It ends processes only when it can SHOW it started them. Something you started yourself is
+# reported, kept and LEFT RUNNING -- including when you have closed the shell it came from, which
+# used to be read as permission.
 #
 #   .\gate.ps1                 all four stages
 #   .\gate.ps1 -SuitesOnly     stage 1, which needs no screen
@@ -40,9 +47,47 @@ $ErrorActionPreference = "Continue"
 $root = $PSScriptRoot
 $started = Get-Date
 $stages = @()
+$narrowed = @()
 
 function Stage($name, $code, $says) {
     $script:stages += [pscustomobject]@{ Stage = $name; Code = $code; Says = $says }
+}
+
+# Narrowed records a question THIS RUN DID NOT ASK, so that the verdict can say so.
+function Narrowed($says) { $script:narrowed += $says }
+
+# Verdict is the one place this script ends, so that no exit can skip the stage table.
+#
+# A failing stage used to exit from where it stood, printing one red line and no table -- so a run
+# that died in packing left nothing behind saying which stage had been reached. And a pass now
+# says what it is a pass OF: with any of the narrowing switches, the full sentence would be a
+# claim about scenarios, a bundle or an installation this run never touched.
+function Verdict {
+    Write-Host ""
+    Write-Host ("-" * 78)
+    $script:stages | ForEach-Object {
+        $mark = if ($_.Code -eq 0) { "passed " } else { "FAILED " }
+        Write-Host ("  {0} {1,-9} {2}" -f $mark, $_.Stage, $_.Says)
+    }
+    Write-Host ""
+    Write-Host ("took {0}" -f ((Get-Date) - $script:started).ToString("hh\:mm\:ss"))
+    $worst = ($script:stages | Where-Object { $_.Code -ne 0 } | Select-Object -First 1)
+    if ($null -ne $worst) {
+        Write-Host ("gate: FAILED at {0}: {1}. Nothing after it was run." -f $worst.Stage, $worst.Says) -ForegroundColor Red
+        # WITH THE FAILING STAGE'S OWN CODE: 1 is a suite or a scenario that failed,
+        # 2 is a bundle that could not be packed or installed.
+        exit $worst.Code
+    }
+    if ($script:narrowed.Count -gt 0) {
+        Write-Host "gate: PASSED WHAT IT RAN, WHICH WAS NOT THE GATE." -ForegroundColor Yellow
+        $script:narrowed | ForEach-Object {
+            Write-Host ("  not asked: {0}" -f $_) -ForegroundColor Yellow
+        }
+        exit 0
+    }
+    Write-Host "gate: passed -- the suites, the packaged bundle, its installation, and every registered scenario." -ForegroundColor Green
+    Write-Host "physical recording capture: NOT EXERCISED. A person demonstrating in Studio is still the only evidence of that."
+    exit 0
 }
 
 Write-Host ""
@@ -54,20 +99,19 @@ if (-not $SuitesOnly) {
 Write-Host ""
 
 # -- 1. THE SUITES -------------------------------------------------------------
+#
+# TOLD WHICH TREE IT IS FOR, rather than left to read whichever directory it was started from:
+# `.\gate.ps1` from the root and `D:\Macros\marco\gate.ps1` from anywhere else would otherwise be
+# two different runs, and the second would gate a tree nobody named.
 Write-Host "== 1/4  the suites, and what declined or outlived them" -ForegroundColor Cyan
-& go run ./cmd/gate
+& go -C $root run ./cmd/gate -root $root
 $suites = $LASTEXITCODE
 Stage "suites" $suites "cmd\gate"
-if ($suites -ne 0) {
-    Write-Host ""
-    Write-Host "gate: the suites did not pass, so nothing after them was run." -ForegroundColor Red
-    exit 1
-}
+if ($suites -ne 0) { Verdict }
 
 if ($SuitesOnly) {
-    Write-Host ""
-    Write-Host "gate: the suites passed. The desktop half was not run (-SuitesOnly)." -ForegroundColor Yellow
-    exit 0
+    Narrowed "the bundle, its installation and every desktop scenario (-SuitesOnly)"
+    Verdict
 }
 
 # -- 2. THE BUNDLE -------------------------------------------------------------
@@ -75,11 +119,66 @@ $bin = $Installed
 if ($bin -eq "") {
     Write-Host ""
     Write-Host "== 2/4  packing the bundle" -ForegroundColor Cyan
-    & (Join-Path $root "pack.ps1")
-    if ($LASTEXITCODE -ne 0) {
-        Stage "pack" $LASTEXITCODE "pack.ps1"
-        Write-Host "gate: the bundle could not be packed." -ForegroundColor Red
-        exit 2
+    $bundle = Join-Path $root "dist\Marco.exe"
+    # WHAT IS THERE BEFORE, so that what is there after can be compared with it.
+    $was = $null
+    if (Test-Path $bundle) {
+        $f = Get-Item $bundle
+        $was = [pscustomobject]@{ When = $f.LastWriteTimeUtc; Size = $f.Length }
+    }
+    $packing = (Get-Date).ToUniversalTime()
+    $why = ""
+
+    # -- THE PACKER FAILS BY THROWING, AND A THROW IS NOT AN EXIT CODE ---------
+    #
+    # pack.ps1 validates what it staged and reports a bad bundle with `throw`: a missing
+    # director.exe, a Studio built without the Wails tags, a binary carrying no VCS revision.
+    # $LASTEXITCODE is then whatever the last successful native command left behind, which is
+    # zero -- and an exit code checked on its own would have let this script install and gate
+    # whatever dist\Marco.exe WAS ALREADY THERE.
+    #
+    # Asked three ways, because each catches a different shape of the same failure: the
+    # exception, the exit code, and -- the only one of the three that is actually evidence --
+    # whether the bundle on disk is the one this run made. A pack.ps1 that is missing, or that
+    # swallows a failure of its own with -ErrorAction, produces neither an exception that
+    # reaches here nor an exit code of its own, and passes the first two.
+    try {
+        $ErrorActionPreference = "Stop"
+        & (Join-Path $root "pack.ps1")
+        if ($LASTEXITCODE -ne 0) { $why = "pack.ps1 exited $LASTEXITCODE" }
+    } catch {
+        $why = "pack.ps1 failed: " + $_.Exception.Message
+    } finally {
+        $ErrorActionPreference = "Continue"
+    }
+    if ($why -eq "" -and -not (Test-Path $bundle)) {
+        $why = "pack.ps1 reported no failure and there is no dist\Marco.exe"
+    }
+    if ($why -eq "") {
+        # WRITTEN DURING THIS RUN, OR AT LEAST NOT THE FILE THAT WAS THERE BEFORE IT.
+        #
+        # Two arms, because neither covers the other. `go build -o` writes the output and so
+        # dates it now, which is the ordinary case and is what the first arm establishes; but
+        # Copy-Item PRESERVES a write time, so a packer that assembles the bundle from
+        # something built a moment earlier would be called stale by the first arm alone. What
+        # a packer that did nothing cannot produce is a CHANGE, which is the second.
+        $made = Get-Item $bundle
+        $fresh = ($made.LastWriteTimeUtc -ge $packing)
+        $changed = ($null -eq $was) -or ($made.LastWriteTimeUtc -ne $was.When) -or
+            ($made.Length -ne $was.Size)
+        if (-not $fresh -and -not $changed) {
+            $why = ("dist\Marco.exe is unchanged from the file that was there before this " +
+                "run began -- last written {0:yyyy-MM-dd HH:mm:ss}Z, the same {1} bytes " +
+                "-- so pack.ps1 reported success and produced nothing, and this is not " +
+                "the bundle this run packed") -f $made.LastWriteTimeUtc, $made.Length
+        }
+    }
+    if ($why -ne "") {
+        Stage "pack" 2 $why
+        Write-Host ""
+        Write-Host "gate: the bundle could not be packed, so nothing was installed or run against it." -ForegroundColor Red
+        Write-Host "  $why" -ForegroundColor Red
+        Verdict
     }
     Stage "pack" 0 "dist\Marco.exe"
 
@@ -93,7 +192,7 @@ if ($bin -eq "") {
     Write-Host "== 3/4  installing it from an isolated directory" -ForegroundColor Cyan
     $iso = Join-Path $env:TEMP ("marco-gate-" + (Get-Date -Format "yyyyMMdd-HHmmss"))
     New-Item -ItemType Directory -Force -Path $iso | Out-Null
-    Copy-Item (Join-Path $root "dist\Marco.exe") (Join-Path $iso "Marco.exe")
+    Copy-Item $bundle (Join-Path $iso "Marco.exe")
     $local = Join-Path $iso "Local"
     $roaming = Join-Path $iso "Roaming"
     $store = Join-Path $iso "store"
@@ -116,10 +215,10 @@ exit `$LASTEXITCODE
     $said | Select-String -Pattern "Marco |build |made of|PROBLEM" | ForEach-Object { Write-Host "  $_" }
     $problems = @($said | Select-String -Pattern "PROBLEM").Count
     if ($code -ne 0 -or $problems -gt 0) {
-        Stage "install" 1 "$problems problem(s) reported by the installed bundle"
+        Stage "install" 2 "$problems problem(s) reported by the installed bundle (exit $code)"
         Write-Host ""
         Write-Host "gate: the packaged bundle did not install cleanly, so the desktop half was not run." -ForegroundColor Red
-        exit 2
+        Verdict
     }
     Stage "install" 0 $iso
     $bin = Join-Path $local "Marco\bin"
@@ -128,6 +227,7 @@ exit `$LASTEXITCODE
     Write-Host "== 2-3/4  skipped: testing the installation at $bin" -ForegroundColor Yellow
     Stage "pack" 0 "skipped (-Installed)"
     Stage "install" 0 $bin
+    Narrowed "whether this tree packs a bundle that installs cleanly from nowhere (-Installed), so stages 2 and 3 did not run"
 }
 
 # -- 4. THE COMPLETE DESKTOP HARNESS, AGAINST THOSE BINARIES -------------------
@@ -140,26 +240,11 @@ $harnessArgs = @("-installed", $bin)
 if ($Only -ne "") {
     Write-Host "  NOT THE GATE: -Only $Only runs some of the scenarios, which is a partial run." -ForegroundColor Yellow
     $harnessArgs += @("-only", $Only)
+    Narrowed "every scenario whose name does not match '$Only' (-Only), none of which ran"
 }
 if ($Keep) { $harnessArgs += "-keep" }
 & (Join-Path $root "plugins\e2e\run.cmd") @harnessArgs
 $harness = $LASTEXITCODE
 Stage "harness" $harness "plugins\e2e"
 
-# -- THE VERDICT ---------------------------------------------------------------
-Write-Host ""
-Write-Host ("-" * 78)
-$stages | ForEach-Object {
-    $mark = if ($_.Code -eq 0) { "passed " } else { "FAILED " }
-    Write-Host ("  {0} {1,-9} {2}" -f $mark, $_.Stage, $_.Says)
-}
-$worst = ($stages | Where-Object { $_.Code -ne 0 } | Select-Object -First 1)
-Write-Host ""
-Write-Host ("took {0}" -f ((Get-Date) - $started).ToString("hh\:mm\:ss"))
-if ($null -eq $worst) {
-    Write-Host "gate: passed -- the suites, the packaged bundle, its installation, and every registered scenario." -ForegroundColor Green
-    Write-Host "physical recording capture: NOT EXERCISED. A person demonstrating in Studio is still the only evidence of that."
-    exit 0
-}
-Write-Host ("gate: FAILED at {0} ({1}). Nothing after it was run." -f $worst.Stage, $worst.Code) -ForegroundColor Red
-exit 1
+Verdict

@@ -141,7 +141,12 @@ type run struct {
 	dir     string // where diagnostics go
 	ledger  []gate.Declared
 	started time.Time
-	self    uint32
+
+	// own is what this run can SHOW it started, which is the only thing it may end.
+	//
+	// Grown while each suite runs rather than worked out afterwards, because by then
+	// there is nothing left to work it out from. See watchWhatItStarts.
+	own *gate.Ownership
 
 	skipped  []gate.Skipped
 	covered  map[string]bool
@@ -175,7 +180,7 @@ func newRun(root, skips, out string) (*run, error) {
 		return nil, err
 	}
 	return &run{root: root, dir: out, ledger: ledger, started: time.Now(),
-		self: uint32(os.Getpid()), covered: map[string]bool{}}, nil
+		own: gate.Owned(uint32(os.Getpid())), covered: map[string]bool{}}, nil
 }
 
 func (r *run) run(only string) int {
@@ -255,8 +260,13 @@ func (r *run) suite(m module) {
 		r.failures = append(r.failures, fmt.Sprintf("%s: %v", m.dir, err))
 		return
 	}
+	// THE SUITE ITSELF IS THE FIRST THING THIS RUN KNOWS IT STARTED, and everything the
+	// tests spawn is established from it while they are running. See watchWhatItStarts.
+	r.own.Started(uint32(cmd.Process.Pid))
+	settled := r.watchWhatItStarts()
 	failed, skipped := r.readTestStream(stdout)
 	waitErr := cmd.Wait()
+	settled()
 
 	// A NON-ZERO EXIT WITH NOTHING NAMED IS STILL A FAILURE. A module that does not
 	// compile reports a package failure and no test failure at all, and a gate that
@@ -276,6 +286,49 @@ func (r *run) suite(m module) {
 	fmt.Printf("%s\n", words)
 
 	r.lookForSurvivors(m.dir, before, gate.Watch(watched(r.root)...), settling)
+}
+
+// ownershipEvery is how often the lineage below this run is written down while a suite runs.
+//
+// Two seconds, against a suite that takes minutes: enough that a Studio which starts a `marco`
+// and then exits is sampled with both of them alive, which is the link that would otherwise be
+// lost. A snapshot is a few milliseconds of Toolhelp32, so this is not a cost worth tuning.
+const ownershipEvery = 2 * time.Second
+
+// watchWhatItStarts records everything below this run WHILE IT IS STILL THERE, and answers with
+// the function that stops it and waits for it.
+//
+// # Why this cannot be done afterwards
+//
+// Because by then the chain is gone. A test binary exits and the `marco` its Studio spawned keeps
+// running with a parent id naming a process that no longer exists, and the one above that is gone
+// too: there is no path from the gate to the child to be found. The eight `marco do` processes
+// that outlived their tests were exactly this, and the old sweep reached them only by calling any
+// orphan its own — which would equally have killed something the owner started themselves.
+//
+// So the ancestry is sampled while the suite runs and what is below a known pid is remembered.
+// What this cannot establish, it says it cannot: see gate.Ownership.
+func (r *run) watchWhatItStarts() func() {
+	done, stopped := make(chan struct{}), make(chan struct{})
+	go func() {
+		defer close(stopped)
+		tick := time.NewTicker(ownershipEvery)
+		defer tick.Stop()
+		for {
+			if snap, err := gate.Snapshot(); err == nil {
+				r.own.Note(snap)
+			}
+			select {
+			case <-done:
+				return
+			case <-tick.C:
+			}
+		}
+	}()
+	return func() {
+		close(done)
+		<-stopped
+	}
 }
 
 // readTestStream reads `go test -json` and records what failed and what declined.
@@ -363,6 +416,9 @@ func (r *run) lookForSurvivors(where string, before []gate.Process, w gate.Watch
 			return
 		}
 		now = snap
+		// WHILE A CHAIN IS STILL THERE TO BE SEEN. A Studio that is on its way out
+		// is still above the `marco` it spawned until it goes.
+		r.own.Note(snap)
 		left = gate.Survivors(before, snap, w)
 		if len(left) == 0 || time.Now().After(deadline) {
 			break
@@ -372,29 +428,100 @@ func (r *run) lookForSurvivors(where string, before []gate.Process, w gate.Watch
 	if len(left) == 0 {
 		return
 	}
+	r.endWhatItMay(where, left, now, w, bound)
+}
 
+// endWhatItMay writes down every survivor, ends the ones this run can show are its, and says
+// which it did to each.
+//
+// Split from the waiting so that it can be exercised: the two cases that matter are a survivor
+// this run cannot account for, which must come out of here still running, and a report that could
+// not be written, which must leave every one of them alone. Neither needs a real process, and the
+// one that does have one is above.
+func (r *run) endWhatItMay(where string, left, now []gate.Process, w gate.Watching,
+	bound time.Duration) {
+
+	// ── EVERYTHING ABOUT EVERY SURVIVOR, ON DISK, BEFORE ANYTHING IS ENDED ──
+	//
+	// ON DISK — not accumulated in a string that is written out at the end. The report
+	// used to be assembled as the processes were killed and saved afterwards, with the
+	// save's error discarded, so the one case that mattered was the one that lost
+	// everything: a run whose diagnostics directory could not be written killed all of it
+	// and left exactly the silence the eight were found in. So the description is
+	// committed and CHECKED first, and a failure to write it means nothing is touched.
 	var report strings.Builder
 	fmt.Fprintf(&report, "%d process(es) started during %s were still running %s "+
 		"after it finished.\n\nWatched: %s\n\n", len(left), where, bound,
 		strings.Join(w.Names(), ", "))
+	type verdict struct {
+		p    gate.Process
+		mine bool
+		why  string
+	}
+	var vs []verdict
 	for _, p := range left {
-		mine, why := gate.OursToEnd(p, now, r.self)
+		mine, why := gate.OursToEnd(p, now, r.own)
+		vs = append(vs, verdict{p: p, mine: mine, why: why})
 		fmt.Fprintf(&report, "%s\n    %s\n", gate.Describe(p, r.started), why)
-		if !mine {
-			continue
-		}
-		if err := gate.End(p.PID); err != nil {
-			fmt.Fprintf(&report, "    could not be ended: %v\n", err)
-			continue
-		}
-		fmt.Fprintf(&report, "    ended, after everything above was written down\n")
 	}
 	name := "survivors-" + slug(where) + ".txt"
 	path := filepath.Join(r.dir, name)
-	_ = os.WriteFile(path, []byte(report.String()), 0o644)
+	if err := os.WriteFile(path, []byte(report.String()), 0o644); err != nil {
+		fmt.Printf("%-22s %d SURVIVING CHILD(REN), NONE ENDED — %v\n", "", len(left), err)
+		r.findings = append(r.findings, fmt.Sprintf("%s left %d process(es) running "+
+			"and nothing was done to any of them, because what is known about "+
+			"them could not be written to %s: %v\n    %s", where, len(left),
+			path, err, strings.Join(namesAndPids(left), ", ")))
+		return
+	}
+
+	// ── AND ONLY NOW IS ANYTHING ENDED ──
+	var ended, stayed []string
+	for _, v := range vs {
+		if !v.mine {
+			stayed = append(stayed, fmt.Sprintf("%s (%d): %s", v.p.Name, v.p.PID, v.why))
+			continue
+		}
+		if err := gate.End(v.p.PID); err != nil {
+			stayed = append(stayed, fmt.Sprintf("%s (%d) could not be ended: %v",
+				v.p.Name, v.p.PID, err))
+			continue
+		}
+		ended = append(ended, fmt.Sprintf("%s (%d)", v.p.Name, v.p.PID))
+	}
+	var after strings.Builder
+	fmt.Fprintf(&after, "\nAfter everything above was written down:\n")
+	for _, line := range ended {
+		fmt.Fprintf(&after, "    ended          %s\n", line)
+	}
+	for _, line := range stayed {
+		fmt.Fprintf(&after, "    LEFT RUNNING   %s\n", line)
+	}
+	if f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0o644); err == nil {
+		_, _ = f.WriteString(after.String())
+		_ = f.Close()
+	}
+
 	fmt.Printf("%-22s %d SURVIVING CHILD(REN) — %s\n", "", len(left), path)
-	r.findings = append(r.findings, fmt.Sprintf("%s left %d process(es) running; "+
-		"described in %s", where, len(left), name))
+	said := fmt.Sprintf("%s left %d process(es) running; described in %s", where,
+		len(left), name)
+	if len(ended) > 0 {
+		said += fmt.Sprintf("; ended after that was written down: %s",
+			strings.Join(ended, ", "))
+	}
+	if len(stayed) > 0 {
+		said += fmt.Sprintf("; LEFT RUNNING: %s", strings.Join(stayed, "; "))
+	}
+	r.findings = append(r.findings, said)
+}
+
+// namesAndPids is the survivors in one line, for a report that could not keep the long one.
+func namesAndPids(ps []gate.Process) []string {
+	var out []string
+	for _, p := range ps {
+		out = append(out, fmt.Sprintf("%s (%d)", p.Name, p.PID))
+	}
+	return out
 }
 
 // readTheLedger compares what declined with what was declared.

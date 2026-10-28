@@ -172,8 +172,8 @@ func TestASurvivingChildIsFoundDescribedAndEnded(t *testing.T) {
 	}
 	defer func() { _ = child.Process.Kill() }()
 
-	r := &run{dir: t.TempDir(), started: time.Now(), self: uint32(os.Getpid()),
-		covered: map[string]bool{}}
+	r := &run{dir: t.TempDir(), started: time.Now(),
+		own: gate.Owned(uint32(os.Getpid())), covered: map[string]bool{}}
 	// A SHORT BOUND, because the settling period is about a child on its way out and this
 	// one is not going anywhere. The production call passes `settling`.
 	r.lookForSurvivors("a test", before, gate.Watch(shell), 2*time.Second)
@@ -190,7 +190,7 @@ func TestASurvivingChildIsFoundDescribedAndEnded(t *testing.T) {
 		t.Fatalf("nothing was written down about the survivor: %v", err)
 	}
 	for _, says := range []string{fmt.Sprintf("pid %d", child.Process.Pid),
-		"powershell.exe", "started by this run", "ended, after everything above"} {
+		"powershell.exe", "this run", "ended"} {
 		if !strings.Contains(string(said), says) {
 			t.Errorf("the description does not say %q:\n%s", says, said)
 		}
@@ -203,6 +203,102 @@ func TestASurvivingChildIsFoundDescribedAndEnded(t *testing.T) {
 	case <-done:
 	case <-time.After(10 * time.Second):
 		t.Error("the survivor is still running after the sweep reported ending it")
+	}
+}
+
+// AND NOTHING IS ENDED UNTIL WHAT IS KNOWN ABOUT IT IS ON DISK.
+//
+// The description used to be assembled as the processes were killed and saved afterwards, with
+// the save's error discarded — so the one run that mattered was the one that lost everything: a
+// gate whose diagnostics directory could not be written killed every survivor and left exactly
+// the silence the eight were found in. The same harmless child as above, with somewhere
+// unwritable to put the report.
+func TestNothingIsEndedUntilTheEvidenceIsOnDisk(t *testing.T) {
+	shell, err := exec.LookPath("powershell.exe")
+	if err != nil {
+		t.Skipf("no powershell to start a harmless child with: %v", err)
+	}
+	before, err := gate.Snapshot()
+	if err != nil {
+		t.Fatalf("what is running could not be read: %v", err)
+	}
+
+	child := exec.Command(shell, "-NoProfile", "-Command", "Start-Sleep 30")
+	if err := child.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = child.Process.Kill() }()
+
+	// A DIAGNOSTICS DIRECTORY THAT IS A FILE, which is the cheapest unwritable one there
+	// is and needs no permissions a test cannot arrange.
+	blocked := filepath.Join(t.TempDir(), "in-the-way")
+	if err := os.WriteFile(blocked, []byte("not a directory"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	r := &run{dir: blocked, started: time.Now(),
+		own: gate.Owned(uint32(os.Getpid())), covered: map[string]bool{}}
+	r.lookForSurvivors("a test", before, gate.Watch(shell), 2*time.Second)
+
+	if len(r.findings) != 1 {
+		t.Fatalf("findings are %+v, want the surviving child", r.findings)
+	}
+	for _, says := range []string{"nothing was done to any of them",
+		"could not be written", fmt.Sprintf("(%d)", child.Process.Pid)} {
+		if !strings.Contains(r.findings[0], says) {
+			t.Errorf("the finding does not say %q: %s", says, r.findings[0])
+		}
+	}
+	// AND THE CHILD IS STILL THERE, which is the whole assertion: a kill with nothing
+	// written down is the state this gate exists to have noticed.
+	done := make(chan error, 1)
+	go func() { done <- child.Wait() }()
+	select {
+	case err := <-done:
+		t.Errorf("the survivor was ended although nothing could be written down "+
+			"about it: %v", err)
+	case <-time.After(3 * time.Second):
+	}
+}
+
+// AND A SURVIVOR THIS RUN CANNOT ACCOUNT FOR IS REPORTED AND LEFT RUNNING.
+//
+// `marco do` somebody starts in a shell during the gate and then closes the shell over: orphaned,
+// at a watched path, appeared during the run, and not the gate's to kill. It used to be ended for
+// having no parent, which is the absence of somebody else's claim and not ownership. Nothing real
+// is started here, because what is under test is the refusal.
+func TestAnOrphanThatIsNobodysChildIsNotEnded(t *testing.T) {
+	dir := t.TempDir()
+	marco := filepath.Join(dir, "marco.exe")
+	if err := os.WriteFile(marco, []byte("not really a binary"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	r := &run{dir: dir, started: time.Now(),
+		own: gate.Owned(uint32(os.Getpid())), covered: map[string]bool{}}
+
+	// A pid no process has, so that a sweep which did try to end it would be visibly
+	// wrong rather than quietly lethal.
+	stranger := gate.Process{PID: 4294967291, Parent: 4294967290, Name: "marco.exe",
+		Path: marco}
+	r.endWhatItMay("a test", []gate.Process{stranger}, []gate.Process{stranger},
+		gate.Watch(marco), time.Second)
+
+	if len(r.findings) != 1 {
+		t.Fatalf("findings are %+v, want the one nobody can account for", r.findings)
+	}
+	for _, says := range []string{"LEFT RUNNING", "ORPHANED", "4294967291"} {
+		if !strings.Contains(r.findings[0], says) {
+			t.Errorf("the finding does not say %q: %s", says, r.findings[0])
+		}
+	}
+	if strings.Contains(r.findings[0], "ended after") {
+		t.Errorf("a process this run cannot account for was ended: %s", r.findings[0])
+	}
+	said, err := os.ReadFile(filepath.Join(r.dir, "survivors-a-test.txt"))
+	if err != nil {
+		t.Fatalf("nothing was written down about it: %v", err)
+	}
+	if !strings.Contains(string(said), "LEFT RUNNING   marco.exe (4294967291)") {
+		t.Errorf("the record does not say it was left alone:\n%s", said)
 	}
 }
 
@@ -243,6 +339,13 @@ func TestTheGateCallsWhatItIsFor(t *testing.T) {
 		{"run", "suite", "no module would be run at all"},
 		{"run", "buildTheEngine", "the suites that spawn marco would decline against " +
 			"a stale one, which is how this was missed"},
+		{"suite", "Started", "the suite this run spawned would not be among what it " +
+			"can show it started, so every survivor below it would be left running"},
+		{"suite", "watchWhatItStarts", "the lineage would be read after the chains " +
+			"had broken, which is to say never"},
+		{"lookForSurvivors", "endWhatItMay", "nothing would be contained at all"},
+		{"endWhatItMay", "WriteFile", "a survivor could be ended with nothing " +
+			"written down about it, which is the state the eight were found in"},
 	} {
 		if !calls[want.fn][want.call] {
 			t.Errorf("%s does not call %s, so %s", want.fn, want.call, want.why)
