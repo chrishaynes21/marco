@@ -178,10 +178,177 @@ func TestEveryOfferedLabelIsDistinguishable(t *testing.T) {
 		t.Errorf("the anywhere-in-application settings is offered as %q, want the "+
 			"scoped form that was free", anywhere)
 	}
-	if label("global/settings") != "settings" {
-		t.Errorf("the global settings did not keep the plain name it had first claim "+
-			"on: %q", label("global/settings"))
+	// AND THE BARE NAME BELONGS TO NOBODY, because three routines answer to it. A label
+	// is unique either way; what this is about is that `settings` is then an exact match
+	// for none of them, so nothing can answer it offline by picking one.
+	if got := label("global/settings"); got != "settings-anywhere" {
+		t.Errorf("the global settings is offered as %q, want it qualified like its "+
+			"namesakes", got)
 	}
+	for _, l := range labels {
+		if nlu.Key(l) == nlu.Key("settings") {
+			t.Errorf("label %q still answers to the bare shared name, so a request "+
+				"for it is an exact match for one of three routines", l)
+		}
+	}
+}
+
+// AND A DERIVED LABEL THAT THE MATCHER CANNOT TELL FROM A REAL SLUG IS ESCALATED.
+//
+// The collision the key check exists for, and the one no other case here reaches: two labels that
+// differ as STRINGS and are ONE candidate to the matcher. `settings-in-ark` and a routine
+// genuinely slugged `settings-ark` both reduce to "settings ark" — a hyphen is a space to it and
+// "in" is a stop word — so a uniqueness check on the string would offer both and an answer naming
+// either would name both.
+func TestADerivedLabelTheMatcherCannotTellApartIsEscalated(t *testing.T) {
+	all := []Routine{
+		// Its own name, and the only one asking for it.
+		saidRoutine("settings-ark", "", false),
+		// Its slug is shared, so it must derive a label — and what it would derive
+		// reduces to the same thing as the slug above.
+		saidRoutine("settings", "ark", false),
+		// ...which is what makes `settings` a shared name.
+		saidRoutine("settings", "", false),
+	}
+	labels, byLabel := labelled(eligible(all, "ark"))
+	if len(labels) != len(all) {
+		t.Fatalf("%d of %d routines were offered: %v", len(labels), len(all), labels)
+	}
+	seen := map[string]string{}
+	for _, l := range labels {
+		key := nlu.Key(l)
+		if first, dup := seen[key]; dup {
+			t.Errorf("labels %q and %q both reduce to %q, so an answer naming "+
+				"either names both", first, l, key)
+		}
+		seen[key] = l
+	}
+	if byLabel["settings-ark"].ID != "global/settings-ark" {
+		t.Errorf("the routine actually named settings-ark is offered as %+v",
+			byLabel["settings-ark"])
+	}
+	for _, l := range labels {
+		if l == "settings-in-ark" {
+			t.Errorf("a label was derived that the matcher cannot tell from the " +
+				"real slug settings-ark")
+		}
+	}
+}
+
+// AND NEITHER NAMESAKE IS SILENTLY PRESELECTED, WHICHEVER ORDER THE LISTING IS IN.
+//
+// Unique labels stop two routines being confused for one. They do NOT answer the person{Q}s
+// ambiguity, and the first version mistook the one for the other: the first eligible `settings`
+// kept the bare name, so a request for "settings" was an EXACT match on that label """ + DASH + """ answered
+// offline, selecting whichever routine the listing happened to put first, without the resolver or
+// the person being asked which of the three was meant. An ambiguity resolved by listing order and
+// reported as an exact match.
+//
+// Both orders, because the defect was invisible in one of them.
+func TestNeitherNamesakeIsSilentlyPreselected(t *testing.T) {
+	ark := saidRoutine("settings", "arkascended", false)
+	anywhere := saidRoutine("settings", "arkascended", true)
+	global := saidRoutine("settings", "", false)
+
+	for _, order := range []struct {
+		say string
+		rs  []Routine
+	}{
+		{"global first", []Routine{global, ark, anywhere}},
+		{"in-place first", []Routine{ark, anywhere, global}},
+	} {
+		labels, byLabel := labelled(eligible(order.rs, "arkascended"))
+		if len(labels) != 3 {
+			t.Fatalf("%s: %d of 3 routines were offered: %v", order.say,
+				len(labels), labels)
+		}
+		// NOT ONE OF THEM HOLDS THE SHARED NAME.
+		for _, l := range labels {
+			if nlu.Key(l) == nlu.Key("settings") {
+				t.Errorf("%s: %q answers to the bare name, so a request for it "+
+					"selects %s and nobody was asked", order.say, l,
+					byLabel[l].ID)
+			}
+		}
+		// AND THE DETERMINISTIC MATCHER FINDS NO EXACT ANSWER for it, which is the
+		// property that matters: an exact match is what bypasses both the resolver
+		// and the question.
+		if m := nlu.Resolve("settings", labels); m.Exact {
+			t.Errorf("%s: %q is still an exact match for the bare name",
+				order.say, m.Route)
+		}
+	}
+}
+
+// AND THE WINDOW ASKS, RATHER THAN PICKING ONE.
+//
+// The end of the same thing, through the real surface: with no resolver to resolve it, a request
+// for a name three routines answer to selects NOTHING and says which three. Both orders again,
+// because the listing{Q}s order is exactly what used to decide it.
+func TestASharedNameIsAQuestionAndNotASelection(t *testing.T) {
+	for _, order := range []string{"global-first", "app-first"} {
+		a := aLibraryWithNamesakes(t, order)
+		// NO RESOLVER, so nothing can resolve the ambiguity and the window has to
+		// ask. A silent one is the same case and is the one somebody will meet.
+		a.advisor = &recordingAdvisor{}
+
+		said := a.SuggestRoutine("ark graphics", "arkascended")
+		if said.ID != "" {
+			t.Errorf("%s: a request for a name two routines answer to selected %q",
+				order, said.ID)
+		}
+		if said.Kind != dispatch.IntentClarify {
+			t.Errorf("%s: the answer is %q, want a question", order, said.Kind)
+		}
+		for _, says := range []string{"is the name of 2 routines",
+			"nothing has said which you mean",
+			"does not switch applications",
+			"brings arkascended forward"} {
+			if !strings.Contains(said.Reply, says) {
+				t.Errorf("%s: the question does not say %q: %s", order, says,
+					said.Reply)
+			}
+		}
+		// AND IT IS NOT AN OFFER TO RECORD ANOTHER ONE, which is what the
+		// deterministic arm reaches for when nothing scores: a new routine called
+		// `ark graphics` when two already answer to it.
+		if said.Kind == dispatch.IntentLearn {
+			t.Errorf("%s: it offered to record a third routine of the same name",
+				order)
+		}
+	}
+}
+
+// aLibraryWithNamesakes saves the same recording twice, under two scopes, through the product{Q}s
+// own path """ + DASH + """ which is how a person comes to have namesakes in the first place.
+//
+// The order decides which is written first, and therefore which the listing returns first. That
+// used to decide which one a bare request performed.
+func aLibraryWithNamesakes(t *testing.T, order string) *Acts {
+	t.Helper()
+	t.Setenv("MARCO_CV", "off")
+	t.Setenv("MARCO_ROUTES", t.TempDir())
+	scopes := []string{string(orchestrator.ScopeEverywhere),
+		string(orchestrator.ScopeAppAnywhere)}
+	if order == "app-first" {
+		scopes[0], scopes[1] = scopes[1], scopes[0]
+	}
+	var a *Acts
+	for _, scope := range scopes {
+		// A LEGACY PRESS, which is the only kind these two scopes accept: a press
+		// that checks the window it was made in cannot be saved to a scope that
+		// brings no window forward, and Marco refuses that before it reaches disk.
+		a = recorded(t, func(p *recorder.RecordedEvent) {
+			p.WinRel, p.RelTo = false, ""
+		})
+		if why := a.SaveDraft(scope, "arkascended"); why != "" {
+			t.Fatalf("saving %s: %s", scope, why)
+		}
+	}
+	if n := len(a.Routines()); n != 2 {
+		t.Fatalf("the library holds %d routine(s), want the two namesakes", n)
+	}
+	return a
 }
 
 // recordingAdvisor is a stand-in that says what it was asked and answers what it was told to.
@@ -311,6 +478,26 @@ func TestAnExactNameNeverReachesTheResolver(t *testing.T) {
 	}
 	if said.ID != rs[0].ID {
 		t.Errorf("an exact name selected %q, want %s", said.ID, rs[0].ID)
+	}
+	// AND THE SENTENCE A PERSON READS SAYS IT WAS NOT ASKED.
+	//
+	// This said "the configured resolver answered this" about a free offline match:
+	// `advisorState` reported that an Advisor EXISTED as though it had answered, which is
+	// a fact about what is installed standing in for a fact about what happened. It is
+	// the same false impression these states were added to remove, in the other
+	// direction """ + DASH + """ and the one direction nobody would notice, because it flatters the
+	// feature.
+	if !strings.Contains(said.Resolver, "was NOT asked") {
+		t.Errorf("an exact match reports the resolver as %q", said.Resolver)
+	}
+	if strings.Contains(said.Resolver, "answered this") {
+		t.Errorf("an exact offline match credits the resolver with having answered "+
+			"it: %q", said.Resolver)
+	}
+	if said.Resolver == "" || !strings.Contains(said.Resolver, "configured") {
+		t.Errorf("an exact match does not say a resolver is configured at all, so "+
+			"somebody cannot tell this machine from one without one: %q",
+			said.Resolver)
 	}
 }
 

@@ -59,9 +59,16 @@ const (
 	SourceFallback = "fallback" // the deterministic near-miss or learn arm
 	SourceNone     = "none"     // empty input
 
-	// AdvisorAbsent, AdvisorSilent and AdvisorAnswered are the three states worth telling
-	// a person apart. Absent is a configuration fact, Answered is a working one, and
-	// Silent is the one that used to be invisible.
+	// Four states, and the fourth is the one that was wrong: NOT ASKED. Absent is a
+	// configuration fact, Answered is a working one, Silent is the one that used to be
+	// invisible — and NotAsked is what the exact arm is, because it answers offline and
+	// consults nothing.
+	//
+	// It had been reported as Answered, on the reasoning that there was an Advisor there.
+	// That is the same class of mistake as the gate’s orphan: a fact about what EXISTS
+	// standing in for a fact about what HAPPENED. A surface saying "the configured
+	// resolver answered this" about a free offline match is making exactly the false
+	// impression these states were added to remove.
 	//
 	// SILENT DOES NOT SAY WHICH, deliberately: [Advisor.Advise] reports "I have nothing"
 	// for a plugin that declined, a plugin that is not there, a model server that is down
@@ -70,6 +77,7 @@ const (
 	// configured resolver was asked and did not answer, which is what matters to somebody
 	// wondering whether theirs is working.
 	AdvisorAbsent   = "absent"
+	AdvisorNotAsked = "not-asked"
 	AdvisorSilent   = "silent"
 	AdvisorAnswered = "answered"
 )
@@ -122,8 +130,8 @@ func (d Dispatcher) Decide(ctx context.Context, input string, routes []string, a
 	}
 
 	// 1. Deterministic, offline, free: an exact route name just runs — no model call
-	//    for the common case. Reported as exact even with an Advisor configured, because
-	//    the Advisor was not asked: see the Source constants.
+	//    for the common case. Reported as exact AND as `not-asked` even with an Advisor
+	//    configured, because that is what happened to it: see the Advisor constants.
 	m := nlu.Resolve(input, routes)
 	if m.Exact {
 		return Decision{Intent: IntentRun, Route: m.Route, Source: SourceExact,
@@ -144,8 +152,8 @@ func (d Dispatcher) Decide(ctx context.Context, input string, routes []string, a
 	// installed is not running, and it used to be indistinguishable from the same arm on
 	// a machine that never configured one.
 	advisor := d.advisorState()
-	if advisor == AdvisorAnswered {
-		advisor = AdvisorSilent // it was asked, above, and had nothing usable
+	if advisor == AdvisorNotAsked {
+		advisor = AdvisorSilent // it WAS asked, above, and had nothing usable
 	}
 	thr := d.ClarifyMin
 	if thr == 0 {
@@ -161,16 +169,17 @@ func (d Dispatcher) Decide(ctx context.Context, input string, routes []string, a
 		Advisor: advisor}
 }
 
-// advisorState is whether an Advisor is wired at all.
+// advisorState is the Advisor{Q}s part BEFORE anything asks it: absent, or there and not asked.
 //
-// `AdvisorAnswered` here means only "there is one to ask"; Decide narrows it to Silent when the
-// asking produced nothing. Kept apart so the no-Advisor case is never reported as a silence,
-// which would tell somebody their resolver is broken when they have not configured one.
+// It never answers Answered. That was the defect: "there is one" was reported as "it answered
+// this", so a free offline match on an exact name claimed a resolver had decided it. Each arm of
+// Decide says what actually happened to it from here — the exact arm leaves this as it is,
+// Propose sets Answered, and the fallback arm narrows it to Silent because it really was asked.
 func (d Dispatcher) advisorState() string {
 	if d.Advisor == nil {
 		return AdvisorAbsent
 	}
-	return AdvisorAnswered
+	return AdvisorNotAsked
 }
 
 // Propose returns ONLY the Advisor's validated suggestion — no deterministic

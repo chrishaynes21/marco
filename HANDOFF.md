@@ -11227,6 +11227,38 @@ all, which degraded to the deterministic arm exactly as designed. A cold load af
 `ollama stop` measured 2.6s and worked, and it did not recur in sixteen later calls, so the cause
 is unestablished and recorded rather than guessed at.
 
+### Two corrections before it closed
+
+The review read the two things a passing suite could not see.
+
+**An exact match said the resolver had answered it.** `advisorState` returned `AdvisorAnswered`
+whenever an Advisor existed, so a free offline match on an exact name printed *the configured
+resolver answered this* about a resolver that was never consulted. That is a fact about what is
+INSTALLED standing in for a fact about what HAPPENED — the same class of mistake as the gate's
+orphan — and it is the one direction nobody would have noticed, because it flatters the feature.
+There is now a fourth state, `not-asked`, `advisorState` never answers `answered`, and each arm
+says what actually became of the Advisor from there. The exact-name test asserts the sentence a
+person reads, not only that the Advisor was asked zero times.
+
+**A shared name still had an arbitrary winner.** Unique labels stop two routines being confused
+for one; they are not an answer to the PERSON's ambiguity, and the first version mistook the one
+for the other. The first eligible `settings` kept the bare name, so a request for "settings" was
+an exact match on that label: answered offline, selecting whichever routine the listing happened
+to put first, with neither the resolver nor the person asked which of three was meant. An
+ambiguity resolved by listing order and reported as an exact match.
+
+Now every routine sharing a normalized name is qualified and the bare name belongs to nobody. A
+request for it matches no label, so the resolver is asked with the target stated; if nothing
+resolves it, what would otherwise be a near miss pointing at an arbitrary one — or an offer to
+RECORD a third routine of the same name — becomes a question naming the alternatives, in
+`plays.Scope.Says`, the product's own words for the three scopes. Held in both listing orders, and
+through the real surface with two namesakes saved by the product's own path.
+
+**23 of 23 mutations killed** after the corrections. One more survivor turned up on the way: no
+case exercised two labels that differ as strings and are ONE candidate to the matcher
+(`settings-in-ark` beside a routine genuinely slugged `settings-ark`), which is the only thing the
+`nlu.Key` check is for. That case is now a test.
+
 ### Not in this slice
 
 Overlay wiring — the widget still has its exact-only door, and giving it this is a separate

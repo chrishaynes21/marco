@@ -130,7 +130,9 @@ application forward, and a context play ONLY when its application is the one the
 The target is chosen rather than inferred — Studio owns the foreground whenever somebody types
 into it, and treating "this application has a window" as eligibility would make every running
 application’s in-place commands reachable from anywhere, which is what focus already means. With
-no target stated, no context play is offered and the answer says so. See
+no target stated, no context play is offered and the answer says so. And a name more than one
+eligible play answers to is qualified for ALL of them, so a bare request for it is asked about
+rather than answered by whichever the listing happened to return first. See
 [[ADR-265-say-what-you-want-and-studio-offers-the-routine]].
 
 `ScopeOf` tests **app-less first, then Focus** — the same order `Registry.dir` uses to choose the

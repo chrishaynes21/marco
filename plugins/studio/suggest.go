@@ -53,6 +53,7 @@ import (
 
 	"github.com/chaynes-simpleclouds/marco/internal/dispatch"
 	"github.com/chaynes-simpleclouds/marco/internal/nlu"
+	"github.com/chaynes-simpleclouds/marco/internal/plays"
 	"github.com/chaynes-simpleclouds/marco/internal/routes"
 )
 
@@ -146,10 +147,39 @@ func (a *Acts) SuggestTargets() []Target {
 	return out
 }
 
-// candidate is one eligible routine and the label it was offered under.
-type candidate struct {
-	routine Routine
-	label   string
+// sharedNames counts how many eligible routines answer to each name.
+//
+// By the matcher's key rather than by the slug, for the same reason uniqueness is checked that
+// way: two slugs it cannot tell apart are ONE name as far as a request is concerned, whatever
+// they look like on disk. One place, because two counts of the same fact could disagree about
+// which requests are ambiguous — and the whole point is that an ambiguous one is not answered
+// silently.
+func sharedNames(rs []Routine) map[string]int {
+	out := map[string]int{}
+	for _, r := range rs {
+		out[nlu.Key(r.Slug)]++
+	}
+	return out
+}
+
+// whichOnesAnswerTo is the clarification for a name more than one routine has.
+//
+// In the product's OWN words for a scope (`plays.Scope.Says`) rather than a second set written
+// here: the difference between the three is the thing being asked about, so it has to be put the
+// way every other surface puts it.
+func whichOnesAnswerTo(request string, rs []Routine) string {
+	key := nlu.Key(request)
+	var says []string
+	for _, r := range rs {
+		if nlu.Key(r.Slug) != key {
+			continue
+		}
+		says = append(says, fmt.Sprintf("%s (%s)", r.Name,
+			plays.ScopeOf(r.route()).Says(r.App)))
+	}
+	sort.Strings(says)
+	return fmt.Sprintf("%q is the name of %d routines, and nothing has said which you "+
+		"mean: %s", request, len(says), strings.Join(says, "; "))
 }
 
 // eligible is the routines a request may be answered with, given the stated target.
@@ -205,6 +235,21 @@ func eligible(all []Routine, target string) []Routine {
 // never its. Both stayed distinct and both mapped correctly, so nothing was WRONG; it was
 // arbitrary, and arbitrary on the listing's order is the kind of thing that is right in the test
 // and wrong on somebody's machine.
+//
+// # And a SHARED name belongs to nobody, because unique labels are not an answer to ambiguity
+//
+// The first version of the two passes still handed the bare slug to one of the namesakes — the
+// first eligible `settings` got `settings` and the others were qualified. Every label was then
+// distinct and every one mapped to the right identity, so the collision problem was solved; the
+// PERSON's problem was not. A request for "settings" is an exact match on that label, which means
+// the deterministic arm answers it offline, selects whichever routine the listing happened to put
+// first, and never asks the resolver or the person which of the three was meant. An ambiguity
+// resolved by listing order, reported as an exact match.
+//
+// So when eligible routines share a normalized name, EVERY ONE of them is qualified and the bare
+// name is left belonging to nobody. A request for it then matches no label exactly: the resolver
+// is asked — with the target stated, which is what it is for — and if nothing answers, the
+// deterministic arm has only near misses, which clarify and select nothing.
 func labelled(rs []Routine) ([]string, map[string]Routine) {
 	byLabel := map[string]Routine{}
 	keys := map[string]bool{}
@@ -219,10 +264,12 @@ func labelled(rs []Routine) ([]string, map[string]Routine) {
 		labels = append(labels, label)
 		return true
 	}
-	// PASS ONE: ITS OWN NAME, for everything that can have it.
+	// WHICH NAMES ARE SHARED, asked before anything claims one.
+	shared := sharedNames(rs)
+	// PASS ONE: ITS OWN NAME, for everything that can have it AND is the only one asking.
 	rest := []Routine{}
 	for _, r := range rs {
-		if !take(r.Slug, r) {
+		if shared[nlu.Key(r.Slug)] > 1 || !take(r.Slug, r) {
 			rest = append(rest, r)
 		}
 	}
@@ -280,6 +327,7 @@ func (a *Acts) SuggestRoutine(request, target string) Suggestion {
 	}
 
 	rs := eligible(a.Routines(), target)
+	shared := sharedNames(rs)
 	labels, byLabel := labelled(rs)
 	said.Offered = len(labels)
 	if len(labels) == 0 {
@@ -318,6 +366,23 @@ func (a *Acts) SuggestRoutine(request, target string) Suggestion {
 		// because a question with the answer already filled in is not a question.
 		said.ID = ""
 	}
+
+	// ── AND A NAME MORE THAN ONE ROUTINE HAS IS A QUESTION, NOT A NEAR MISS ──
+	//
+	// Nothing above can have answered it exactly, because a shared name belongs to no
+	// label (see labelled). What is left is a resolver that resolved it — which is kept,
+	// and says `advisor`, and is the resolver doing its job with the target it was given
+	// — or a deterministic near miss on one of the qualified labels, which would read as
+	// "did you mean settings anywhere?" and name an arbitrary one of them. Or an offer to
+	// RECORD a routine called `settings` when three already answer to it.
+	//
+	// Both of those last two are the ambiguity being answered rather than asked, so this
+	// replaces them with the question and the alternatives.
+	if said.Kind != dispatch.IntentRun && shared[nlu.Key(request)] > 1 {
+		said.Kind, said.ID = dispatch.IntentClarify, ""
+		said.Name, said.Scope = "", ""
+		said.Reply = whichOnesAnswerTo(request, rs)
+	}
 	return said
 }
 
@@ -351,6 +416,13 @@ func resolverSentence(a dispatch.Advisor, state string) string {
 	switch state {
 	case dispatch.AdvisorAnswered:
 		return "the configured resolver answered this: " + dispatch.PluginPath()
+	case dispatch.AdvisorNotAsked:
+		// AND IT SAYS IT WAS NOT ASKED, which is not the same as having answered.
+		// This used to read "answered this" for an exact name — a free offline match
+		// crediting a resolver that was never consulted, which is the false
+		// impression this whole sentence exists to prevent.
+		return "a resolver is configured and was NOT asked, because this was " +
+			"answered offline: " + dispatch.PluginPath()
 	case dispatch.AdvisorSilent:
 		return "the configured resolver was asked and did not answer, so this is a " +
 			"deterministic match: " + dispatch.PluginPath() +

@@ -181,8 +181,12 @@ go run ./cmd/gate                      # its first stage alone, which needs no s
   inferred (Studio owns the foreground, and "it has a window" would erase the difference between
   context and focus); the resolver is offered slug-shaped LABELS whose uniqueness is checked on
   `nlu.Key`, the matcher’s own reduction, and the answer is a key into a map that is NEVER
-  resolved again; and a decision says which arm answered, because two of the three need no model
-  and a window that never reached Ollama would look exactly like one that did. See
+  resolved again; and a decision says which arm answered and WHAT BECAME OF THE RESOLVER — absent,
+  not-asked, answered or asked-and-silent — because two of the three arms need no model, so a
+  window that never reached Ollama would look exactly like one that did, and an exact match
+  reporting "the resolver answered this" is the same lie the other way up. And a name more than
+  one eligible routine answers to is QUALIFIED FOR ALL OF THEM and asked about: unique labels
+  stop two routines being confused for one, and are not an answer to the person's ambiguity. See
   [[ADR-265-say-what-you-want-and-studio-offers-the-routine]].
 - **`director capture-game-session` is the L0 recorder** (frames + observed inputs on one
   clock, nothing injected) and `go run ./cmd/perceptionreplay -frames -stride N <dir>` replays
