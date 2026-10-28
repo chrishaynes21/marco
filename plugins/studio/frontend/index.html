@@ -1780,14 +1780,25 @@
    reviewing = null
    showing($('routineReview'), false)
    text($('routineReviewNote'), '')
-   if (v) { acts.CancelReview(v.id) }
+   // BY TOKEN, SO THE ONE DISMISSED IS THE ONE LET GO OF. Two reviews of one routine can
+   // be in flight; passing the routine's identity would throw away whichever the window
+   // happened to hold. See generation.go.
+   if (v && v.token) { acts.CancelReview(v.token) }
  }
 
  function replaceWithRebuilt(){
    if (!reviewing) { return }
-   const id = reviewing.id, name = reviewing.name
+   // THE TOKEN OF THE REVIEW ON THE SCREEN, which is what makes this write the bytes
+   // that were displayed. Handing back the routine's identity wrote whichever preparation
+   // the window held last — every check passing, the success naming the routine the
+   // person was looking at, and the source one they never saw.
+   const token = reviewing.token, name = reviewing.name
+   if (!token) {
+     text($('routineReplaceNote'), 'there is nothing to replace this with')
+     return
+   }
    $('routineReplaceBtn').disabled = true
-   acts.ReplaceWithRebuilt(id).then(why => {
+   acts.ReplaceWithRebuilt(token).then(why => {
      if (why) {
        // THE REFUSAL STAYS ON THE SCREEN WITH THE REVIEW. It names what moved,
        // and the way forward is to review again — which needs the panel still

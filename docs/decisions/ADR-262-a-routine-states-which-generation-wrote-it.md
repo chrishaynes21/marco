@@ -2,7 +2,7 @@
 type: adr
 status: accepted
 date: 2026-10-27
-decision: "ACCEPTED — A ROUTINE STATES WHICH GENERATION OF GENERATOR RULES WROTE IT, AND A REBUILT VERSION IS REVIEWED BEFORE IT REPLACES ANYTHING. A routine keeps the shape it was generated with for ever, because nothing rewrites saved Marco — the file is the only executable truth about a routine and rewriting generated source by hand is how two things that have to agree stop agreeing. So every rule about what a generated routine DOES reaches a routine when that routine is written, and a library accumulates files written under rules that no longer match: a routine saved before [[ADR-261-typed-text-is-a-sequence-of-submissions]] goes on acting past text that never arrived and reports a run that performed. That was INVISIBLE, because nothing on disk said which rules wrote a file — and it cannot be inferred, since the shapes in a routine are a function of the demonstration as much as of the generator, which is exactly how a guarded drag read as `legacy` before `draggedTerms` existed. So the generator STAMPS it, as a comment, UNCONDITIONALLY: whatever called it, this generator wrote the file, and a condition there would be a file written by it that does not say so. NO CORE CHANGE — a comment is not a word of the language, which is the same ground `// Recorded as:` stands on. IT IS PROVENANCE AND NOT A VERDICT: it says which rules wrote the source, not that the source is guarded, unmodified or still correct — a current-generation routine can carry legacy behaviour on purpose, because a demonstration with no measured press generates exactly the unchecked route it always did, so what the presses promise stays `ContractOf`'s separate question. FOUR READINGS, NONE COLLAPSING INTO ANOTHER: current, older-and-recognised, unstated, and unknown. Unstated says ONLY that — not 'written before versioning', which is a claim a handwritten file or one somebody deleted the line from does not support. Unknown is a later build's generation, a malformed value, or the same question answered twice — not current, which would be this build claiming to have written a file it cannot read, and not unstated, which would lose the one fact the file does state. Nothing is offered for an unknown generation, because a reader that cannot say what a generation does cannot say what replacing it would change; it stays inspectable and playable under exactly the rules it always had, held against a control run of the same routine unstamped. GENERATION 1 IS WHAT THIS GENERATOR DOES, with nothing behind it: numbering the rule changes that landed before today 1..5 would place routines in a history they never stated, which is the same inference with a version number on it. THE HISTORY IS ONE LIST, so the current generation is its last entry rather than a constant beside it — `everyMeasuredTerm`'s lesson one layer up, where a generation added to a counter and not to the words would be read, found older, and never explainable — and the difference walk is exercised against SYNTHETIC future generations, because a mechanism with no live input is one nobody can tell is wired. OLDER IS NOT AFFECTED: a difference is a fact about two generators, and whether it changes anything for one routine is a fact about that routine, so a claim that a routine needs replacing is made only where its own contents bear on the rule, and otherwise a comparison is offered. THE UPDATE FLOW IS FOUR STEPS AND THREE OF THEM WRITE NOTHING: select the exact routine, prepare a version from its own stored demonstration, review both sources in full plus any refusal, then explicitly replace or cancel. `Resave` is NOT that flow and stays what it is — it repairs a routine that cannot press anything at all, so it is immediate on purpose, and it RESCOPES through the save path that chooses where a routine lives. Neither is allowed here: the scope is read off where the routine already lives, and a replacement writes the file back exactly where and as it was. A replacement re-reads both files it was built from and refuses if either moved, naming which — which is also the whole of the protection for a HAND-EDITED routine, since the edit is the left-hand pane and replacing it is then a decision. On any refusal or failed write the routine is as it was. A REBUILD TODAY'S RULES WOULD REFUSE IS A REVIEWABLE ANSWER, not an error: a recording with a press found by matching a picture was saved happily by an older build and produces no routine now. The run record carries what the file SAYS and this build's READING of it, off the same snapshot that executes — an older executor that wrote down its verdict and dropped the declared value would contradict the file it cites. ONE DESKTOP SCENARIO RAN GREEN on 2026-10-27, 1 of 1 and exit 0 on the first run: the review came up with both sources and the file was untouched, cancelling left it untouched, and after a second review Replace wrote a file differing from the one on disk by exactly the generation line — byte-identical to what the generator had written before the harness took that line out. PHYSICAL RECORDING CAPTURE REMAINS NOT EXERCISED."
+decision: "ACCEPTED — A ROUTINE STATES WHICH GENERATION OF GENERATOR RULES WROTE IT, AND A REBUILT VERSION IS REVIEWED BEFORE IT REPLACES ANYTHING. FOUR THINGS THE REVIEW FOUND, ALL FIXED: a replacement identified the ROUTINE rather than the review on the screen, so two preparations of one routine overwrote each other and an asynchronous page could display A while the window held B — a preparation now carries an immutable token derived from its own content and a replacement must present it, with `Replace` also checking a `Prepared` against its own token; the IMAGES ARE NOT ADDITIVE, since a rebuild produces the same `<base>-anchor-N.png` paths and overwriting them before a source write that then fails leaves the OLD source pointing at different pictures, so a conflicting image is now a refusal that writes nothing while an identical or absent one is not; the unknown-generation restriction CHECKED AN EARLIER READ, so a file replaced between the listing and the preparation bypassed it, and eligibility is now read off the source `Prepare` actually read; and `current` PROMISED "it will be the same routine", which the stamp cannot support — a hand-edited routine keeps its stamp and rebuilds differently — so the sentence offers the comparison as a question and only `Prepared.Changes()` answers it. A routine keeps the shape it was generated with for ever, because nothing rewrites saved Marco — the file is the only executable truth about a routine and rewriting generated source by hand is how two things that have to agree stop agreeing. So every rule about what a generated routine DOES reaches a routine when that routine is written, and a library accumulates files written under rules that no longer match: a routine saved before [[ADR-261-typed-text-is-a-sequence-of-submissions]] goes on acting past text that never arrived and reports a run that performed. That was INVISIBLE, because nothing on disk said which rules wrote a file — and it cannot be inferred, since the shapes in a routine are a function of the demonstration as much as of the generator, which is exactly how a guarded drag read as `legacy` before `draggedTerms` existed. So the generator STAMPS it, as a comment, UNCONDITIONALLY: whatever called it, this generator wrote the file, and a condition there would be a file written by it that does not say so. NO CORE CHANGE — a comment is not a word of the language, which is the same ground `// Recorded as:` stands on. IT IS PROVENANCE AND NOT A VERDICT: it says which rules wrote the source, not that the source is guarded, unmodified or still correct — a current-generation routine can carry legacy behaviour on purpose, because a demonstration with no measured press generates exactly the unchecked route it always did, so what the presses promise stays `ContractOf`'s separate question. FOUR READINGS, NONE COLLAPSING INTO ANOTHER: current, older-and-recognised, unstated, and unknown. Unstated says ONLY that — not 'written before versioning', which is a claim a handwritten file or one somebody deleted the line from does not support. Unknown is a later build's generation, a malformed value, or the same question answered twice — not current, which would be this build claiming to have written a file it cannot read, and not unstated, which would lose the one fact the file does state. Nothing is offered for an unknown generation, because a reader that cannot say what a generation does cannot say what replacing it would change; it stays inspectable and playable under exactly the rules it always had, held against a control run of the same routine unstamped. GENERATION 1 IS WHAT THIS GENERATOR DOES, with nothing behind it: numbering the rule changes that landed before today 1..5 would place routines in a history they never stated, which is the same inference with a version number on it. THE HISTORY IS ONE LIST, so the current generation is its last entry rather than a constant beside it — `everyMeasuredTerm`'s lesson one layer up, where a generation added to a counter and not to the words would be read, found older, and never explainable — and the difference walk is exercised against SYNTHETIC future generations, because a mechanism with no live input is one nobody can tell is wired. OLDER IS NOT AFFECTED: a difference is a fact about two generators, and whether it changes anything for one routine is a fact about that routine, so a claim that a routine needs replacing is made only where its own contents bear on the rule, and otherwise a comparison is offered. THE UPDATE FLOW IS FOUR STEPS AND THREE OF THEM WRITE NOTHING: select the exact routine, prepare a version from its own stored demonstration, review both sources in full plus any refusal, then explicitly replace or cancel. `Resave` is NOT that flow and stays what it is — it repairs a routine that cannot press anything at all, so it is immediate on purpose, and it RESCOPES through the save path that chooses where a routine lives. Neither is allowed here: the scope is read off where the routine already lives, and a replacement writes the file back exactly where and as it was. A replacement re-reads both files it was built from and refuses if either moved, naming which — which is also the whole of the protection for a HAND-EDITED routine, since the edit is the left-hand pane and replacing it is then a decision. On any refusal or failed write the routine is as it was. A REBUILD TODAY'S RULES WOULD REFUSE IS A REVIEWABLE ANSWER, not an error: a recording with a press found by matching a picture was saved happily by an older build and produces no routine now. The run record carries what the file SAYS and this build's READING of it, off the same snapshot that executes — an older executor that wrote down its verdict and dropped the declared value would contradict the file it cites. ONE DESKTOP SCENARIO RAN GREEN on 2026-10-27, 1 of 1 and exit 0 on the first run: the review came up with both sources and the file was untouched, cancelling left it untouched, and after a second review Replace wrote a file differing from the one on disk by exactly the generation line — byte-identical to what the generator had written before the harness took that line out. PHYSICAL RECORDING CAPTURE REMAINS NOT EXERCISED."
 supersedes: []
 affects:
   - execution
@@ -223,6 +223,63 @@ test here: they differ only when a write fails PART WAY, and a disk full is not 
 stages portably. It is a property of the mechanism rather than one anything checks, and the
 comment beside it says so rather than letting it look held.
 
+## Four things the review of this slice found
+
+**[P1] A replacement identified the routine, not the review on the screen.** Studio held one
+preparation per routine, so a second review of one routine overwrote the first — and these calls
+are asynchronous, so the page could be displaying A's two sources while the window held B. Press
+Replace and B is written: every check in `Deps.Replace` passes, the success names the routine the
+person was looking at, and the bytes are ones they never saw.
+
+So a preparation carries an immutable **token**, and a replacement must present it. The token is
+derived from the content — the two files it was built from, what it would write, and why it would
+write nothing — rather than counted, for two reasons. What has to be identified is the *review*,
+and the content IS that: two preparations sharing a token are byte-for-byte identical in what was
+displayed and in what a replacement would write, so resolving one to the other cannot write
+anything nobody saw. And a counter would need somewhere to live, which is the shared state the
+defect came out of. `Deps.Replace` also checks a `Prepared` against its own token, so one edited
+on its way back — by a caller, by a bug, by a struct assembled from parts of two — says so.
+
+Studio now holds reviews keyed by token, bounded at sixteen, oldest out first. An evicted review
+is a refusal with a reason rather than a wrong write.
+
+**[P1] A failed replacement could change the original's images.** The images were written first and
+called additive. They are not: they are named after the routine — `<base>-anchor-1.png` — so a
+rebuild produces the same paths and `WriteAssets` overwrites what is there. Write the new images,
+fail to write the source, and the OLD source is still on disk pointing at paths that now hold
+different pictures. A routine that presses what a different image matched, having been left alone.
+
+A conflicting image is now a **refusal**, and nothing is written at all. A path holding the same
+bytes is no conflict, because writing it changes nothing — which matters, or every re-review of an
+anchored routine would refuse. A path holding nothing is no conflict either: a file nobody
+references is not a change to anything that runs. What a failed SOURCE write can still leave is
+new image files beside an unchanged old source that does not reference them — unreferenced files,
+with the routine behaving exactly as it did.
+
+The alternative — content-addressed image names — was rejected for this slice on scope: it changes
+what every newly generated routine's files are called, reaching every asset writer and every saved
+file's embedded paths, and would arrive inside a provenance slice unreviewed.
+
+**[P2] The unknown-generation refusal checked an earlier read.** `ReviewRebuilt` read the LISTING's
+eligibility, and `Prepare` then read the source again without asking what THAT snapshot stated.
+Replacing the file with an unknown-generation version between the two reads bypassed the one
+restriction where this build refuses to say what a replacement would change. The rule is now
+applied where the bytes are: `Prepare` reads the generation off the source it actually read and
+refuses there. Studio's check survives as the greying of the button, which is a courtesy rather
+than the enforcement.
+
+**[P2] "Current" was presented as proof of identical regeneration.** The sentence promised "it will
+be the same routine", which the stamp cannot support: the generation says which rules WROTE the
+source, not that the source is still what they wrote. A routine somebody edited by hand keeps its
+stamp and rebuilds differently — and that person is exactly who would have been told their
+comparison was pointless. It now offers the comparison as the question it is, and only
+`Prepared.Changes()` answers it, after the rebuild.
+
+**The gate against these four: 14 mutations, 13 killed, one real hole found.** Nothing exercised
+Replace from the PAGE — the rendered test reviewed and cancelled — so the page sending a routine's
+identity in place of the token survived. The page now reviews again and replaces, and asserts
+which term travelled in both directions.
+
 ## What is unchanged
 
 - **No saved routine is rewritten or migrated.** Nothing is automatic, and the person decides.
@@ -288,6 +345,33 @@ comment beside it says so rather than letting it look held.
   `TestAReplacementFromNothingIsRefused`, `TestTheRegistryRefusesToReplaceSomethingWithNoName` —
   the explanation available where the rebuild is not, and the two ways a replacement can be asked
   for with nothing to write.
+- `internal/orchestrator` `TestTwoPreparationsOfOneRoutineAreTwoReviews` — two preparations of one
+  routine built from different sources have different tokens, and the EARLIER one presented after
+  the second was prepared is refused with the routine left alone, while the current one goes
+  through. The out-of-order case, which is about which response arrived last rather than which was
+  asked for first.
+- `internal/orchestrator` `TestAPreparationThatWasAlteredDoesNotMatchItsToken` — a `Prepared` whose
+  source was swapped after it was prepared no longer matches its own token, with the control that
+  the unaltered one still goes through.
+- `internal/orchestrator` `TestARoutineThatBecameUnexplainableBetweenTheReadsIsRefused` — the
+  interval: a routine that was eligible when it was listed and states a generation this build
+  cannot explain when it is read. Refused, with nothing written, and the arrangement asserting it
+  WAS eligible first so the refusal is about the gap.
+- `internal/orchestrator` `TestAReplacementThatWouldOverwriteADifferentImageIsRefused` — against a
+  real anchored routine whose rebuild produces the same image path: the refusal names the image,
+  and the source AND the image are both exactly as they were. The second half is what the finding
+  was about.
+- `internal/orchestrator` `TestAnImageThatIsAlreadyTheRightOneIsNoConflict` — the control, in both
+  directions: the ordinary case where a rebuild renders the same picture, and a path holding
+  nothing. Without it the rule refuses every re-review of an anchored routine.
+- `internal/orchestrator` `TestTheSentenceForACurrentRoutineOffersTheComparisonAndPromisesNothing`
+  — it offers the comparison as a question and promises nothing about the result, with the
+  hand-edited current routine that is the reason.
+- `plugins/studio` `TestTwoReviewsOfOneRoutineAreTwoReviews` — through the Acts: two reviews of one
+  routine, the earlier token reaching its own review and being refused for the right reason (only
+  its source digest is stale, so a token resolving to the other would have gone through), the
+  current one writing its own source, and cancelling a review nobody made leaving an open one
+  alone.
 - `cmd/marco` `TestTheRecordSaysWhichGenerationWroteTheRoutine`,
   `TestTheRecordSaysUnstatedWhenTheRoutineNamesNoGeneration`,
   `TestTheRecordKeepsAMalformedStampVerbatim`,
@@ -312,7 +396,11 @@ comment beside it says so rather than letting it look held.
   untouched, and a name that two routines answer to REFUSED rather than resolved.
 - `plugins/studio` `TestThePageSaysWhichGenerationWroteEachRoutine`,
   `TestThePageOffersARebuiltVersionOnlyWhereThereIsOneToOffer`,
-  `TestAReviewShowsBothSourcesAndCancellingWritesNothing` — the page RENDERED, because a source
+  `TestAReviewShowsBothSourcesAndCancellingWritesNothing` — the page RENDERED, including which
+  term travels on the way out and the way back: it reviews, cancels, reviews again and replaces,
+  and asserts the REVIEW'S token reached `CancelReview` and `ReplaceWithRebuilt` rather than the
+  routine's identity. Nothing exercised Replace from the page before, so the mutation that sends
+  the identity survived, because a source
   guard passes as long as a field is named somewhere in the file: all four sentences, no
   `undefined`, the button live for the two readings that may be offered and dead for the two that
   may not, both panes with their own labels, and a cancel that lets go of the version and replaces

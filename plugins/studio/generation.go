@@ -56,10 +56,19 @@ func differenceLine(d orchestrator.Difference) string {
 //
 // NOTHING ON DISK HAS CHANGED when this is returned. If `Why` is set, nothing was even built.
 type Review struct {
-	// ID is the routine this is about — the same whole identity the card carries, and the
-	// term `ReplaceWithRebuilt` is given back.
-	ID   string `json:"id"`
-	Name string `json:"name"`
+	// ID is the routine this is about — the same whole identity the card carries.
+	ID string `json:"id"`
+	// Token identifies THIS review, and is the term `ReplaceWithRebuilt` and
+	// `CancelReview` are given back.
+	//
+	// NOT THE ROUTINE'S IDENTITY, which two reviews of one routine share. A window can
+	// have two preparations in flight and the page can be showing one while the window
+	// holds the other; replacing by routine wrote whichever arrived last, which is bytes
+	// the person never saw under the name of the routine they were looking at. Empty when
+	// `Why` is set, because then there is no review to replace with.
+	// See `orchestrator.Prepared.Token`.
+	Token string `json:"token,omitempty"`
+	Name  string `json:"name"`
 	// Why is why there is no review at all: no such routine, no demonstration beside it,
 	// a recording that could not be read. Everything else is empty when this is set.
 	Why string `json:"why,omitempty"`
@@ -126,17 +135,18 @@ func (a *Acts) ReviewRebuilt(id string) Review {
 	if err != nil {
 		return Review{ID: id, Why: err.Error()}
 	}
-	// THE PREPARED VERSION STAYS HERE. See the note at the top of this file: the digests
-	// in it are what makes the replacement a check rather than a gesture.
-	a.mu.Lock()
-	if a.reviews == nil {
-		a.reviews = map[string]orchestrator.Prepared{}
-	}
-	a.reviews[id] = p
-	a.mu.Unlock()
+	// THE PREPARED VERSION STAYS HERE, UNDER ITS OWN TOKEN AND NOT UNDER THE ROUTINE'S.
+	//
+	// Keyed by the routine, the second review of one routine overwrote the first — and
+	// these calls are asynchronous, so the page can be showing A's two sources while the
+	// slot holds B. Press Replace and B is written: every check in `Deps.Replace` passes,
+	// the success names the routine the person was looking at, and the bytes are ones they
+	// never saw. The token identifies the review, so the page hands back the exact one it
+	// displayed. See `orchestrator.Prepared.Token`.
+	a.keepReview(p)
 
-	r := Review{ID: id, Name: p.Name, Was: p.Was, Now: p.Now, Refused: p.Refused,
-		Changes: p.Changes(), Replaceable: p.Replaceable(),
+	r := Review{ID: id, Token: p.Token, Name: p.Name, Was: p.Was, Now: p.Now,
+		Refused: p.Refused, Changes: p.Changes(), Replaceable: p.Replaceable(),
 		WasGeneration: string(p.WasGeneration.Reading),
 		NowGeneration: string(p.NowGeneration.Reading)}
 	for _, dd := range p.Differences {
@@ -145,46 +155,84 @@ func (a *Acts) ReviewRebuilt(id string) Review {
 	return r
 }
 
-// CancelReview drops a review without writing anything.
+// reviewsKept is how many preparations one window holds at once.
+//
+// There has to be a bound, because every press of Review makes one and nothing obliges anybody to
+// act on it. Generous enough that no real sequence of looking at things loses one, and an evicted
+// review is a REFUSAL with a reason rather than a wrong write — `ReplaceWithRebuilt` cannot find
+// it and says to review again.
+const reviewsKept = 16
+
+// keepReview holds one preparation, oldest out first.
+func (a *Acts) keepReview(p orchestrator.Prepared) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.reviews == nil {
+		a.reviews = map[string]orchestrator.Prepared{}
+	}
+	if _, already := a.reviews[p.Token]; !already {
+		a.reviewOrder = append(a.reviewOrder, p.Token)
+	}
+	a.reviews[p.Token] = p
+	for len(a.reviewOrder) > reviewsKept {
+		delete(a.reviews, a.reviewOrder[0])
+		a.reviewOrder = a.reviewOrder[1:]
+	}
+}
+
+// CancelReview drops one review without writing anything.
 //
 // There is nothing to undo — preparation wrote nothing — so this only lets go of the version held
 // in the window. It exists so that cancelling is a thing the page DOES rather than a thing it
 // omits: a review left in memory would be replaced with later, by a second press of a button the
 // person had already dismissed.
-func (a *Acts) CancelReview(id string) {
+//
+// BY TOKEN, so dismissing one review of a routine does not throw away another that is still on
+// the screen.
+func (a *Acts) CancelReview(token string) {
+	token = strings.TrimSpace(token)
 	a.mu.Lock()
-	delete(a.reviews, strings.TrimSpace(id))
-	a.mu.Unlock()
+	defer a.mu.Unlock()
+	delete(a.reviews, token)
+	for i, t := range a.reviewOrder {
+		if t == token {
+			a.reviewOrder = append(a.reviewOrder[:i], a.reviewOrder[i+1:]...)
+			break
+		}
+	}
 }
 
-// ReplaceWithRebuilt writes the reviewed version over the routine it was built from.
+// ReplaceWithRebuilt writes one reviewed version over the routine it was built from.
 //
-// It takes only the identity. What gets written is the source the review held, which is the
-// source that was on the screen — and it refuses if either the routine or its demonstration has
-// changed since, naming which, because the review was of a particular pair of files.
-func (a *Acts) ReplaceWithRebuilt(id string) string {
-	id = strings.TrimSpace(id)
+// It takes the REVIEW's token and nothing else. What gets written is the source that review held,
+// which is the source that was on the screen — and it refuses if either the routine or its
+// demonstration has changed since, naming which, because the review was of a particular pair of
+// files.
+func (a *Acts) ReplaceWithRebuilt(token string) string {
+	token = strings.TrimSpace(token)
 	a.mu.Lock()
 	recording := a.recordingLocked()
-	p, reviewed := a.reviews[id]
+	p, reviewed := a.reviews[token]
 	a.mu.Unlock()
 	switch {
 	case recording:
 		return "Marco is recording a demonstration; one thing at a time"
 	case !reviewed:
-		// NOTHING IS WRITTEN WITHOUT A REVIEW IN HAND. Not built-and-written here
-		// as a convenience: the whole point of the flow is that the source which
-		// replaces somebody's routine is one they looked at.
-		return fmt.Sprintf("there is no reviewed version of %q to replace it with — "+
-			"review it first", id)
+		// NOTHING IS WRITTEN WITHOUT THAT REVIEW IN HAND. Not the routine's most
+		// recent review, and not one built here as a convenience: the whole point
+		// of the flow is that the source which replaces somebody's routine is the
+		// one they were looking at.
+		return "the version you are looking at is no longer the one this window " +
+			"holds — review it again and the comparison will be against the " +
+			"routine as it now stands"
 	}
 	d := orchestrator.Deps{Reg: a.reg(), Out: &strings.Builder{}}
 	if err := d.Replace(p); err != nil {
 		return err.Error()
 	}
-	a.mu.Lock()
-	delete(a.reviews, id)
-	a.mu.Unlock()
+	// SPENT. The version has been written, so a second press of the same button is not a
+	// second replacement — it is a refusal saying to review again, which is true.
+	a.CancelReview(token)
 	a.trial.recorded(p.Name, fmt.Sprintf("Replaced %q with the version rebuilt from its "+
 		"own recording, which you reviewed first: it now states generation %d of "+
 		"Marco's rules — %s", p.Name, orchestrator.GenerationNow(),

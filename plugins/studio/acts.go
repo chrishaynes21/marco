@@ -103,8 +103,12 @@ type Acts struct {
 	// something is running must not be shown a dry run as live, or the other way about.
 	act  string
 	live bool
-	// reviews is one prepared rebuilt version per routine, held between a review and the
-	// replacement it licenses. Keyed by the routine's whole identity.
+	// reviews is each prepared rebuilt version, held between a review and the replacement
+	// it licenses, KEYED BY THE REVIEW'S OWN TOKEN.
+	//
+	// Keyed by the routine, the second review of one routine overwrote the first — and
+	// the two calls are asynchronous, so the page could be showing one while this held
+	// the other. See generation.go and `orchestrator.Prepared.Token`.
 	//
 	// IT LIVES HERE RATHER THAN IN THE PAGE because it carries digests of the two files
 	// it was built from, and those are what make the replacement a check: a page that
@@ -115,6 +119,8 @@ type Acts struct {
 	// person left open and never acted on is dropped when Studio closes, which is the
 	// right answer: it was a comparison, not a pending change.
 	reviews map[string]orchestrator.Prepared
+	// reviewOrder is the order they arrived, so the oldest goes when there are too many.
+	reviewOrder []string
 	// kind is WHICH KIND of run the slot is holding — an Act's supervised performance or
 	// a saved routine's — and routine is the second one's account of itself, nil for the
 	// first. Both outlive the run, because the window still has to describe one that has

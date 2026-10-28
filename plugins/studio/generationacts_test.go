@@ -19,6 +19,7 @@ import (
 	"testing"
 
 	"github.com/chaynes-simpleclouds/marco/internal/orchestrator"
+	"github.com/chaynes-simpleclouds/marco/internal/routes"
 )
 
 // aSavedRoutineInStudio is one routine saved through Studio's own path, with its demonstration.
@@ -164,11 +165,13 @@ func TestNothingIsReplacedWithoutAReviewInHand(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// A TOKEN NOTHING PREPARED, which is what a page holds when it has no review: the
+	// routine's own identity is the obvious wrong thing to send, so it is the one sent.
 	why := a.ReplaceWithRebuilt(r.ID)
 	if why == "" {
 		t.Fatal("a routine was replaced without anybody reviewing a version of it")
 	}
-	if !strings.Contains(why, "review it first") {
+	if !strings.Contains(why, "review it again") {
 		t.Errorf("the refusal is %q and does not say what to do", why)
 	}
 	if now, _ := os.ReadFile(a.reg().Path(route)); string(now) != string(was) {
@@ -181,7 +184,11 @@ func TestNothingIsReplacedWithoutAReviewInHand(t *testing.T) {
 	if v.Why != "" {
 		t.Fatalf("reviewing refused: %s", v.Why)
 	}
-	if why := a.ReplaceWithRebuilt(r.ID); why != "" {
+	if v.Token == "" {
+		t.Fatal("the review carries no token, so nothing can say which review a " +
+			"replacement is of")
+	}
+	if why := a.ReplaceWithRebuilt(v.Token); why != "" {
 		t.Fatalf("replacing after a review refused: %s", why)
 	}
 	if now, _ := os.ReadFile(a.reg().Path(route)); string(now) != v.Now {
@@ -190,7 +197,7 @@ func TestNothingIsReplacedWithoutAReviewInHand(t *testing.T) {
 	}
 	// AND THE REVIEW IS SPENT. A second press of a button whose version has already
 	// been written is not a second replacement.
-	if why := a.ReplaceWithRebuilt(r.ID); why == "" {
+	if why := a.ReplaceWithRebuilt(v.Token); why == "" {
 		t.Error("the same review replaced the routine twice")
 	}
 }
@@ -202,16 +209,17 @@ func TestNothingIsReplacedWithoutAReviewInHand(t *testing.T) {
 // is a replacement they explicitly declined.
 func TestCancellingAReviewLetsGoOfTheVersion(t *testing.T) {
 	a, r := aSavedRoutineInStudio(t)
-	if v := a.ReviewRebuilt(r.ID); v.Why != "" {
+	v := a.ReviewRebuilt(r.ID)
+	if v.Why != "" {
 		t.Fatalf("reviewing refused: %s", v.Why)
 	}
-	a.CancelReview(r.ID)
-	why := a.ReplaceWithRebuilt(r.ID)
+	a.CancelReview(v.Token)
+	why := a.ReplaceWithRebuilt(v.Token)
 	if why == "" {
 		t.Fatal("a review that was cancelled was still written, so declining a " +
 			"replacement does not decline it")
 	}
-	if !strings.Contains(why, "review it first") {
+	if !strings.Contains(why, "review it again") {
 		t.Errorf("the refusal is %q", why)
 	}
 }
@@ -239,7 +247,7 @@ func TestAReviewIsOfTheRoutineThatWasAskedAbout(t *testing.T) {
 		t.Errorf("the review shows a source that is not the chosen routine's:\n%s",
 			v.Was)
 	}
-	if why := a.ReplaceWithRebuilt(want.ID); why != "" {
+	if why := a.ReplaceWithRebuilt(v.Token); why != "" {
 		t.Fatalf("replacing refused: %s", why)
 	}
 	// AND THE OTHER TWO ARE UNTOUCHED.
@@ -305,7 +313,7 @@ func TestAReviewOfTwoSameNamedRoutinesIsOfTheOneAddressed(t *testing.T) {
 	if v.ID != second {
 		t.Errorf("asked to review %s and got %s", second, v.ID)
 	}
-	if why := a.ReplaceWithRebuilt(second); why != "" {
+	if why := a.ReplaceWithRebuilt(v.Token); why != "" {
 		t.Fatalf("replacing %s refused: %s", second, why)
 	}
 	// AND THE OTHER ROUTINE OF THAT NAME IS UNTOUCHED, read off its own file.
@@ -316,5 +324,136 @@ func TestAReviewOfTwoSameNamedRoutinesIsOfTheOneAddressed(t *testing.T) {
 	if string(raw) != first.Source {
 		t.Errorf("replacing %s rewrote %s, which shares its name:\n%s", second,
 			first.ID, raw)
+	}
+}
+
+// TWO REVIEWS OF ONE ROUTINE ARE TWO REVIEWS, AND REPLACE WRITES THE ONE IT WAS GIVEN.
+//
+// The window held one preparation per routine, so the second review overwrote the first — and
+// these calls are asynchronous, so the page can be displaying A's two sources while the window
+// holds B. Pressing Replace wrote B: every check inside `Deps.Replace` passed, the success named
+// the routine the person was looking at, and the bytes were ones they never saw.
+//
+// Both orders are exercised, because the defect is about which one ARRIVED last rather than which
+// was asked for first.
+func TestTwoReviewsOfOneRoutineAreTwoReviews(t *testing.T) {
+	a, r := aSavedRoutineInStudio(t)
+	rt, _ := a.routineWithID(r.ID)
+	route := rt.route()
+	statingNoGenerationInStudio(t, a, route)
+
+	first := a.ReviewRebuilt(r.ID)
+	if first.Why != "" {
+		t.Fatalf("the first review refused: %s", first.Why)
+	}
+	// THE ROUTINE CHANGES BETWEEN THE TWO, which is what makes them different reviews.
+	edited := strings.Replace(first.Was, "// Auto-generated",
+		"// a person edited this\n// Auto-generated", 1)
+	if edited == first.Was {
+		t.Fatal("the edit changed nothing, so the two reviews would be identical")
+	}
+	if err := os.WriteFile(a.reg().Path(route), []byte(edited), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	second := a.ReviewRebuilt(r.ID)
+	if second.Why != "" {
+		t.Fatalf("the second review refused: %s", second.Why)
+	}
+	if first.Token == "" || second.Token == "" {
+		t.Fatal("a review carries no token, so nothing can say which one a " +
+			"replacement is of")
+	}
+	if first.Token == second.Token {
+		t.Fatalf("two reviews of one routine built from different sources share the "+
+			"token %q", first.Token)
+	}
+	if first.Was == second.Was {
+		t.Fatal("both reviews show the same saved source, so the window is not " +
+			"holding two different ones")
+	}
+	// THE OUT-OF-ORDER PRESS: the page is displaying the FIRST review — its response
+	// arrived last — and Replace is handed that review's token. The window still holds
+	// it, so it is reached rather than silently resolving to the newer one; and it is
+	// then refused, because the routine it was built from is not the routine on disk.
+	why := a.ReplaceWithRebuilt(first.Token)
+	if why == "" {
+		t.Fatal("the earlier review was written over a routine that had changed " +
+			"since it was built")
+	}
+	if !strings.Contains(why, "saved again") {
+		t.Errorf("the refusal is %q, which is not about the routine having moved on "+
+			"— so the token resolved to some other review", why)
+	}
+	if raw, _ := os.ReadFile(a.reg().Path(route)); string(raw) != edited {
+		t.Errorf("the refused replacement disturbed the routine:\n%s", raw)
+	}
+	// AND THE REVIEW THE PERSON WOULD SEE IF THEY LOOKED AGAIN GOES THROUGH, writing
+	// its own source and not the other one's.
+	if why := a.ReplaceWithRebuilt(second.Token); why != "" {
+		t.Fatalf("the current review was refused: %s", why)
+	}
+	raw, err := os.ReadFile(a.reg().Path(route))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(raw) != second.Now {
+		t.Errorf("the file holds something other than the review that was replaced "+
+			"with:\n--- on disk ---\n%s\n--- the second review ---\n%s", raw,
+			second.Now)
+	}
+	// AND THE TWO REVIEWS SHARE THEIR REBUILT SOURCE, BY CONSTRUCTION — both render the
+	// same recording, and the edit between them changed the saved source rather than the
+	// demonstration. So what tells them apart is what each was built FROM, which is
+	// exactly why the token is derived from that too: the discriminating evidence is the
+	// refusal above, since only the first review's source digest is stale and a token
+	// that had resolved to the second would have gone through.
+	if first.Now != second.Now {
+		t.Errorf("the two reviews rebuilt different sources, so the refusal above is " +
+			"not the only thing telling them apart and this test is weaker " +
+			"than it reads")
+	}
+	// AND CANCELLING ONE DOES NOT THROW AWAY THE OTHER. Keyed by the routine, letting
+	// go of one review let go of whichever the window held.
+	third := a.ReviewRebuilt(r.ID)
+	fourth := a.ReviewRebuilt(r.ID)
+	if third.Token != fourth.Token {
+		t.Fatalf("two reviews of an unchanged routine have different tokens (%q, %q), "+
+			"so this cannot establish that cancelling one keeps the other",
+			third.Token, fourth.Token)
+	}
+	a.CancelReview("some-review-nobody-made")
+	if why := a.ReplaceWithRebuilt(third.Token); why != "" {
+		t.Errorf("cancelling a review nobody made threw away one that was open: %s",
+			why)
+	}
+}
+
+// statingNoGenerationInStudio takes the generation line out of a saved routine.
+//
+// Which is what makes a replacement VISIBLE: a routine this build just wrote rebuilds byte for
+// byte, so "the file holds the second review's source rather than the first's" would be true
+// however the window behaved. The orchestrator's own tests carry the same note.
+func statingNoGenerationInStudio(t *testing.T, a *Acts, rt routes.Route) {
+	t.Helper()
+	raw, err := os.ReadFile(a.reg().Path(rt))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var kept []string
+	var took int
+	for _, line := range strings.Split(string(raw), "\n") {
+		if strings.HasPrefix(strings.TrimSpace(line), "// Generation: ") {
+			took++
+			continue
+		}
+		kept = append(kept, line)
+	}
+	if took == 0 {
+		t.Fatal("the saved routine states no generation already, so a rebuild would " +
+			"differ in nothing")
+	}
+	if err := os.WriteFile(a.reg().Path(rt), []byte(strings.Join(kept, "\n")),
+		0o644); err != nil {
+		t.Fatal(err)
 	}
 }

@@ -559,3 +559,34 @@ func TestARoutineThatTypesTheGenerationLineStatesNothing(t *testing.T) {
 		t.Errorf("a routine that states 1 and types 9 reads as %+v", got)
 	}
 }
+
+// AND THE SENTENCE FOR A CURRENT ROUTINE DOES NOT PROMISE THAT A REBUILD WOULD MATCH.
+//
+// It said "it will be the same routine", which the stamp cannot support: the generation says which
+// rules WROTE the source, not that the source is still what they wrote. A routine somebody edited
+// by hand keeps its stamp and rebuilds differently — and that person is exactly who would be told
+// their comparison was pointless. Only `Prepared.Changes()` can answer whether the two differ,
+// and it answers after the rebuild.
+func TestTheSentenceForACurrentRoutineOffersTheComparisonAndPromisesNothing(t *testing.T) {
+	said := GenerationSentence(StatedGeneration{Reading: GenerationCurrent,
+		Generation: GenerationNow(), Declared: "1"}, true)
+
+	if !strings.Contains(said, "whether it differs") {
+		t.Errorf("the sentence is %q and does not offer the comparison as a "+
+			"question", said)
+	}
+	for _, promise := range []string{"the same routine", "will be the same",
+		"identical"} {
+		if strings.Contains(said, promise) {
+			t.Errorf("the sentence promises %q about a rebuild it has not done: %q",
+				promise, said)
+		}
+	}
+	// AND A HAND-EDITED CURRENT ROUTINE IS WHY. It still reads as current, so the
+	// sentence above is the one it gets — and a rebuild of it differs.
+	edited := "// a person edited this\n" + aStampedRoutine("// Generation: 1.")
+	if got := GenerationOf(edited); got.Reading != GenerationCurrent {
+		t.Errorf("a hand-edited routine that kept its stamp reads as %q, so the case "+
+			"this is about does not arise", got.Reading)
+	}
+}

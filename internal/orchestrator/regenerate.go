@@ -39,9 +39,11 @@ package orchestrator
 // See [[ADR-262-a-routine-states-which-generation-wrote-it]].
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/chaynes-simpleclouds/marco/internal/mlog"
 	"github.com/chaynes-simpleclouds/marco/internal/recorder"
@@ -53,6 +55,28 @@ import (
 // NOTHING ON DISK HAS CHANGED. Every field here is a reading or a rendering held in memory, and
 // the routine is exactly as it was until `Replace` is called with this and succeeds.
 type Prepared struct {
+	// Token identifies THIS preparation, and a replacement must carry it back.
+	//
+	// # Why an identity for the review and not just for the routine
+	//
+	// Because a window can have two preparations of one routine in flight. Studio held
+	// them in a slot keyed by the routine, so the second overwrote the first — and the two
+	// calls are asynchronous, so the page can be displaying A's sources while the slot
+	// holds B. Press Replace and B is written: every check passes, the success names the
+	// routine the person was looking at, and the bytes are the ones they never saw.
+	//
+	// # Why it is derived from the content rather than counted
+	//
+	// Because what has to be identified is the review — the two sources on the screen and
+	// the recording they came from — and the content IS that. Two preparations that share
+	// a token are byte-for-byte identical in what was displayed and in what a replacement
+	// would write, so resolving one to the other cannot write anything nobody saw. A
+	// counter would be unique and would need somewhere to live, and the place it would
+	// live is the shared state this defect came out of.
+	//
+	// It is immutable: a `Prepared` is built once and never edited, and every field this
+	// is derived from is fixed at the moment the two files were read.
+	Token string
 	// Route is the exact routine this is about — the identity a replacement targets, and
 	// the one a caller selected. Not a name, which two routines can share.
 	Route routes.Route
@@ -116,6 +140,22 @@ func (d Deps) Prepare(rt routes.Route) (Prepared, error) {
 		sourceAt:      routes.DigestOf(src),
 		WasGeneration: GenerationOf(src), Differences: GenerationDifferencesOf(src)}
 
+	// ── ELIGIBILITY, AGAINST THE SOURCE THIS ACTUALLY READ ──
+	//
+	// Not against whatever a caller looked at earlier. Studio greys its button from a
+	// LISTING, which is one read of the library; this is a second read, and between the
+	// two the file can be replaced — by a hand edit, by another window, by a sync — with a
+	// version stating a generation this build cannot explain. Checking only the listing
+	// would let exactly that case through the restriction, and the restriction is the one
+	// place where this build refuses to say what a replacement would change.
+	//
+	// So the rule is applied where the bytes are: the generation read off THIS snapshot
+	// decides, and the sentence is the same one the card shows.
+	if !p.WasGeneration.Offerable() {
+		return Prepared{}, fmt.Errorf("%q cannot be rebuilt: %s", p.Name,
+			GenerationSentence(p.WasGeneration, d.Reg.HasRecording(rt)))
+	}
+
 	rec, ok := d.Reg.LoadRecording(rt)
 	if !ok {
 		// THE EXPLANATION IS STILL OWED, AND IT IS NOT THIS FUNCTION'S. A routine
@@ -144,14 +184,14 @@ func (d Deps) Prepare(rt routes.Route) (Prepared, error) {
 	switch {
 	case dr == nil || len(dr.Steps) == 0:
 		p.Refused = "its demonstration contains nothing that can be performed"
-		return p, nil
+		return p.sealed(), nil
 	case dr.Unrepresentable != "":
 		// A GESTURE TODAY'S RULES WILL NOT WRITE DOWN. The same refusal a fresh
 		// save would give, surfaced in the review rather than at the moment of
 		// replacement.
 		p.Refused = fmt.Sprintf("a version rebuilt from its recording cannot be "+
 			"saved as it stands: %s", dr.Unrepresentable)
-		return p, nil
+		return p.sealed(), nil
 	}
 	// AND THE SCOPE IT ALREADY HAS. `Save` chooses one; this one is not choosing. A
 	// routine that came back from a review living somewhere else, or bringing an
@@ -163,10 +203,10 @@ func (d Deps) Prepare(rt routes.Route) (Prepared, error) {
 		// stopped at, which is a thing a person needs to read rather than a thing
 		// this should translate.
 		p.Refused = err.Error()
-		return p, nil
+		return p.sealed(), nil
 	}
 	p.Now, p.assets, p.NowGeneration = now, assets, GenerationOf(now)
-	return p, nil
+	return p.sealed(), nil
 }
 
 // Replace writes the reviewed source over the routine it was prepared from.
@@ -184,6 +224,14 @@ func (d Deps) Prepare(rt routes.Route) (Prepared, error) {
 func (d Deps) Replace(p Prepared) error {
 	if p.Route.Slug == "" {
 		return fmt.Errorf("a replacement needs the routine it was prepared from")
+	}
+	// AND IT IS THE PREPARATION IT SAYS IT IS. The token is derived from the fields
+	// below it, so a `Prepared` edited after it was prepared — by a caller, by a bug, by a
+	// struct assembled from parts of two — no longer matches its own content. Cheap, and
+	// it means the one thing a caller hands back cannot be quietly wrong.
+	if p.Token == "" || p.Token != p.sealed().Token {
+		return fmt.Errorf("the version offered for %q is not the one that was "+
+			"prepared, so nothing was written — review it again", p.Name)
 	}
 	if !p.Replaceable() {
 		if p.Refused != "" {
@@ -212,10 +260,27 @@ func (d Deps) Replace(p Prepared) error {
 			"was built, so it is left as it is — review it again and the "+
 			"comparison will be against the new recording", p.Name)
 	}
-	// THE PICTURES FIRST. They are additive — each one keyed by the path the new source
-	// names — so a failure here leaves the old source beside the old pictures, which is
-	// the state that was there a moment ago. The reverse order would leave a new routine
-	// looking for an image nobody wrote.
+	// ── THE PICTURES ARE NOT ADDITIVE, WHICH THIS USED TO ASSUME ──
+	//
+	// A routine's anchor images are named after the routine — `<base>-anchor-1.png` and so
+	// on — so a rebuild produces the SAME paths, and `WriteAssets` overwrites what is
+	// there. Calling that additive was wrong in the one direction that matters: write the
+	// new images, fail to write the source, and the OLD source is still on disk pointing
+	// at paths that now hold different pictures. A routine that presses what a different
+	// image matched, having been left alone.
+	//
+	// So a conflicting image is a REFUSAL and nothing is written at all. A path that holds
+	// the same bytes is no conflict, because writing it changes nothing — which matters,
+	// since otherwise every re-review of an anchored routine would refuse. A path that
+	// holds nothing is no conflict either: a file nobody references yet is not a change to
+	// anything that runs.
+	//
+	// What that leaves if the SOURCE write then fails: new image files beside an unchanged
+	// old source, which does not reference them. Unreferenced files, and the routine
+	// behaves exactly as it did.
+	if why := d.conflictingImages(p.assets); why != "" {
+		return fmt.Errorf("%q is left as it is: %s", p.Name, why)
+	}
 	if err := d.Reg.WriteAssets(p.assets); err != nil {
 		return fmt.Errorf("%q is left as it is: the images the rebuilt version needs "+
 			"could not be written: %w", p.Name, err)
@@ -227,4 +292,51 @@ func (d Deps) Replace(p Prepared) error {
 		"was", string(p.WasGeneration.Reading), "now", string(p.NowGeneration.Reading),
 		"scope", string(ScopeAlreadyOf(p.Route)))
 	return nil
+}
+
+// conflictingImages names the first anchor image a replacement would OVERWRITE with different
+// bytes, or "" when none would.
+//
+// # Why this is a refusal and not something to work around
+//
+// Because the alternative is to make the paths immutable — content-addressed image names — and
+// that is a change to what every newly generated routine's files are CALLED, reaching every
+// routine, every asset writer and every saved file's embedded paths. This slice is about
+// provenance and a review flow, and a naming change would arrive inside it unreviewed.
+//
+// A refusal is also the honest answer for the case it catches. If the images beside a routine have
+// changed since it was written, the person has two things that disagree — their saved routine and
+// the pictures it looks for — and quietly overwriting one of them on the way past is not a
+// decision this flow may make for them.
+func (d Deps) conflictingImages(assets map[string][]byte) string {
+	for path, want := range assets {
+		got, err := os.ReadFile(path)
+		if err != nil {
+			continue // nothing there, or nothing readable: writing it changes no routine
+		}
+		if bytes.Equal(got, want) {
+			continue // the same picture; writing it is a no-op
+		}
+		return fmt.Sprintf("the image at %s is not the one the rebuilt version needs, "+
+			"and replacing it would change what the routine you have looks for "+
+			"as well — so nothing was written. Record it again if the pictures "+
+			"beside it are out of date", path)
+	}
+	return ""
+}
+
+// sealed is this preparation with its token, which is the last thing done to it.
+//
+// EVERY EXIT GOES THROUGH HERE, including the three refusals — a refused review is still shown on
+// a screen and still has to be told apart from another refused review of the same routine, which
+// is the whole of what the token is for. A `Prepared` returned without one cannot be replaced
+// with, which is safe, and would be a silent dead end rather than a refusal with a reason.
+func (p Prepared) sealed() Prepared {
+	p.Token = routes.DigestOf(strings.Join([]string{
+		// WHAT THE REVIEW IS: the two files it was built from, what it would
+		// write, and why it would write nothing. Not the routine's identity,
+		// which two preparations of one routine share by definition.
+		p.sourceAt, p.recordingAt, routes.DigestOf(p.Now), p.Refused,
+	}, "\x00"))
+	return p
 }

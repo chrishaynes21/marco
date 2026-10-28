@@ -355,8 +355,18 @@ func GenerationSentence(s StatedGeneration, rebuildable bool) string {
 				"there is nothing to rebuild a version from — which will " +
 				"matter only if these rules change."
 		}
-		return was + " You can still review a version rebuilt from its stored " +
-			"recording; it will be the same routine."
+		// AND IT DOES NOT PROMISE THAT A REBUILD WOULD MATCH.
+		//
+		// It used to say "it will be the same routine", which is a claim the stamp
+		// cannot support: the generation says which rules WROTE the source, not
+		// that the source is still what they wrote. A routine somebody edited by
+		// hand keeps its stamp and rebuilds differently, and that person is
+		// exactly who would be told their comparison was pointless. Only
+		// `Prepared.Changes()` can answer whether the two differ, and it answers
+		// after the rebuild — so what is offered here is the comparison itself.
+		return was + " You can review a version rebuilt from its stored " +
+			"recording, which will show whether it differs from what is " +
+			"saved."
 	case GenerationOlder:
 		was := fmt.Sprintf("This routine states that generation %d of Marco's rules "+
 			"wrote it, and this build writes generation %d.", s.Generation,

@@ -14,6 +14,7 @@ package orchestrator
 // See [[ADR-262-a-routine-states-which-generation-wrote-it]].
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -552,5 +553,300 @@ func TestTheRegistryRefusesToReplaceSomethingWithNoName(t *testing.T) {
 	}
 	if raw, _ := os.ReadFile(reg.Path(rt)); string(raw) != "// replaced\nuse os.\n" {
 		t.Errorf("the replacement wrote %q", raw)
+	}
+}
+
+// ── TWO PREPARATIONS OF ONE ROUTINE ───────────────────────────────────────────
+
+// EACH PREPARATION IS ITS OWN REVIEW, AND A REPLACEMENT CARRIES THAT REVIEW'S TOKEN.
+//
+// A window can have two preparations of one routine in flight. Held under the ROUTINE they
+// overwrote each other — and the calls are asynchronous, so the page could be displaying A's two
+// sources while the slot held B. Press Replace and B is written: every check below passes, the
+// success names the routine the person was looking at, and the bytes are ones they never saw.
+//
+// So a token identifies the preparation, and it is derived from the content: the two files it was
+// built from, what it would write, and why it would write nothing.
+func TestTwoPreparationsOfOneRoutineAreTwoReviews(t *testing.T) {
+	d, rt := aSavedRoutineWithItsRecording(t)
+	statingNoGeneration(t, d, rt)
+
+	first, err := d.Prepare(rt)
+	if err != nil {
+		t.Fatalf("the first preparation: %v", err)
+	}
+	// THE ROUTINE CHANGES BETWEEN THE TWO, which is the case that makes them different
+	// reviews rather than two copies of one: a hand edit, another window, a sync.
+	edited := strings.Replace(first.Was, "// Auto-generated",
+		"// a person edited this\n// Auto-generated", 1)
+	if edited == first.Was {
+		t.Fatal("the edit changed nothing, so the two preparations would be identical")
+	}
+	if err := d.Reg.Save(rt, edited); err != nil {
+		t.Fatal(err)
+	}
+	second, err := d.Prepare(rt)
+	if err != nil {
+		t.Fatalf("the second preparation: %v", err)
+	}
+
+	if first.Token == "" || second.Token == "" {
+		t.Fatal("a preparation carries no token, so nothing can say which review a " +
+			"replacement is of")
+	}
+	if first.Token == second.Token {
+		t.Fatalf("two preparations of one routine built from different sources share "+
+			"the token %q, so a replacement cannot tell them apart", first.Token)
+	}
+	if first.Was == second.Was {
+		t.Fatal("the two preparations show the same saved source, so this is not the " +
+			"case it says it is")
+	}
+	// AND THE OUT-OF-ORDER CASE: the FIRST one is replaced with, after the second was
+	// prepared. It must be refused, because the routine it was built from is not the
+	// routine on disk — and the refusal says to review again rather than writing a
+	// rendering of a file that has moved on.
+	err = d.Replace(first)
+	if err == nil {
+		t.Fatal("the earlier preparation was written over a routine that had changed " +
+			"since it was built")
+	}
+	if !strings.Contains(err.Error(), "saved again") {
+		t.Errorf("the refusal is %q", err)
+	}
+	if raw, _ := os.ReadFile(d.Reg.Path(rt)); string(raw) != edited {
+		t.Errorf("the refused replacement disturbed the routine:\n%s", raw)
+	}
+	// AND THE SECOND ONE, WHICH IS THE CURRENT REVIEW, GOES THROUGH.
+	if err := d.Replace(second); err != nil {
+		t.Fatalf("the current preparation was refused: %v", err)
+	}
+	if raw, _ := os.ReadFile(d.Reg.Path(rt)); string(raw) != second.Now {
+		t.Errorf("the file holds something other than the reviewed version:\n%s", raw)
+	}
+}
+
+// AND A PREPARATION WHOSE CONTENT WAS CHANGED AFTER IT WAS PREPARED NO LONGER MATCHES ITS TOKEN.
+//
+// The token is derived from the fields a replacement acts on, so a `Prepared` edited on its way
+// back — by a caller, by a bug, by a struct assembled from parts of two — says so. Cheap, and it
+// means the one thing a caller hands over cannot be quietly wrong.
+func TestAPreparationThatWasAlteredDoesNotMatchItsToken(t *testing.T) {
+	d, rt := aSavedRoutineWithItsRecording(t)
+	statingNoGeneration(t, d, rt)
+	p, err := d.Prepare(rt)
+	if err != nil {
+		t.Fatalf("preparing: %v", err)
+	}
+	was, err := os.ReadFile(d.Reg.Path(rt))
+	if err != nil {
+		t.Fatal(err)
+	}
+	tampered := p
+	tampered.Now = "// something else entirely\nuse os.\n\nthe App is a script.\n"
+
+	err = d.Replace(tampered)
+	if err == nil {
+		t.Fatal("a preparation whose source was swapped after it was prepared was " +
+			"written anyway")
+	}
+	if !strings.Contains(err.Error(), "not the one that was prepared") {
+		t.Errorf("the refusal is %q", err)
+	}
+	if raw, _ := os.ReadFile(d.Reg.Path(rt)); string(raw) != string(was) {
+		t.Errorf("the refused replacement wrote to the routine:\n%s", raw)
+	}
+	// AND THE UNALTERED ONE STILL GOES THROUGH, or the check above is satisfied by a
+	// `Replace` that refuses everything.
+	if err := d.Replace(p); err != nil {
+		t.Fatalf("the preparation as it was prepared was refused: %v", err)
+	}
+}
+
+// ── ELIGIBILITY IS READ OFF THE SOURCE THIS PREPARED ──────────────────────────
+
+// A ROUTINE THAT BECAME UNEXPLAINABLE BETWEEN THE LISTING AND THE PREPARATION IS REFUSED.
+//
+// Studio greys its button from a LISTING, which is one read of the library. `Prepare` is a second
+// read, and between the two the file can be replaced with a version stating a generation this
+// build cannot explain — by a hand edit, another window, a sync. Checking only the listing lets
+// exactly that through the one restriction where this build refuses to say what a replacement
+// would change.
+//
+// So the rule is applied where the bytes are. This is that interval: a routine that was eligible
+// when it was listed, and is not when it is read.
+func TestARoutineThatBecameUnexplainableBetweenTheReadsIsRefused(t *testing.T) {
+	d, rt := aSavedRoutineWithItsRecording(t)
+	// AS IT WAS LISTED: eligible, which is what makes the refusal below about the
+	// interval rather than about a routine that was never offerable.
+	raw, err := os.ReadFile(d.Reg.Path(rt))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !GenerationOf(string(raw)).Offerable() {
+		t.Fatal("the seeded routine was never offerable, so this establishes nothing " +
+			"about the gap between two reads")
+	}
+	// AND THEN THE FILE MOVES ON, to a generation this build has no account of.
+	ahead := strings.Replace(string(raw), "// Generation: 1.", "// Generation: 97.", 1)
+	if ahead == string(raw) {
+		t.Fatalf("the routine does not state its generation where this expects:\n%s",
+			raw)
+	}
+	if err := d.Reg.Save(rt, ahead); err != nil {
+		t.Fatal(err)
+	}
+	before := theWholeLibrary(t, d)
+
+	_, err = d.Prepare(rt)
+	if err == nil {
+		t.Fatal("a routine stating a generation this build cannot explain was " +
+			"prepared for review anyway, so the restriction is only as good as " +
+			"whatever a caller looked at earlier")
+	}
+	if !strings.Contains(err.Error(), "does not recognise") {
+		t.Errorf("the refusal is %q and does not say what it could not read", err)
+	}
+	if why := differsFrom(before, theWholeLibrary(t, d)); why != "" {
+		t.Errorf("the refused preparation changed the library: %s", why)
+	}
+}
+
+// ── THE PICTURES ARE NOT ADDITIVE ─────────────────────────────────────────────
+
+// anAnchoredRoutine is a saved routine with an anchor image beside it.
+//
+// Which is what makes the next test possible: a rebuild produces the SAME image path, because the
+// name is made from the routine's — `<base>-anchor-1.png`. Not guarded, because an anchored press
+// cannot be stopped at and a guarded routine containing one is refused at Save; this is the shape
+// an anchored routine really has.
+func anAnchoredRoutine(t *testing.T) (Deps, routes.Route, string) {
+	t.Helper()
+	events := []recorder.RecordedEvent{
+		{Kind: recorder.EvAppSwitch, KeyName: "arkascended", T: at(0)},
+		{Kind: recorder.EvClick, Button: "left", Down: true, X: 842, Y: 274,
+			App: "arkascended", PID: gamePID, Image: []byte("the first picture"),
+			T: at(100)},
+		{Kind: recorder.EvClick, Button: "left", Down: false, X: 842, Y: 274,
+			App: "arkascended", PID: gamePID, T: at(105)},
+	}
+	d := Deps{Reg: routes.Registry{Dir: t.TempDir()}, Out: &strings.Builder{}}
+	dr := d.DraftOf("anchored thing", events, "arkascended", "a test", Unstated)
+	if dr == nil || len(dr.Steps) == 0 {
+		t.Fatal("the anchored demonstration produced no draft")
+	}
+	rt, err := d.Save(dr, ScopeApp, "arkascended")
+	if err != nil {
+		t.Fatalf("saving the anchored routine: %v", err)
+	}
+	if _, ok := d.Reg.LoadRecording(rt); !ok {
+		t.Fatal("the save left no demonstration beside the anchored routine")
+	}
+	p, err := d.Prepare(rt)
+	if err != nil {
+		t.Fatalf("preparing the anchored routine: %v", err)
+	}
+	if len(p.assets) != 1 {
+		t.Fatalf("the rebuild produced %d image(s), so this test has nothing to be "+
+			"about", len(p.assets))
+	}
+	for path := range p.assets {
+		return d, rt, path
+	}
+	return d, rt, ""
+}
+
+// A REPLACEMENT THAT WOULD OVERWRITE A DIFFERENT IMAGE IS REFUSED, AND WRITES NOTHING AT ALL.
+//
+// The images are NOT additive, which this used to assume. They are named after the routine, so a
+// rebuild produces the same paths and `WriteAssets` overwrites what is there. Writing them first
+// and calling that safe was wrong in the one direction that matters: write the new images, fail to
+// write the source, and the OLD source is still on disk pointing at paths that now hold different
+// pictures — a routine that presses what a different image matched, having been left alone.
+//
+// So the source AND the images both have to be as they were, which is what this asserts.
+func TestAReplacementThatWouldOverwriteADifferentImageIsRefused(t *testing.T) {
+	d, rt, image := anAnchoredRoutine(t)
+	statingNoGeneration(t, d, rt)
+	p, err := d.Prepare(rt)
+	if err != nil {
+		t.Fatalf("preparing: %v", err)
+	}
+	if !p.Changes() {
+		t.Fatal("the rebuilt source is identical to the saved one, so 'the source " +
+			"was not replaced' would be true however this behaved")
+	}
+	// THE IMAGE BESIDE IT IS NOT THE ONE THE REBUILD WOULD WRITE. A real state: the
+	// routine was recorded again and only its pictures were kept, or somebody replaced
+	// one by hand.
+	const byHand = "a different picture entirely"
+	if err := os.WriteFile(image, []byte(byHand), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	was, err := os.ReadFile(d.Reg.Path(rt))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = d.Replace(p)
+	if err == nil {
+		t.Fatal("a replacement that would overwrite a different image went ahead")
+	}
+	if !strings.Contains(err.Error(), "not the one the rebuilt version needs") {
+		t.Errorf("the refusal is %q and does not say what it found", err)
+	}
+	if !strings.Contains(err.Error(), image) {
+		t.Errorf("the refusal does not name the image: %q", err)
+	}
+	// THE SOURCE IS AS IT WAS.
+	if raw, _ := os.ReadFile(d.Reg.Path(rt)); string(raw) != string(was) {
+		t.Errorf("the refused replacement wrote the source anyway:\n%s", raw)
+	}
+	// AND SO ARE THE IMAGES, which is the half this finding was about: a routine left
+	// alone beside pictures that changed is a routine that presses something else.
+	if raw, _ := os.ReadFile(image); string(raw) != byHand {
+		t.Errorf("the refused replacement overwrote the image: %q", raw)
+	}
+}
+
+// AND AN IMAGE THAT IS ALREADY THE ONE THE REBUILD NEEDS IS NO CONFLICT.
+//
+// Without this the rule refuses every re-review of an anchored routine, which would make the flow
+// useless for exactly the routines that have images. Writing a file the bytes it already holds
+// changes nothing that runs.
+func TestAnImageThatIsAlreadyTheRightOneIsNoConflict(t *testing.T) {
+	d, rt, image := anAnchoredRoutine(t)
+	statingNoGeneration(t, d, rt)
+	p, err := d.Prepare(rt)
+	if err != nil {
+		t.Fatalf("preparing: %v", err)
+	}
+	// THE IMAGE ON DISK IS THE ONE THE REBUILD WOULD WRITE, which is the ordinary case:
+	// the same recording renders the same picture.
+	if raw, rerr := os.ReadFile(image); rerr != nil || !bytes.Equal(raw, p.assets[image]) {
+		t.Fatalf("the image beside the routine is not the one its own rebuild "+
+			"produces, so this is not the ordinary case (%v)", rerr)
+	}
+	if err := d.Replace(p); err != nil {
+		t.Fatalf("a replacement whose images are already right was refused: %v", err)
+	}
+	if raw, _ := os.ReadFile(d.Reg.Path(rt)); string(raw) != p.Now {
+		t.Errorf("the file holds something other than the reviewed version:\n%s", raw)
+	}
+	// AND A PATH THAT HOLDS NOTHING IS NO CONFLICT EITHER: a file nobody references yet
+	// is not a change to anything that runs.
+	if err := os.Remove(image); err != nil {
+		t.Fatal(err)
+	}
+	again, err := d.Prepare(rt)
+	if err != nil {
+		t.Fatalf("preparing again: %v", err)
+	}
+	if err := d.Replace(again); err != nil {
+		t.Fatalf("a replacement whose image is not there yet was refused: %v", err)
+	}
+	if raw, rerr := os.ReadFile(image); rerr != nil ||
+		!bytes.Equal(raw, again.assets[image]) {
+		t.Errorf("the replacement did not write the image it needs (%v)", rerr)
 	}
 }

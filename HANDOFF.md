@@ -10245,3 +10245,76 @@ A second run was made only to read the exit code, and also passed. The first run
 reported above and its artifacts are preserved.
 
 See [[ADR-262-a-routine-states-which-generation-wrote-it]].
+
+### §41w — four findings against §41v: one slot, one overwrite, one stale read, one promise
+
+The review of the versioning slice found four, and two of them were about the same kind of
+mistake: a check that was correct about something other than the thing being acted on.
+
+**[P1] A replacement identified the routine, not the review on the screen.** Studio held one
+preparation per routine — `a.reviews[id]` — so a second review of one routine overwrote the first.
+These calls are asynchronous, so the page could be displaying A's two sources while the window
+held B. Press Replace and B is written: every check in `Deps.Replace` passes against B, the
+success names the routine the person was looking at, and the bytes are ones they never saw.
+
+A preparation now carries an immutable **token** and a replacement must present it. The token is
+derived from the CONTENT — the two files it was built from, what it would write, and why it would
+write nothing — rather than counted. Two reasons. What has to be identified is the *review*, and
+the content is that: two preparations sharing a token are byte-for-byte identical in what was
+displayed and in what a replacement would write, so resolving one to the other cannot write
+anything nobody saw. And a counter would need somewhere to live, which is the shared state this
+defect came out of. `Deps.Replace` checks a `Prepared` against its own token too, so one edited on
+its way back — by a caller, by a bug, by a struct assembled from parts of two — says so. Studio
+keys its held reviews by token now, bounded at sixteen, oldest out first; an evicted review is a
+refusal with a reason rather than a wrong write.
+
+**[P1] A failed replacement could change the original's images.** I wrote the images first and
+called them additive. They are not. They are named after the routine — `<base>-anchor-1.png` — so
+a rebuild produces the SAME paths and `WriteAssets` overwrites what is there. Write the new
+images, fail to write the source, and the old source is still on disk pointing at paths that now
+hold different pictures: a routine that presses what a different image matched, having been left
+alone. The comment calling that order safe was the tell, and it was wrong in exactly the direction
+the ordering was chosen to protect.
+
+A conflicting image is now a **refusal** and nothing is written at all. An identical one is no
+conflict, because writing a file the bytes it already holds changes nothing — which matters, or
+every re-review of an anchored routine would refuse. An absent one is no conflict either: a file
+nobody references is not a change to anything that runs. What a failed SOURCE write can still
+leave is new image files beside an unchanged old source that does not reference them, which is
+unreferenced files and a routine behaving exactly as it did.
+
+Content-addressed image names would make the paths immutable and were rejected on scope: that
+changes what every newly generated routine's files are CALLED, reaching every asset writer and
+every saved file's embedded paths, and would have arrived inside a provenance slice unreviewed.
+
+**[P2] The unknown-generation refusal checked an earlier read.** `ReviewRebuilt` read the
+LISTING's eligibility; `Prepare` then read the source again and never asked what that snapshot
+stated. Replacing the file between the two reads with an unknown-generation version bypassed the
+one restriction where this build refuses to say what a replacement would change. The rule is now
+applied where the bytes are — `Prepare` reads the generation off the source it actually read and
+refuses there — and Studio's check survives only as the greying of the button.
+
+**[P2] "Current" was presented as proof of identical regeneration.** The sentence promised "it
+will be the same routine". The stamp cannot support that: it says which rules WROTE the source,
+not that the source is still what they wrote. A routine somebody edited by hand keeps its stamp
+and rebuilds differently — and that person is exactly who would have been told their comparison
+was pointless. It offers the comparison as the question it is, and only `Prepared.Changes()`
+answers it, after the rebuild.
+
+**The gate against the four: 14 mutations, 13 killed, one real hole.** Nothing exercised Replace
+from the PAGE — the rendered test reviewed and cancelled, which is all it needed before — so the
+page sending a routine's identity in place of the token survived. The page now reviews, cancels,
+reviews again and replaces, and asserts which term travelled in both directions.
+
+Two tests had to stop using a routine this build just wrote, for the reason §41v's own gate found:
+such a routine rebuilds byte for byte, so "the file holds the second review's source rather than
+the first's" is true however the window behaves. The generation line comes out first, and the
+tests say so.
+
+**The gate was re-run rather than taken on trust**, since both the Studio page and the backend
+changed: 1 of 1, exit 0 (artifacts `20261027-171820`), with the same evidence as the first run —
+the replaced file differing from the stripped one by exactly the generation line and
+byte-identical to what the generator had written before. **Physical recording capture remains NOT
+EXERCISED.**
+
+See [[ADR-262-a-routine-states-which-generation-wrote-it]].

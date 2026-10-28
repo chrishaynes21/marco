@@ -47,8 +47,12 @@ window.go = {main: {
     Unrunnable: () => Promise.resolve([]),
     Library: () => Promise.resolve({dir: 'C:/x/routes'}),
     Recording: () => Promise.resolve({active: false}),
-    CancelReview: (id) => { window.cancelled = (window.cancelled || 0) + 1 },
-    ReplaceWithRebuilt: (id) => {
+    CancelReview: (token) => {
+      window.cancelledWith = token
+      window.cancelled = (window.cancelled || 0) + 1
+    },
+    ReplaceWithRebuilt: (token) => {
+      window.replacedWith = token
       window.replaced = (window.replaced || 0) + 1
       return Promise.resolve('')
     },
@@ -57,7 +61,7 @@ window.go = {main: {
       if (id !== 'ark/focus/old-thing') {
         return Promise.resolve({id: id, why: 'this should never have been asked'})
       }
-      return Promise.resolve({id: id, name: 'old thing',
+      return Promise.resolve({id: id, token: 'tok-old-thing-1', name: 'old thing',
         was: 'use os.\nthe OldThing is an actor.\n',
         now: '// Generation: 1.\nuse os.\nthe OldThing is an actor.\n',
         changes: true, replaceable: true,
@@ -124,6 +128,12 @@ setTimeout(() => {
 }, 3300)
 setTimeout(() => {
   afterCancel = reviewShown() ? 1 : 0
+  // AND THEN REVIEW AGAIN AND REPLACE, which is the half the cancel above cannot
+  // reach: the token has to travel on the way OUT as well as on the way back.
+  reviewRebuilt()
+}, 3600)
+setTimeout(() => { replaceWithRebuilt() }, 4200)
+setTimeout(() => {
   document.title = 'cards=' + document.querySelectorAll('#routineList .card').length +
     ' current=' + (says[0].includes('which is the generation this build writes') ? 1 : 0) +
     ' currentlive=' + live[0] +
@@ -138,9 +148,11 @@ setTimeout(() => {
     ' panes=' + panes + ' bothgens=' + bothgens + ' replacelive=' + replaceLive +
     ' aftercancel=' + afterCancel +
     ' cancelled=' + (window.cancelled || 0) +
+    ' cancelledtoken=' + (window.cancelledWith === 'tok-old-thing-1' ? 1 : 0) +
     ' replaced=' + (window.replaced || 0) +
+    ' replacedtoken=' + (window.replacedWith === 'tok-old-thing-1' ? 1 : 0) +
     ' reviewed=' + (window.reviewed || 0)
-}, 4200)
+}, 5100)
 `
 
 // EACH OF THE FOUR READINGS IS ON THE PAGE IN ITS OWN WORDS.
@@ -210,9 +222,10 @@ func TestThePageOffersARebuiltVersionOnlyWhereThereIsOneToOffer(t *testing.T) {
 // written to let go of.
 func TestAReviewShowsBothSourcesAndCancellingWritesNothing(t *testing.T) {
 	title, n := aRenderedGenerationPage(t)
-	if n("reviewed") != 1 {
-		t.Fatalf("the page asked for %d review(s), so this proves nothing about "+
-			"what one shows: %q", n("reviewed"), title)
+	if n("reviewed") != 2 {
+		t.Fatalf("the page asked for %d review(s), want the two this sequence makes "+
+			"— one to show and cancel, one to replace with: %q", n("reviewed"),
+			title)
 	}
 	if n("panes") != 1 {
 		t.Errorf("the review does not show both the saved source and the rebuilt "+
@@ -229,6 +242,13 @@ func TestAReviewShowsBothSourcesAndCancellingWritesNothing(t *testing.T) {
 	if n("aftercancel") != 0 {
 		t.Errorf("cancelling left the review on the screen: %q", title)
 	}
+	// AND THE TOKEN OF THE REVIEW ON THE SCREEN IS WHAT TRAVELS, not the routine's
+	// identity: two reviews of one routine share the latter, so dismissing by it would
+	// let go of whichever the window happened to hold.
+	if n("cancelledtoken") != 1 {
+		t.Errorf("cancelling did not send the token of the review it dismissed: %q",
+			title)
+	}
 	if n("cancelled") != 1 {
 		t.Errorf("cancelling told the window %d time(s) to let go of the version it "+
 			"held, so a second press of a dismissed button could still replace "+
@@ -236,9 +256,21 @@ func TestAReviewShowsBothSourcesAndCancellingWritesNothing(t *testing.T) {
 	}
 	// AND NOTHING WAS REPLACED. The whole claim: a person who reviewed and cancelled
 	// has the routine they started with.
-	if n("replaced") != 0 {
-		t.Errorf("a review that was cancelled replaced the routine %d time(s): %q",
-			n("replaced"), title)
+	// AND THE CANCEL DID NOT REPLACE. The page reviews again and replaces afterwards,
+	// so this is one rather than zero — what matters is that the cancel itself wrote
+	// nothing, which the ORDER establishes: `cancelled` was recorded before any replace
+	// was asked for.
+	if n("replaced") != 1 {
+		t.Errorf("the page asked for %d replacement(s) across the whole run, want "+
+			"the one it makes after reviewing again: %q", n("replaced"), title)
+	}
+	// AND THE TOKEN OF THE REVIEW ON SCREEN IS WHAT IT REPLACED WITH, not the routine's
+	// identity. Two reviews of one routine share the latter, so handing it back writes
+	// whichever preparation the window held last — bytes the person never saw, under the
+	// name of the routine they were looking at.
+	if n("replacedtoken") != 1 {
+		t.Errorf("replacing did not send the token of the review it was showing: %q",
+			title)
 	}
 }
 
