@@ -1,35 +1,70 @@
 # marco
 
-**Tell your computer what you want done.**
+**Show your computer what you want done, once.**
+
+Open Marco and you get **Studio**: a window where you press Record, go and do the
+thing with your own mouse and keyboard, come back and press Stop. Studio shows you
+what it made of it — a small program in plain sentences you can read — and nothing
+is saved until you have looked at it and pressed Save. Then it is a routine you can
+play whenever you like.
 
 ```
-$ marco do "click Save"
-[result] performed
+Record  →  do the thing  →  Stop  →  read what it made  →  Save  →  Play
 ```
 
-That is the whole of it. Nothing to record, nothing to teach it first, nothing
-remembered in advance: Marco looks at what is on screen, works out which control
-you meant, does it through a verified semantic action, and tells you whether it
-worked.
+That is the alpha, and it is the half of Marco that works on anything: menus,
+games, a dialog nothing can recognise. It replays what you showed it.
 
-```
-$ marco do "go back"
-$ marco do "click search and type hello"
-$ marco do "expand the Downloads folder"
-$ marco stop                              # from anywhere, at any time
-```
+### Two things that are easy to assume, and are not true
 
+**Recording watches everything.** While Studio is recording, it watches your
+keyboard and mouse in *every* application, not only the one you are demonstrating
+in — anything you do in the meantime becomes part of the routine. Studio's own
+window is the one exception. Recording only a chosen window is not something Marco
+can do yet, and the window says so before you press Record.
+
+**`performed` does not mean Marco checked.** A routine presses what you showed it
+and does not look at the screen afterwards. So `performed` on a routine means every
+action was *submitted to the machine and none was refused* — the keystrokes went
+out, the presses went where the window said they should. It does not mean the
+application received them, or did what you wanted with them. Nothing inside Marco
+can know that about a coordinate routine, and it says `performed` rather than
+pretending otherwise.
+
+What it *does* promise is worth having. A press measured against the window it was
+demonstrated in is checked against that window before it happens: if the window
+moved, the press follows it; if the window is a different size or is gone, the
+routine **refuses rather than pressing somewhere else**, and stops — so nothing
+after a press that did not happen runs. A routine that typed half a password into a
+form tells you so.
+
+### There is a second way in, and it is a different promise
+
+`marco do "click Save"` hands the words to the Director, which looks at what is on
+screen and works out which control you meant — no recording, nothing taught first.
 There are **33 actions** — invoke, select, expand, collapse, check, choose, copy,
 paste, undo, back, forward, refresh, submit, confirm, dismiss, maximize… — and
 Marco never guesses which one. It names *what you meant*, then picks the
 implementation at run time from what the real control can actually do: a button
-with an Invoke pattern is pressed without the pointer going anywhere near it. If
-it can't find what you described, it says so rather than clicking something
-nearby.
+with an Invoke pattern is pressed without the pointer going anywhere near it. If it
+cannot find what you described, it says so rather than clicking something nearby.
 
-Every command ends in one of seven words, and *"performed"* means Marco looked
-again and confirmed it: **performed · clarify · refused · unavailable ·
-cancelled · unverified · failed**.
+**On that path `performed` can mean checked**, because an accessible control can be
+read back afterwards. That is the difference between the two: one replays a
+demonstration, the other recognises a control — and only the second is in a
+position to confirm anything.
+
+```
+$ marco do "go back"
+$ marco do "click search and type hello"
+$ marco stop                              # from anywhere, at any time
+```
+
+Every command ends in one of seven words, and each says exactly how far it got:
+**performed · clarify · refused · unavailable · cancelled · unverified · failed**.
+`unverified` is the one to know: the request was delivered and its arrival could not
+be confirmed. `refused` is Marco declining — a guard that did not recognise the
+place, an authority that said no — and is not a malfunction.
 
 ### Say it however you like
 
@@ -107,7 +142,38 @@ running.
 
 ## Quickstart
 
-Build the CLI (Go 1.26+):
+### Install it
+
+One file. `dist\Marco.exe`, built by `pack.ps1` — it unpacks itself into
+`%LOCALAPPDATA%\Marco` and opens Studio.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\pack.ps1   # build the bundle
+.\dist\Marco.exe                                      # install it and open Studio
+```
+
+Your routines live in `%LOCALAPPDATA%\Marco\routes` and are never touched by an
+upgrade. If Studio is open when you install a new version it says so and asks you
+to close it, rather than closing a window that may have a recording in it.
+
+Studio can say what an installation is made of without opening a window, which is
+the thing to send when something is wrong:
+
+```powershell
+.\dist\Marco.exe -acts "%LOCALAPPDATA%\Marco"
+```
+
+That prints every binary's revision, identifies the one piece that is not Go by
+the hash of its bytes, and names anything that is not what the bundle shipped.
+
+The **legacy overlay** — a hotkey and a command line, no review — is still in the
+bundle and starts only when asked:
+
+```powershell
+.\dist\Marco.exe --overlay
+```
+
+### Or build the CLI
 
 ```sh
 go build -o marco ./cmd/marco
