@@ -10831,3 +10831,107 @@ it.
 **Physical recording capture remains NOT EXERCISED.**
 
 See [[ADR-263-the-alpha-is-the-studio-stack-and-it-says-what-it-is]].
+
+### §43 — the gate answers for what did not run
+
+`cec9e65` closed the three boundaries; this is the gate the Architect asked for before sign-off,
+and it starts from the thing I found while running the last one.
+
+**Eight `marco do` processes were still running on this desktop**, from test runs between 18:57
+and 21:30, each with the recorder's global low-level hooks installed. They are the thirty-second
+hang with no end to it. And they were invisible twice over: the child's `$MARCO_HOME` is the test's
+temporary directory, so the run record it reserved went away with the test that made it — there was
+nothing left to read — and the only reason they surfaced at all is that a running binary cannot be
+overwritten on Windows, so a build failed. That lock was the other silence: `withAMarcoBeside`
+refuses to spawn a stale `marco.exe`, so **Studio's suite had been skipping every test that presses
+Play**, printing `ok`.
+
+Each silence explained the other, and `go test ./...` was green through both. That is the whole
+argument for this slice: a skip is green, and nothing looks for a child.
+
+#### Three questions, and `go test` asks one
+
+`cmd/gate` runs the same suites and then asks the other two.
+
+**A skip is tolerated only when `gate-skips.txt` declares it**, by package and test, with a reason
+somebody wrote. An undeclared skip fails. So does a STALE declaration — one whose test ran and did
+not skip — because the entries are read as the gate's coverage, and an entry naming a renamed test
+is an exemption doing nothing while the renamed test's next skip arrives undeclared. A reason is
+required: a line that names a test without one is an error, because that is the shape a silent
+exemption takes. And a reason beginning `BROKEN:` marks a declared skip that is a DEFECT rather
+than a decision — counted and printed apart on every run, green or not.
+
+**A surviving product binary is a finding**, established by comparison and identified by PATH. A
+gate that failed on "a `marco.exe` exists" would fail for the owner having their own Marco open; a
+gate that failed on nothing is the one that let eight of them accumulate. Everything about a
+survivor is written down BEFORE anything is done about it, which is the lesson of the eight. And
+whether it may be ENDED is a second question: below this process or an orphan, yes; `marco do`
+somebody started in their own shell is reported and left alone, with the sentence naming the
+parent that is still running.
+
+The harness asks after EVERY scenario rather than once at the end — attribution and containment —
+and copies that scenario's run records out of the store it is about to delete. A scenario that
+passed and left a child running becomes a finding, with its own evidence kept beside it.
+
+The settling bound is twenty seconds, which is Marco's own number: three bounded waits of five
+seconds each in a recording's shutdown, and the process still has to exit after them.
+
+#### What the first run found, which is what it is for
+
+- **Three helper-process skips nobody had declared** in `plugins/overlay` — the branch that IS the
+  spawned child, declining when it is the parent. Structural and now written down.
+- **A real test three files from its cause.**
+  `TestAnUnconsumedArmDoesNotSurviveIntoTheNextRecording` was skipping because the two
+  bounded-shutdown tests I added in §42 abandon a recording — which sets `recWedged` for the life
+  of the process — and neither put it back. `Start` then refuses, and the arm test declines on the
+  refusal. Fixed by giving both the package-restoring helper; the recorder package now skips
+  nothing.
+- **Three gates that no longer gate**, parked as Roadmap 37. Two in `internal/director/observe`
+  and one in `cmd/director` build a scenario, find it did not produce the condition they are
+  about, and decline — one of them under a doc comment reading *"deleting `g.unsettled++` must
+  fail this"*, which it cannot. Declared `BROKEN:` rather than fixed: deciding whether the
+  behaviour still exists to be gated is perception work, not alpha work.
+
+#### And the stages have an order
+
+`gate.ps1`: the suites, the packed bundle, the bundle INSTALLED from an isolated directory, then
+every registered scenario against those installed binaries. Each stage is worth something only if
+the one before it passed, and the desktop half is last because it is the only part that takes
+somebody's screen. `-Only` prints as a partial run rather than the gate.
+
+Stage 1 builds `marco.exe` and `director.exe` first. Not a convenience: it is the reason Studio's
+Play tests decline, so a gate that did not build them would be a gate whose most load-bearing
+tests were silent.
+
+**The first `gate.ps1` never ran a stage**: a box-drawing character in a BOM-less `.ps1`, which
+Windows PowerShell 5.1 reads as ANSI. ASCII only, now, and the trap is in CLAUDE.md.
+
+#### What it reports, run twice
+
+Once from the working tree and once from the committed one, so the result is reproducible from a
+clean checkout rather than from whatever was on disk:
+
+```
+1/4  suites    0 failures, 0 findings, 30 tolerated skips, every one declared        4m59s
+2/4  pack      dist\Marco.exe  version 88de884-20261028005038
+3/4  install   from an isolated directory: no problems, every Go binary at 88de884
+4/4  harness   desktop 23 of 23, recording 1 of 1 -- all 24 registered scenarios
+                                                                          took 06:52
+```
+
+The second run's bundle says `88de884` with no `+dirty` against any of the five Go binaries,
+which is the thing that makes the number worth quoting: the binaries that answered are the ones
+this commit builds. **No scenario left a process running**, and nothing was on the desktop
+afterwards.
+
+The first eleven-scenario run reported in §42c was a selection. This is every registered
+scenario, and the twelve it adds are the guarded drag in four of its forms, the chord, the three
+holds, the right and middle press with its moved and resized refusals, and the recording path's
+twenty-four scripted-recorder tests.
+
+**The eight orphans' cause remains unresolved.** One clean run does not close it and nothing here
+diagnoses it. What changed is that a recurrence is exposed and contained rather than silent.
+
+**Physical recording capture remains NOT EXERCISED.**
+
+See [[ADR-264-the-gate-answers-for-what-did-not-run]].

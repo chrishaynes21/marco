@@ -128,6 +128,22 @@ load-bearing tests were silent.
   fail this"*, which it cannot. Declared `BROKEN:` rather than fixed or deleted: they are
   perception and rehearsal work, not alpha work. See [[Roadmap]] item 37.
 
+## What it reports
+
+Run twice on 2026-10-28, from the working tree and then from the committed one so the result is
+reproducible from a clean checkout:
+
+- **the suites**: 0 failures, 0 findings, 30 tolerated skips, every one declared with a reason
+- **the bundle**: `88de884-20261028005038`, every Go binary stamped `88de884` with no `+dirty`
+- **its installation**, from an isolated directory with `LOCALAPPDATA` and `APPDATA` pointed away
+  and PATH cut to the system directories: no problems reported
+- **the harness**: `desktop 23 of 23`, `recording 1 of 1` — all 24 registered scenarios, against
+  those installed binaries, with **no scenario leaving a process running**
+
+The eleven-scenario run recorded above was a selection. The twelve this adds are the guarded drag
+in four forms, the chord, the three holds, the right and middle press with its moved and resized
+refusals, and the recording path.
+
 ## What this does not establish
 
 - **The eight orphans' cause.** Nothing here diagnoses it, and one clean run does not close it.

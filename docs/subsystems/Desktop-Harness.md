@@ -516,7 +516,10 @@ review/cancel/replace, typed text and the guarded press — with every run recor
 INSTALLED binary's revision rather than the tree's, which is itself the evidence that the bundle
 was what answered. Run twice: against the first packaged alpha, and again against the bundle built
 after the recorder's publication fence and the launcher's activation and path closures, with the
-same eleven results. See [[ADR-263-the-alpha-is-the-studio-stack-and-it-says-what-it-is]].
+same eleven results. On 2026-10-28 the COMPLETE set ran against the packaged bundle through
+`gate.ps1` — `desktop 23 of 23`, `recording 1 of 1`, every registered scenario, no scenario
+leaving a process running — twice, the second time from a clean tree at `88de884` so the binaries
+that answered are the ones that commit builds. See [[ADR-263-the-alpha-is-the-studio-stack-and-it-says-what-it-is]].
 
 ## The whole gate, in the order it runs
 
