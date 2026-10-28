@@ -10428,3 +10428,118 @@ nothing it exercises changed and this case is one it cannot reach. **Physical re
 remains NOT EXERCISED.**
 
 See [[ADR-262-a-routine-states-which-generation-wrote-it]].
+
+### §41z — Studio Simplify, and four more things that were already ruled on
+
+`dca63da` → `0ce3673` → `27c6d09`, on `feat/demonstrated-acts`. The Architect's order after
+generation-contract versioning closed: Studio Simplify, through the shared review flow, with no
+separate panel or replacement mechanism.
+
+**Nothing new was built, and that was the finding.** Studio had no simplify at all, so the question
+looked like "what surface does it need" — and simplifying a routine is *select, render its own
+recording again, review, replace or cancel*, which is the flow the previous slice had just had
+reviewed to death. Only the rules differ.
+
+So the rules are a **bounded kind**: `RebuildCurrent` is today's generator rules and nothing else,
+`RebuildSimplifyTyping` is those plus folding a typed run across longer pauses. Not
+caller-supplied simplifier settings — a caller handing those over is deciding what somebody's
+routine becomes from outside the one place that knows what the choices MEAN — and a word this
+build cannot name is **refused** rather than defaulted. Defaulting is the worst answer available:
+the review would be of the ordinary rebuild under the simplified one's name, with a timing caution
+attached to a routine whose timing did not change. The kind is in the token, because two reviews
+of one routine differing only in the choice that made them are two different things to replace it
+with.
+
+**And "simplify" must not imply nothing changed.** Folding a typed run removes the waits BETWEEN
+those keystrokes — up to a second of them — so a routine that typed into a box needing that second
+will now type into it faster than it did when somebody watched it work. The choice carries that in
+a sentence rather than leaving it in a diff, and the sentence also says what does NOT change,
+because the first half invites the question: a wait outside a typed run, which button each press
+used, which keys were held across what, and the routine stopping at the first action that did not
+happen. The CLI prints it before the prompt, asserted by POSITION rather than by presence.
+
+#### What `SimplifyRoute` was doing
+
+Four things, each already ruled on somewhere else, three of which I would have been
+re-introducing:
+
+- **It simplified under the ENVIRONMENT's mode.** `d.learnOptions()` reads this process's idea of
+  what a recording captures, and the simplification depends on it: with no anchor to wait on, the
+  recorded gaps are the only waiting a routine has. A routine whose file states `coordinates`,
+  simplified by a process launched with `$MARCO_CV=on`, had every gap capped to 50ms and nothing
+  put in its place — a menu pressed before it had drawn. **ADR-254's defect, fixed in `Resave`,
+  still here.** `learnOptionsFor`'s own doc comment describes the damage.
+- **It deleted the `// Recorded as:` line**, writing through `codegen.Route` rather than `RouteAs`.
+  The other half of the same defect: a claim about somebody's afternoon edited out of their file by
+  a tidy-up.
+- **It wrote with `Reg.Save` and `Reg.WriteAssets`** — create-or-truncate on the source, overwriting
+  on the images. The two P1s the Architect had just had me close.
+- **And nothing checked the file was still the one it had printed**, across a gap containing a human
+  answering a prompt — the longest such window in this product.
+
+#### The lookup, local to Simplify
+
+`Registry.Resolve` is built for PERFORMING: the foreground application's routes, then ANY other
+application's focus route with that slug. Reaching into another application is exactly right for
+"do the thing I named", because a focus route brings its application forward. It is exactly wrong
+for "rewrite the thing I named": `settings` saved for two applications, simplified from a third,
+overwrote whichever sorted first.
+
+`marco simplify` already guarded one half of this and the comment above it says why at length — it
+resolves exactly rather than by fuzzy match, because a guess that rewrites a file destroys
+somebody's work. That guard was about the **matching**, not the **selection**, and an exact slug
+shared by two routines is still two routines. So every routine with that slug is found, more than
+one is a refusal naming where each lives, and the command prints which routine it is about before
+asking. `Resolve` is unchanged for every caller that performs.
+
+**`SimplifySaves` skips the QUESTION and nothing else.** It is a statement by whoever built the
+`Deps`, not evidence of who the caller is — the Architect's ruling, and right: an environment
+variable cannot establish that, and a surface able to show a comparison must not be excused from
+showing one by an environment it inherited. Studio never reads it.
+
+#### Three things the gate found, and one I found by committing
+
+**My own `-run` filter hid a failing test, again.** `TestASaveWithNoPreviewStillRefuses…` used
+`afterClassifying` to change the file mid-flight, and that seam fires INSIDE `Replace`, after the
+digests have been read — a seam in the wrong gap, asserting nothing. It failed and said so, and I
+committed anyway, because the filter I verified with matched none of the words in its name. The
+same false-negative as the generation gate's first pass, from the same cause. Rewritten around a
+check only `Replace` makes: a conflicting anchor image, which nothing else in that command looks
+at.
+
+**The page harness called the handler instead of pressing the button**, so the second button's
+wiring was untested and a mutation swapping its argument for the first's survived. It presses the
+controls now — Review, Simplify, Cancel and Replace — which is what the desktop harness has always
+done and what the page harness should have.
+
+**Two guards nobody could test**, both closed by asking the predicate directly rather than deleting
+it: a reading of the whole library that found NOTHING reported as a quiet pass (and the case that
+matters is both readings empty — an empty `before` against a real store already reports every file
+as created), and the seeding precondition's second half, which refuses a source holding the runs
+separately AND the whole of it together. That is not a thing `codegen` writes, which is exactly why
+nothing else would notice if it started.
+
+#### The desktop scenario, and the first one here to play what a review wrote
+
+`generation/a simplified rebuild is reviewed, replaced and performed` **ran green on 2026-10-27, 1
+of 1, exit 0, first run** (artifacts `20261027-191020`). The saved routine typed `marco typed`,
+slept 550ms and typed ` this 42`; the simplified one types the whole of it in one step with the
+sleep gone, byte evidence in the artifacts. No file in the library changed until Replace was
+pressed, measured over every file in the store. And then it **performed** — the application's own
+Name field holding `marco typed this 42` with Save pressed after it, which is the question the
+previous scenario never asked: a review that produced a routine nobody could run would be a review
+of a file rather than of a routine.
+
+The 540ms pause in the demonstration is between the two thresholds on purpose, so it is rhythm to
+one rebuild and a deliberate wait to the other. Without one, both choices produce the same routine
+and every assertion stays true while establishing nothing — which the seeding precondition now
+refuses.
+
+The first name tried for the scenario contained `play`, and the family-name test caught it: `-only
+play` would have swept it up. **Physical recording capture remains NOT EXERCISED.**
+
+One unexplained observation, recorded rather than claimed away: a single `plugins/studio` suite run
+FAILED at 94s immediately after a mutation-and-restore of `frontend/index.html`, and four forced
+runs since have been clean at ~65s. I could not reproduce it and have no account of it.
+
+See [[ADR-262-a-routine-states-which-generation-wrote-it]].

@@ -240,6 +240,22 @@ func scenarios() []scenario {
 				"nothing written, then replaced on purpose",
 			run: aReviewedRebuildReplacesTheRoutine,
 		},
+		// THE SIMPLIFY CHOICE, which ran green on a desktop on 2026-10-27, first
+		// time, and is an ordinary member of a default run from then on.
+		//
+		// What it established: the saved routine typed `marco typed`, slept 550ms
+		// and typed ` this 42`; the simplified one types the whole of it in one
+		// step with the sleep gone, nothing in the library changed until Replace
+		// was pressed, and the result PERFORMED — the application's own Name field
+		// holding `marco typed this 42` with Save pressed after it.
+		{
+			name:  "generation/a simplified rebuild is reviewed, replaced and performed",
+			layer: layerDesktop,
+			about: "the other choice on the review surface: a routine whose " +
+				"typing has a pause in it is simplified, cancelled with " +
+				"nothing written, replaced on purpose, and then performed",
+			run: aSimplifiedRoutineIsReviewedReplacedAndPlayed,
+		},
 		{
 			name:  "runs/two runs are two records",
 			layer: layerDesktop,

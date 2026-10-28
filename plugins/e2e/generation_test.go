@@ -16,18 +16,22 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/chaynes-simpleclouds/marco/internal/orchestrator"
 )
 
-// IT RUNS ORDINARILY, IT NEEDS A DESKTOP, AND NOBODY ELSE'S SELECTOR TAKES IT.
+// BOTH OF THEM RUN ORDINARILY, BOTH NEED A DESKTOP, AND NOBODY ELSE'S SELECTOR TAKES EITHER.
 //
-// The gate half of this test is gone and its going is the point: it ran green on a desktop on
-// 2026-10-27, first time, so it is a regression check now and belongs in every default run. The
-// NAME claim outlives the gate — a scenario swept up by `-only text` or `-only button` would be
-// run by somebody who typed a flag for a different reason.
+// The gate half of this test is gone twice over and its going is the point: the review flow ran
+// green on 2026-10-27 and the simplify choice ran green the same day, both first time, so both
+// are regression checks now and belong in every default run. The NAME claim outlives the gate —
+// a scenario swept up by `-only text` or `-only play` would be run by somebody who typed a flag
+// for a different reason, and the first name tried for the simplify one contained `play` and was
+// caught here.
 func TestTheReviewScenarioRunsLikeAnyOther(t *testing.T) {
 	var found int
 	for _, s := range scenarios() {
@@ -56,9 +60,9 @@ func TestTheReviewScenarioRunsLikeAnyOther(t *testing.T) {
 			t.Errorf("%q is not a runnable, described scenario", s.name)
 		}
 	}
-	if found != 1 {
-		t.Errorf("%d review scenario(s) are registered, want the one that was "+
-			"written: the whole flow in one run", found)
+	if found != 2 {
+		t.Errorf("%d scenario(s) are registered in this family, want the two that "+
+			"were written: the review flow with each of its two choices", found)
 	}
 }
 
@@ -247,5 +251,298 @@ func TestTheReviewScenarioAsksEveryQuestionItsVerdictRestsOn(t *testing.T) {
 	if reviews != 2 {
 		t.Errorf("the scenario presses Review %d time(s); the flow is review, "+
 			"cancel, review, replace", reviews)
+	}
+}
+
+// A SIMPLIFIED REPLACEMENT TYPES ITS TEXT IN ONE STEP, AND NOTHING ELSE MOVED.
+//
+// The simplify scenario's strongest claim, headlessly. "It changed" would pass on a window that
+// wrote anything at all; what this asks is that the two runs were folded TOGETHER, that neither
+// survives on its own, and that the window check the routine had did not go with them.
+//
+// The last of those is the one worth having: folding typing is about timing, and a rebuild that
+// also dropped `RelTo "window"` would be a routine pressing wherever the cursor is — which the
+// fixture would not notice, because its window does not move during this scenario.
+func TestASimplifiedReplacementThatChangedAnythingElseIsAFinding(t *testing.T) {
+	whole := strings.Join(theTypedRuns, "")
+	saved := "// Auto-generated.\nuse os.\n\n" +
+		step(theTypedRuns[0]) + step(theTypedRuns[1]) +
+		"    the p1 is a Point with X 1, Y 2, RelTo \"window\", WinW 3.\n"
+	folded := "// Auto-generated.\nuse os.\n\n" + step(whole) +
+		"    the p1 is a Point with X 1, Y 2, RelTo \"window\", WinW 3.\n"
+
+	if why := theSimplifiedRoutineIsWrong(folded, saved); why != "" {
+		t.Errorf("a correct simplified replacement is reported as a finding: %s", why)
+	}
+	for _, c := range []struct {
+		what string
+		now  string
+		says string
+	}{
+		{"the runs were not folded", saved, "does not type its text in one step"},
+		{"one run survives beside the folded text", folded + step(theTypedRuns[0]),
+			"still types"},
+		{"the window check went with them",
+			strings.Replace(folded, ", RelTo \"window\"", "", 1),
+			"states no window"},
+	} {
+		t.Run(c.what, func(t *testing.T) {
+			why := theSimplifiedRoutineIsWrong(c.now, saved)
+			if why == "" {
+				t.Fatalf("a replacement where %s is reported as correct", c.what)
+			}
+			if !strings.Contains(why, c.says) {
+				t.Errorf("the finding is %q and does not say %q", why, c.says)
+			}
+		})
+	}
+	// AND A SAVED ROUTINE THAT WAS ALREADY FOLDED IS A FINDING ABOUT THE ARRANGEMENT.
+	// Both rebuilds would have produced the same thing, so the scenario would pass while
+	// establishing nothing — and that is the harness's mistake, not the product's.
+	if why := theSimplifiedRoutineIsWrong(folded, folded); why == "" ||
+		!strings.Contains(why, "establishes nothing") {
+		t.Errorf("a demonstration whose pause was already folded away is accepted: %q",
+			why)
+	}
+}
+
+// step is one generated Type sentence, as codegen writes it.
+func step(text string) string {
+	return "    do OS's Type with \"" + text + "\".\n"
+}
+
+// AND THE SIMPLIFY SCENARIO ASKS EVERY QUESTION ITS VERDICT RESTS ON.
+//
+// By AST, for the reason the other one is: a text search from the function's own line finds each
+// claim's definition further down the same file. It runs only on a desktop, where a scenario that
+// stopped asking one of these would go on passing.
+func TestTheSimplifyScenarioAsksEveryQuestionItsVerdictRestsOn(t *testing.T) {
+	asks, pressed, presses := whatTheScenarioDoes(t, "scenario_simplify.go",
+		"aSimplifiedRoutineIsReviewedReplacedAndPlayed")
+	for _, claim := range []string{
+		// WHAT IT WROTE, AND THAT NOTHING ELSE DID.
+		"theLibraryMoved",
+		"theReplacedRoutine",
+		"theSimplifiedRoutineIsWrong",
+		// AND THAT IT STILL PERFORMS, read off the application rather than off
+		// Marco: the field, the field beside it, and the press after the typing.
+		"theTextDidNotArrive",
+		"itWentIntoAnotherField",
+		"theNextStepDidNotHappen",
+		// AND THE WINDOW REACHING THE STATES IT CLAIMS TO.
+		"waitForSimplifiedReview",
+		"waitForNoReview",
+		"play",
+	} {
+		if !asks[claim] {
+			t.Errorf("the scenario never asks %s, so its verdict does not rest "+
+				"on it", claim)
+		}
+	}
+	for _, id := range []string{"routineSimplifyBtn", "routineReviewCancelBtn",
+		"routineReplaceBtn"} {
+		if !pressed[id] {
+			t.Errorf("the scenario never presses %s", id)
+		}
+	}
+	// AND IT PRESSES SIMPLIFY TWICE: once to review and cancel, once to replace with.
+	if presses["routineSimplifyBtn"] != 2 {
+		t.Errorf("the scenario presses Simplify %d time(s); the flow is simplify, "+
+			"cancel, simplify, replace", presses["routineSimplifyBtn"])
+	}
+	// AND IT NEVER PRESSES THE OTHER CHOICE, which would be a different scenario
+	// reporting under this one's name.
+	if pressed["routineReviewBtn"] {
+		t.Error("the simplify scenario presses the ordinary rebuild's button")
+	}
+}
+
+// whatTheScenarioDoes is the calls and the control presses inside one scenario function.
+//
+// BY AST, and shared by both of this family's wiring tests rather than written twice — which is
+// the mistake the first of them was already guarding against one level down.
+func whatTheScenarioDoes(t *testing.T, file, fn string) (map[string]bool, map[string]bool,
+	map[string]int) {
+
+	t.Helper()
+	fset := token.NewFileSet()
+	parsed, err := parser.ParseFile(fset, file, nil, 0)
+	if err != nil {
+		t.Fatalf("parsing %s: %v", file, err)
+	}
+	var found *ast.FuncDecl
+	for _, decl := range parsed.Decls {
+		if d, ok := decl.(*ast.FuncDecl); ok && d.Name.Name == fn {
+			found = d
+		}
+	}
+	if found == nil {
+		t.Fatalf("%s is gone; it is the desktop half of this contract", fn)
+	}
+	asks, pressed, presses := map[string]bool{}, map[string]bool{}, map[string]int{}
+	ast.Inspect(found, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		switch f := call.Fun.(type) {
+		case *ast.Ident:
+			asks[f.Name] = true
+		case *ast.SelectorExpr:
+			asks[f.Sel.Name] = true
+			if f.Sel.Name == "press" && len(call.Args) == 1 {
+				if lit, ok := call.Args[0].(*ast.BasicLit); ok {
+					id := strings.Trim(lit.Value, `"`)
+					pressed[id] = true
+					presses[id]++
+				}
+			}
+		}
+		return true
+	})
+	return asks, pressed, presses
+}
+
+// THE WAIT FOR A SIMPLIFIED REVIEW ASKS ALL THREE OF ITS QUESTIONS.
+//
+// A wait is a PRECONDITION, and one that stopped looking for anything would make every assertion
+// after it true of a window in some other state — with the scenario still green. It runs only on
+// a desktop, so the only way to know it still asks is to ask it here about a window that answers
+// some of its questions and not others.
+//
+// The third question is the one worth having. A review of this choice WITHOUT its caution is a
+// review that reads as a tidy-up, and the whole reason the choice is separate is that it changes
+// what the routine does.
+func TestTheWaitForASimplifiedReviewAsksAllThreeQuestions(t *testing.T) {
+	up := func(labels ...string) snapshot {
+		s := snapshot{Elements: []element{{AutomationID: "routineReplaceBtn",
+			Enabled: true}}}
+		for _, l := range labels {
+			s.Elements = append(s.Elements, element{Label: l})
+		}
+		return s
+	}
+	const written = "Nothing has been written yet"
+	const choice = "Simplify typing pauses"
+	const caution = "This folds each run of typing into one step, which removes the pauses"
+
+	if ok, saw := theSimplifiedReviewIsNotUp(up(written, choice, caution)); !ok {
+		t.Errorf("a window showing all three is reported as not ready: %s", saw)
+	}
+	for _, c := range []struct {
+		what string
+		shot snapshot
+		says string
+	}{
+		{"the panel is not there",
+			snapshot{Elements: []element{{Label: caution}}}, "not on screen"},
+		{"it does not say nothing has been written",
+			up(choice, caution), "nothing has been written"},
+		{"it does not say which choice made it",
+			up(written, caution), "which choice"},
+		{"it does not carry the caution",
+			up(written, choice), "removes the pauses"},
+	} {
+		t.Run(c.what, func(t *testing.T) {
+			ok, saw := theSimplifiedReviewIsNotUp(c.shot)
+			if ok {
+				t.Fatalf("a window where %s is reported as a ready review", c.what)
+			}
+			if !strings.Contains(saw, c.says) {
+				t.Errorf("the reason is %q and does not say %q", saw, c.says)
+			}
+		})
+	}
+}
+
+// AN EMPTY READING OF THE LIBRARY IS A FINDING, NOT A QUIET PASS.
+//
+// `theLibraryMoved` compares a reading taken before with one taken now, and a reading that found
+// nothing would agree with every later reading — so a store this could not walk would report that
+// nothing had been written, forever, about three of the simplify scenario's five steps.
+func TestAnEmptyReadingOfTheLibraryIsAFinding(t *testing.T) {
+	dir := t.TempDir()
+	at := filepath.Join(dir, "a.marco")
+	if err := writeFileString(at, "use os.\n"); err != nil {
+		t.Fatal(err)
+	}
+	before := theWholeLibrary(dir)
+	if len(before) == 0 {
+		t.Fatal("the reading found nothing in a store with a file in it")
+	}
+	if why := theLibraryMoved(dir, before, "while nothing happened"); why != "" {
+		t.Errorf("an untouched library is reported as changed: %s", why)
+	}
+	// THE EMPTY READING, against a store nothing can be read from either. Not "" — a
+	// comparison between two nothings agrees, and that is the one case where the guard is
+	// the only thing standing between the scenario and a permanent quiet pass. An empty
+	// `before` against a store with files in it already reports them as CREATED, which is
+	// why that is not the case to test.
+	gone := filepath.Join(dir, "no-such-store")
+	if len(theWholeLibrary(gone)) != 0 {
+		t.Fatal("a store that does not exist read as having files in it")
+	}
+	if why := theLibraryMoved(gone, nil, "at the end"); why == "" {
+		t.Error("a library nothing could be read from is reported as untouched, so " +
+			"three of the scenario's steps would pass without asking anything")
+	}
+	// AND A REAL CHANGE IS STILL FOUND, in all three directions.
+	if err := writeFileString(at, "use os.\n// edited\n"); err != nil {
+		t.Fatal(err)
+	}
+	if why := theLibraryMoved(dir, before, "x"); !strings.Contains(why, "was rewritten") {
+		t.Errorf("a rewritten file is reported as %q", why)
+	}
+	if err := writeFileString(filepath.Join(dir, "b.marco"), "use os.\n"); err != nil {
+		t.Fatal(err)
+	}
+	if why := theLibraryMoved(dir, before, "x"); !strings.Contains(why, "was created") {
+		t.Errorf("a created file is reported as %q", why)
+	}
+	if err := os.Remove(at); err != nil {
+		t.Fatal(err)
+	}
+	if why := theLibraryMoved(dir, before, "x"); !strings.Contains(why, "is gone") {
+		t.Errorf("a deleted file is reported as %q", why)
+	}
+}
+
+// AND A SEEDED DEMONSTRATION WHOSE PAUSE WAS ALREADY FOLDED IS REFUSED.
+//
+// The precondition that keeps the simplify scenario from being vacuous, and both halves of it: a
+// run that did not come out as its own step, and a source holding the runs separately AND the
+// whole of it together. The second is a guard against a generator that emits both — which this
+// one does not, which is exactly why nothing else would notice if it started.
+func TestASeededTypingWhosePauseWasFoldedAwayIsRefused(t *testing.T) {
+	runs := []string{"marco typed", " this 42"}
+	both := step(runs[0]) + step(runs[1])
+
+	s := seededRoutine{source: "use os.\n" + both}
+	if err := s.typingRunsReachedTheFile(runs); err != nil {
+		t.Fatalf("a demonstration that came out as two Type steps is refused: %v", err)
+	}
+	// ONE RUN MISSING: the pause was folded at seeding time, so both rebuilds would
+	// have produced the same routine.
+	s.source = "use os.\n" + step(strings.Join(runs, ""))
+	if err := s.typingRunsReachedTheFile(runs); err == nil {
+		t.Error("a demonstration that came out as ONE Type step is accepted, so the " +
+			"scenario would compare two identical routines")
+	}
+	// AND BOTH FORMS AT ONCE, which is not a thing codegen writes — so this is the
+	// assertion that says so rather than assuming it.
+	s.source = "use os.\n" + both + step(strings.Join(runs, ""))
+	err := s.typingRunsReachedTheFile(runs)
+	if err == nil {
+		t.Fatal("a source holding the runs separately and the whole of it together is " +
+			"accepted")
+	}
+	if !strings.Contains(err.Error(), "folded its pause away") {
+		t.Errorf("the refusal is %q", err)
+	}
+	// AND ONE RUN IS NOT TWO. A single-run seeding has nothing to be between, so the
+	// second half of the rule does not apply to it.
+	one := seededRoutine{source: "use os.\n" + step("hello")}
+	if err := one.typingRunsReachedTheFile([]string{"hello"}); err != nil {
+		t.Errorf("a single-run demonstration is refused: %v", err)
 	}
 }

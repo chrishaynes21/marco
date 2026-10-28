@@ -543,7 +543,9 @@ marco do "<name>"          ask for something: runs the play of that name, or han
                            ("<name> arg:value …" passes named arguments)
 marco learn "<name>"       (re)record a play by demonstration
 marco learn --narrate "<name>"   build a play by narration (typed or voice)
-marco simplify "<name>"    re-simplify a saved play as far as it goes
+marco simplify "<name>"    fold a saved play's typing further: shows what that would be
+                           and asks. It removes the pauses INSIDE a run of typing, up
+                           to a second of them, and refuses if two plays share the name
 marco assistant            interactive loop — say what you want
 marco ui                   open the control center (all plays, bindings, help)
 marco edit "<name>"        open the control center on one play's visual editor

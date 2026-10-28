@@ -2,7 +2,7 @@
 type: adr
 status: accepted
 date: 2026-10-27
-decision: "ACCEPTED — A ROUTINE STATES WHICH GENERATION OF GENERATOR RULES WROTE IT, AND A REBUILT VERSION IS REVIEWED BEFORE IT REPLACES ANYTHING. FOUR THINGS THE REVIEW FOUND, ALL FIXED: a replacement identified the ROUTINE rather than the review on the screen, so two preparations of one routine overwrote each other and an asynchronous page could display A while the window held B — a preparation now carries an immutable token derived from its own content and a replacement must present it, with `Replace` also checking a `Prepared` against its own token; the IMAGES ARE NOT ADDITIVE, since a rebuild produces the same `<base>-anchor-N.png` paths and overwriting them before a source write that then fails leaves the OLD source pointing at different pictures, so AND THOSE TWO WERE REOPENED AND CLOSED PROPERLY: the token digested only the CONTENT, so two routines with identical sources and identical demonstrations — the same thing saved in-app for two applications, which really is byte-for-byte identical since an in-app routine names no application — shared one, and a window holding one and handed the other's token would write the right bytes to the wrong file; the route's whole identity and the library are in the digest now, with a `Deps` pointed at another library refused on its own; and the image rule decided that nothing conflicted and then wrote them ALL, where a path already holding the right picture is now skipped rather than rewritten and a path that cannot be READ is a refusal rather than an empty space — treating unreadable as "nothing there" being the one reading that licenses writing over it — with only the missing ones written and every path decided before any is; AND CLASSIFYING IS NOT WRITING: the missing ones went through a create-or-truncate write, so another save creating one of those reusable paths in the gap would have had it truncated on the strength of a reading taken beforehand — they are created EXCLUSIVELY now, which closes the gap rather than narrowing it since the test and the write are one operation, with `WriteAssets` keeping create-or-truncate because a save owns the paths it names; and the MOMENT is tested rather than the mechanism, through an unexported seam that occupies the instant between the two steps and does what the other save would have; the unknown-generation restriction CHECKED AN EARLIER READ, so a file replaced between the listing and the preparation bypassed it, and eligibility is now read off the source `Prepare` actually read; and `current` PROMISED "it will be the same routine", which the stamp cannot support — a hand-edited routine keeps its stamp and rebuilds differently — so the sentence offers the comparison as a question and only `Prepared.Changes()` answers it. A routine keeps the shape it was generated with for ever, because nothing rewrites saved Marco — the file is the only executable truth about a routine and rewriting generated source by hand is how two things that have to agree stop agreeing. So every rule about what a generated routine DOES reaches a routine when that routine is written, and a library accumulates files written under rules that no longer match: a routine saved before [[ADR-261-typed-text-is-a-sequence-of-submissions]] goes on acting past text that never arrived and reports a run that performed. That was INVISIBLE, because nothing on disk said which rules wrote a file — and it cannot be inferred, since the shapes in a routine are a function of the demonstration as much as of the generator, which is exactly how a guarded drag read as `legacy` before `draggedTerms` existed. So the generator STAMPS it, as a comment, UNCONDITIONALLY: whatever called it, this generator wrote the file, and a condition there would be a file written by it that does not say so. NO CORE CHANGE — a comment is not a word of the language, which is the same ground `// Recorded as:` stands on. IT IS PROVENANCE AND NOT A VERDICT: it says which rules wrote the source, not that the source is guarded, unmodified or still correct — a current-generation routine can carry legacy behaviour on purpose, because a demonstration with no measured press generates exactly the unchecked route it always did, so what the presses promise stays `ContractOf`'s separate question. FOUR READINGS, NONE COLLAPSING INTO ANOTHER: current, older-and-recognised, unstated, and unknown. Unstated says ONLY that — not 'written before versioning', which is a claim a handwritten file or one somebody deleted the line from does not support. Unknown is a later build's generation, a malformed value, or the same question answered twice — not current, which would be this build claiming to have written a file it cannot read, and not unstated, which would lose the one fact the file does state. Nothing is offered for an unknown generation, because a reader that cannot say what a generation does cannot say what replacing it would change; it stays inspectable and playable under exactly the rules it always had, held against a control run of the same routine unstamped. GENERATION 1 IS WHAT THIS GENERATOR DOES, with nothing behind it: numbering the rule changes that landed before today 1..5 would place routines in a history they never stated, which is the same inference with a version number on it. THE HISTORY IS ONE LIST, so the current generation is its last entry rather than a constant beside it — `everyMeasuredTerm`'s lesson one layer up, where a generation added to a counter and not to the words would be read, found older, and never explainable — and the difference walk is exercised against SYNTHETIC future generations, because a mechanism with no live input is one nobody can tell is wired. OLDER IS NOT AFFECTED: a difference is a fact about two generators, and whether it changes anything for one routine is a fact about that routine, so a claim that a routine needs replacing is made only where its own contents bear on the rule, and otherwise a comparison is offered. THE UPDATE FLOW IS FOUR STEPS AND THREE OF THEM WRITE NOTHING: select the exact routine, prepare a version from its own stored demonstration, review both sources in full plus any refusal, then explicitly replace or cancel. `Resave` is NOT that flow and stays what it is — it repairs a routine that cannot press anything at all, so it is immediate on purpose, and it RESCOPES through the save path that chooses where a routine lives. Neither is allowed here: the scope is read off where the routine already lives, and a replacement writes the file back exactly where and as it was. A replacement re-reads both files it was built from and refuses if either moved, naming which — which is also the whole of the protection for a HAND-EDITED routine, since the edit is the left-hand pane and replacing it is then a decision. On any refusal or failed write the routine is as it was. A REBUILD TODAY'S RULES WOULD REFUSE IS A REVIEWABLE ANSWER, not an error: a recording with a press found by matching a picture was saved happily by an older build and produces no routine now. The run record carries what the file SAYS and this build's READING of it, off the same snapshot that executes — an older executor that wrote down its verdict and dropped the declared value would contradict the file it cites. ONE DESKTOP SCENARIO RAN GREEN on 2026-10-27, 1 of 1 and exit 0 on the first run: the review came up with both sources and the file was untouched, cancelling left it untouched, and after a second review Replace wrote a file differing from the one on disk by exactly the generation line — byte-identical to what the generator had written before the harness took that line out. PHYSICAL RECORDING CAPTURE REMAINS NOT EXERCISED."
+decision: "ACCEPTED — A ROUTINE STATES WHICH GENERATION OF GENERATOR RULES WROTE IT, AND A REBUILT VERSION IS REVIEWED BEFORE IT REPLACES ANYTHING. FOUR THINGS THE REVIEW FOUND, ALL FIXED: a replacement identified the ROUTINE rather than the review on the screen, so two preparations of one routine overwrote each other and an asynchronous page could display A while the window held B — a preparation now carries an immutable token derived from its own content and a replacement must present it, with `Replace` also checking a `Prepared` against its own token; the IMAGES ARE NOT ADDITIVE, since a rebuild produces the same `<base>-anchor-N.png` paths and overwriting them before a source write that then fails leaves the OLD source pointing at different pictures, so AND THOSE TWO WERE REOPENED AND CLOSED PROPERLY: the token digested only the CONTENT, so two routines with identical sources and identical demonstrations — the same thing saved in-app for two applications, which really is byte-for-byte identical since an in-app routine names no application — shared one, and a window holding one and handed the other's token would write the right bytes to the wrong file; the route's whole identity and the library are in the digest now, with a `Deps` pointed at another library refused on its own; and the image rule decided that nothing conflicted and then wrote them ALL, where a path already holding the right picture is now skipped rather than rewritten and a path that cannot be READ is a refusal rather than an empty space — treating unreadable as "nothing there" being the one reading that licenses writing over it — with only the missing ones written and every path decided before any is; AND CLASSIFYING IS NOT WRITING: the missing ones went through a create-or-truncate write, so another save creating one of those reusable paths in the gap would have had it truncated on the strength of a reading taken beforehand — they are created EXCLUSIVELY now, which closes the gap rather than narrowing it since the test and the write are one operation, with `WriteAssets` keeping create-or-truncate because a save owns the paths it names; and the MOMENT is tested rather than the mechanism, through an unexported seam that occupies the instant between the two steps and does what the other save would have; AND SIMPLIFYING IS THIS FLOW WITH THE OTHER SET OF RULES: a bounded kind rather than caller-supplied simplifier settings, refused when this build cannot name it rather than defaulted, part of the review's identity, and carrying its own sentence because folding a typed run REMOVES the pauses inside it — up to a second of them — which is a behaviour change and reads as a tidy-up. `SimplifyRoute` going through it closed four more things, each already ruled on elsewhere: it simplified under the ENVIRONMENT'S mode where the file states one (ADR-254's defect, fixed in `Resave` and left here, which caps a coordinate routine's recorded gaps to 50ms and presses a menu before it has drawn), it DELETED the `// Recorded as:` line, it wrote through the two calls this flow refuses, and nothing checked the file was still the one it had printed across a gap containing a human answering a prompt. Its lookup now refuses namesakes — `Registry.Resolve` reaches into any other application's focus route, which is right for performing and wrong for rewriting — and prints which routine it is about before asking, with `Resolve` unchanged for every caller that performs. `SimplifySaves` skips the QUESTION and nothing else, and is a statement by whoever built the `Deps` rather than evidence of who the caller is; Studio never reads it and always requires review. A SECOND DESKTOP SCENARIO RAN GREEN on 2026-10-27, 1 of 1 and exit 0 first time, and it is the first here to PLAY what a review wrote: the saved routine typed in two steps with a 550ms sleep between them, the simplified one types the whole of it in one, no file in the library changed until Replace was pressed, and the result performed with the application's own field holding the text. the unknown-generation restriction CHECKED AN EARLIER READ, so a file replaced between the listing and the preparation bypassed it, and eligibility is now read off the source `Prepare` actually read; and `current` PROMISED "it will be the same routine", which the stamp cannot support — a hand-edited routine keeps its stamp and rebuilds differently — so the sentence offers the comparison as a question and only `Prepared.Changes()` answers it. A routine keeps the shape it was generated with for ever, because nothing rewrites saved Marco — the file is the only executable truth about a routine and rewriting generated source by hand is how two things that have to agree stop agreeing. So every rule about what a generated routine DOES reaches a routine when that routine is written, and a library accumulates files written under rules that no longer match: a routine saved before [[ADR-261-typed-text-is-a-sequence-of-submissions]] goes on acting past text that never arrived and reports a run that performed. That was INVISIBLE, because nothing on disk said which rules wrote a file — and it cannot be inferred, since the shapes in a routine are a function of the demonstration as much as of the generator, which is exactly how a guarded drag read as `legacy` before `draggedTerms` existed. So the generator STAMPS it, as a comment, UNCONDITIONALLY: whatever called it, this generator wrote the file, and a condition there would be a file written by it that does not say so. NO CORE CHANGE — a comment is not a word of the language, which is the same ground `// Recorded as:` stands on. IT IS PROVENANCE AND NOT A VERDICT: it says which rules wrote the source, not that the source is guarded, unmodified or still correct — a current-generation routine can carry legacy behaviour on purpose, because a demonstration with no measured press generates exactly the unchecked route it always did, so what the presses promise stays `ContractOf`'s separate question. FOUR READINGS, NONE COLLAPSING INTO ANOTHER: current, older-and-recognised, unstated, and unknown. Unstated says ONLY that — not 'written before versioning', which is a claim a handwritten file or one somebody deleted the line from does not support. Unknown is a later build's generation, a malformed value, or the same question answered twice — not current, which would be this build claiming to have written a file it cannot read, and not unstated, which would lose the one fact the file does state. Nothing is offered for an unknown generation, because a reader that cannot say what a generation does cannot say what replacing it would change; it stays inspectable and playable under exactly the rules it always had, held against a control run of the same routine unstamped. GENERATION 1 IS WHAT THIS GENERATOR DOES, with nothing behind it: numbering the rule changes that landed before today 1..5 would place routines in a history they never stated, which is the same inference with a version number on it. THE HISTORY IS ONE LIST, so the current generation is its last entry rather than a constant beside it — `everyMeasuredTerm`'s lesson one layer up, where a generation added to a counter and not to the words would be read, found older, and never explainable — and the difference walk is exercised against SYNTHETIC future generations, because a mechanism with no live input is one nobody can tell is wired. OLDER IS NOT AFFECTED: a difference is a fact about two generators, and whether it changes anything for one routine is a fact about that routine, so a claim that a routine needs replacing is made only where its own contents bear on the rule, and otherwise a comparison is offered. THE UPDATE FLOW IS FOUR STEPS AND THREE OF THEM WRITE NOTHING: select the exact routine, prepare a version from its own stored demonstration, review both sources in full plus any refusal, then explicitly replace or cancel. `Resave` is NOT that flow and stays what it is — it repairs a routine that cannot press anything at all, so it is immediate on purpose, and it RESCOPES through the save path that chooses where a routine lives. Neither is allowed here: the scope is read off where the routine already lives, and a replacement writes the file back exactly where and as it was. A replacement re-reads both files it was built from and refuses if either moved, naming which — which is also the whole of the protection for a HAND-EDITED routine, since the edit is the left-hand pane and replacing it is then a decision. On any refusal or failed write the routine is as it was. A REBUILD TODAY'S RULES WOULD REFUSE IS A REVIEWABLE ANSWER, not an error: a recording with a press found by matching a picture was saved happily by an older build and produces no routine now. The run record carries what the file SAYS and this build's READING of it, off the same snapshot that executes — an older executor that wrote down its verdict and dropped the declared value would contradict the file it cites. ONE DESKTOP SCENARIO RAN GREEN on 2026-10-27, 1 of 1 and exit 0 on the first run: the review came up with both sources and the file was untouched, cancelling left it untouched, and after a second review Replace wrote a file differing from the one on disk by exactly the generation line — byte-identical to what the generator had written before the harness took that line out. PHYSICAL RECORDING CAPTURE REMAINS NOT EXERCISED."
 supersedes: []
 affects:
   - execution
@@ -337,6 +337,76 @@ would have done. Nothing in production can set it — a `Deps` is built from its
 everywhere — and nothing has a reason to be notified of that instant, which is the point: the only
 way to show a gap is closed is to put something in it.
 
+## Simplifying is the same flow with the other set of rules
+
+[[ADR-254-what-a-recording-captures-is-stated]] fixed a defect in `Resave` and left the same one
+in `SimplifyRoute`, which is where this slice found it. Studio had no simplify at all, so the
+question was what to build — and the answer was nothing new: simplifying a routine is *select,
+render its own recording again, review, replace or cancel*, which is this flow. Only the rules
+differ.
+
+So the rules are a **bounded kind**, not caller-supplied simplifier settings. `RebuildCurrent` is
+today's generator rules and nothing else; `RebuildSimplifyTyping` is those plus folding a typed run
+across longer pauses. A caller handing over options would be deciding what somebody's routine
+becomes from outside the one place that knows what the choices mean, and a word this build cannot
+name is **refused** rather than defaulted — defaulting would show a review of the ordinary rebuild
+under the simplified one's name, with a timing caution attached to a routine whose timing did not
+change.
+
+The kind is part of the review's identity, so it is in the token: two reviews of one routine
+differing only in the choice that made them are two different things to replace it with.
+
+**And "simplify" must not imply nothing changed.** Folding a typed run removes the waits BETWEEN
+those keystrokes — up to a second of them — and a routine that typed into a box which needed that
+second will now type into it faster than it did when somebody watched it work. That is a behaviour
+change, chosen on purpose, and the choice carries it in a sentence rather than leaving it in a diff
+of two sources. The sentence also says what does NOT change, because the first half invites the
+question: a wait outside a typed run, which button each press used, which keys were held across
+what, and the routine stopping at the first action that did not happen.
+
+### What `SimplifyRoute` was doing
+
+Four things, each already ruled on somewhere else:
+
+- **It simplified under the ENVIRONMENT's mode.** `d.learnOptions()` reads this process's idea of
+  what a recording captures, and the simplification depends on it: with no anchor to wait on, the
+  recorded gaps are the only waiting a routine has. A routine whose file states `coordinates`,
+  simplified by a process launched with `$MARCO_CV=on`, had every gap capped to 50ms and nothing
+  put in its place — a menu pressed before it had drawn. ADR-254's defect, fixed in `Resave`.
+- **It deleted the `// Recorded as:` line**, writing through `codegen.Route` rather than `RouteAs`.
+  The other half of the same defect: a claim about somebody's afternoon edited out of their file by
+  a tidy-up.
+- **It wrote with `Reg.Save` and `Reg.WriteAssets`** — create-or-truncate on the source and
+  overwriting on the images, both refused on this flow.
+- **And nothing checked the file was still the one it had printed**, across a gap containing a
+  human answering a prompt.
+
+### The lookup, local to Simplify
+
+`Registry.Resolve` is built for PERFORMING: the foreground application's routes, then ANY other
+application's focus route with that slug, then a global one. Reaching into another application is
+exactly right for "do the thing I named", because a focus route brings its application forward. It
+is exactly wrong for "rewrite the thing I named": `settings` saved for two applications, simplified
+from a third, overwrote whichever sorted first.
+
+`marco simplify` already guarded one half of this — it resolves exactly rather than by fuzzy match,
+because a guess that rewrites a file destroys somebody's work — and that guard was about the
+MATCHING, not the SELECTION. An exact slug shared by two routines is still two routines. So every
+routine with that slug is found, more than one is a refusal naming where each lives, and the
+command prints which routine it is about before asking. `Resolve` is unchanged for every caller
+that performs.
+
+**`SimplifySaves` skips the QUESTION and nothing else.** It is a statement by whoever built the
+`Deps` and not evidence of who the caller is — an environment variable cannot establish that, and
+a surface that can show a comparison must not be excused from showing one by an environment it
+inherited. Studio never reads it. What it does not skip is the preparation, the digests or the
+checked replacement, so an unattended save still cannot truncate an image or write over a file that
+moved.
+
+One deliberate consequence elsewhere: the shared draft path now re-labels anchors, which
+`Capture.Finish` and the old `SimplifyRoute` did and `DraftOf` did not — so a repair quietly
+dropped them. A no-op without a Text or Vision host.
+
 ## What is unchanged
 
 - **No saved routine is rewritten or migrated.** Nothing is automatic, and the person decides.
@@ -494,6 +564,53 @@ way to show a gap is closed is to put something in it.
   `undefined`, the button live for the two readings that may be offered and dead for the two that
   may not, both panes with their own labels, and a cancel that lets go of the version and replaces
   nothing.
+- `internal/orchestrator` `TestTheTwoRebuildsProduceDifferentRoutines` — the choice is a choice and
+  not a label: a 540ms pause inside the typing is rhythm to one rule and a deliberate wait to the
+  other, so one folds the word into a single step and the other does not. Plus two tokens, and the
+  caution present for one and absent for the other.
+- `internal/orchestrator` `TestAStatedCoordinateModeSurvivesSimplifyingWithVisionOn` — the defect,
+  measured, for BOTH choices: a routine stating `coordinates` keeps the three second pause it
+  waits before pressing, under `$MARCO_CV=on`, and the statement survives into what is written.
+  With the control that a routine stating NOTHING is capped under the same environment, so the two
+  cases are a reading of the file rather than a build that never caps.
+- `internal/orchestrator` `TestARebuildThisBuildCannotNameIsRefused`,
+  `TestPreparingASimplifiedVersionWritesNothing` — an unnameable kind refused rather than
+  defaulted, and the no-write claim said about this choice too, because a second preparation path
+  would be the obvious place to lose it.
+- `internal/orchestrator` `TestSimplifyingANamesakeIsRefusedAndNothingIsRewritten` — two routines
+  of one name, the refusal naming where each lives, the library untouched, and the control that
+  with one of them gone it proceeds and prints which routine it is about before asking.
+- `internal/orchestrator` `TestSimplifyingAndSayingNoLeavesTheRoutineAlone` — a no writes nothing,
+  and the caution was on screen BEFORE the question, asserted by position.
+- `internal/orchestrator` `TestASaveWithNoPreviewStillGoesThroughTheCheckedReplacement` — shown
+  through a check only `Replace` makes, since nothing else in that command looks at the images;
+  plus that the question was never asked. The first version of this used a seam that fires INSIDE
+  `Replace` after the digests are read — a seam in the wrong gap, asserting nothing — and it
+  failed and said so.
+- `plugins/studio` `TestThePageOffersBothRebuildChoicesAndSaysWhichMadeTheReview` — both choices
+  handed on by their own names, the review saying which made it, the caution shown for one and
+  absent for the other, the simplified source in the pane, and both buttons offered and withheld
+  together. The harness PRESSES the controls: calling the handler proved the backend was asked for
+  a choice and said nothing about which button asks for it, and the mutation swapping the second
+  button's argument for the first's survived exactly that.
+- `plugins/e2e` `TestASimplifiedReplacementThatChangedAnythingElseIsAFinding` — four ways a
+  simplified replacement can be wrong and still have changed the file, including the one that
+  matters most: a rebuild that also dropped `RelTo "window"` would be a routine pressing wherever
+  the cursor is, which the fixture cannot notice because its window does not move.
+- `plugins/e2e` `TestTheSimplifyScenarioAsksEveryQuestionItsVerdictRestsOn`,
+  `TestTheWaitForASimplifiedReviewAsksAllThreeQuestions`,
+  `TestAnEmptyReadingOfTheLibraryIsAFinding`,
+  `TestASeededTypingWhosePauseWasFoldedAwayIsRefused` — the wiring by AST, the desktop
+  precondition's three questions asked headlessly, a reading of the library that found nothing
+  reported as a finding rather than a quiet pass, and the seeding precondition that keeps the
+  scenario from comparing two identical routines.
+- `plugins/e2e` `generation/a simplified rebuild is reviewed, replaced and performed` — **RAN GREEN
+  ON A DESKTOP ON 2026-10-27**, 1 of 1, exit 0 on the first run
+  (`plugins\e2e\run.cmd -only simplified`). The saved routine typed `marco typed`, slept 550ms and
+  typed ` this 42`; the simplified one types the whole of it in one step with the sleep gone. No
+  file in the library changed until Replace was pressed, and the result PERFORMED — the
+  application's own Name field holding `marco typed this 42` with Save pressed after it.
+  Artifacts `20261027-191020`.
 - `plugins/e2e` `TestTheReviewScenarioRunsLikeAnyOther` — it is in every default run, and the name
   claim that outlived the gate: asked of every registered family, so no other family's selector
   takes it.

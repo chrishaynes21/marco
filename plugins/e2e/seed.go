@@ -691,6 +691,24 @@ func seedDrag(f *fixtureRun, art *artifacts, name, from, to string) (seededRouti
 func seedTyping(f *fixtureRun, art *artifacts, name, control, text string) (seededRoutine,
 	error) {
 
+	return seedTypingRuns(f, art, name, control, 0, text)
+}
+
+// seedTypingRuns is that with the text demonstrated in SEVERAL runs, separated by a pause.
+//
+// # Why a pause in the middle of typing is a thing to be able to demonstrate
+//
+// Because it is what tells the two rebuilds apart. `simplify` folds a run of keys into one `Type`
+// while the gaps between them read as typing rhythm, and the two choices draw that line in
+// different places: 300ms by default, and a full second when somebody has asked for the typing
+// to be folded further. A pause between those two numbers is therefore a deliberate wait to one
+// rebuild and rhythm to the other — so a demonstration containing one produces two different
+// routines, which is what makes the choice a choice rather than a label.
+//
+// `gap` of zero is one run and the ordinary case.
+func seedTypingRuns(f *fixtureRun, art *artifacts, name, control string, gap time.Duration,
+	runs ...string) (seededRoutine, error) {
+
 	s := seededRoutine{name: name, controls: []string{control}, buttons: []string{"left"}}
 	if err := s.measure(f); err != nil {
 		return s, err
@@ -708,21 +726,28 @@ func seedTyping(f *fixtureRun, art *artifacts, name, control, text string) (seed
 		{Kind: recorder.EvClick, Button: "left", Down: false, X: x, Y: y,
 			App: s.app, PID: f.pid, T: at.Add(40 * time.Millisecond)},
 	}
-	// THE KEYS, 10ms APART. Close enough that no pause survives between them — a wait
-	// in the middle of a run is what stops it folding into one `Type` — and far enough
-	// apart to be two events rather than one.
+	// THE KEYS, 10ms APART WITHIN A RUN. Close enough that no pause survives between
+	// them — a wait in the middle of a run is what stops it folding into one `Type` — and
+	// far enough apart to be two events rather than one. The pause BETWEEN runs is the
+	// caller's, and is the whole point of there being more than one.
 	at = at.Add(300 * time.Millisecond)
-	for _, r := range text {
-		key := string(r)
-		if r == ' ' {
-			key = "space"
+	for i, text := range runs {
+		if i > 0 {
+			at = at.Add(gap)
 		}
-		events = append(events,
-			recorder.RecordedEvent{Kind: recorder.EvKey, KeyName: key, Down: true,
-				App: s.app, PID: f.pid, T: at},
-			recorder.RecordedEvent{Kind: recorder.EvKey, KeyName: key, Down: false,
-				App: s.app, PID: f.pid, T: at.Add(5 * time.Millisecond)})
-		at = at.Add(10 * time.Millisecond)
+		for _, r := range text {
+			key := string(r)
+			if r == ' ' {
+				key = "space"
+			}
+			events = append(events,
+				recorder.RecordedEvent{Kind: recorder.EvKey, KeyName: key,
+					Down: true, App: s.app, PID: f.pid, T: at},
+				recorder.RecordedEvent{Kind: recorder.EvKey, KeyName: key,
+					Down: false, App: s.app, PID: f.pid,
+					T: at.Add(5 * time.Millisecond)})
+			at = at.Add(10 * time.Millisecond)
+		}
 	}
 	// AND A PRESS AFTER IT, which is what makes the ordering claim possible: the thing
 	// after a typing must happen after the text arrived, and a routine that ends with
@@ -748,10 +773,10 @@ func seedTyping(f *fixtureRun, art *artifacts, name, control, text string) (seed
 	if err := s.save(art, events); err != nil {
 		return s, err
 	}
-	if err := s.typingReachedTheFile(text); err != nil {
+	if err := s.typingRunsReachedTheFile(runs); err != nil {
 		return s, err
 	}
-	art.step("seeded typing %q into %q, with a press of Save after it", text, control)
+	art.step("seeded typing %v into %q, with a press of Save after it", runs, control)
 	return s, nil
 }
 
@@ -771,4 +796,30 @@ func (s *seededRoutine) typingReachedTheFile(text string) error {
 	return fmt.Errorf("the seeded demonstration of typing %q did not come out as one "+
 		"Type step (no %s in it), so the routine performs keystrokes rather than "+
 		"text:\n%s", text, want, s.source)
+}
+
+// typingRunsReachedTheFile is the precondition for a demonstration typed in runs.
+//
+// `typingReachedTheFile`'s claim, said once per run: each run has to have come out as its OWN
+// `Type` step. One step holding all of it would mean the pause between them was folded at seeding
+// time, and a scenario about two rebuilds drawing that line differently would be comparing two
+// identical routines while every other assertion in it stayed true.
+func (s *seededRoutine) typingRunsReachedTheFile(runs []string) error {
+	for _, text := range runs {
+		if err := s.typingReachedTheFile(text); err != nil {
+			return err
+		}
+	}
+	if len(runs) < 2 {
+		return nil
+	}
+	// AND NOT ALSO AS ONE STEP. A generated routine containing both separately and the
+	// whole of it together is not a thing `codegen` writes — this is the assertion that
+	// says so rather than assuming it.
+	if whole := strings.Join(runs, ""); strings.Contains(s.source,
+		fmt.Sprintf("do OS's Type with %q", whole)) {
+		return fmt.Errorf("the seeded demonstration folded its pause away at seeding "+
+			"time, so both rebuilds would produce the same routine:\n%s", s.source)
+	}
+	return nil
 }

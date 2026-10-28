@@ -1612,6 +1612,15 @@ invisible to a green suite, and so was the stale window that hid its fix.
 > difference a correct replacement can have is that line put back, and on the first run the result
 > was byte-identical to what the generator had written before.
 >
+> And **the other choice on that surface**, which is the first scenario here to PLAY what a review
+> wrote: a routine whose typing has a pause in it is simplified, cancelled with nothing written,
+> replaced on purpose, and then performed. **It ran green on 2026-10-27**, first time, and
+> `plugins\e2e\run.cmd -only simplified` runs just that one. The saved routine typed `marco typed`,
+> slept 550ms and typed ` this 42`; the replaced one types the whole of it in one step with the
+> sleep gone — and the application's own Name field then held the text, with Save pressed after it.
+> A review that produced a routine nobody could run would be a review of a file rather than of a
+> routine.
+>
 > Two things it does deliberately, worth knowing if you read its output: a scenario that could not
 > ask its question is **NOT RUN and not a pass** — a partial run never exits 0 — and before any
 > scenario claims that nothing arrived, the fixture is asked, from inside its own message loop,

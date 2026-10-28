@@ -460,6 +460,31 @@ an unstamped file.
 
 See [[ADR-262-a-routine-states-which-generation-wrote-it]].
 
+## And the other choice on that surface, which is also played
+
+| | |
+|---|---|
+| `generation/a simplified rebuild is reviewed, replaced and performed` | the routine's typing is folded into one step, nothing in the library changes until Replace, and the result still performs |
+
+**It ran green on 2026-10-27** (`plugins\e2e\run.cmd -only simplified`, 1 of 1, exit 0, first run,
+artifacts `20261027-191020`).
+
+**It is the first scenario here to PLAY what a review wrote.** A review that produced a routine
+nobody could run would be a review of a file rather than of a routine — so after Replace this
+presses Play and reads the application's own Name field, which is the typing family's oracle and
+for the same reason.
+
+**The pause in the seeded demonstration is 540ms on purpose.** `simplify` folds a run of keys into
+one `Type` while the gaps read as typing rhythm, and the two choices draw that line at 300ms and
+at a second — so a pause between them is a deliberate wait to one rebuild and rhythm to the other.
+Without one, both choices produce the same routine and every assertion stays true while
+establishing nothing, which `typingRunsReachedTheFile` now refuses as a precondition.
+
+On the first run the saved routine typed `marco typed`, slept 550ms and typed ` this 42`; the
+replaced one types the whole of it in one step with the sleep gone, and then performed.
+
+See [[ADR-262-a-routine-states-which-generation-wrote-it]].
+
 ## The gate for a change to chords
 
 `plugins\e2e\run.cmd -only keys` is the regression gate for an executable change to the chord
