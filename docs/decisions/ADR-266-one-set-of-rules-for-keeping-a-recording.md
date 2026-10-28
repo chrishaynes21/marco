@@ -2,12 +2,14 @@
 type: adr
 status: accepted
 date: 2026-10-28
-decision: "ACCEPTED — ONE SET OF RULES FOR KEEPING A RECORDING, AND EVERY SURFACE OBEYS THEM. Studio gained drafts and the consolidation that should have come with them did not: `Begin` → `Finish` → `Draft` → `Save` was written for the window, and `marco learn` and the widget kept a second implementation of the same pipeline with none of the rules. Both divergences were MEASURED rather than reasoned about. Learning a name twice REPLACED the first routine — the library kept one routine, the file held the second recording, and the line printed said `Learned` as though it were a fresh save; re-recording is what somebody testing a routine does all afternoon, which makes the likeliest casualty the routine they were comparing against. And answering \"only here\" or \"anywhere\" for a recording whose presses check their own window SAVED A ROUTINE THAT REFUSES EVERY PRESS, which `Deps.Unrunnable` — the same reader Studio greys the Play button with — reported immediately. So the enforcement moved DOWN into `orchestrator.Keep`: whether a scope word means anything, whether this draft can be saved under the scope asked for, what is already where it would go, and whether a replacement is the one that was agreed to. Each surface supplies only the INTERACTION. Studio shows a card that offers Replace; `marco learn` names the exact application, scope and route and asks, with ENTER MEANING NO because the two answers do not cost the same — no costs a second attempt and yes costs a routine and the demonstration beside it, neither of which comes back; and the widget's unattended path REFUSES a collision outright, names what is there and preserves it, because it saves with nobody having looked and a silent overwrite there is the worst of the three. A REPLACEMENT IS CONSENTED TO BY VERSION AND NOT BY PATH: a routine{Q}s identity is its place in the library and a place does not change when its contents do, so "the same route is still there" was true of one that had been saved again while the question was open and that newer version was overwritten. Consent carries digests of the source AND the stored demonstration as somebody was shown them, re-read at the instant of writing — the demonstration because a routine re-recorded from the same steps has the same source and a different recording, and the recording is the only thing a rebuild can be made from. AND A FRESH SAVE IS EXCLUSIVE: `Keep` asked whether the path was free and then wrote with create-or-truncate, so another writer landing in the gap was overwritten by a caller that had been told the path was free. `routes.Registry.Create` uses `O_CREATE|O_EXCL`, which closes the gap rather than narrowing it, and a replacement goes through `Registry.Replace`, which is atomic. `Collision` treated every `Stat` error as absence and now treats only not-found that way. A scope the recording cannot be performed under is refused before anything is written: the terminal is not offered it and is told why, and the unattended path asks the draft what it supports instead of defaulting to the application's in-place scope. THE CAPTURE POLICY IS PRESERVED DELIBERATELY AND IS NOT PART OF THE SHARING: Studio states coordinate mode to the recorder and the terminal and the widget state nothing, which leaves the hooks doing what the environment says — the behaviour every caller before Studio had — so a saved routine from those paths still states no mode, truthfully. The owner-strip rule is the same kind of difference and is now a stated field rather than two copies of a pipeline: everywhere for a window, which is glanced at, and off the tail of a button-ended recording for everything else, which is what `TestAGestureEndedRecordingIsNotStripped` was written to record. `saveTaught` and `chooseScope` are RETAINED for `LearnVoice`, which is out of this slice: a helper whose deletion reaches another caller is kept rather than taken along for free. 13 of 13 mutations killed, held through the production entrances rather than through `Keep` alone — a test of the rule that did not enter where a person does would have passed for the whole time the rule was missing."
+decision: "ACCEPTED — ONE SET OF RULES FOR KEEPING A RECORDING, AND EVERY SURFACE OBEYS THEM. Studio gained drafts and the consolidation that should have come with them did not: `Begin` → `Finish` → `Draft` → `Save` was written for the window, and `marco learn` and the widget kept a second implementation of the same pipeline with none of the rules. Both divergences were MEASURED rather than reasoned about. Learning a name twice REPLACED the first routine — the library kept one routine, the file held the second recording, and the line printed said `Learned` as though it were a fresh save; re-recording is what somebody testing a routine does all afternoon, which makes the likeliest casualty the routine they were comparing against. And answering \"only here\" or \"anywhere\" for a recording whose presses check their own window SAVED A ROUTINE THAT REFUSES EVERY PRESS, which `Deps.Unrunnable` — the same reader Studio greys the Play button with — reported immediately. So the enforcement moved DOWN into `orchestrator.Keep`: whether a scope word means anything, whether this draft can be saved under the scope asked for, what is already where it would go, and whether a replacement is the one that was agreed to. Each surface supplies only the INTERACTION. Studio shows a card that offers Replace; `marco learn` names the exact application, scope and route and asks, with ENTER MEANING NO because the two answers do not cost the same — no costs a second attempt and yes costs a routine and the demonstration beside it, neither of which comes back; and the widget's unattended path REFUSES a collision outright, names what is there and preserves it, because it saves with nobody having looked and a silent overwrite there is the worst of the three. A REPLACEMENT IS CONSENTED TO BY VERSION AND NOT BY PATH: a routine{Q}s identity is its place in the library and a place does not change when its contents do, so "the same route is still there" was true of one that had been saved again while the question was open and that newer version was overwritten. Consent carries digests of the source AND the stored demonstration as somebody was shown them, re-read at the instant of writing — the demonstration because a routine re-recorded from the same steps has the same source and a different recording, and the recording is the only thing a rebuild can be made from. AND A FRESH SAVE IS EXCLUSIVE: `Keep` asked whether the path was free and then wrote with create-or-truncate, so another writer landing in the gap was overwritten by a caller that had been told the path was free. `routes.Registry.Create` uses `O_CREATE|O_EXCL`, which closes the gap rather than narrowing it, and a replacement goes through `Registry.Replace`, which is atomic. `Collision` treated every `Stat` error as absence and now treats only not-found that way. AND THE VERSION COMPARISON IS INSIDE THE CRITICAL SECTION, because atomic writing prevents a half-written file and does not make the comparison atomic: reading the digests, rendering and writing are three operations, and another save landing between the first and the last has its version overwritten by a caller whose comparison was true when it was made. So the route is HELD across the whole of validate-and-write — the version check, the source and the demonstration — and the fresh branch takes the same hold, because serialising only the replacements would leave a create and a replace of one route racing. It is `LockFileEx` rather than a lock file of our own, because a lock file has to be cleaned up by whoever took it and the one case a lock is for is the case where that does not happen; Windows drops a handle lock when the process ends however it ends, so there is no stale state to recover and no deadline to tune. The rendezvous file sits BESIDE the route, because one lock per slug would make a save of `notepad/context/settings` wait for `notepad/focus/settings` and then refuse. Off Windows it is a goroutine lock and the file says plainly that it is not cross-process. A scope the recording cannot be performed under is refused before anything is written: the terminal is not offered it and is told why, and the unattended path asks the draft what it supports instead of defaulting to the application's in-place scope. THE CAPTURE POLICY IS PRESERVED DELIBERATELY AND IS NOT PART OF THE SHARING: Studio states coordinate mode to the recorder and the terminal and the widget state nothing, which leaves the hooks doing what the environment says — the behaviour every caller before Studio had — so a saved routine from those paths still states no mode, truthfully. The owner-strip rule is the same kind of difference and is now a stated field rather than two copies of a pipeline: everywhere for a window, which is glanced at, and off the tail of a button-ended recording for everything else, which is what `TestAGestureEndedRecordingIsNotStripped` was written to record. `saveTaught` and `chooseScope` are RETAINED for `LearnVoice`, which is out of this slice: a helper whose deletion reaches another caller is kept rather than taken along for free. 13 of 13 mutations killed, held through the production entrances rather than through `Keep` alone — a test of the rule that did not enter where a person does would have passed for the whole time the rule was missing."
 supersedes: []
 affects:
   - execution
 source_paths:
   - internal/orchestrator/keep.go
+  - internal/routes/lock_windows.go
+  - internal/routes/registry.go
   - internal/orchestrator/orchestrator.go
   - internal/orchestrator/draft.go
   - plugins/studio/replace.go
@@ -149,6 +151,42 @@ sat there asking itself the same question until somebody killed it. It refuses a
 instead; `askScope` already declines to offer a scope the recording cannot use, so reaching that
 refusal is a disagreement between the two and not a person's mistake.
 
+## And the comparison is inside the critical section too
+
+`Registry.Replace` makes the WRITE atomic, so nobody reads a half-written routine. That says
+nothing about the gap before it. Reading the digests, rendering and writing are three operations,
+and another save landing between the first and the last has its version overwritten by a caller
+whose comparison was true when it was made and is not true any more. **Making a comparison atomic
+is not something a file write can do.**
+
+What closes it is holding the route for the whole of validate-and-write — the version check, the
+source, and the demonstration — so two saves of one routine serialise and the second revalidates
+against what the first actually left. The fresh branch takes the same hold: serialising only the
+replacements would leave a create and a replace of one route racing each other, where now they
+queue. The exclusive create would still refuse rather than overwrite — it is its own critical
+section — and the lock is what makes the pair of them wait instead of one of them failing.
+
+**The operating system's lock, not a lock file of our own.** A lock file has to be cleaned up by
+whoever took it, and the one case a lock is for is the case where that does not happen: a process
+killed mid-save leaves its file behind and every later save waits for a holder that does not exist.
+The remedies are worse than the problem — a timeout long enough to be safe is long enough to be a
+hang, and a stale-lock breaker is a second race with a second set of rules. `LockFileEx` is held
+by a HANDLE, which Windows drops when the handle closes and therefore when the process exits for
+any reason at all. No stale state, no deadline to tune. The rendezvous file is left on disk on
+purpose: it holds nothing, so its presence means nothing and nobody has to tidy it — though
+`Registry.Delete` sweeps it when the route goes, so a library does not accumulate litter.
+
+It sits **beside the route**, keyed by the whole identity. A route is its scope and its slug, so
+one lock per slug would make a save of `notepad/context/settings` wait for
+`notepad/focus/settings` — a save queueing behind an unrelated one and then refusing. That came
+out of a surviving mutation: all the locks in one directory passed every test there was, because
+none of them used two routines.
+
+**Off Windows it is a stub and says so.** There is no portable advisory lock in the standard
+library and the engine has no dependencies to reach for, so the other build gets a real lock
+between goroutines and not between processes. Stated in the file rather than implied, because a
+lock that does not lock is worse than one that refuses.
+
 ## Enforced by
 
 Through the **production entrances** — `Deps.Learn` and `Deps.LearnAuto`, the ones `marco learn`
@@ -197,6 +235,18 @@ underneath them and neither reached these checks.
 - `plugins/studio` `TestAReplacementRefusesWhenTheRoutineChangedSinceTheCardWasDrawn` — the
   window's round trip: the card is drawn, somebody else saves over the routine, and the replacement
   is refused with the newer version intact.
+- `internal/orchestrator` `TestTwoSavesOfOneRoutineSerialiseAndTheStaleConsentRefuses` —
+  DETERMINISTIC rather than raced, which the fresh-save case could not be: `AfterValidating`
+  stands in the one instant that exists — inside the lock, after the comparison, before the
+  write — so the second save CANNOT proceed and nothing depends on timing to be true. Two saves,
+  both with consent valid when they read it: the first pauses, the second must not get past the
+  lock (asserted on the FILE, not the clock), the first finishes, and the second revalidates,
+  finds its version gone and refuses with the first save's work intact. With the control — a
+  replacement whose consent is current still goes through — which also proves every hold was
+  given back, since a leaked one would have made it wait out `SaveWithin`.
+- `internal/orchestrator` `TestHoldingOneRoutineDoesNotHoldItsNamesake` — `settings` in two scopes
+  are two routines: holding one and saving the other finishes well inside the bound, and the held
+  one is untouched.
 - `plugins/studio` — its own save, replace and collision tests, now running through the shared
   `Keep` and handing back the version they were shown.
 

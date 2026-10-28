@@ -203,6 +203,10 @@ func (r Registry) Delete(rt Route) error {
 			_ = os.Remove(m)
 		}
 	}
+	// AND THE RENDEZVOUS FILE, which holds nothing and is litter once the route has gone.
+	// Best-effort: a save in flight has it open, and on Windows that refuses the removal
+	// — which is the right answer, because that save is about to recreate it anyway.
+	_ = os.Remove(r.LockPath(rt))
 	err := os.Remove(filepath.Join(dir, rt.Slug+".marco"))
 	if os.IsNotExist(err) {
 		return nil

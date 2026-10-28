@@ -21,6 +21,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/chaynes-simpleclouds/marco/internal/recorder"
 	"github.com/chaynes-simpleclouds/marco/internal/routes"
@@ -438,6 +439,216 @@ func TestWhenTheGapIsRacedTheOtherWritersFileSurvives(t *testing.T) {
 		t.Skip("the other writer never won a create, so nothing was raced")
 	}
 	t.Logf("the other writer created the target in %d of 240 iterations", raced)
+}
+
+// AND TWO SAVES OF ONE ROUTINE SERIALISE, WITH THE STALE ONE REFUSING.
+//
+// The last gap in the replacement, and the one atomic writing cannot close. Reading the digests,
+// rendering, and writing are three operations: another save landing between the first and the
+// last had its version overwritten by a caller whose comparison was true when it was made and was
+// not true any more. `Registry.Replace` makes nobody read a half-written routine and says nothing
+// about that.
+//
+// So the route is held across the whole of validate-and-write, and this stands in the one instant
+// that exists for standing in — `AfterValidating`, inside the lock, after the comparison and
+// before anything is written. Deterministic, not raced: the second save CANNOT proceed while the
+// first holds the route, so there is nothing here that depends on timing to be true.
+//
+// Through `Keep`, because that is where the interleaving is. It is the shared backend every
+// surface goes through, and there is no prompt inside the critical section for a surface-level
+// test to stand in.
+func TestTwoSavesOfOneRoutineSerialiseAndTheStaleConsentRefuses(t *testing.T) {
+	t.Setenv("MARCO_CV", "off")
+	reg := routes.Registry{Dir: t.TempDir()}
+	rt := routes.Route{App: "notepad", Slug: "the-same-name"}
+
+	var out bytes.Buffer
+	base := aTerminal(reg, aPlainDemonstration("a"), "y\nc\n", &out, "notepad")
+	if err := base.Learn("the same name"); err != nil {
+		t.Fatalf("the first save: %v\n%s", err, out.String())
+	}
+	v1 := mustRead(t, reg, rt)
+
+	draftOf := func(d Deps, key string) *Draft {
+		return d.DraftOf("the same name", aPlainDemonstration(key), "notepad",
+			"a test", Unstated)
+	}
+	consentFor := func(d Deps, dr *Draft) Consent {
+		at := d.Collision(dr, ScopeApp, "notepad")
+		if !at.Exists || at.Source == "" {
+			t.Fatalf("the collision does not say which version it is about: %+v", at)
+		}
+		return Consent{ID: at.ID, Source: at.Source, Recording: at.Recording}
+	}
+
+	// ── THE FIRST SAVE, PAUSED AFTER ITS VERSION WAS CHECKED AND INSIDE THE LOCK ──
+	validated, resume := make(chan struct{}), make(chan struct{})
+	first := aTerminal(reg, nil, "", &out, "notepad")
+	first.AfterValidating = func() {
+		close(validated)
+		<-resume
+	}
+	drFirst := draftOf(first, "b")
+	okFirst := consentFor(first, drFirst)
+	doneFirst := make(chan error, 1)
+	go func() {
+		_, err := first.Keep(drFirst, ScopeApp, "notepad", okFirst)
+		doneFirst <- err
+	}()
+	<-validated
+
+	// ── AND A SECOND SAVE ATTEMPTED WHILE IT IS PAUSED ──
+	//
+	// Its consent is read NOW, so it is entirely valid: the first save has validated and
+	// written nothing, and v1 is what is on disk. Nothing about this save is wrong except
+	// that it is second.
+	second := aTerminal(reg, nil, "", &out, "notepad")
+	drSecond := draftOf(second, "c")
+	okSecond := consentFor(second, drSecond)
+	if okSecond.Source != okFirst.Source {
+		t.Fatalf("the two saves consented to different versions, so this says nothing "+
+			"about serialising: %q and %q", okFirst.Source, okSecond.Source)
+	}
+	doneSecond := make(chan error, 1)
+	go func() {
+		_, err := second.Keep(drSecond, ScopeApp, "notepad", okSecond)
+		doneSecond <- err
+	}()
+
+	// IT MUST NOT GET PAST THE LOCK. The invariant is the file rather than the clock: the
+	// wait is only how long this is prepared to be wrong for, and what it asserts is that
+	// nothing was written while the first save held the route.
+	select {
+	case err := <-doneSecond:
+		t.Fatalf("the second save finished while the first held the route: %v", err)
+	case <-time.After(250 * time.Millisecond):
+	}
+	if now := mustRead(t, reg, rt); now != v1 {
+		t.Fatalf("something was written while the first save was paused:\n%s", now)
+	}
+
+	// ── THE FIRST ONE FINISHES ──
+	close(resume)
+	if err := <-doneFirst; err != nil {
+		t.Fatalf("the first save refused: %v", err)
+	}
+	afterFirst := mustRead(t, reg, rt)
+	if afterFirst == v1 {
+		t.Fatal("the first save wrote nothing, so the rest of this says nothing")
+	}
+
+	// ── AND THE SECOND ONE REVALIDATES AGAINST WHAT IT ACTUALLY LEFT ──
+	//
+	// Its consent was to v1, which has gone. It refuses, and the version the first save
+	// wrote is exactly as that save left it. This is the overwrite the lock exists for:
+	// without it the second save validated against v1 while the first was still deciding,
+	// and wrote over it afterwards.
+	errSecond := <-doneSecond
+	if errSecond == nil {
+		t.Fatal("the second save went ahead with consent to a version that had gone")
+	}
+	if !strings.Contains(errSecond.Error(), "saved again since you were shown it") {
+		t.Errorf("the refusal does not say what changed: %v", errSecond)
+	}
+	if now := mustRead(t, reg, rt); now != afterFirst {
+		t.Errorf("the first save's version was written over:\n%s", now)
+	}
+
+	// ── THE CONTROL: A REPLACEMENT WHOSE CONSENT IS CURRENT STILL GOES THROUGH ──
+	//
+	// Without which every refusal above is satisfied by a save that has stopped working.
+	third := aTerminal(reg, nil, "", &out, "notepad")
+	drThird := draftOf(third, "d")
+	if _, err := third.Keep(drThird, ScopeApp, "notepad",
+		consentFor(third, drThird)); err != nil {
+		t.Fatalf("a replacement with current consent was refused: %v", err)
+	}
+	if now := mustRead(t, reg, rt); now == afterFirst {
+		t.Error("the replacement with current consent wrote nothing")
+	}
+	// AND THE LOCK WAS GIVEN BACK EVERY TIME, which is what that control also proves:
+	// a hold that leaked would have made this one wait out `SaveWithin` and refuse.
+	free, err := reg.Lock(rt, 50*time.Millisecond)
+	if err != nil {
+		t.Errorf("the route is still held after every save finished: %v", err)
+	}
+	// AND GIVEN BACK AGAIN. A hold left open keeps the file open, which on Windows stops
+	// the directory being removed — which is how this test first failed, in its own
+	// cleanup rather than in an assertion.
+	free.Release()
+}
+
+// AND HOLDING ONE ROUTINE DOES NOT HOLD ITS NAMESAKE.
+//
+// A route IS its scope and its slug, so `settings` saved for one application and `settings` saved
+// to bring that application forward are two routines and two files. One lock for the slug would
+// make a save of either wait for the other, which is a save queueing behind an unrelated one —
+// and at the end of the wait, refusing.
+//
+// The rendezvous file is therefore beside the route rather than at the top of the library, which
+// is the same reason `Routine.ID` carries the whole identity and not the name.
+func TestHoldingOneRoutineDoesNotHoldItsNamesake(t *testing.T) {
+	t.Setenv("MARCO_CV", "off")
+	reg := routes.Registry{Dir: t.TempDir()}
+	inPlace := routes.Route{App: "notepad", Slug: "settings"}
+	anywhere := routes.Route{App: "notepad", Focus: true, Slug: "settings"}
+
+	var out bytes.Buffer
+	for _, where := range []struct {
+		answers string
+		rt      routes.Route
+	}{{"y\nc\n", inPlace}, {"y\nf\n", anywhere}} {
+		d := aTerminal(reg, aPlainDemonstration("a"), where.answers, &out, "notepad")
+		if err := d.Learn("settings"); err != nil {
+			t.Fatalf("saving %+v: %v\n%s", where.rt, err, out.String())
+		}
+		if !reg.Has(where.rt) {
+			t.Fatalf("%+v was not saved: %v\n%s", where.rt, reg.List(), out.String())
+		}
+	}
+
+	// ── ONE OF THEM IS HELD ──
+	held, err := reg.Lock(inPlace, time.Second)
+	if err != nil {
+		t.Fatalf("holding the in-place routine: %v", err)
+	}
+	defer held.Release()
+
+	// ── AND THE OTHER ONE SAVES, WITHOUT WAITING FOR IT ──
+	//
+	// Measured against the bound rather than against a stopwatch: a save that had to wait
+	// for the namesake would be refused at `SaveWithin`, and this has to finish well
+	// inside it.
+	d := aTerminal(reg, nil, "", &out, "notepad")
+	dr := d.DraftOf("settings", aPlainDemonstration("z"), "notepad", "a test", Unstated)
+	at := d.Collision(dr, ScopeAppAnywhere, "notepad")
+	if !at.Exists || at.ID != RouteID(anywhere) {
+		t.Fatalf("the collision is %+v, want the anywhere-in-application routine", at)
+	}
+	began := make(chan struct{})
+	done := make(chan error, 1)
+	go func() {
+		close(began)
+		_, err := d.Keep(dr, ScopeAppAnywhere, "notepad", Consent{ID: at.ID,
+			Source: at.Source, Recording: at.Recording})
+		done <- err
+	}()
+	<-began
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("saving the namesake was refused while the other was held: %v",
+				err)
+		}
+	case <-time.After(SaveWithin / 2):
+		t.Fatalf("saving %s waited for %s, which is a different routine",
+			RouteID(anywhere), RouteID(inPlace))
+	}
+	// AND THE ONE THAT WAS HELD IS UNTOUCHED, which is the other half: the two routines
+	// are separate files and a save of one is not a save of the other.
+	if !strings.Contains(mustRead(t, reg, inPlace), `"a"`) {
+		t.Errorf("the held routine was written:\n%s", mustRead(t, reg, inPlace))
+	}
 }
 
 // AND A PATH THAT IS NOT A ROUTINE IS NOT A PATH THAT IS FREE.

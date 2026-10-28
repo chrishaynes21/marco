@@ -11435,4 +11435,63 @@ application came out with no Activate — a routine that types into whatever hap
 front. `TestAFocusPlayActivatesEvenWhenTheDemonstrationDidNot` said so, which is what it is for.
 There is one preamble now, shared by `Save` and `Keep`, and a mutation on it.
 
+### And the comparison is inside the critical section too
+
+The replacement still had a race, and it is the one atomic writing cannot touch. Reading the
+digests, rendering, and writing are three operations. `Registry.Replace` makes nobody read a
+half-written routine and says nothing about the gap before it: another save landing between the
+comparison and the write has its version overwritten by a caller whose comparison was true when it
+was made and is not true any more.
+
+Making a comparison atomic is not something a file write can do. What closes it is holding the
+route across the whole of validate-and-write — the version check, the source and the demonstration
+— so two saves of one routine serialise and the second revalidates against what the first actually
+left. The fresh-save branch takes it too: serialising only the replacements would leave a create
+and a replace of one route racing each other, where now they queue.
+
+**It is the operating system's lock, not a lock file of our own.** A lock file has to be cleaned up
+by whoever took it, and the one case a lock is for is the case where that does not happen: a
+process killed mid-save leaves its file behind, and every later save then waits for a holder that
+does not exist. The remedies are all worse than the problem — a timeout long enough to be safe is
+long enough to be a hang, and a stale-lock breaker is a second race with a second set of rules.
+`LockFileEx` is held by a HANDLE, and Windows drops it when the handle closes, which includes the
+process exiting for any reason. There is no stale state to recover and no deadline to tune. The
+rendezvous file is left on disk on purpose: it holds nothing, so its presence means nothing.
+
+It is beside the route rather than at the top of the library, because a route IS its scope and its
+slug: one lock per slug would make a save of `notepad/context/settings` wait for
+`notepad/focus/settings`, which is a save queueing behind an unrelated one and then refusing.
+
+**Off Windows it is a stub and says so.** There is no portable advisory lock in the standard
+library and the engine has no dependencies to reach for, so the other build gets a real lock
+between goroutines and NOT between processes. The weaker guarantee is stated in the file rather
+than implied, because a lock that does not lock is worse than one that refuses.
+
+### What holds it
+
+**5 of 5 mutations killed**, and the test is deterministic rather than raced, which the earlier
+fresh-save case could not be: `Deps.AfterValidating` stands in the one instant that exists — inside
+the lock, after the comparison, before the write. The second save then *cannot* proceed, so nothing
+about the assertion depends on timing to be true.
+
+Two saves, both with consent that is entirely valid when they read it. The first pauses; the second
+is attempted and must not get past the lock, asserted on the FILE rather than on the clock; the
+first finishes; the second revalidates, finds the version it consented to has gone, and refuses
+with the first save's work intact. Plus the control — a replacement whose consent is current still
+goes through — which also proves every hold was given back, since a leaked one would have made it
+wait out `SaveWithin` and refuse.
+
+And `TestHoldingOneRoutineDoesNotHoldItsNamesake`, which came out of a surviving mutation: all
+locks in one directory passed every test I had, because none of them used two routines.
+
+One mutation is recorded rather than killed, with the reason in the code: removing the explicit
+`UnlockFileEx` changes no behaviour, because closing the handle releases every lock on it. It stays
+as the honest expression of giving the route back, and because the day this holds a handle it does
+not own, the close and the unlock stop being the same act.
+
+A smaller thing worth keeping: the first run of the serialisation test failed in `t.TempDir`
+cleanup rather than in an assertion, because the test itself took a hold and never released it, and
+Windows will not remove a directory holding an open file. `Registry.Delete` now sweeps the
+rendezvous file too.
+
 See [[ADR-266-one-set-of-rules-for-keeping-a-recording]].

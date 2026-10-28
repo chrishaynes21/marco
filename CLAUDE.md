@@ -179,7 +179,10 @@ go run ./cmd/gate                      # its first stage alone, which needs no s
   every press. Both measured. Scope validity, the collision check and the replacement-identity
   re-check live in `Keep` now — and consent is to a VERSION (digests of the source AND the
   stored demonstration, re-read at the write), while a fresh save is EXCLUSIVE
-  (`routes.Registry.Create`, `O_CREATE|O_EXCL`) because a check and a write are two instants.
+  (`routes.Registry.Create`, `O_CREATE|O_EXCL`) because a check and a write are two instants —
+  and the version check and both writes sit inside a CROSS-PROCESS LOCK on that route
+  (`routes.Registry.Lock`, `LockFileEx`, released by the OS when the process ends), because atomic
+  writing does not make the comparison before it atomic.
   Each surface supplies only the interaction — Studio a card,
   `marco learn` a question naming the exact application/scope/route with ENTER MEANING NO, and the
   widget's unattended `LearnAuto` a refusal, because it saves with nobody having looked. What is

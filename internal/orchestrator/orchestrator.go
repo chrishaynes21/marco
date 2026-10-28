@@ -100,6 +100,13 @@ type Deps struct {
 	// click. The process that owned the foreground window at the instant of the event does
 	// not have that problem, because it is read at the instant of the event.
 	OwnerPID uint32
+	// AfterValidating runs inside the route's lock, after a replacement's version has
+	// been checked and before anything is written.
+	//
+	// A seam for a timing window rather than a seam for behaviour, in the same shape as
+	// Studio's `afterReserve`: the interval is real, it is where the race lived, and there
+	// is no way to be inside it from outside. Nil in every production path.
+	AfterValidating func()
 	// OwnerTailOnly takes the owner's window out ONLY off the tail of a recording the
 	// BUTTON ended, instead of wherever it appears.
 	//

@@ -41,9 +41,18 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/chaynes-simpleclouds/marco/internal/routes"
 )
+
+// SaveWithin is how long one save waits for another save of the same routine.
+//
+// Generous against what it is waiting for and short against a person: what holds the route is
+// rendering a few steps and writing two files, so a wait that reaches this is not a queue but
+// something wrong. Past it the save REFUSES and says so, because a window that waits out a
+// problem is a window that looks wedged.
+const SaveWithin = 5 * time.Second
 
 // WantedScope reads a surface's word for a scope, or says what the choices are.
 //
@@ -263,6 +272,13 @@ func (d Deps) Keep(dr *Draft, scope Scope, app string, consent Consent) (routes.
 	if !consent.Given() {
 		// ── NOTHING WAS THERE A MOMENT AGO, AND THE WRITE SAYS SO ITSELF ──
 		//
+		// Inside the lock as well, because a fresh save and a replacement of the
+		// same route are two writers of one file: serialising only the
+		// replacements would leave the pair of them racing. The exclusive create
+		// below would still refuse rather than overwrite — it is its own critical
+		// section — and the lock is what makes the two of them queue instead of one
+		// of them failing.
+		//
 		// The collision check above is two instants earlier. A route that appeared
 		// in between belongs to whoever created it, and a caller that was told the
 		// path was free has consented to nothing about it. The create refuses, and
@@ -281,6 +297,24 @@ func (d Deps) Keep(dr *Draft, scope Scope, app string, consent Consent) (routes.
 	if err != nil {
 		return routes.Route{}, err
 	}
+	// ── AND THE ROUTE IS HELD FOR THE WHOLE OF VALIDATE-AND-WRITE ──
+	//
+	// `Registry.Replace` is atomic, so nobody reads a half-written routine. That says
+	// nothing about the gap BEFORE it: reading the digests, rendering, and writing are
+	// three operations, and another save landing between the first and the last has its
+	// version overwritten by a caller whose comparison was true when it was made.
+	//
+	// Making a comparison atomic is not something a file write can do. What closes it is
+	// holding the route across all of it — the validation, the source and the
+	// demonstration — so two saves of one routine serialise and the second revalidates
+	// against what the first actually left. Every writer in this contract takes it; see
+	// routes.Registry.Lock for why it is the operating system's lock and not a file of
+	// our own.
+	hold, err := d.Reg.Lock(rt, SaveWithin)
+	if err != nil {
+		return rt, err
+	}
+	defer hold.Release()
 	// ── AND THE VERSION SOMEBODY AGREED TO LOSE IS THE ONE THAT IS STILL THERE ──
 	//
 	// The identity does not change when the contents do, so "same route, same id" is not
@@ -292,6 +326,12 @@ func (d Deps) Keep(dr *Draft, scope Scope, app string, consent Consent) (routes.
 		return rt, fmt.Errorf("%q has been saved again since you were shown it, so it "+
 			"is left as it is — look at what is there now and choose once more",
 			consent.ID)
+	}
+	// THE ONE INSTANT A TEST CAN STAND IN: after the comparison and before the write,
+	// inside the lock. Nil in every production path, and the only way to make the
+	// interleaving this whole section is about happen on purpose. See Deps.AfterValidating.
+	if d.AfterValidating != nil {
+		d.AfterValidating()
 	}
 	return d.saveWith(dr, scope, app, true)
 }
