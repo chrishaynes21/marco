@@ -11,6 +11,7 @@ package main
 // scenario that has quietly stopped establishing anything.
 
 import (
+	"errors"
 	"go/ast"
 	"go/parser"
 	"go/printer"
@@ -444,4 +445,42 @@ func read(t *testing.T, path string) string {
 		t.Fatalf("reading %s: %v", path, err)
 	}
 	return string(b)
+}
+
+// A STALE ELEMENT IS RETRIED ONCE, AND NOTHING ELSE IS.
+//
+// A press is two operations — a snapshot that finds the control and an Invoke that names it by
+// the runtime id that snapshot gave — and the page repaints on a poll, so the id can name an
+// element that no longer exists by the time the Invoke arrives. UI Automation says so, truthfully,
+// and it is not about the product: a real acceptance run reported `runs/two runs are two records`
+// as a FINDING at the Done button, and it passed next time against both an installed bundle and a
+// tree build.
+//
+// The retry has to be narrow or it hides findings. A control that was never there, one that is
+// disabled, one whose window has gone — each of those is a finding and must not be pressed again
+// in the hope it answers. Only the provider's own "the element you named has gone" is retried.
+func TestOnlyAStaleElementIsRetried(t *testing.T) {
+	if !isStale(errors.New("uia Invoke refused: no element with that id is in the " +
+		"window any more")) {
+		t.Error("the provider's own words for a gone element are not recognised, so a " +
+			"repaint between finding a control and pressing it reports as a " +
+			"finding about whatever the scenario was doing")
+	}
+	for _, c := range []struct{ what, says string }{
+		{"a control that was never there",
+			`there is no single control called "backBtn" on screen; what is there: capBtn`},
+		{"a control that is disabled",
+			`"routinePlayBtn" is on screen and disabled, so pressing it would do nothing`},
+		{"a window that has gone", "uia Invoke refused: the window is not there"},
+		{"the bridge itself failing", "uia: exit status 1"},
+	} {
+		if isStale(errors.New(c.says)) {
+			t.Errorf("%s is treated as a stale element and pressed again, so a "+
+				"finding is retried until it passes or the scenario gives up",
+				c.what)
+		}
+	}
+	if isStale(nil) {
+		t.Error("no error at all is treated as a stale element")
+	}
 }

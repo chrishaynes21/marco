@@ -67,6 +67,10 @@ func main() {
 	only := flag.String("only", "", "run only the scenarios whose names contain this")
 	keep := flag.Bool("keep", false,
 		"leave this run's store and binaries behind for inspection")
+	installed := flag.String("installed", "",
+		"test the product binaries of an INSTALLED Marco in this directory (its bin "+
+			"folder) instead of building them from this tree. The scenarios are the "+
+			"same; what changes is which binaries answer")
 	flag.Parse()
 
 	started := time.Now()
@@ -120,7 +124,16 @@ func main() {
 	art.step("store: %s", store)
 	art.step("library: %s", routesDir())
 
-	b, err := makeBundle(m, filepath.Join(run, "bundle"), art)
+	// THE BINARIES UNDER TEST: this tree's, or an installation's. See
+	// fromInstalledBundle for why an installation is a different claim.
+	make := func() (*bundle, error) {
+		if *installed != "" {
+			return fromInstalledBundle(m, filepath.Join(run, "bundle"), *installed,
+				art)
+		}
+		return makeBundle(m, filepath.Join(run, "bundle"), art)
+	}
+	b, err := make()
 	if err != nil {
 		finish(art, m, checks, nil, err, started, run, *keep)
 		return

@@ -225,3 +225,103 @@ func rel(root, p string) string {
 	}
 	return p
 }
+
+// fromInstalledBundle takes this run's product binaries from an INSTALLED Marco instead of
+// building them.
+//
+// # Why a harness that builds its own binaries is not enough
+//
+// Because the thing somebody installs is not the thing this tree builds. It is a self-extracting
+// bundle: `pack.ps1` stages Studio with its Wails tags, the engine, the Director and the
+// accessibility provider, writes a manifest of what each is, and embeds the lot — and the
+// launcher unpacks them into one directory and opens Studio. Every one of those steps can be
+// wrong in a way no test in this repository reaches, and two already were: a manifest written
+// with a byte-order mark that Go's JSON refuses, and a manifest listing the embed's own version
+// label as though it were an installed component. Both reported a correct installation as broken,
+// and both were found by running the artifact.
+//
+// So the scenarios can be pointed at an installation. They are the same scenarios: launch,
+// seeded playback, cancellation, reporting, review and replace. What changes is which binaries
+// answer.
+//
+// # The fixture is still this tree's, and that is not a gap
+//
+// The fixture is the harness's own test window, not a shipped component — no installation has
+// one, and one that did would be a product shipping its own test surface. It is copied from the
+// tree as always, and the report says so, piece by piece.
+//
+// # What the identities then say
+//
+// "taken from an installed Marco at …" rather than "built from this tree", which is the whole
+// point: `build.json` is this run's account of what it tested, and a run against a bundle that
+// claimed to have built its own binaries would be the most misleading report this harness could
+// produce.
+func fromInstalledBundle(m machine, dir, installed string, art *artifacts) (*bundle, error) {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return nil, err
+	}
+	b := &bundle{dir: dir,
+		marco:    filepath.Join(installed, "marco.exe"),
+		director: filepath.Join(installed, "director.exe"),
+		studio:   filepath.Join(installed, "studio.exe"),
+		fixture:  filepath.Join(dir, "fixture.exe"),
+		uia:      filepath.Join(installed, "plugins", "uia", "uia.exe"),
+	}
+	// EVERY PRODUCT BINARY HAS TO BE THERE, named one at a time. An installation missing
+	// one is exactly the case the product now refuses rather than working around, and a
+	// harness that discovered it halfway through a scenario would report it as a defect in
+	// whatever that scenario was about.
+	for _, c := range []struct{ what, at string }{
+		{"studio.exe", b.studio}, {"marco.exe", b.marco},
+		{"director.exe", b.director},
+		{"the accessibility provider under plugins/uia", b.uia},
+	} {
+		if _, err := os.Stat(c.at); err != nil {
+			return nil, cannot("the installed Marco at %s has no %s (%s), so "+
+				"there is no bundle to test", installed, c.what, c.at)
+		}
+		b.identities = append(b.identities, identify(filepath.Base(c.at), c.at,
+			"taken from an installed Marco at "+installed))
+	}
+	// AND THE WINDOWLESS STUDIO IS CAUGHT HERE TOO. `pack.ps1` checks the build it makes;
+	// this checks the one that actually got installed, which is a different claim — a
+	// bundle can be packed correctly and installed from an older copy.
+	if windowless, err := contains(b.studio, wailsGuard); err != nil {
+		return nil, err
+	} else if windowless {
+		return nil, fmt.Errorf("the installed Studio at %s contains %q, so it would "+
+			"open no window: this bundle was packed without the Wails tags",
+			b.studio, wailsGuard)
+	}
+	// THE FIXTURE, WHICH IS THIS HARNESS'S AND NOT THE PRODUCT'S. See above.
+	from := filepath.Join(m.Root, "plugins", "fixture", "fixture.exe")
+	if err := freshEnough(from, filepath.Join(m.Root, "plugins", "fixture",
+		"Fixture.cs")); err != nil {
+		return nil, err
+	}
+	if err := copyFile(from, b.fixture); err != nil {
+		return nil, err
+	}
+	b.identities = append(b.identities, identify("fixture.exe", b.fixture,
+		"copied from "+rel(m.Root, from)+" — the harness's own window, not a "+
+			"shipped component"))
+	// AND WHAT THE INSTALLATION SAYS IT IS MADE OF, kept beside the rest. The bundle's own
+	// manifest is a claim this harness does not verify — Studio does that, and reports it
+	// — so it is RECORDED rather than checked here, which keeps the two accounts separate.
+	if raw, err := os.ReadFile(filepath.Join(installed, "manifest.json")); err == nil {
+		art.keep("installed-manifest.json", raw)
+	} else {
+		art.step("the installed Marco at %s carries no manifest (%v)", installed, err)
+	}
+	out, err := json.MarshalIndent(map[string]any{
+		"head": m.Head, "dirty": m.Dirty, "root": m.Root,
+		"installed": installed,
+		"screen":    fmt.Sprintf("%dx%d at %d dpi", m.ScreenW, m.ScreenH, m.DPI),
+		"binaries":  b.identities,
+	}, "", "  ")
+	if err == nil {
+		art.keep("build.json", out)
+	}
+	art.step("testing the INSTALLED Marco at %s", installed)
+	return b, nil
+}

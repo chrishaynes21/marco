@@ -208,6 +208,44 @@ func (u uia) look(hwnd uintptr) (snapshot, error) {
 // and presses nothing, which is the shape of defect this harness exists to catch rather than to
 // commit.
 func (u uia) press(hwnd uintptr, id string) error {
+	// TWICE, BECAUSE A RUNTIME ID GOES STALE AND THE PAGE REPAINTS ON A POLL.
+	//
+	// A press is two operations: a snapshot that finds the control, and an Invoke that
+	// names it by the runtime id that snapshot gave. Between them the page can repaint —
+	// it polls, so it does, roughly every 400ms — and the id the Invoke carries then names
+	// an element that no longer exists. UI Automation answers "no element with that id is
+	// in the window any more", which is true and is not about the product.
+	//
+	// It was seen on a real acceptance run: `runs/two runs are two records` failed at the
+	// Done button after the first run, and passed on the next attempt against both an
+	// installed bundle and a tree build. A harness that reports that as a finding spends
+	// somebody's afternoon on a stale pointer.
+	//
+	// So a STALE element is retried once, with a fresh snapshot, and nothing else is: a
+	// control that is absent, disabled, or refuses the Invoke for any other reason is a
+	// finding and is returned as one. Once, not in a loop — a second staleness in a row is
+	// a page repainting faster than it can be pressed, which is worth hearing about.
+	err := u.pressOnce(hwnd, id)
+	if err == nil || !isStale(err) {
+		return err
+	}
+	u.art.note("press", "%s: the element went stale between finding it and pressing "+
+		"it; one fresh look", id)
+	return u.pressOnce(hwnd, id)
+}
+
+// isStale reports whether an Invoke failed because the element had gone.
+//
+// By the provider's own words, which is all there is: the bridge answers a sentence. Matched on
+// the part that is the provider's and not the harness's, so a change to the harness's wrapping
+// cannot make this stop matching silently — and narrowly enough that a control which was never
+// there, or is disabled, does not take this path.
+func isStale(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "no element with that id")
+}
+
+// pressOnce is one snapshot and one Invoke.
+func (u uia) pressOnce(hwnd uintptr, id string) error {
 	s, err := u.look(hwnd)
 	if err != nil {
 		return err
