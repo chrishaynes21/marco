@@ -328,35 +328,46 @@ func TestSimplifyingAndSayingNoLeavesTheRoutineAlone(t *testing.T) {
 //
 // `SimplifySaves` skips the QUESTION and nothing else. It is a statement by whoever built the
 // `Deps` — not evidence of who the caller is, which an environment variable cannot establish —
-// and an unattended save must still be unable to write over a file that moved while it was
-// deciding.
-func TestASaveWithNoPreviewStillRefusesAChangedRoutine(t *testing.T) {
-	d, rt := aTypedRoutine(t, Coordinates)
+// and an unattended save must still be unable to write over anything the review path protects.
+//
+// # Shown through a check only `Replace` makes
+//
+// A conflicting anchor image. Nothing else in this command looks at the images, so an unattended
+// save refusing on one is an unattended save that went through `Deps.Replace` — and with it the
+// digests, the token and the atomic write, which have their own tests. The first version of this
+// tried to change the file mid-flight through `afterClassifying`, which fires INSIDE `Replace`
+// after the digests have already been read: a seam in the wrong gap, asserting nothing. It failed
+// and said so, which is what it was for.
+func TestASaveWithNoPreviewStillGoesThroughTheCheckedReplacement(t *testing.T) {
+	d, rt, image := anAnchoredRoutine(t)
+	statingNoGeneration(t, d, rt)
 	d.SimplifySaves = true
 	d.Out = &bytes.Buffer{}
-	// THE FILE MOVES ON WHILE THE PREPARATION IS BEING MADE. Arranged through the same
-	// seam the image case uses, because the gap here is between `Prepare` and `Replace`
-	// and an unattended caller crosses it in microseconds — which is not the same as
-	// crossing it safely.
-	const byHand = "// a person edited this\nuse os.\n\nthe App is a script.\n"
-	d.afterClassifying = func() {
-		if err := d.Reg.Save(rt, byHand); err != nil {
-			t.Fatal(err)
-		}
+	const byHand = "a picture somebody else put there"
+	if err := os.WriteFile(image, []byte(byHand), 0o644); err != nil {
+		t.Fatal(err)
 	}
-	err := d.SimplifyRoute("type marco")
+	was, err := os.ReadFile(d.Reg.Path(rt))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = d.SimplifyRoute("anchored thing")
 	if err == nil {
-		t.Fatal("an unattended save wrote over a routine that changed while it was " +
-			"preparing")
+		t.Fatal("an unattended save wrote over an image it did not put there, so it " +
+			"is not going through the checked replacement")
 	}
-	if !strings.Contains(err.Error(), "saved again") {
+	if !strings.Contains(err.Error(), "not the one the rebuilt version needs") {
 		t.Errorf("the refusal is %q", err)
 	}
-	if raw, _ := os.ReadFile(d.Reg.Path(rt)); string(raw) != byHand {
-		t.Errorf("the refused save disturbed the routine:\n%s", raw)
+	if raw, _ := os.ReadFile(image); string(raw) != byHand {
+		t.Errorf("the refused save overwrote the image: %q", string(raw))
+	}
+	if raw, _ := os.ReadFile(d.Reg.Path(rt)); string(raw) != string(was) {
+		t.Errorf("the refused save wrote the source anyway:\n%s", raw)
 	}
 	// AND WITHOUT THE INTERFERENCE IT SAVES WITHOUT ASKING, which is what the option is
-	// for. No reader is given, so a prompt would block or fail rather than pass.
+	// for. No reader is given, so a prompt would read EOF rather than pass.
 	d2, rt2 := aTypedRoutine(t, Coordinates)
 	d2.SimplifySaves = true
 	d2.Out = &bytes.Buffer{}
@@ -366,5 +377,11 @@ func TestASaveWithNoPreviewStillRefusesAChangedRoutine(t *testing.T) {
 	if raw, _ := os.ReadFile(d2.Reg.Path(rt2)); !strings.Contains(string(raw),
 		`do OS's Type with "marco"`) {
 		t.Errorf("the unattended save wrote nothing:\n%s", raw)
+	}
+	// AND IT NEVER ASKED. A prompt skipped is the whole of what the option does, and a
+	// caller that cannot answer one must not be given one.
+	if strings.Contains(d2.Out.(*bytes.Buffer).String(), "[y]es") {
+		t.Errorf("the unattended save asked a question nobody could answer:\n%s",
+			d2.Out.(*bytes.Buffer).String())
 	}
 }
