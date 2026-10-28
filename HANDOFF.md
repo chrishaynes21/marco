@@ -10543,3 +10543,137 @@ FAILED at 94s immediately after a mutation-and-restore of `frontend/index.html`,
 runs since have been clean at ~65s. I could not reproduce it and have no account of it.
 
 See [[ADR-262-a-routine-states-which-generation-wrote-it]].
+
+### §42 — release hardening, which turned out to start with "Studio is not shipped"
+
+`b3f9a6e` → `b386fa7` → `09dfc17` → `bcd58f0` → `1b524b8` → `c848176` → `1d002ce` → `d281ece` →
+`9f619a6`, on `feat/demonstrated-acts`, after `c043a9f` wrote down the window-bounded distinction
+the Architect asked for.
+
+I proposed release hardening expecting a check-over pass. The first thing I looked at ended it.
+
+**`pack.ps1` did not build Studio.** It staged `marco`, `marco-macros`, `director`, `overlay` and
+`uia`; the launcher ran the overlay serve stack. No root script mentioned Studio and the README
+never did. So five slices — the guarded press, the guarded drag, the button, typed text, and the
+generation stamp with its whole review flow — shipped in NOTHING. Studio existed only as a
+development build.
+
+And the consequence is sharper than a missing feature, which is the part worth remembering: the
+shipped overlay *can* record and *can* simplify, and it sets the no-preview option because it has
+no way to render two sources. **An installed Marco could write a routine and could not show
+anybody what it was about to write.** Every guard that depends on a review was unreachable to
+whoever installed it — which is what the previous two slices were almost entirely about.
+
+#### What shipping it took
+
+Studio is staged and opened, with the Wails tags, and `pack.ps1` reads the built bytes back
+looking for the guard's own message box — the only way to tell a windowless build from a working
+one without opening a window on somebody's desktop. The overlay is still shipped and starts with
+`--overlay`: it is a different product surface rather than an older version of this one.
+`marco.exe` and `director.exe` land beside `studio.exe`, because Studio spawns the ones beside
+ITSELF, and `bin\` satisfies that and `marco`'s own two lookups at once.
+
+**An incomplete bundle is now a refusal.** `marcoBin`/`directorBin` answer a bare name when there
+is no sibling, which `exec.Command` resolves against PATH — so an installed Studio with a missing
+sibling performed routines through a binary nobody chose, of whatever age, with every window
+looking current. Readiness had reported that for a while and blocked nothing. Play, Run and Learn
+refuse it.
+
+**A bundle carries a manifest**: every file's hash, every Go binary's revision asked of the binary
+itself, and a binary with no revision fails the pack rather than shipping. The provider has no
+stamp — .NET, built by the compiler Windows ships — so it is identified by its bytes. Studio
+verifies the hashes against disk, because a manifest is a claim, and prints it WITHOUT opening a
+window: a bundle that will not start is exactly when the report has to be reachable without
+starting it.
+
+And an upgrade blocked by a running Studio says to close it rather than killing a window that may
+hold a draft existing nowhere else.
+
+#### Two claims the product was making
+
+The window now **discloses global recording before Record** — every press and key anywhere, Studio
+excepted — and says the other half: recording only a chosen window is not something Marco can do
+yet. Rendered rather than asserted in source, because a sentence nobody draws is not a disclosure.
+
+And the **README led with the wrong product**: "nothing to record", and `performed` meaning Marco
+looked again and confirmed. `internal/outcome`'s definition is conditional — "for a Play whose
+arrival could be checked, it means checked" — and the README was reading the condition off. For a
+routine, `performed` means every action was submitted and none refused. What a routine *does*
+promise is stated instead, and the semantic path keeps its promise as a DIFFERENT one.
+
+#### Running the artifact found three things no test here could
+
+From an isolated directory, with `LOCALAPPDATA` pointed away from the owner's install, no
+repository, PATH cut to the system directories:
+
+- a manifest written with a **byte-order mark**, which Go's JSON refuses — so the first packed
+  bundle said "this installation's manifest cannot be read — reinstall Marco" about a manifest
+  that was correct, on a fresh install;
+- a manifest listing **`version.txt`** as a component, which is the embed's own label and is never
+  extracted — a correct installation reporting a missing file;
+- the launcher's closing line still saying it launches the overlay.
+
+Then the harness itself learned to test an installation (`-installed <bin>`), and the bundle passed
+`play` 1 of 1, `runs` 3 of 3, `generation` 2 of 2 — with every run record naming the INSTALLED
+binary's revision rather than the tree's, which is the evidence that the bundle was what answered.
+
+One scenario failed on the first installed run — `runs/two runs are two records`, at the Done
+button, "no element with that id is in the window any more". Diagnosed rather than re-run for
+green: it passes against both the bundle and a tree build, so it is the staleness the harness's own
+comment names. A press is a snapshot plus an Invoke naming that snapshot's runtime id, and the page
+repaints on a poll. Only that one error is retried, once.
+
+#### The thirty-second hang, which I had recorded as unexplained
+
+§41z ends with an observation I could not account for: the Studio suite failing once at 94s. It
+came back, and it is a real defect on the shipped Play path.
+
+Caught with the product's own diagnostic — I made the failure read the run record the child
+claimed, which is the artifact that exists for exactly this. The child ran the program; its last
+transcript line was the routine's own log; then nothing for thirty seconds, no outcome, slot still
+claimed. One run in six under load, half a second in isolation.
+
+**Deductively it could only be one of two things.** The pump wake has been bounded at 5 seconds
+since the 600-second timeouts that found it, so a 30-second silence cannot be the wake — it had to
+be one of the two unbounded channel receives either side of it. Both are bounded now, each with
+its own sentence, so the next occurrence names which expired. The evidence points at the
+app-switch poller, whose one blocking call is a foreground-window read, which blocks when the
+window's owning thread is not pumping — and a desktop full of browser windows is that desktop. A
+pointer, not a proof; nothing claims the cause is resolved. What is fixed is that a run which
+finished its program reports that it finished.
+
+**And the rule is generalised.** `TestAPumpWakeupIsRetriedRatherThanPostedOnce` demanded the
+wakeup be retried and put the BOUND in its own failure message — prose, not a check. A site could
+satisfy every test and still wedge its caller two lines from the one that was checked, which is
+what happened. The tree-walking test now refuses any bare receive in a hook site's shutdown, scoped
+to the function that wakes the pump, and skipping a `select`'s comm clauses — `case <-ch:` wraps
+its receive exactly like a bare one, and a walk that missed that flagged every bounded wait in the
+tree.
+
+#### The parked items
+
+- **The stop that could not be raised** is explained. Reproduced deterministically: `os.Rename`
+  over the generation file fails with *Access is denied* whenever ANY process holds it open, and a
+  watcher polling the generation holds it open every 100ms — so the stop is most likely to fail at
+  precisely the moment it matters. `FILE_SHARE_DELETE` on the reader was tried and ruled out:
+  `MoveFileEx` with REPLACE_EXISTING still refuses an open target. Nothing is retried — that is a
+  policy about how hard to try to stop somebody's computer. The sentence is fixed, and the three
+  scenario notes that recorded it as unexplained now point at the explanation.
+- **The Director's provisional record** claimed `actions_sent: 0`, `live: false` and three
+  verification zeroes about an attempt nobody can speak for. Five pointers and an omitempty later
+  it claims none of them, with every reader going through `SaidSent`/`SaidLive` so that silence
+  cannot be read as "none". Studio's history reader was already using pointers for those fields —
+  the reader was honest and the writer was not.
+- **`failed` versus `refused`** keeps the wire word, with the limitation documented where the
+  words live.
+- **`anchorArmed`'s comment** said the arming survives "even when MARCO_ANCHORS is off", true when
+  written and not now: a recording that STATES coordinate mode takes the picture away.
+- **The encoding damage** was worse than I had parked it as — I had recorded one occurrence in
+  E2E.md, because the `Ã` I noticed was the only mojibake starting with a letter I recognised. A
+  scan found 264 sequences in E2E.md and 50 in ADR-252, across eleven characters. Repaired with a
+  tool that refuses unless the result is valid UTF-8, the line endings are unchanged and the file
+  got shorter.
+
+**Physical recording capture remains NOT EXERCISED.**
+
+See [[ADR-263-the-alpha-is-the-studio-stack-and-it-says-what-it-is]].

@@ -14,6 +14,7 @@ package main
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -97,6 +98,17 @@ func playing(t *testing.T, a *Acts, name string) string {
 // fallback to a bare name, which is the point: `os.Stat("marco.exe")` resolves against the
 // WORKING directory and `exec.Command("marco.exe")` resolves against PATH, and a test that
 // confused the two is how this was found.
+//
+// # And it refuses a STALE one, which cost most of an evening
+//
+// The root `marco.exe` is built by `build.cmd` and by hand, and nothing rebuilds it. A test that
+// spawns it is testing whenever that last happened: a thirty-second hang in a played routine was
+// reproduced six times against a binary two days old, while the fix for it sat in the tree
+// unbuilt. Every window looked current, because every window WAS current — the child was not.
+// That is the trap CLAUDE.md describes about Studio's siblings, arriving through a test.
+//
+// So it is NOT RUN rather than run against the wrong thing, and the message says the command.
+// Rebuilding here would be a test writing a tracked binary, which is worse.
 func withAMarcoBeside(t *testing.T) {
 	t.Helper()
 	if filepath.IsAbs(marcoBin()) {
@@ -104,10 +116,52 @@ func withAMarcoBeside(t *testing.T) {
 	}
 	abs, err := filepath.Abs(filepath.Join("..", "..", "marco.exe"))
 	if err != nil || !fileThere(abs) {
-		t.Skipf("no marco.exe at the repo root to point at (%s): build it and this "+
-			"runs", abs)
+		t.Skipf("no marco.exe at the repo root to point at (%s): build it with "+
+			"`go build -o marco.exe ./cmd/marco` and this runs", abs)
+	}
+	if why := olderThanTheEngine(t, abs); why != "" {
+		t.Skipf("%s: rebuild it with `go build -o marco.exe ./cmd/marco` and this "+
+			"runs against what is in the tree", why)
 	}
 	t.Setenv("MARCO_BIN", abs)
+}
+
+// olderThanTheEngine says why a marco.exe cannot be trusted to be this tree's, or "".
+//
+// By the newest source under `cmd/marco` and `internal`, which is what it is built from. A
+// timestamp is a weak identity and it is the only one a binary on disk has from outside —
+// `internal/buildid` can say what it is, but asking means running it, and a test that ran an
+// unknown binary to find out whether to run it has already run it.
+func olderThanTheEngine(t *testing.T, bin string) string {
+	t.Helper()
+	b, err := os.Stat(bin)
+	if err != nil {
+		return fmt.Sprintf("%s cannot be read (%v)", bin, err)
+	}
+	var newest time.Time
+	var at string
+	for _, dir := range []string{
+		filepath.Join("..", "..", "cmd", "marco"),
+		filepath.Join("..", "..", "internal"),
+	} {
+		_ = filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
+			if err != nil || d.IsDir() || !strings.HasSuffix(p, ".go") {
+				return nil
+			}
+			if info, ierr := d.Info(); ierr == nil &&
+				info.ModTime().After(newest) {
+				newest, at = info.ModTime(), p
+			}
+			return nil
+		})
+	}
+	if newest.IsZero() || !newest.After(b.ModTime()) {
+		return ""
+	}
+	return fmt.Sprintf("%s was built %s and %s changed %s, so this would spawn a "+
+		"marco that is not the one in this tree", filepath.Base(bin),
+		b.ModTime().Format("2006-01-02 15:04"), at,
+		newest.Format("2006-01-02 15:04"))
 }
 
 // ── THE LIBRARY, LISTED ───────────────────────────────────────────────────────

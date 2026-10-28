@@ -485,6 +485,37 @@ replaced one types the whole of it in one step with the sleep gone, and then per
 
 See [[ADR-262-a-routine-states-which-generation-wrote-it]].
 
+## And it can test an installed Marco, not only this tree
+
+`plugins\e2e\run.cmd` builds the binaries under test from this tree. The thing somebody installs
+is not that: it is a self-extracting bundle — Studio with its Wails tags, the engine, the Director,
+the provider, and a manifest of what each is, unpacked into one directory by a launcher that opens
+Studio. Every step of that can be wrong in a way nothing here reaches, and two already were.
+
+```
+plugins\e2e\e2e.exe -installed "%LOCALAPPDATA%\Marco\bin" -only play
+```
+
+The scenarios are the same. What changes is which binaries answer, and the report says so piece by
+piece: *taken from an installed Marco at …* rather than *built from this tree*. A run against a
+bundle that claimed to have built its own binaries would be the most misleading report this harness
+could produce.
+
+Every product binary is required by name, because an installation missing one is the case the
+product now refuses rather than works around — and the installed Studio is checked for the Wails
+guard too, which is a different claim from checking the build `pack.ps1` just made: a bundle can be
+packed correctly and installed from an older copy.
+
+**The fixture stays this tree's**, and that is not a gap. It is the harness's own test window, not
+a shipped component; no installation has one, and one that did would be a product shipping its own
+test surface.
+
+On 2026-10-27 the installed bundle passed `play` 1 of 1, `runs` 3 of 3 and `generation` 2 of 2 —
+launch, seeded playback, cancellation, reporting and review/cancel/replace — with every run record
+naming the INSTALLED binary's revision rather than the tree's, which is itself the evidence that
+the bundle was what answered. See
+[[ADR-263-the-alpha-is-the-studio-stack-and-it-says-what-it-is]].
+
 ## The gate for a change to chords
 
 `plugins\e2e\run.cmd -only keys` is the regression gate for an executable change to the chord
