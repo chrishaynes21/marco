@@ -1496,6 +1496,30 @@ whole of what makes guidance different from a script.
 - constraint: [[ADR-048-learn-teach-and-do-are-three-different-sentences]]
 - constraint: [[ADR-086-one-acquisition-one-word-one-request]]
 
+## 36. Record only the chosen window — OPEN, on the alpha list
+
+**What it would tell us:** whether a person can demonstrate a routine without having to stop using
+their computer. Today they cannot, and nothing says so.
+
+The recorder's hooks are global. Every press and key anywhere on the desktop enters the
+demonstration, attributed to whichever window was in the foreground at that instant; the only
+thing removed is the recorder's own window, by process, so that a glance at Studio does not become
+a drag. Answer a message halfway through a demonstration and the reply is in the routine.
+
+**This is not the window check, and the check does not cover it.** A guarded press resolves its
+offset against the window it was demonstrated in and refuses if that window has changed — a check
+on one action, about one window's geometry, at the instant before acting. It is not a bound on
+what a recording may capture, and it is not a bound on where input may land either. The full
+distinction, and why the words in the codebase invite confusing the two, is in
+[[Demonstrations]].
+
+**What it is not:** a filter applied afterwards. Dropping foreign events from a finished
+demonstration is a different thing from not capturing them, and the difference shows up in the
+timing: a routine's recorded gaps are the only waiting it has when there is no anchor to wait on
+(see [[ADR-254-what-a-recording-captures-is-stated]]), so twenty seconds spent in another
+application is twenty seconds of pause that either belongs in the routine or does not, and
+somebody has to decide which. That decision is the work, not the filtering.
+
 ## Deferred, with reasons
 
 - **Grounding DINO on GPU** — the 9.6s that sank it is a CPU-only `torch` artefact, but it

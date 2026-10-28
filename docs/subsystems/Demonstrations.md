@@ -488,6 +488,45 @@ nothing there can have tried it. A panel that dropped the caveat on a clean mach
 as a promise at exactly the moment somebody believed one.
 [[ADR-255-readiness-is-what-has-been-checked]]
 
+## A recording is not bounded to a window, and the playback check is not that bound
+
+Two different things wear confinement words in this codebase, and only one of them is built. The
+distinction is written down here because the implemented one is easy to read as satisfying the
+requirement, and it does not.
+
+**What IS implemented — the playback check.** A guarded press states the window it was
+demonstrated in and everything needed to resolve an offset into it; at the moment of pressing,
+`internal/oshost` reads that window off the live desktop and refuses if it is a different size, is
+gone, or belongs to another program. See
+[[ADR-251-a-press-checks-the-window-it-was-recorded-in]].
+
+That is a **check on one action, about one window's geometry, at the instant before acting**. It is
+not a bound on where input may land. A press whose check passes is sent at a screen coordinate, and
+a keystroke goes wherever the keyboard happens to be — nothing clips either to a rectangle. What
+the check buys is that a press aimed at a window that has moved is re-based onto it and a press
+aimed at a window that has CHANGED is refused, which is a different promise from "this routine can
+only affect that window".
+
+**What is NOT implemented — recording only the chosen window.** The recorder's hooks are
+low-level and global. Every press and key anywhere on the desktop enters the demonstration,
+attributed to whatever window was in the foreground at that instant, with an `EvAppSwitch` emitted
+whenever the foreground application changes — which is by design, and is how `Activate` comes to be
+in a routine at all. The only thing removed is the recorder's OWN window, by process
+(`orchestrator.withoutOwner`), and that exists so a glance at Studio mid-demonstration does not
+become a drag from the application to Marco and back.
+
+So a person demonstrating is demonstrating **the whole desktop**. Answer a message halfway through
+and the reply is in the routine. The product relies on them not doing anything else, and says so
+nowhere.
+
+**Neither is the other, and the words invite the confusion.** ADR-251's window *check*, the
+harness's *"input that cannot be confined to the windows this run owns is not input this run may
+send"*, and a bound on what a recording may capture are three separate things; the first two are
+built and the third is not. A reader who found the first two could reasonably conclude the third
+was covered.
+
+**Still open**, and tracked as such: see [[Roadmap]].
+
 ## A routine offers to be recorded again, and that offer replaces nothing
 
 Re-recording is the ordinary activity of getting a routine right, and it used to mean reading the
