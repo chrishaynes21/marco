@@ -1,10 +1,11 @@
 <#
   pack.ps1 — build the self-extracting single-file Marco.exe for Windows.
 
-  Stages the engine + overlay binaries and the starter routes into
-  plugins\marco-app\assets, then builds that module (which go:embeds them) into
-  dist\Marco.exe. Ship that one file; on launch it unpacks to %LOCALAPPDATA%\Marco
-  and runs the overlay stack.
+  Stages Studio, the engine, the Director, the accessibility provider and the legacy
+  overlay into plugins\marco-app\assets, writes a manifest of what each piece is, then
+  builds that module (which go:embeds them) into dist\Marco.exe. Ship that one file; on
+  launch it unpacks to %LOCALAPPDATA%\Marco and opens STUDIO. The overlay is still in
+  there and starts only with `Marco.exe --overlay`.
 
     powershell -ExecutionPolicy Bypass -File .\pack.ps1
 
@@ -140,4 +141,5 @@ if ($LASTEXITCODE) { throw "Marco.exe build failed" }
 
 $mb = [math]::Round((Get-Item (Join-Path $dist "Marco.exe")).Length / 1MB, 1)
 Write-Host "OK  dist\Marco.exe  ($mb MB)  version $ver" -ForegroundColor Green
-Write-Host "    Ship that one file. It unpacks to %LOCALAPPDATA%\Marco and launches the overlay." -ForegroundColor DarkGray
+Write-Host "    Ship that one file. It unpacks to %LOCALAPPDATA%\Marco and opens Studio." -ForegroundColor DarkGray
+Write-Host "    The legacy overlay is in there too and starts only with:  Marco.exe --overlay" -ForegroundColor DarkGray

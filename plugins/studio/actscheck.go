@@ -45,8 +45,31 @@ func runActsCheck(home string) int {
 	// about the wrong binary — which is what happened: a window and a recorder a
 	// day apart, and the only way to tell was comparing file timestamps.
 	fmt.Printf("ACT SURFACE\n  build      %s\n  director   %s\n"+
-		"  store      %s\n  routes     %s\n\n",
+		"  store      %s\n  routes     %s\n",
 		buildid.Revision(), directorBin(), home, a.routesDir)
+
+	// AND WHAT THE WHOLE INSTALLATION IS MADE OF, WITHOUT OPENING A WINDOW.
+	//
+	// `build` above is THIS binary and an installed Marco is five of them. A person
+	// comparing a window with a recorder needs every revision, and the one piece that is
+	// not Go has none to give — so the manifest's hashes are the only identity it has.
+	//
+	// Printed HERE because this is the diagnostic somebody can run, and a window is not
+	// always available to the person who needs the answer: a bundle that will not start is
+	// exactly the case where the report has to be reachable without starting it. The
+	// problems are printed too, so a replaced file says so rather than waiting to be
+	// noticed. See whatThisInstallationIsMadeOf.
+	ready := a.Ready()
+	if ready.Installation != "" {
+		fmt.Printf("  made of    %s\n", ready.Installation)
+	}
+	for _, p := range ready.Problems {
+		fmt.Printf("  PROBLEM    %s\n", p.Says)
+		if p.Do != "" {
+			fmt.Printf("             %s\n", p.Do)
+		}
+	}
+	fmt.Println()
 
 	demos := a.Demonstrations()
 	fmt.Printf("DEMONSTRATIONS  %d\n", len(demos))

@@ -1,0 +1,46 @@
+﻿{
+    "version":  "b3f9a6e-20261027204417",
+    "packed":  "2026-10-27T20:44:18.5134748-07:00",
+    "files":  [
+                  {
+                      "file":  "studio.exe",
+                      "sha256":  "1ca9253ef3cbfa9fd41c7aa3611136f53077303fed167af0b2d5384dde9cef92",
+                      "revision":  "b3f9a6e"
+                  },
+                  {
+                      "file":  "marco.exe",
+                      "sha256":  "24290448cf307a0cbb7825f30167a677c97c71ee949f2edb520facfac1ab5643",
+                      "revision":  "b3f9a6e"
+                  },
+                  {
+                      "file":  "marco-macros.exe",
+                      "sha256":  "96b7fafb7ea6edf9a6102739cb7e330b41ee6edff5e1b26364a1836d33e05711",
+                      "revision":  "b3f9a6e"
+                  },
+                  {
+                      "file":  "director.exe",
+                      "sha256":  "d140b0c7ebfcabce0471dd82f198e8d639678a94fdcc795ef1a8602b99cd5c42",
+                      "revision":  "b3f9a6e"
+                  },
+                  {
+                      "file":  "uia.exe",
+                      "sha256":  "738161e151b6713b59de6a0817145bbe32986b45bae6221ef3a83158898eb14b",
+                      "revision":  ""
+                  },
+                  {
+                      "file":  "overlay.exe",
+                      "sha256":  "186f3c152d905a1ce691094ef67252a93cac37a40bad2efdefdeb13bc6846d09",
+                      "revision":  "b3f9a6e"
+                  },
+                  {
+                      "file":  "overlay.marco",
+                      "sha256":  "532c18e36261ba3213ec15970e3e834c15637fd54c9962b6e77d9bd834c3eae3",
+                      "revision":  ""
+                  },
+                  {
+                      "file":  "version.txt",
+                      "sha256":  "9314d705c5b2af02239aaca126439819b8be00743f500270f1565a1b20fe115e",
+                      "revision":  ""
+                  }
+              ]
+}
