@@ -41,7 +41,9 @@ package orchestrator
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"strings"
 
@@ -104,6 +106,12 @@ type Prepared struct {
 	// `GenerationDifferencesOf`, and `Bears` for the only thing that licenses saying a
 	// routine needs replacing.
 	Differences []Difference
+	// library is the store this was prepared against, which is part of the target and
+	// therefore part of the token. A `Deps` holding another library may not replace with
+	// it: the same routine exists in a dogfood store, in a test store and in somebody's
+	// real one, and "the right bytes in the wrong library" is a replacement nobody asked
+	// for. See `sealed`.
+	library string
 	// sourceAt and recordingAt are digests of the two files this was built from, as they
 	// were at the moment of preparation. A replacement re-reads both and refuses if
 	// either moved. See the note at the top of this file.
@@ -137,6 +145,7 @@ func (d Deps) Prepare(rt routes.Route) (Prepared, error) {
 	}
 	src := string(raw)
 	p := Prepared{Route: rt, Name: NameIn(src, rt.Slug), Was: src,
+		library:       d.Reg.Dir,
 		sourceAt:      routes.DigestOf(src),
 		WasGeneration: GenerationOf(src), Differences: GenerationDifferencesOf(src)}
 
@@ -225,6 +234,16 @@ func (d Deps) Replace(p Prepared) error {
 	if p.Route.Slug == "" {
 		return fmt.Errorf("a replacement needs the routine it was prepared from")
 	}
+	// AND THE LIBRARY IS THIS ONE. Said separately from the token, which would also
+	// catch it and would say the wrong thing about it: "not the one that was prepared"
+	// sends somebody to look at the review, and the review is fine — it is this `Deps`
+	// that is pointed somewhere else. The same routine exists in a dogfood store, in a
+	// test store and in somebody's real one.
+	if p.library != "" && p.library != d.Reg.Dir {
+		return fmt.Errorf("%q was reviewed in the library at %s and this is %s, so "+
+			"nothing was written — a routine of that name here is a different "+
+			"routine", p.Name, p.library, d.Reg.Dir)
+	}
 	// AND IT IS THE PREPARATION IT SAYS IT IS. The token is derived from the fields
 	// below it, so a `Prepared` edited after it was prepared — by a caller, by a bug, by a
 	// struct assembled from parts of two — no longer matches its own content. Cheap, and
@@ -263,25 +282,25 @@ func (d Deps) Replace(p Prepared) error {
 	// ── THE PICTURES ARE NOT ADDITIVE, WHICH THIS USED TO ASSUME ──
 	//
 	// A routine's anchor images are named after the routine — `<base>-anchor-1.png` and so
-	// on — so a rebuild produces the SAME paths, and `WriteAssets` overwrites what is
-	// there. Calling that additive was wrong in the one direction that matters: write the
-	// new images, fail to write the source, and the OLD source is still on disk pointing
-	// at paths that now hold different pictures. A routine that presses what a different
-	// image matched, having been left alone.
+	// on — so a rebuild produces the SAME paths. Writing them and calling that additive
+	// was wrong in the one direction that matters: write the new images, fail to write the
+	// source, and the OLD source is still on disk pointing at paths that now hold
+	// different pictures. A routine that presses what a different image matched, having
+	// been left alone.
 	//
-	// So a conflicting image is a REFUSAL and nothing is written at all. A path that holds
-	// the same bytes is no conflict, because writing it changes nothing — which matters,
-	// since otherwise every re-review of an anchored routine would refuse. A path that
-	// holds nothing is no conflict either: a file nobody references yet is not a change to
-	// anything that runs.
+	// So `imagesToWrite` decides every path before anything is written, and only the
+	// MISSING ones are written: one that already holds the right picture is skipped, and
+	// one that holds a different picture or cannot be read at all is a refusal with
+	// nothing written. See there for why a refusal rather than a way round.
 	//
-	// What that leaves if the SOURCE write then fails: new image files beside an unchanged
-	// old source, which does not reference them. Unreferenced files, and the routine
-	// behaves exactly as it did.
-	if why := d.conflictingImages(p.assets); why != "" {
+	// What that leaves if the SOURCE write then fails: image files that did not exist
+	// before, beside an unchanged old source that does not reference them. Unreferenced
+	// files, and the routine behaves exactly as it did.
+	images, why := imagesToWrite(p.assets)
+	if why != "" {
 		return fmt.Errorf("%q is left as it is: %s", p.Name, why)
 	}
-	if err := d.Reg.WriteAssets(p.assets); err != nil {
+	if err := d.Reg.WriteAssets(images); err != nil {
 		return fmt.Errorf("%q is left as it is: the images the rebuilt version needs "+
 			"could not be written: %w", p.Name, err)
 	}
@@ -294,35 +313,58 @@ func (d Deps) Replace(p Prepared) error {
 	return nil
 }
 
-// conflictingImages names the first anchor image a replacement would OVERWRITE with different
-// bytes, or "" when none would.
+// imagesToWrite is which of a rebuild's anchor images may be written, or the reason none may.
 //
-// # Why this is a refusal and not something to work around
+// Four states per path, and the first version of this collapsed two of them wrongly.
 //
-// Because the alternative is to make the paths immutable — content-addressed image names — and
-// that is a change to what every newly generated routine's files are CALLED, reaching every
-// routine, every asset writer and every saved file's embedded paths. This slice is about
-// provenance and a review flow, and a naming change would arrive inside it unreviewed.
+//	MISSING      write it. A file nobody references yet is not a change to anything that runs.
+//	THE SAME     SKIP it. Writing a file the bytes it already holds changes nothing that runs
+//	             and is still a write: it touches the file, it can fail, and it is one more
+//	             thing between a person's decision and the one file this is meant to replace.
+//	DIFFERENT    REFUSE. These paths are reusable — `<base>-anchor-N.png` — so this is not an
+//	             addition, it is an overwrite, and if the source write then failed the OLD
+//	             source would be left pointing at a picture it was never written for.
+//	UNREADABLE   REFUSE. Locked, in use, a directory in the way, permissions. The first
+//	             version treated this as "nothing there", which is the one reading that
+//	             licenses writing over it — and a path this cannot read is precisely a path
+//	             it cannot say is safe to replace.
 //
-// A refusal is also the honest answer for the case it catches. If the images beside a routine have
-// changed since it was written, the person has two things that disagree — their saved routine and
-// the pictures it looks for — and quietly overwriting one of them on the way past is not a
-// decision this flow may make for them.
-func (d Deps) conflictingImages(assets map[string][]byte) string {
+// ALL OR NOTHING, which is why this decides everything before anything is written. A refusal
+// found on the third image after two were written would leave a routine beside pictures from two
+// different rebuilds.
+//
+// # Why a refusal rather than a way round
+//
+// The alternative is content-addressed image names, which makes the paths immutable and the
+// question disappear. That changes what every newly generated routine's files are CALLED,
+// reaching every asset writer and every saved file's embedded paths, and would arrive inside a
+// provenance slice unreviewed. A refusal is also the honest answer for the case it catches: if
+// the images beside a routine have changed since it was written, the person has two things that
+// disagree, and quietly overwriting one of them on the way past is not a decision this flow may
+// make for them.
+func imagesToWrite(assets map[string][]byte) (map[string][]byte, string) {
+	write := map[string][]byte{}
 	for path, want := range assets {
 		got, err := os.ReadFile(path)
-		if err != nil {
-			continue // nothing there, or nothing readable: writing it changes no routine
+		switch {
+		case errors.Is(err, fs.ErrNotExist):
+			write[path] = want
+		case err != nil:
+			return nil, fmt.Sprintf("the image at %s cannot be read, so nothing "+
+				"here can say whether replacing it would change what the "+
+				"routine you have looks for — so nothing was written (%v)",
+				path, err)
+		case bytes.Equal(got, want):
+			// SKIPPED, not written. See above.
+		default:
+			return nil, fmt.Sprintf("the image at %s is not the one the rebuilt "+
+				"version needs, and replacing it would change what the "+
+				"routine you have looks for as well — so nothing was "+
+				"written. Record it again if the pictures beside it are out "+
+				"of date", path)
 		}
-		if bytes.Equal(got, want) {
-			continue // the same picture; writing it is a no-op
-		}
-		return fmt.Sprintf("the image at %s is not the one the rebuilt version needs, "+
-			"and replacing it would change what the routine you have looks for "+
-			"as well — so nothing was written. Record it again if the pictures "+
-			"beside it are out of date", path)
 	}
-	return ""
+	return write, ""
 }
 
 // sealed is this preparation with its token, which is the last thing done to it.
@@ -331,12 +373,32 @@ func (d Deps) conflictingImages(assets map[string][]byte) string {
 // a screen and still has to be told apart from another refused review of the same routine, which
 // is the whole of what the token is for. A `Prepared` returned without one cannot be replaced
 // with, which is safe, and would be a silent dead end rather than a refusal with a reason.
+//
+// # The TARGET is part of it, and leaving it out was a defect
+//
+// The first version of this digested only the content — the two files, what would be written, and
+// why nothing would be — on the argument that two preparations sharing a token are identical in
+// what was displayed and in what a replacement would write. That argument was incomplete: it said
+// nothing about WHERE the replacement would write. Two routines with identical sources and
+// identical demonstrations are a thing this product produces readily — the same routine saved
+// under two scopes or for two applications, which is the `settings` case everything about
+// `Routine.ID` exists for — and they would have shared a token. A window holding one and handed
+// the other's token would then write the right bytes to the wrong file.
+//
+// So the identity of the routine and the library it lives in are digested too. Two preparations
+// sharing a token now agree about all four questions: what was shown, what would be written,
+// where, and in which library.
 func (p Prepared) sealed() Prepared {
 	p.Token = routes.DigestOf(strings.Join([]string{
 		// WHAT THE REVIEW IS: the two files it was built from, what it would
-		// write, and why it would write nothing. Not the routine's identity,
-		// which two preparations of one routine share by definition.
+		// write, and why it would write nothing.
 		p.sourceAt, p.recordingAt, routes.DigestOf(p.Now), p.Refused,
+		// AND WHERE IT WOULD GO: the route's whole identity, each part on its
+		// own so no two routes can run together into one string, and the
+		// library. `Focus` is in because it is the difference between a routine
+		// that brings its application forward and one that does not, and those
+		// are two files.
+		p.Route.Slug, p.Route.App, fmt.Sprint(p.Route.Focus), p.library,
 	}, "\x00"))
 	return p
 }

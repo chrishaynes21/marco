@@ -457,3 +457,81 @@ func statingNoGenerationInStudio(t *testing.T, a *Acts, rt routes.Route) {
 		t.Fatal(err)
 	}
 }
+
+// TWO ROUTINES WITH IDENTICAL CONTENTS ARE TWO REVIEWS, AND REPLACING ONE LEAVES THE OTHER ALONE.
+//
+// Studio is where the slot lives, so this is the finding at the layer it was found in. A token
+// derived from the content alone could not tell two such routines apart: the window would hold
+// one, be handed the other's token, and write the right bytes to the wrong file with a success
+// naming the routine the person was looking at.
+//
+// # Why the pair is seeded through the registry
+//
+// Because Studio REFUSES to save a guarded recording in-app, and it is right to: those presses
+// check a window and an in-app routine brings none forward, so every one of them would refuse.
+// That guard is about saving, not about what a library can contain — a pair like this arrives
+// from `marco learn`, from an older build, or from somebody copying a folder — and the review
+// flow has to be correct about a library it did not create.
+func TestTwoRoutinesWithTheSameContentsAreTwoReviews(t *testing.T) {
+	a, saved := aSavedRoutineInStudio(t)
+	src, err := os.ReadFile(a.reg().Path(saved.route()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec, ok := a.reg().LoadRecording(saved.route())
+	if !ok {
+		t.Fatal("the saved routine has no demonstration beside it")
+	}
+	// THE SAME BYTES AND THE SAME DEMONSTRATION, IN-APP FOR TWO APPLICATIONS. Two files,
+	// identical in every respect but which directory they are in — which is exactly the
+	// identity `Routine.ID` carries and exactly what a content digest cannot see.
+	ark := routes.Route{Slug: "shared-thing", App: "arkascended"}
+	discord := routes.Route{Slug: "shared-thing", App: "discord"}
+	for _, rt := range []routes.Route{ark, discord} {
+		if err := a.reg().Save(rt, string(src)); err != nil {
+			t.Fatal(err)
+		}
+		if err := a.reg().SaveRecording(rt, rec); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var first, second Review
+	for _, r := range a.Routines() {
+		switch r.ID {
+		case routeID(ark):
+			first = a.ReviewRebuilt(r.ID)
+		case routeID(discord):
+			second = a.ReviewRebuilt(r.ID)
+		}
+	}
+	if first.Why != "" || second.Why != "" {
+		t.Fatalf("a review refused: %q / %q", first.Why, second.Why)
+	}
+	if first.Token == "" || second.Token == "" {
+		t.Fatal("one of the two routines is not in the listing, so this establishes " +
+			"nothing")
+	}
+	if first.Token == second.Token {
+		t.Fatalf("two routines share the review token %q, so the window cannot tell "+
+			"which file a replacement is for", first.Token)
+	}
+	// AND THE CASE IS REAL: the two show the same source and would write the same bytes.
+	if first.Was != second.Was || first.Now != second.Now {
+		t.Error("the two routines differ in what they show or what they would write, " +
+			"so a token from the content alone would already have separated them")
+	}
+	otherWas, err := os.ReadFile(a.reg().Path(discord))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if why := a.ReplaceWithRebuilt(first.Token); why != "" {
+		t.Fatalf("replacing the first refused: %s", why)
+	}
+	if raw, _ := os.ReadFile(a.reg().Path(ark)); string(raw) != first.Now {
+		t.Errorf("the replaced routine does not hold the version that was reviewed:"+
+			"\n%s", raw)
+	}
+	if raw, _ := os.ReadFile(a.reg().Path(discord)); string(raw) != string(otherWas) {
+		t.Errorf("replacing one routine rewrote the other:\n%s", raw)
+	}
+}

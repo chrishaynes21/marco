@@ -10318,3 +10318,65 @@ byte-identical to what the generator had written before. **Physical recording ca
 EXERCISED.**
 
 See [[ADR-262-a-routine-states-which-generation-wrote-it]].
+
+### §41x — two of §41w's four were not actually closed
+
+The review reopened two P1s, and both were cases of a fix that was right about a narrower thing
+than the finding.
+
+**The token identified a content, not a target.** I derived it from the two files, what would be
+written, and why nothing would, and argued that two preparations sharing a token are identical in
+what was displayed and in what a replacement would write. The argument said nothing about WHERE.
+
+Two routines with identical sources and identical demonstrations are a thing this product makes
+readily, and I had the example in front of me: the same demonstration saved IN-APP for two
+applications is byte-for-byte identical, because an in-app routine switches nothing, so the
+generator is told no application and the source never names one. Those two would have shared a
+token — and a window holding one and handed the other's token writes the right bytes to the wrong
+file, with a success naming the routine the person was looking at. The `settings` case this
+product keeps tripping over, arriving through a door I had just built.
+
+So the route's whole identity and the library are in the digest, each part separately so no two
+routes can run together into one string, with `Focus` among them because it is the difference
+between a routine that brings its application forward and one that does not. A `Deps` pointed at
+another library is refused on its own too, with its own sentence: "not the one that was prepared"
+would send somebody to look at a review that is perfectly fine when it is this `Deps` that is
+pointed elsewhere.
+
+My first test for this FAILED ITS OWN PRECONDITION and said so, which is what the precondition was
+for: I reached for two scopes, and `app-anywhere` prepends an `Activate` while `app` strips it, so
+those two differ in their first step and a content digest would already have separated them.
+
+**A refusal was not the whole of the image rule.** Deciding that no image conflicted and then
+writing all of them left two of the four states wrong. A path that already holds the right picture
+is now SKIPPED rather than rewritten — writing a file the bytes it already holds changes nothing
+that runs and is still a write: it touches the file, it can fail, and it is one more thing between
+a person's decision and the one file this is meant to replace. And a path that cannot be READ is
+now a refusal rather than an empty space, which is the correction that matters: I had it
+`continue` on a read error, and treating unreadable as "nothing there" is the one reading that
+licenses writing over it. A path this cannot read is precisely a path it cannot say is safe to
+replace.
+
+So `imagesToWrite` classifies every path first — missing, the same, different, unreadable — and
+writes only the missing ones. Deciding all of them before writing any is what keeps a refusal
+found on the second image from leaving a routine beside pictures from two different rebuilds.
+
+**Two tests here are worth remembering for their method.** The skip is asserted by making the write
+IMPOSSIBLE: the matching file is left read-only, so a replacement that writes it fails and one
+that skips it succeeds — comparing timestamps would not do, since the two writes are the same
+bytes microseconds apart. And the unreadable path is a DIRECTORY where the image belongs, which is
+the one unreadable path a test can arrange on any machine.
+
+**10 mutations, 9 killed, one found a line nobody could test.** Dropping the library from the
+token's digest changed nothing observable, because the separate library check already caught the
+end-to-end case and one `Acts` only ever holds one library. Rather than keep an untestable line or
+delete a correctness property, the token's own claim is asserted directly: two preparations of one
+routine in two libraries must not share a token. That is a contract about a public value with a
+documented meaning, and the next thing to key a map on it would otherwise be what found out.
+
+The desktop scenario was NOT re-run for this: nothing it exercises changed — it reviews, cancels
+and replaces one routine in one library with no images — and the two cases fixed here are ones it
+has never been able to reach, which is what the review said. **Physical recording capture remains
+NOT EXERCISED.**
+
+See [[ADR-262-a-routine-states-which-generation-wrote-it]].

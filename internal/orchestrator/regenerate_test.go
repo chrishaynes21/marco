@@ -16,6 +16,8 @@ package orchestrator
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -848,5 +850,295 @@ func TestAnImageThatIsAlreadyTheRightOneIsNoConflict(t *testing.T) {
 	if raw, rerr := os.ReadFile(image); rerr != nil ||
 		!bytes.Equal(raw, again.assets[image]) {
 		t.Errorf("the replacement did not write the image it needs (%v)", rerr)
+	}
+}
+
+// ── THE TOKEN IDENTIFIES A TARGET, NOT ONLY A CONTENT ─────────────────────────
+
+// TWO ROUTINES WITH IDENTICAL CONTENTS DO NOT SHARE A TOKEN.
+//
+// The hole in the first version of the token, and in the argument for deriving it from the
+// content: that argument said two preparations sharing a token are identical in what was
+// displayed and in what would be written, and said nothing about WHERE. Two routines with
+// identical sources and identical demonstrations are a thing this product produces readily — the
+// same demonstration saved under two scopes, or for two applications, which is the case
+// `Routine.ID` exists for — so they would have shared a token, and a window holding one and
+// handed the other's token would write the right bytes to the wrong file.
+func TestTwoRoutinesWithIdenticalContentsDoNotShareAToken(t *testing.T) {
+	_, dr := recordedWith(t, Unstated)
+	d := Deps{Reg: routes.Registry{Dir: t.TempDir()}, Out: &strings.Builder{}}
+	// THE SAME DEMONSTRATION, SAVED IN-APP FOR TWO APPLICATIONS.
+	//
+	// Which really does produce identical bytes, and that is the point: an in-app routine
+	// switches nothing, so the generator is told no application and the source never names
+	// one. The two files differ only in which directory they are in — `arkascended/context`
+	// and `discord/context` — which is exactly the identity `Routine.ID` exists to carry
+	// and exactly what a token from the content alone cannot see.
+	//
+	// The first version of this test used two SCOPES and failed its own precondition:
+	// `app-anywhere` prepends an `Activate` and `app` strips it, so those two differ in
+	// their first step and would have been separated by content anyway.
+	ark, err := d.Save(dr, ScopeApp, "arkascended")
+	if err != nil {
+		t.Fatalf("saving the first: %v", err)
+	}
+	discord, err := d.Save(dr, ScopeApp, "discord")
+	if err != nil {
+		t.Fatalf("saving the second: %v", err)
+	}
+	if ark == discord {
+		t.Fatal("the two saves produced one route, so there is nothing here to confuse")
+	}
+	statingNoGeneration(t, d, ark)
+	statingNoGeneration(t, d, discord)
+
+	first, err := d.Prepare(ark)
+	if err != nil {
+		t.Fatalf("preparing the first: %v", err)
+	}
+	second, err := d.Prepare(discord)
+	if err != nil {
+		t.Fatalf("preparing the second: %v", err)
+	}
+	if first.Token == second.Token {
+		t.Fatalf("two routines share the token %q, so a replacement cannot tell "+
+			"which file it is for", first.Token)
+	}
+	// AND THE CASE IS REAL: these two really are the same bytes, which is why the
+	// content alone could not tell them apart.
+	if first.Was != second.Was || first.recordingAt != second.recordingAt ||
+		first.Now != second.Now {
+		t.Errorf("the two routines differ in their saved source, their recording or " +
+			"their rebuild, so this does not establish what it says — a token " +
+			"from the content alone would already have separated them")
+	}
+	// AND REPLACING ONE LEAVES THE OTHER EXACTLY AS IT WAS.
+	otherWas, err := os.ReadFile(d.Reg.Path(discord))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := d.Replace(first); err != nil {
+		t.Fatalf("replacing the first: %v", err)
+	}
+	if raw, _ := os.ReadFile(d.Reg.Path(discord)); string(raw) != string(otherWas) {
+		t.Errorf("replacing one routine rewrote the other:\n%s", raw)
+	}
+	if raw, _ := os.ReadFile(d.Reg.Path(ark)); string(raw) != first.Now {
+		t.Errorf("the replaced routine does not hold the reviewed version:\n%s", raw)
+	}
+}
+
+// AND A PREPARATION MAY NOT BE REPLACED WITH IN ANOTHER LIBRARY.
+//
+// The same routine exists in a dogfood store, in a test store and in somebody's real one. A
+// preparation carries the library it was read from, and a `Deps` pointed elsewhere is refused —
+// with its own sentence, because "not the one that was prepared" would send somebody to look at a
+// review that is perfectly fine.
+func TestAPreparationCannotBeReplacedWithInAnotherLibrary(t *testing.T) {
+	d, rt := aSavedRoutineWithItsRecording(t)
+	statingNoGeneration(t, d, rt)
+	p, err := d.Prepare(rt)
+	if err != nil {
+		t.Fatalf("preparing: %v", err)
+	}
+	// ANOTHER LIBRARY WITH THE SAME ROUTINE IN IT, which is the case that makes this
+	// more than a formality: the write would land on a real file of that name.
+	elsewhere := Deps{Reg: routes.Registry{Dir: t.TempDir()}, Out: &strings.Builder{}}
+	if err := elsewhere.Reg.Save(rt, p.Was); err != nil {
+		t.Fatal(err)
+	}
+	if err := elsewhere.Reg.SaveRecording(rt, mustRecording(t, d, rt)); err != nil {
+		t.Fatal(err)
+	}
+	theirs, err := os.ReadFile(elsewhere.Reg.Path(rt))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// AND THE SAME ROUTINE PREPARED IN THE OTHER LIBRARY IS A DIFFERENT REVIEW.
+	//
+	// Asserted on the token itself, because that is the token's own claim: two
+	// preparations sharing one agree about what was shown, what would be written, WHERE,
+	// and in which library. The refusal below would catch the end-to-end case on its own,
+	// which is why this is said here — a token that answered the same for two libraries
+	// would be a value whose documented meaning is not true, and the next thing to key a
+	// map on it would be the thing that found out.
+	mine, err := d.Prepare(rt)
+	if err != nil {
+		t.Fatalf("preparing in the first library: %v", err)
+	}
+	theirPrep, err := elsewhere.Prepare(rt)
+	if err != nil {
+		t.Fatalf("preparing in the second library: %v", err)
+	}
+	if mine.Token == theirPrep.Token {
+		t.Errorf("the same routine prepared in two libraries shares the token %q",
+			mine.Token)
+	}
+	if mine.Was != theirPrep.Was || mine.Now != theirPrep.Now {
+		t.Error("the two libraries hold different sources or rebuild differently, so " +
+			"this does not establish what it says")
+	}
+
+	err = elsewhere.Replace(p)
+	if err == nil {
+		t.Fatal("a preparation made against one library was written into another")
+	}
+	if !strings.Contains(err.Error(), "library") {
+		t.Errorf("the refusal is %q and does not say the library is the problem", err)
+	}
+	if raw, _ := os.ReadFile(elsewhere.Reg.Path(rt)); string(raw) != string(theirs) {
+		t.Errorf("the refused replacement wrote into the other library:\n%s", raw)
+	}
+	// AND THE LIBRARY IT WAS PREPARED IN STILL TAKES IT, or the check above is
+	// satisfied by a `Replace` that refuses everything.
+	if err := d.Replace(p); err != nil {
+		t.Fatalf("the library it was prepared in refused it: %v", err)
+	}
+}
+
+// mustRecording is the demonstration stored beside a routine, or a failed test.
+func mustRecording(t *testing.T, d Deps, rt routes.Route) []byte {
+	t.Helper()
+	raw, ok := d.Reg.LoadRecording(rt)
+	if !ok {
+		t.Fatal("the routine has no demonstration beside it")
+	}
+	return raw
+}
+
+// ── EACH IMAGE PATH IS DECIDED BEFORE ANY OF THEM IS WRITTEN ──────────────────
+
+// AN IMAGE THAT ALREADY HOLDS THE RIGHT PICTURE IS NOT WRITTEN AGAIN.
+//
+// Not merely harmless to rewrite: it is a write, and a write can fail, touches the file, and is
+// one more thing between a person's decision and the one file this is meant to replace.
+//
+// ASSERTED BY MAKING THE WRITE IMPOSSIBLE. The file is left read-only, so a replacement that
+// writes it fails and one that skips it succeeds. Comparing timestamps would not do — the two
+// writes are the same bytes microseconds apart.
+func TestAnImageThatAlreadyHoldsTheRightPictureIsNotWrittenAgain(t *testing.T) {
+	d, rt, image := anAnchoredRoutine(t)
+	statingNoGeneration(t, d, rt)
+	p, err := d.Prepare(rt)
+	if err != nil {
+		t.Fatalf("preparing: %v", err)
+	}
+	if raw, rerr := os.ReadFile(image); rerr != nil || !bytes.Equal(raw, p.assets[image]) {
+		t.Fatalf("the image beside the routine is not the one its rebuild produces, "+
+			"so this is not the case it says it is (%v)", rerr)
+	}
+	if err := os.Chmod(image, 0o444); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(image, 0o644) })
+
+	if err := d.Replace(p); err != nil {
+		t.Fatalf("a replacement whose image already holds the right picture was "+
+			"refused, so it tried to write a file it did not need to: %v", err)
+	}
+	if raw, _ := os.ReadFile(d.Reg.Path(rt)); string(raw) != p.Now {
+		t.Errorf("the routine does not hold the reviewed version:\n%s", raw)
+	}
+	// AND THE PICTURE IS STILL THE RIGHT ONE, which is what the skip has to preserve.
+	if raw, _ := os.ReadFile(image); !bytes.Equal(raw, p.assets[image]) {
+		t.Error("the image beside the replaced routine is not the one it needs")
+	}
+}
+
+// AND AN IMAGE THAT CANNOT BE READ IS A REFUSAL, NOT AN EMPTY SPACE.
+//
+// The first version of this treated an unreadable path as "nothing there", which is the one
+// reading that licenses writing over it. A path this cannot read is precisely a path it cannot
+// say is safe to replace: locked, in use, permissions, or — as here — something that is not a
+// file at all.
+func TestAnImageThatCannotBeReadIsARefusal(t *testing.T) {
+	d, rt, image := anAnchoredRoutine(t)
+	statingNoGeneration(t, d, rt)
+	p, err := d.Prepare(rt)
+	if err != nil {
+		t.Fatalf("preparing: %v", err)
+	}
+	was, err := os.ReadFile(d.Reg.Path(rt))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// SOMETHING THAT IS NOT A FILE, where the image belongs. A real state — an
+	// interrupted sync, a backup tool, somebody's own directory — and the one unreadable
+	// path a test can arrange on any machine.
+	if err := os.Remove(image); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(image, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	err = d.Replace(p)
+	if err == nil {
+		t.Fatal("a replacement went ahead over an image it could not read")
+	}
+	if !strings.Contains(err.Error(), "cannot be read") {
+		t.Errorf("the refusal is %q and does not say it could not read the image", err)
+	}
+	if !strings.Contains(err.Error(), image) {
+		t.Errorf("the refusal does not name the image: %q", err)
+	}
+	if raw, _ := os.ReadFile(d.Reg.Path(rt)); string(raw) != string(was) {
+		t.Errorf("the refused replacement wrote the source anyway:\n%s", raw)
+	}
+}
+
+// AND A MISSING IMAGE IS CREATED, WHILE A DIFFERENT ONE BESIDE IT REFUSES THE WHOLE THING.
+//
+// The all-or-nothing half, which is what makes deciding every path before writing any of them
+// worth doing: a refusal found on the second image after the first was written would leave a
+// routine beside pictures from two different rebuilds.
+func TestARefusalOnOneImageWritesNoneOfThem(t *testing.T) {
+	d, rt, image := anAnchoredRoutine(t)
+	statingNoGeneration(t, d, rt)
+	p, err := d.Prepare(rt)
+	if err != nil {
+		t.Fatalf("preparing: %v", err)
+	}
+	// TWO PATHS: the real one, holding a different picture, and a second one that does
+	// not exist. A replacement that wrote as it went would create the second before
+	// refusing at the first — or after it, depending on map order, which is the other
+	// reason this is decided up front.
+	missing := image + ".second.png"
+	p.assets = map[string][]byte{
+		image:   []byte("what the rebuild needs"),
+		missing: []byte("a picture nobody has yet"),
+	}
+	p = p.sealed() // the assets changed, so the token has to be the one for THESE
+	if err := os.WriteFile(image, []byte("a different picture entirely"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	was, err := os.ReadFile(d.Reg.Path(rt))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := d.Replace(p); err == nil {
+		t.Fatal("a replacement went ahead over a different image")
+	}
+	if _, err := os.Stat(missing); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("the refused replacement created %s anyway, so a routine can be "+
+			"left beside pictures from two different rebuilds", missing)
+	}
+	if raw, _ := os.ReadFile(d.Reg.Path(rt)); string(raw) != string(was) {
+		t.Errorf("the refused replacement wrote the source anyway:\n%s", raw)
+	}
+	// AND WITHOUT THE CONFLICT, THE MISSING ONE IS CREATED — so the refusal above is
+	// not a function that refuses whenever there is more than one image.
+	if err := os.WriteFile(image, []byte("what the rebuild needs"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.Replace(p); err != nil {
+		t.Fatalf("a replacement whose images are all writable or already right was "+
+			"refused: %v", err)
+	}
+	if raw, rerr := os.ReadFile(missing); rerr != nil ||
+		string(raw) != "a picture nobody has yet" {
+		t.Errorf("the missing image was not created (%v)", rerr)
 	}
 }
