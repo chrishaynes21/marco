@@ -88,9 +88,65 @@ type Collision struct {
 	Name    string       `json:"name,omitempty"`
 	SavedAt string       `json:"saved_at,omitempty"`
 	// Says is the sentence a person reads. Why is why the question could not be asked at
-	// all — a scope nobody recognised, or nothing recorded to ask about.
+	// all — a scope nobody recognised, nothing recorded to ask about, or a path that could
+	// not be looked at.
 	Says string `json:"says,omitempty"`
 	Why  string `json:"why,omitempty"`
+	// Source and Recording are digests of the routine that is there and the demonstration
+	// beside it, AS THEY WERE WHEN THIS QUESTION WAS ASKED.
+	//
+	// They are on the wire because consent travels back through the surface, and what
+	// somebody consents to is a VERSION rather than a path. Handed to `Keep` as a
+	// `Consent` and compared again at the instant of writing: see Consent.
+	//
+	// Empty Recording is a real answer and means there was no demonstration beside it,
+	// which is different from one that has appeared since.
+	Source    string `json:"source,omitempty"`
+	Recording string `json:"recording,omitempty"`
+}
+
+// Consent is permission to replace ONE routine, as it was when somebody was shown it.
+//
+// # Why an identity is not enough
+//
+// Because the identity of a routine is its place in the library, and a place does not change when
+// its contents do. `Keep` checked that the route still existed with the same id, which catches it
+// being DELETED while the question was open and misses it being REPLACED: another save landing
+// there between the question and the answer left the newer routine sitting at the identity
+// somebody had agreed to overwrite, and it was overwritten. The person agreed to lose the version
+// they were shown; nobody agreed to lose that one.
+//
+// So consent carries the version. `Deps.Replace` already works this way for a regeneration — it
+// refuses when the source or the stored demonstration has changed since the review was built —
+// and this is the same rule for the other way a routine gets written over.
+//
+// The zero value is NO consent, which is what a fresh save passes.
+type Consent struct {
+	ID        string `json:"id,omitempty"`
+	Source    string `json:"source,omitempty"`
+	Recording string `json:"recording,omitempty"`
+}
+
+// Given reports whether anything was consented to at all.
+//
+// Exported because a surface asks it too: Studio says "Replaced X with" or "Saved" off the same
+// answer this decides the write with, and a surface re-deriving "was this a replacement" from a
+// field it happens to hold is a second answer to the question.
+func (c Consent) Given() bool { return strings.TrimSpace(c.ID) != "" }
+
+// versionAt is the digests of what is saved at a route right now.
+//
+// Absent source is "", which `Collision` reports as nothing being there at all; absent recording
+// is "" too and is a real answer rather than a failure, because a hand-written routine never had
+// one. Both from `routes.DigestOf`, the same function a play's provenance is kept with.
+func (d Deps) versionAt(rt routes.Route) (source, recording string) {
+	if raw, err := os.ReadFile(d.Reg.Path(rt)); err == nil {
+		source = routes.DigestOf(string(raw))
+	}
+	if rec, ok := d.Reg.LoadRecording(rt); ok {
+		recording = routes.DigestOf(string(rec))
+	}
+	return source, recording
 }
 
 // Collision answers whether saving this draft under this scope would replace something.
@@ -106,14 +162,35 @@ func (d Deps) Collision(dr *Draft, scope Scope, app string) Collision {
 		return Collision{Why: err.Error()}
 	}
 	st, serr := os.Stat(d.Reg.Path(rt))
-	if serr != nil {
+	// AND ONLY "NOT THERE" MEANS NOTHING IS THERE.
+	//
+	// RECORDED AS UNFALSIFIABLE ON THIS PLATFORM, which is why the comment is this long.
+	// Windows cannot be made to produce a `Stat` error here that is not path-not-found by
+	// anything a test can arrange: a directory in the routine's place makes `Stat`
+	// SUCCEED, and a file where a parent directory should be reports path-not-found, which
+	// `os.IsNotExist` answers true for. Both measured. The branch stays because the rule
+	// it states is right and because another platform, or a permission this account does
+	// not have, will reach it — the same standing as `Watching.has`'s empty-path check.
+	//
+	// Every error used to read as absence, so a path that could not be looked at — a
+	// permission, a name too long, a directory where a file should be — answered "free" and
+	// the save went on to write over whatever it was. The honest answer to a question that
+	// could not be asked is that it could not be asked.
+	switch {
+	case serr != nil && os.IsNotExist(serr):
 		return Collision{Route: rt}
+	case serr != nil:
+		return Collision{Route: rt, Why: fmt.Sprintf("whether there is already a "+
+			"routine at %s could not be read, so nothing has been saved: %v",
+			d.Reg.Path(rt), serr)}
 	}
 	c := Collision{Exists: true, Route: rt, ID: RouteID(rt), Name: dr.Name,
 		SavedAt: st.ModTime().Local().Format("2006-01-02 15:04")}
 	if raw, rerr := os.ReadFile(d.Reg.Path(rt)); rerr == nil {
 		c.Name = NameIn(string(raw), rt.Slug)
 	}
+	// AND WHICH VERSION THIS QUESTION IS ABOUT. See Consent.
+	c.Source, c.Recording = d.versionAt(rt)
 	c.Says = fmt.Sprintf("there is already a routine saved there: %q, kept on %s. "+
 		"Saving this one over it would replace its steps and the demonstration "+
 		"beside it, and neither can be got back. Give this one another name, or "+
@@ -143,14 +220,16 @@ func (d Deps) WhyNotThisScope(dr *Draft, want Scope) string {
 
 // Keep is the save, and the only enforcement of what a save may do.
 //
-// `replacing` empty means a collision is REFUSED. Named, it means this save may replace that one
-// identity and no other — re-derived and compared here, at the instant of writing, because
-// somebody agreed to replace ONE routine and whatever is at the target by now may not be it.
+// The zero `Consent` means a collision is REFUSED, and the write is EXCLUSIVE — a path that
+// appears between the check and the write is somebody else's save and is not written over. A
+// consent names one routine AND the version of it somebody was shown, both re-read here at the
+// instant of writing, because between the question and the answer that routine can be deleted or
+// saved again from a terminal.
 //
 // Every surface goes through this. What each one does with the refusal is its own: Studio shows a
 // card offering Replace, `marco learn` asks, and the widget's unattended path refuses and keeps
 // what is there.
-func (d Deps) Keep(dr *Draft, scope Scope, app, replacing string) (routes.Route, error) {
+func (d Deps) Keep(dr *Draft, scope Scope, app string, consent Consent) (routes.Route, error) {
 	if dr == nil {
 		return routes.Route{}, fmt.Errorf("there is no recording to save")
 	}
@@ -161,16 +240,58 @@ func (d Deps) Keep(dr *Draft, scope Scope, app, replacing string) (routes.Route,
 	switch {
 	case at.Why != "":
 		return routes.Route{}, fmt.Errorf("%s", at.Why)
-	case replacing == "" && at.Exists:
+	// AND THIS ONE IS NO LONGER WHAT PROTECTS ANYTHING, which is worth saying so that
+	// nobody reads it as the thing holding the line. The exclusive create below refuses the
+	// same case on its own and reports it with this same sentence, so deleting this arm
+	// changes no behaviour and its gate run is recorded as redundant rather than as a
+	// kill — the mutations that bite are the ones on the WRITE.
+	//
+	// It stays because it is where the sentence comes from in the ordinary case, one
+	// syscall earlier and without a half-written anything to clean up, and because a
+	// surface that wants to offer Replace needs the refusal before it has tried to write.
+	case !consent.Given() && at.Exists:
 		return routes.Route{}, fmt.Errorf("%s", at.Says)
-	case replacing != "" && !at.Exists:
+	case consent.Given() && !at.Exists:
 		return routes.Route{}, fmt.Errorf("there is no routine %q to replace any "+
 			"more — it has gone since you chose it. Save this recording as it is.",
-			replacing)
-	case replacing != "" && at.ID != replacing:
+			consent.ID)
+	case consent.Given() && at.ID != consent.ID:
 		return routes.Route{}, fmt.Errorf("this would not replace the routine you "+
 			"chose. You chose %q, and this recording would be saved as %q — "+
-			"choose once more.", replacing, at.ID)
+			"choose once more.", consent.ID, at.ID)
 	}
-	return d.Save(dr, scope, strings.TrimSpace(app))
+	if !consent.Given() {
+		// ── NOTHING WAS THERE A MOMENT AGO, AND THE WRITE SAYS SO ITSELF ──
+		//
+		// The collision check above is two instants earlier. A route that appeared
+		// in between belongs to whoever created it, and a caller that was told the
+		// path was free has consented to nothing about it. The create refuses, and
+		// what it refuses is reported as the collision it is.
+		rt, err := d.saveWith(dr, scope, app, false)
+		if os.IsExist(err) {
+			if again := d.Collision(dr, scope, app); again.Says != "" {
+				return rt, fmt.Errorf("%s", again.Says)
+			}
+			return rt, fmt.Errorf("a routine was saved at %s while this one was "+
+				"being kept, so nothing has been written over it", RouteID(rt))
+		}
+		return rt, err
+	}
+	rt, err := d.Target(dr, scope, strings.TrimSpace(app))
+	if err != nil {
+		return routes.Route{}, err
+	}
+	// ── AND THE VERSION SOMEBODY AGREED TO LOSE IS THE ONE THAT IS STILL THERE ──
+	//
+	// The identity does not change when the contents do, so "same route, same id" is not
+	// the same question. This used to be the whole of the check, which caught the routine
+	// being DELETED and missed it being REPLACED: another save landing there left a newer
+	// routine at the identity somebody had agreed to overwrite, and it was overwritten.
+	// They agreed to lose the version they were shown.
+	if src, rec := d.versionAt(rt); src != consent.Source || rec != consent.Recording {
+		return rt, fmt.Errorf("%q has been saved again since you were shown it, so it "+
+			"is left as it is — look at what is there now and choose once more",
+			consent.ID)
+	}
+	return d.saveWith(dr, scope, app, true)
 }

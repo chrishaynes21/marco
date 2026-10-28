@@ -246,6 +246,254 @@ func (r *readerThatActs) Read(p []byte) (int, error) {
 	return 1, nil
 }
 
+// AND CONSENT IS TO A VERSION, NOT TO A PATH.
+//
+// A routine's identity is its place in the library, and a place does not change when its contents
+// do. `Keep` checked that the route still existed with the same id, which catches it being
+// DELETED while the question is open and misses it being REPLACED: another save landing there
+// leaves a newer routine at the identity somebody agreed to overwrite, and it was overwritten.
+// They agreed to lose the version they were shown.
+//
+// The interleaving is real again: the contents change under the same identity as the "yes" is
+// read, which is the instant another writer would land in.
+func TestAReplacementRefusesWhenTheContentsChangedUnderTheSameIdentity(t *testing.T) {
+	t.Setenv("MARCO_CV", "off")
+	reg := routes.Registry{Dir: t.TempDir()}
+	rt := routes.Route{App: "notepad", Slug: "the-same-name"}
+
+	var first bytes.Buffer
+	d := aTerminal(reg, aPlainDemonstration("a"), "y\nc\n", &first, "notepad")
+	if err := d.Learn("the same name"); err != nil {
+		t.Fatalf("the first learn: %v\n%s", err, first.String())
+	}
+
+	// SOMEBODY ELSE SAVES OVER IT WHILE THE QUESTION IS OPEN. Same place, same id, and a
+	// routine nobody in this flow has ever seen.
+	newer := "// somebody else's routine, saved while the question was on screen\n" +
+		mustRead(t, reg, rt)
+	var out bytes.Buffer
+	answers := &readerThatActs{
+		lines: []string{"y", "c", "y"},
+		on:    2,
+		act:   func() { _ = reg.Replace(rt, newer) },
+	}
+	d = aTerminal(reg, aPlainDemonstration("z"), "", &out, "notepad")
+	d.In = answers
+	err := d.Learn("the same name")
+
+	if err == nil {
+		t.Fatalf("it replaced a routine that had been saved again while the question "+
+			"was open:\n%s", out.String())
+	}
+	if !strings.Contains(err.Error(), "saved again since you were shown it") {
+		t.Errorf("the refusal does not say what changed: %v", err)
+	}
+	// AND THE NEWER ROUTINE IS EXACTLY AS ITS OWN WRITER LEFT IT.
+	if now := mustRead(t, reg, rt); now != newer {
+		t.Errorf("the newer routine was written over:\n%s", now)
+	}
+
+	// ── AND THE DEMONSTRATION IS HALF OF THE VERSION ──
+	//
+	// A routine and the recording beside it are both replaced by a save, and both are
+	// lost by one. A routine re-recorded from the same steps has the same source and a
+	// different demonstration, so checking the source alone would call that the version
+	// somebody was shown — and the thing they would lose is the recording, which is the
+	// only thing a rebuild can be made from.
+	var over bytes.Buffer
+	d = aTerminal(reg, aPlainDemonstration("y"), "y\nc\n", &over, "notepad")
+	at := d.Collision(d.DraftOf("the same name", aPlainDemonstration("y"), "notepad",
+		"a test", Unstated), ScopeApp, "notepad")
+	if !at.Exists || at.Recording == "" {
+		t.Fatalf("the collision does not say which demonstration it is about: %+v", at)
+	}
+	theirRec := []byte(`[{"kind":"somebody else's demonstration"}]`)
+	answers = &readerThatActs{
+		lines: []string{"y", "c", "y"},
+		on:    2,
+		act:   func() { _ = reg.SaveRecording(rt, theirRec) },
+	}
+	var recOut bytes.Buffer
+	d = aTerminal(reg, aPlainDemonstration("y"), "", &recOut, "notepad")
+	d.In = answers
+	err = d.Learn("the same name")
+	if err == nil {
+		t.Fatalf("it replaced a routine whose demonstration had been written again "+
+			"while the question was open:\n%s", recOut.String())
+	}
+	if !strings.Contains(err.Error(), "saved again since you were shown it") {
+		t.Errorf("the refusal does not say what changed: %v", err)
+	}
+	if rec, ok := reg.LoadRecording(rt); !ok || string(rec) != string(theirRec) {
+		t.Errorf("their demonstration was written over: ok=%v %s", ok, rec)
+	}
+}
+
+// AND A FRESH SAVE DOES NOT WRITE OVER A ROUTINE THAT ARRIVED AFTER THE CHECK.
+//
+// The collision check and the write are two instants. `Keep` asked, was told the path was free,
+// and then called a create-or-truncate write — so another writer landing in the gap was
+// overwritten by a caller that had consented to nothing about it. The gap is as long as whatever
+// happens in between, which on an interactive surface is as long as somebody takes to answer.
+//
+// The create is exclusive now, which closes the gap rather than narrowing it: the test and the
+// write are one operation. This drives that through the production entrance by having the other
+// writer land while the SCOPE answer is being read, which is after the first collision look.
+func TestAFreshSaveDoesNotOverwriteAConcurrentSave(t *testing.T) {
+	t.Setenv("MARCO_CV", "off")
+	reg := routes.Registry{Dir: t.TempDir()}
+	rt := routes.Route{App: "notepad", Slug: "ordinary"}
+
+	theirs := "// somebody else's routine, created after the collision check\nuse os.\n"
+	theirRec := []byte(`[{"kind":"theirs"}]`)
+	var out bytes.Buffer
+	answers := &readerThatActs{
+		lines: []string{"y", "c"},
+		// AS THE SCOPE IS ANSWERED, which is between the save being asked for and
+		// the write happening.
+		on: 1,
+		act: func() {
+			if err := reg.Create(rt, theirs); err != nil {
+				panic(err)
+			}
+			if err := reg.SaveRecording(rt, theirRec); err != nil {
+				panic(err)
+			}
+		},
+	}
+	d := aTerminal(reg, aPlainDemonstration("a"), "", &out, "notepad")
+	d.In = answers
+
+	// NOT AN ERROR FROM Learn: the collision is the person's to answer, and what it
+	// answered is "leave it alone". What matters is the file.
+	if err := d.Learn("ordinary"); err != nil {
+		t.Fatalf("learning: %v\n%s", err, out.String())
+	}
+	if now := mustRead(t, reg, rt); now != theirs {
+		t.Errorf("the routine created after the collision check was written over:\n%s",
+			now)
+	}
+	if rec, ok := reg.LoadRecording(rt); !ok || string(rec) != string(theirRec) {
+		t.Errorf("their demonstration was written over: ok=%v %s", ok, rec)
+	}
+	// AND IT SAID SO, rather than reporting a save that did not happen.
+	if strings.Contains(out.String(), "Learned") {
+		t.Errorf("it said it learned something and wrote nothing:\n%s", out.String())
+	}
+	if !strings.Contains(out.String(), "already a routine saved there") &&
+		!strings.Contains(out.String(), "while this one was being kept") {
+		t.Errorf("nothing said why it was not saved:\n%s", out.String())
+	}
+}
+
+// AND IF THE GAP IS HIT FOR REAL, THEIR FILE IS STILL THEIRS.
+//
+// The test above drives the realistic window — between the question and the answer — and the
+// collision check is what catches it there. This one is about the gap the check CANNOT cover: the
+// instants between `Keep` looking and `Keep` writing, which no prompt sits inside and no seam can
+// stand in.
+//
+// So it is raced, many times, with another writer creating the target while the save is running.
+// It cannot fail wrongly: the assertion is only ever made about an iteration where the other
+// writer's create SUCCEEDED, and in that iteration those bytes are the ones nobody consented to
+// lose. With a create-or-truncate write some of those iterations lose them.
+func TestWhenTheGapIsRacedTheOtherWritersFileSurvives(t *testing.T) {
+	t.Setenv("MARCO_CV", "off")
+	const theirs = "// somebody else's routine\nuse os.\n"
+	rt := routes.Route{App: "notepad", Slug: "ordinary"}
+
+	raced := 0
+	for i := 0; i < 240; i++ {
+		reg := routes.Registry{Dir: t.TempDir()}
+		var out bytes.Buffer
+		d := aTerminal(reg, aPlainDemonstration("a"), "y\nc\n", &out, "notepad")
+
+		made := make(chan bool, 1)
+		started := make(chan struct{})
+		go func() {
+			<-started
+			// NO SLEEP AND NO CLOCK. The stagger is however long the scheduler
+			// takes to get here, which is what makes some iterations land inside
+			// the window and some outside it; a test that waited a fixed time
+			// would be a test of the wait.
+			made <- reg.Create(rt, theirs) == nil
+		}()
+		close(started)
+		_ = d.Learn("ordinary")
+		if !<-made {
+			continue // they lost the create; this iteration says nothing
+		}
+		raced++
+		if now := mustRead(t, reg, rt); now != theirs {
+			t.Fatalf("iteration %d: the other writer created the routine and it was "+
+				"written over:\n%s", i, now)
+		}
+		if rec, ok := reg.LoadRecording(rt); ok {
+			t.Fatalf("iteration %d: a demonstration was written beside a routine "+
+				"this save did not write: %s", i, rec)
+		}
+	}
+	// AND THE RACE HAPPENED, or everything above is an assertion about nothing.
+	if raced == 0 {
+		t.Skip("the other writer never won a create, so nothing was raced")
+	}
+	t.Logf("the other writer created the target in %d of 240 iterations", raced)
+}
+
+// AND A PATH THAT IS NOT A ROUTINE IS NOT A PATH THAT IS FREE.
+//
+// A directory where the routine should be. It is occupied, a save must not write through it, and
+// the demonstration beside it must not land either.
+//
+// WHAT THIS DOES NOT COVER, said because the probe behind it is worth keeping: `Collision` now
+// treats only "not found" as absence, where every `Stat` error used to read as free. On Windows
+// that branch cannot be reached by anything a test can arrange — a directory in the routine's
+// place makes `Stat` SUCCEED (this case), and a file where a parent directory should be reports
+// path-not-found, which `os.IsNotExist` answers true for. Both were measured. So the guard is
+// correct, its mutation is recorded as unfalsifiable rather than as a kill, and it stays for the
+// same reason `Watching.has` keeps its own: it is the honest expression of the rule at the point
+// where the answer is "nobody knows".
+func TestAPathThatIsNotARoutineIsNotReportedAsFree(t *testing.T) {
+	t.Setenv("MARCO_CV", "off")
+	reg := routes.Registry{Dir: t.TempDir()}
+	rt := routes.Route{App: "notepad", Slug: "ordinary"}
+	// A DIRECTORY WHERE THE ROUTINE SHOULD BE, which is the cheapest unreadable path
+	// there is and needs no permissions a test cannot arrange: `Stat` succeeds, and
+	// `ReadFile` and the write both refuse.
+	if err := os.MkdirAll(reg.Path(rt), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	var out bytes.Buffer
+	d := aTerminal(reg, aPlainDemonstration("a"), "y\nc\n", &out, "notepad")
+	if err := d.Learn("ordinary"); err != nil {
+		t.Fatalf("learning: %v\n%s", err, out.String())
+	}
+	// IT IS STILL A DIRECTORY, which is the whole assertion: nothing was written through
+	// it or around it.
+	st, err := os.Stat(reg.Path(rt))
+	if err != nil || !st.IsDir() {
+		t.Errorf("the path was written over: %v %+v", err, st)
+	}
+	if rec, ok := reg.LoadRecording(rt); ok {
+		t.Errorf("a demonstration was written beside a routine that was not "+
+			"saved: %s", rec)
+	}
+	if strings.Contains(out.String(), "Learned") {
+		t.Errorf("it said it learned something:\n%s", out.String())
+	}
+}
+
+// mustRead is a saved routine's source, and a failure when it is not there.
+func mustRead(t *testing.T, reg routes.Registry, rt routes.Route) string {
+	t.Helper()
+	raw, err := os.ReadFile(reg.Path(rt))
+	if err != nil {
+		t.Fatalf("reading %s: %v", reg.Path(rt), err)
+	}
+	return string(raw)
+}
+
 // ── A SCOPE THE RECORDING CANNOT BE PERFORMED UNDER ──────────────────────────
 
 // AND NO SURFACE WRITES A ROUTINE THAT WOULD REFUSE EVERY PRESS.

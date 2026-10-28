@@ -1471,7 +1471,12 @@
  }
  function replaceCapture(){
    if (!taken) { return }
-   acts.ReplaceDraft(taken.id, $('capScope').value, '').then(why => {
+   // THE VERSION, NOT ONLY THE ROUTE. `taken` is the collision this card was drawn
+   // from, and its digests are what the backend reads again before it writes: a routine
+   // saved again while this card sat on screen is a different routine from the one the
+   // sentence above describes, and replacing it is not what anybody pressed.
+   acts.ReplaceDraft(taken.id, taken.source || '', taken.recording || '',
+       $('capScope').value, '').then(why => {
      text($('capSaveNote'), why || '')
      if (!why) { hideTaken(); loadActs() }
    })

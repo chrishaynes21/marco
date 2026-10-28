@@ -124,15 +124,21 @@ func (a *Acts) SaveDraftAs(name, scope, app string) string {
 	// window exactly as it was.
 	under := *dr
 	under.Name = name
-	return a.keep(cp, &under, scope, app, "")
+	return a.keep(cp, &under, scope, app, orchestrator.Consent{})
 }
 
 // ReplaceDraft saves this recording over one named routine, on purpose.
 //
-// The identity is PASSED IN rather than worked out here, and it is checked against the identity
-// this save would write. Somebody agreed to replace ONE routine; a window that replaced whatever
-// happened to be at the target by then would be doing something they did not agree to.
-func (a *Acts) ReplaceDraft(id, scope, app string) string {
+// The identity is PASSED IN rather than worked out here, and so is the VERSION: `source` and
+// `recording` are the digests the page was shown with the choice, and `Keep` reads them again at
+// the instant of writing.
+//
+// An identity alone was not enough, and the gap it left is the shape this project keeps finding.
+// A routine's identity is its place in the library, and a place does not change when its contents
+// do — so "the same routine is still there" was true of a routine that had been saved again
+// while the card sat on screen, and that newer one was overwritten. Somebody agreed to lose the
+// version they were looking at.
+func (a *Acts) ReplaceDraft(id, source, recording, scope, app string) string {
 	id = strings.TrimSpace(id)
 	if id == "" {
 		return "say which routine is being replaced"
@@ -141,14 +147,16 @@ func (a *Acts) ReplaceDraft(id, scope, app string) string {
 	if why != "" {
 		return why
 	}
-	return a.keep(cp, dr, scope, app, id)
+	return a.keep(cp, dr, scope, app, orchestrator.Consent{ID: id,
+		Source: strings.TrimSpace(source), Recording: strings.TrimSpace(recording)})
 }
 
 // keep is the save itself, and the only place that writes.
 //
-// `replacing` empty means a collision is refused. Named, it means this save may replace that one
-// identity and no other.
-func (a *Acts) keep(cp *capture, dr *orchestrator.Draft, scope, app, replacing string) string {
+// The zero `Consent` means a collision is refused. A consent names one routine and the version of
+// it somebody was shown, and may replace that and nothing else.
+func (a *Acts) keep(cp *capture, dr *orchestrator.Draft, scope, app string,
+	consent orchestrator.Consent) string {
 	want, why := orchestrator.WantedScope(scope)
 	if why != "" {
 		return why
@@ -162,7 +170,7 @@ func (a *Acts) keep(cp *capture, dr *orchestrator.Draft, scope, app, replacing s
 	// refusal LOOKS like is still this window's: a sentence on a card, and a Replace
 	// button that names one routine.
 	d := orchestrator.Deps{Reg: a.reg(), Out: &strings.Builder{}}
-	rt, err := d.Keep(dr, want, app, replacing)
+	rt, err := d.Keep(dr, want, app, consent)
 	if err != nil {
 		return err.Error()
 	}
@@ -171,8 +179,8 @@ func (a *Acts) keep(cp *capture, dr *orchestrator.Draft, scope, app, replacing s
 	where := cp.saved
 	a.mu.Unlock()
 	kept := "Saved"
-	if replacing != "" {
-		kept = fmt.Sprintf("Replaced %q with", replacing)
+	if consent.Given() {
+		kept = fmt.Sprintf("Replaced %q with", consent.ID)
 	}
 	note := fmt.Sprintf("%s %q from the recorder-first path (%s): %d step(s), %d of "+
 		"which press something — %s", kept, dr.Name, want, len(dr.Steps),

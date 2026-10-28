@@ -409,7 +409,7 @@ func (d Deps) keepWhatWasShown(dr *Draft) error {
 		return nil
 	}
 	{
-		rt, err := d.Keep(dr, scope, "", "")
+		rt, err := d.Keep(dr, scope, "", Consent{})
 		if err == nil {
 			d.saidKept(dr, scope, rt, "Learned")
 			return nil
@@ -433,7 +433,11 @@ func (d Deps) keepWhatWasShown(dr *Draft) error {
 			fmt.Fprintln(d.Out, "Left alone. Nothing was saved.")
 			return nil
 		}
-		rt, err = d.Keep(dr, scope, "", at.ID)
+		// THE VERSION THEY WERE SHOWN, not just the route they named: the
+		// question quoted this routine and this is the one they agreed to lose.
+		// See orchestrator.Consent.
+		rt, err = d.Keep(dr, scope, "", Consent{ID: at.ID, Source: at.Source,
+			Recording: at.Recording})
 		if err != nil {
 			return err
 		}
@@ -644,7 +648,7 @@ func (d Deps) LearnAuto(name string) error {
 	// save. Of the three surfaces this is the one where a silent overwrite is worst, so it
 	// is the one that will not do it at all: the existing routine is named, it is left
 	// exactly as it is, and nothing is written.
-	rt, err := d.Keep(dr, scope, "", "")
+	rt, err := d.Keep(dr, scope, "", Consent{})
 	if err != nil {
 		mlog.Warn("record-auto: not saved", "route", dr.Name, "err", err)
 		fmt.Fprintf(d.Out, "Not saving: %v\n", err)

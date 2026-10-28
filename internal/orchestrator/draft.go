@@ -286,6 +286,18 @@ func (d Deps) Target(dr *Draft, scope Scope, app string) (routes.Route, error) {
 }
 
 func (d Deps) Save(dr *Draft, scope Scope, app string) (routes.Route, error) {
+	return d.saveWith(dr, scope, app, true)
+}
+
+// saveWith is Save, told whether it may write over what is there.
+//
+// ONE PREAMBLE, because `Keep` needs every line of it and a second copy would be a second answer
+// to which application a draft is about. That is not hypothetical: `Keep` was written with its
+// own Target call and WITHOUT the `app == "" -> dr.App` fallback three lines below, so a focus
+// routine recorded from inside its own application came out with no Activate — a routine that
+// types into whatever happened to be in front. `TestAFocusPlayActivatesEvenWhenTheDemonstrationDidNot`
+// said so, which is what it is for.
+func (d Deps) saveWith(dr *Draft, scope Scope, app string, over bool) (routes.Route, error) {
 	if dr == nil {
 		return routes.Route{}, fmt.Errorf("there is no draft to save")
 	}
@@ -317,16 +329,38 @@ func (d Deps) Save(dr *Draft, scope Scope, app string) (routes.Route, error) {
 	if err != nil {
 		return routes.Route{}, err
 	}
+	return rt, d.write(dr, mode, app, rt, over)
+}
+
+// write renders a draft and puts it on disk, either over what is there or only where nothing is.
+//
+// # Two ways to write one file, and the difference is consent
+//
+// `over` true is what `Save` has always done and what a REPLACEMENT needs: the path is expected
+// to be occupied and the new version takes its place. Through `Registry.Replace`, which is atomic
+// — a write that fails part way would otherwise leave somebody's working routine truncated and
+// the thing it replaced gone, which is the one case where there is an original to lose.
+//
+// `over` false is a FRESH save, and it refuses a path that is already occupied. That is not the
+// same question as the collision check `Keep` runs: the check is two instants earlier and
+// produces the sentence a person reads, and this is what makes its answer true at the moment of
+// writing. Another save landing in the gap between them used to be overwritten by a caller that
+// had been told the path was free. See Registry.Create.
+func (d Deps) write(dr *Draft, mode scopeMode, app string, rt routes.Route, over bool) error {
 	src, assets, err := d.render(dr, mode, app, rt)
 	if err != nil {
-		return rt, err
+		return err
 	}
-	if err := d.Reg.Save(rt, src); err != nil {
-		mlog.Error("draft: save failed", "route", dr.Name, "err", err)
-		return rt, err
+	put := d.Reg.Create
+	if over {
+		put = d.Reg.Replace
+	}
+	if err := put(rt, src); err != nil {
+		mlog.Error("draft: save failed", "route", dr.Name, "over", over, "err", err)
+		return err
 	}
 	if err := d.Reg.WriteAssets(assets); err != nil {
-		return rt, err
+		return err
 	}
 	// AND THE RAW DEMONSTRATION BESIDE IT, for review and re-simplification. Not an
 	// execution path: nothing reads it to run anything. Best-effort, as the other
@@ -334,9 +368,9 @@ func (d Deps) Save(dr *Draft, scope Scope, app string) (routes.Route, error) {
 	if raw, mErr := json.Marshal(dr.Events); mErr == nil {
 		_ = d.Reg.SaveRecording(rt, raw)
 	}
-	mlog.Info("draft: saved", "route", dr.Name, "scope", string(scope),
-		"app", app, "steps", len(dr.Steps), "path", d.Reg.Path(rt))
-	return rt, nil
+	mlog.Info("draft: saved", "route", dr.Name, "app", app, "steps", len(dr.Steps),
+		"path", d.Reg.Path(rt))
+	return nil
 }
 
 // withoutOwner removes the recorder's own window from a demonstration, wherever it appears.

@@ -363,6 +363,41 @@ func (r Registry) Replace(rt Route, source string) error {
 	return writeAtomic(r.Path(rt), []byte(source))
 }
 
+// Create writes a route's source, REFUSING to write over one that is already there.
+//
+// # Why a save needs this and a check does not give it
+//
+// Because a check and a write are two instants. A caller that asks "is there a routine here?",
+// decides there is not, and then calls `Save` has left a gap — and the gap is exactly as long as
+// whatever it did in between, which for a surface that asks a person something is as long as they
+// took to answer. Another save landing in it is overwritten by a caller that had been told the
+// path was free, with nobody having consented to anything.
+//
+// `O_CREATE|O_EXCL` closes the gap rather than narrowing it: the test and the write are one
+// operation, so there is no instant between them. The same reasoning as `CreateAssets` below, one
+// file up — that one is about an image a replacement decided was missing, and this is about the
+// routine itself.
+//
+// It does NOT replace the collision check. The check is what produces the sentence a person reads
+// and the choice they are offered; this is what makes the answer true at the moment of writing.
+func (r Registry) Create(rt Route, source string) error {
+	if rt.Slug == "" {
+		return fmt.Errorf("routes: a play needs a name")
+	}
+	if err := os.MkdirAll(r.locDir(rt), 0o755); err != nil {
+		return err
+	}
+	f, err := os.OpenFile(r.Path(rt), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	if err != nil {
+		return err
+	}
+	if _, err := f.WriteString(source); err != nil {
+		_ = f.Close()
+		return err
+	}
+	return f.Close()
+}
+
 // CreateAssets writes each image, REFUSING to overwrite one that is already there.
 //
 // # Why this exists beside WriteAssets

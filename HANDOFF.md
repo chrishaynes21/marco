@@ -11366,4 +11366,73 @@ path, with an ordinary recording as the control so none of it is satisfied by a 
 stopped honouring anybody's choice; the mode stated to the recorder and read back off the file;
 and Cancel leaving nothing in the library at all.
 
+### Two overwrite protections the consolidation still needed
+
+The rules were shared and both of them were still short of what a save contract has to promise.
+
+**Consent identified a path, not the version approved.** A routine's identity is its place in the
+library, and a place does not change when its contents do — so `Keep`'s "same route, same id"
+check was true of a routine that had been saved again while the question was open, and that newer
+version was overwritten. The deletion case was covered; this one was not. Consent now carries
+digests of the source **and** the stored demonstration as they were when somebody was shown them,
+and both are re-read at the instant of writing. `Deps.Replace` already worked this way for a
+regeneration; this is the same rule for the other way a routine gets written over.
+
+The demonstration is half of it, not an extra: a routine re-recorded from the same steps has the
+same source and a different recording, and the recording is the only thing a rebuild can be made
+from. A mutation that checked the source alone survived the first gate run, which is how that
+became a case.
+
+**A fresh save could still overwrite a concurrent one.** `Keep` asked whether the path was free
+and then wrote with create-or-truncate, so another writer landing in the gap was overwritten by a
+caller that had been told the path was free. The gap is as long as whatever happens in between,
+which on an interactive surface is as long as somebody takes to answer. `routes.Registry.Create`
+is new and uses `O_CREATE|O_EXCL`, which closes the gap rather than narrowing it: the test and the
+write are one operation. A replacement goes through `Registry.Replace` instead, which is atomic —
+the one case where there is an original to lose.
+
+And `Collision` treated every `Stat` error as absence, so a path that could not be read answered
+"free". Only not-found is absence now.
+
+### What the gate said about the collision check afterwards
+
+Deleting the collision refusal from `Keep` now **changes no behaviour**: the exclusive create
+refuses the same case and reports it with the same sentence. So that arm is recorded as redundant
+rather than as a kill, and the mutations that bite are the ones on the write. It stays because it
+is where the sentence comes from one syscall earlier, and because a surface offering Replace needs
+the refusal before it has tried to write. Said in the code, so nobody reads it as the thing
+holding the line.
+
+### And one thing that is NOT covered, with the probe behind it
+
+The non-not-found `Stat` branch cannot be reached by anything a test can arrange on Windows. Both
+arrangements were measured: a directory in the routine's place makes `Stat` **succeed**, and a
+file where a parent directory should be reports path-not-found, which `os.IsNotExist` answers true
+for. So the guard is right and its mutation is unfalsifiable here — the same standing as
+`Watching.has`'s empty-path check — and the test that was named for it is renamed for what it
+actually arranges: a directory where the routine should be, which is occupied, and not written
+through.
+
+### What holds it
+
+**20 of 20 mutations killed** across the two gates, after re-anchoring the first one onto the new
+signatures.
+
+The fresh-save case is tested twice on purpose, because the two gaps are different sizes. The
+production-path test drives the realistic window — another writer creating the target while the
+scope answer is being read — and the collision check catches it there. The gap between `Keep`
+looking and `Keep` writing has no prompt inside it and no seam to stand in, so that one is
+**raced**: 240 iterations with another writer creating the target, 193 of which it won, asserting
+in every one of those that its bytes and its demonstration are untouched. It cannot fail wrongly,
+because the assertion is only made about an iteration where their create succeeded.
+
+Studio's page now hands back the version it was shown, which is what the digests on `Collision`
+are for, and there is a Studio-level case for a routine that changed while the card sat on screen.
+
+One thing the suite caught me breaking on the way: `Keep` had grown its own `Target` call without
+`Save`'s `app == "" → dr.App` fallback, so a focus routine recorded from inside its own
+application came out with no Activate — a routine that types into whatever happens to be in
+front. `TestAFocusPlayActivatesEvenWhenTheDemonstrationDidNot` said so, which is what it is for.
+There is one preamble now, shared by `Save` and `Keep`, and a mutation on it.
+
 See [[ADR-266-one-set-of-rules-for-keeping-a-recording]].

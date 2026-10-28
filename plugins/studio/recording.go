@@ -414,7 +414,7 @@ func (a *Acts) SaveDraft(scope, app string) string {
 	if why != "" {
 		return why
 	}
-	return a.keep(cp, dr, scope, app, "")
+	return a.keep(cp, dr, scope, app, orchestrator.Consent{})
 }
 
 // wantedScope reads the page's word for a scope, or says what the choices are.

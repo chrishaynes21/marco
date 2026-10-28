@@ -175,7 +175,13 @@ func TestReplacingChangesOnlyTheOneChosen(t *testing.T) {
 	otherSrc, otherDemo := kept(t, elsewhere, "discord", "settings")
 
 	again := aRecordingCalled(t, "settings", 700, 500)
-	if why := again.ReplaceDraft("arkascended/focus/settings", "app-anywhere",
+	// AS THE PAGE DOES IT: the card is drawn from a collision, and what it hands back is
+	// that collision's identity AND the version it reported.
+	at := again.Collision("app-anywhere", "arkascended")
+	if !at.Exists || at.ID != "arkascended/focus/settings" {
+		t.Fatalf("the collision to replace is %+v", at)
+	}
+	if why := again.ReplaceDraft(at.ID, at.Source, at.Recording, "app-anywhere",
 		"arkascended"); why != "" {
 		t.Fatalf("an explicit replacement was refused: %s", why)
 	}
@@ -187,6 +193,62 @@ func TestReplacingChangesOnlyTheOneChosen(t *testing.T) {
 	nowSrc, nowDemo := kept(t, elsewhere, "discord", "settings")
 	unchanged(t, "the namesake in another application", otherSrc, otherDemo,
 		nowSrc, nowDemo)
+}
+
+// AND A REPLACEMENT REFUSES WHEN THE ROUTINE CHANGED SINCE THE CARD WAS DRAWN.
+//
+// A routine’s identity is its place in the library, and a place does not change when its contents
+// do """ + DASH + """ so "the same routine is still there" was true of one that had been saved again while the
+// card sat on screen, and that newer version was overwritten. Somebody agreed to lose the one the
+// card described.
+//
+// This is the case the page’s round trip of the digests is for: the window hands back what it was
+// SHOWN, and the backend reads the file again before it writes.
+func TestAReplacementRefusesWhenTheRoutineChangedSinceTheCardWasDrawn(t *testing.T) {
+	t.Setenv("MARCO_CV", "off")
+	t.Setenv("MARCO_ROUTES", t.TempDir())
+
+	inGame := aRecordingCalled(t, "settings", 842, 274)
+	if why := inGame.SaveDraft("app-anywhere", "arkascended"); why != "" {
+		t.Fatal(why)
+	}
+	again := aRecordingCalled(t, "settings", 700, 500)
+	// THE CARD IS DRAWN.
+	at := again.Collision("app-anywhere", "arkascended")
+	if !at.Exists || at.Source == "" {
+		t.Fatalf("the collision does not say which version it is about: %+v", at)
+	}
+
+	// AND SOMEBODY ELSE SAVES OVER IT WHILE IT SITS THERE. Same place, same identity,
+	// contents nobody in this window has seen.
+	rt := routes.Route{App: "arkascended", Focus: true, Slug: "settings"}
+	newer := "// somebody else’s routine\n" + string(mustKeep(t, inGame, rt))
+	if err := inGame.reg().Replace(rt, newer); err != nil {
+		t.Fatal(err)
+	}
+
+	why := again.ReplaceDraft(at.ID, at.Source, at.Recording, "app-anywhere",
+		"arkascended")
+	if why == "" {
+		t.Fatal("it replaced a routine that had been saved again since the card was " +
+			"drawn")
+	}
+	if !strings.Contains(why, "saved again since you were shown it") {
+		t.Errorf("the refusal does not say what changed:\n%s", why)
+	}
+	if now := string(mustKeep(t, inGame, rt)); now != newer {
+		t.Errorf("the newer routine was written over:\n%s", now)
+	}
+}
+
+// mustKeep is a saved routine’s source through this window’s own library.
+func mustKeep(t *testing.T, a *Acts, rt routes.Route) []byte {
+	t.Helper()
+	raw, err := os.ReadFile(a.reg().Path(rt))
+	if err != nil {
+		t.Fatalf("reading %s: %v", a.reg().Path(rt), err)
+	}
+	return raw
 }
 
 // AND A REPLACEMENT IS CHECKED AGAIN AT THE SAVE, NOT TRUSTED FROM THE WINDOW'S EARLIER LOOK.
@@ -210,7 +272,9 @@ func TestReplacingSomethingElseIsRefused(t *testing.T) {
 
 	// ── A ROUTINE THAT IS NOT THE ONE THIS SAVE WOULD WRITE ──
 	again := aRecordingCalled(t, "settings", 700, 500)
-	why := again.ReplaceDraft("discord/focus/settings", "app-anywhere", "arkascended")
+	at := again.Collision("app-anywhere", "arkascended")
+	why := again.ReplaceDraft("discord/focus/settings", at.Source, at.Recording,
+		"app-anywhere", "arkascended")
 	if why == "" {
 		t.Fatal("a replacement went ahead naming a routine it would not have replaced")
 	}
@@ -232,8 +296,8 @@ func TestReplacingSomethingElseIsRefused(t *testing.T) {
 		Slug: "settings", Focus: true})); err != nil {
 		t.Fatal(err)
 	}
-	gone := again.ReplaceDraft("arkascended/focus/settings", "app-anywhere",
-		"arkascended")
+	gone := again.ReplaceDraft("arkascended/focus/settings", at.Source, at.Recording,
+		"app-anywhere", "arkascended")
 	if gone == "" {
 		t.Fatal("a replacement of a routine that is no longer there went ahead " +
 			"as a replacement")

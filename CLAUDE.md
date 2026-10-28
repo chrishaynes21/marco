@@ -177,7 +177,10 @@ go run ./cmd/gate                      # its first stage alone, which needs no s
   widget had a second copy of the same pipeline with none of the rules, so learning a name twice
   REPLACED the first routine, and two of the three scope answers saved a routine that refuses
   every press. Both measured. Scope validity, the collision check and the replacement-identity
-  re-check live in `Keep` now; each surface supplies only the interaction — Studio a card,
+  re-check live in `Keep` now — and consent is to a VERSION (digests of the source AND the
+  stored demonstration, re-read at the write), while a fresh save is EXCLUSIVE
+  (`routes.Registry.Create`, `O_CREATE|O_EXCL`) because a check and a write are two instants.
+  Each surface supplies only the interaction — Studio a card,
   `marco learn` a question naming the exact application/scope/route with ENTER MEANING NO, and the
   widget's unattended `LearnAuto` a refusal, because it saves with nobody having looked. What is
   NOT shared, on purpose: the capture mode (the terminal states nothing and still does) and the

@@ -185,7 +185,10 @@ func TestAfterRecordAgainReplacingIsStillAnExplicitChoice(t *testing.T) {
 	if c.ID != r.ID {
 		t.Errorf("it offers to replace %q, and this was recorded from %q", c.ID, r.ID)
 	}
-	if why := a.ReplaceDraft(c.ID, string(orchestrator.ScopeAppAnywhere), ""); why != "" {
+	// THE VERSION IT WAS SHOWN, which is what the page hands back: consent is to a
+	// routine as it was, not to the place it sits in. See orchestrator.Consent.
+	if why := a.ReplaceDraft(c.ID, c.Source, c.Recording,
+		string(orchestrator.ScopeAppAnywhere), ""); why != "" {
 		t.Fatalf("the deliberate replacement refused: %s", why)
 	}
 	if n := len(a.Routines()); n != 1 {

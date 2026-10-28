@@ -2,7 +2,7 @@
 type: adr
 status: accepted
 date: 2026-10-28
-decision: "ACCEPTED — ONE SET OF RULES FOR KEEPING A RECORDING, AND EVERY SURFACE OBEYS THEM. Studio gained drafts and the consolidation that should have come with them did not: `Begin` → `Finish` → `Draft` → `Save` was written for the window, and `marco learn` and the widget kept a second implementation of the same pipeline with none of the rules. Both divergences were MEASURED rather than reasoned about. Learning a name twice REPLACED the first routine — the library kept one routine, the file held the second recording, and the line printed said `Learned` as though it were a fresh save; re-recording is what somebody testing a routine does all afternoon, which makes the likeliest casualty the routine they were comparing against. And answering \"only here\" or \"anywhere\" for a recording whose presses check their own window SAVED A ROUTINE THAT REFUSES EVERY PRESS, which `Deps.Unrunnable` — the same reader Studio greys the Play button with — reported immediately. So the enforcement moved DOWN into `orchestrator.Keep`: whether a scope word means anything, whether this draft can be saved under the scope asked for, what is already where it would go, and whether a replacement is the one that was agreed to. Each surface supplies only the INTERACTION. Studio shows a card that offers Replace; `marco learn` names the exact application, scope and route and asks, with ENTER MEANING NO because the two answers do not cost the same — no costs a second attempt and yes costs a routine and the demonstration beside it, neither of which comes back; and the widget's unattended path REFUSES a collision outright, names what is there and preserves it, because it saves with nobody having looked and a silent overwrite there is the worst of the three. A replacement targets the exact route consented to and is re-derived and re-checked at the instant of writing, so a routine deleted or saved again while the question was open is refused rather than overwritten. A scope the recording cannot be performed under is refused before anything is written: the terminal is not offered it and is told why, and the unattended path asks the draft what it supports instead of defaulting to the application's in-place scope. THE CAPTURE POLICY IS PRESERVED DELIBERATELY AND IS NOT PART OF THE SHARING: Studio states coordinate mode to the recorder and the terminal and the widget state nothing, which leaves the hooks doing what the environment says — the behaviour every caller before Studio had — so a saved routine from those paths still states no mode, truthfully. The owner-strip rule is the same kind of difference and is now a stated field rather than two copies of a pipeline: everywhere for a window, which is glanced at, and off the tail of a button-ended recording for everything else, which is what `TestAGestureEndedRecordingIsNotStripped` was written to record. `saveTaught` and `chooseScope` are RETAINED for `LearnVoice`, which is out of this slice: a helper whose deletion reaches another caller is kept rather than taken along for free. 13 of 13 mutations killed, held through the production entrances rather than through `Keep` alone — a test of the rule that did not enter where a person does would have passed for the whole time the rule was missing."
+decision: "ACCEPTED — ONE SET OF RULES FOR KEEPING A RECORDING, AND EVERY SURFACE OBEYS THEM. Studio gained drafts and the consolidation that should have come with them did not: `Begin` → `Finish` → `Draft` → `Save` was written for the window, and `marco learn` and the widget kept a second implementation of the same pipeline with none of the rules. Both divergences were MEASURED rather than reasoned about. Learning a name twice REPLACED the first routine — the library kept one routine, the file held the second recording, and the line printed said `Learned` as though it were a fresh save; re-recording is what somebody testing a routine does all afternoon, which makes the likeliest casualty the routine they were comparing against. And answering \"only here\" or \"anywhere\" for a recording whose presses check their own window SAVED A ROUTINE THAT REFUSES EVERY PRESS, which `Deps.Unrunnable` — the same reader Studio greys the Play button with — reported immediately. So the enforcement moved DOWN into `orchestrator.Keep`: whether a scope word means anything, whether this draft can be saved under the scope asked for, what is already where it would go, and whether a replacement is the one that was agreed to. Each surface supplies only the INTERACTION. Studio shows a card that offers Replace; `marco learn` names the exact application, scope and route and asks, with ENTER MEANING NO because the two answers do not cost the same — no costs a second attempt and yes costs a routine and the demonstration beside it, neither of which comes back; and the widget's unattended path REFUSES a collision outright, names what is there and preserves it, because it saves with nobody having looked and a silent overwrite there is the worst of the three. A REPLACEMENT IS CONSENTED TO BY VERSION AND NOT BY PATH: a routine{Q}s identity is its place in the library and a place does not change when its contents do, so "the same route is still there" was true of one that had been saved again while the question was open and that newer version was overwritten. Consent carries digests of the source AND the stored demonstration as somebody was shown them, re-read at the instant of writing — the demonstration because a routine re-recorded from the same steps has the same source and a different recording, and the recording is the only thing a rebuild can be made from. AND A FRESH SAVE IS EXCLUSIVE: `Keep` asked whether the path was free and then wrote with create-or-truncate, so another writer landing in the gap was overwritten by a caller that had been told the path was free. `routes.Registry.Create` uses `O_CREATE|O_EXCL`, which closes the gap rather than narrowing it, and a replacement goes through `Registry.Replace`, which is atomic. `Collision` treated every `Stat` error as absence and now treats only not-found that way. A scope the recording cannot be performed under is refused before anything is written: the terminal is not offered it and is told why, and the unattended path asks the draft what it supports instead of defaulting to the application's in-place scope. THE CAPTURE POLICY IS PRESERVED DELIBERATELY AND IS NOT PART OF THE SHARING: Studio states coordinate mode to the recorder and the terminal and the widget state nothing, which leaves the hooks doing what the environment says — the behaviour every caller before Studio had — so a saved routine from those paths still states no mode, truthfully. The owner-strip rule is the same kind of difference and is now a stated field rather than two copies of a pipeline: everywhere for a window, which is glanced at, and off the tail of a button-ended recording for everything else, which is what `TestAGestureEndedRecordingIsNotStripped` was written to record. `saveTaught` and `chooseScope` are RETAINED for `LearnVoice`, which is out of this slice: a helper whose deletion reaches another caller is kept rather than taken along for free. 13 of 13 mutations killed, held through the production entrances rather than through `Keep` alone — a test of the rule that did not enter where a person does would have passed for the whole time the rule was missing."
 supersedes: []
 affects:
   - execution
@@ -60,11 +60,53 @@ that was agreed to. Every surface goes through it. What each one *says* is its o
   three this is the one where a silent overwrite is worst, so it is the one that will not do it at
   all: the existing routine is named, left exactly as it is, and nothing is written.
 
-**A replacement targets the route consented to.** The identity is re-derived and re-checked inside
-`Keep`, at the instant of writing, because between the question and the answer somebody can delete
-that routine or save that name from a terminal. A surface trusting its earlier look would
-overwrite at exactly that moment. The test for it interleaves for real: the reader removes the
-routine as the `yes` is read.
+**A replacement is consented to by VERSION, not by path.** A routine's identity is its place in
+the library, and a place does not change when its contents do — so the first version of this
+checked that the same route was still there, which catches it being DELETED while the question is
+open and misses it being REPLACED. Another save landing there left a newer routine at the identity
+somebody had agreed to overwrite, and it was overwritten. They agreed to lose the version they
+were shown.
+
+So `Consent` carries digests of the source **and** the stored demonstration as they were when the
+question was asked, and `Keep` reads both again at the instant of writing. `Deps.Replace` already
+worked this way for a regeneration; this is the same rule for the other way a routine gets written
+over. The demonstration is half of it rather than an extra: a routine re-recorded from the same
+steps has the same source and a different recording, and the recording is the only thing a rebuild
+can be made from — a mutation that checked the source alone survived the first gate run, which
+is how that became a case. Studio's page hands back what it was SHOWN, which is what the digests
+on `Collision` are for.
+
+Both tests interleave for real: the reader deletes the routine, or saves over it, as the `yes` is
+read.
+
+**And a fresh save is exclusive.** `Keep` asked whether the path was free and then wrote with
+create-or-truncate, so another writer landing between the two was overwritten by a caller that had
+been told the path was free. The gap is as long as whatever happens in between, which on an
+interactive surface is as long as somebody takes to answer. `routes.Registry.Create` uses
+`O_CREATE|O_EXCL` — the test and the write are one operation, so the gap is closed rather than
+narrowed — and a replacement goes through `Registry.Replace`, which is atomic, for the one case
+where there is an original to lose.
+
+It is tested twice on purpose, because the two gaps are different sizes. The production-path test
+drives the realistic window and the collision check catches it there. The gap between `Keep`
+looking and `Keep` writing has no prompt inside it and no seam to stand in, so that one is
+**raced**: 240 iterations with another writer creating the target, 193 of which it won, asserting
+in each of those that its bytes and its demonstration are untouched. It cannot fail wrongly,
+because the assertion is only made about an iteration where their create succeeded.
+
+**And the collision check is no longer what protects anything**, which is said in the code so that
+nobody reads it as the thing holding the line: deleting it changes no behaviour, because the
+exclusive create refuses the same case and reports it with the same sentence. Its gate run is
+recorded as redundant rather than as a kill. It stays because it is where the sentence comes from
+one syscall earlier, and because a surface offering Replace needs the refusal before it has tried
+to write.
+
+**And only not-found means nothing is there.** Every `Stat` error used to read as absence. That
+branch cannot be reached by anything a test can arrange on Windows, and both arrangements were
+measured: a directory in the routine's place makes `Stat` SUCCEED, and a file where a parent
+directory should be reports path-not-found, which `os.IsNotExist` answers true for. So the guard is
+correct, its mutation is recorded as unfalsifiable rather than as a kill — the same standing as
+`Watching.has`'s empty-path check — and the test is named for what it actually arranges.
 
 **An impossible scope is refused before anything is written.** The terminal is not offered a scope
 this recording cannot be performed under, and is told why — because a person who expected "only
@@ -136,8 +178,27 @@ underneath them and neither reached these checks.
   demonstrating nothing: no routine, and nothing left in the library at all.
 - `internal/orchestrator` `TestAGestureEndedRecordingIsNotStripped` — unchanged, and now the thing
   that holds `Deps.OwnerTailOnly` for the paths that asked for it.
-- `plugins/studio` — its own save, replace and collision tests, unchanged, now running through the
-  shared `Keep`.
+- `internal/orchestrator` `TestAReplacementRefusesWhenTheContentsChangedUnderTheSameIdentity` —
+  the source changed under the same identity as the consent is read, and then the DEMONSTRATION
+  changed with the source untouched. Both refuse, and the other writer's bytes are intact.
+- `internal/orchestrator` `TestAFreshSaveDoesNotOverwriteAConcurrentSave` — another writer creates
+  the target while the scope answer is being read: their routine and their demonstration survive
+  unchanged, and nothing claims to have learned anything.
+- `internal/orchestrator` `TestWhenTheGapIsRacedTheOtherWritersFileSurvives` — the gap no prompt
+  sits inside, raced 240 times. Only iterations where the other writer's create succeeded are
+  asserted about, so it cannot fail wrongly.
+- `internal/orchestrator` `TestAPathThatIsNotARoutineIsNotReportedAsFree` — a directory where the
+  routine should be: occupied, not written through, and no demonstration left beside it.
+- `internal/orchestrator` `TestAFocusPlayActivatesEvenWhenTheDemonstrationDidNot` — unchanged, and
+  what caught `Keep` growing its own `Target` call without `Save`'s application fallback: a focus
+  routine recorded from inside its own application came out with no Activate, which is a routine
+  that types into whatever happens to be in front. There is one preamble now, shared, with a
+  mutation on it.
+- `plugins/studio` `TestAReplacementRefusesWhenTheRoutineChangedSinceTheCardWasDrawn` — the
+  window's round trip: the card is drawn, somebody else saves over the routine, and the replacement
+  is refused with the newer version intact.
+- `plugins/studio` — its own save, replace and collision tests, now running through the shared
+  `Keep` and handing back the version they were shown.
 
 See [[Learned-Plays]], [[Plays]], [[ADR-249-ending-a-recording-is-not-part-of-the-recording]] and
 [[ADR-265-say-what-you-want-and-studio-offers-the-routine]].
