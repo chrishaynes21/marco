@@ -56,12 +56,24 @@ window.go = {main: {
       window.replaced = (window.replaced || 0) + 1
       return Promise.resolve('')
     },
-    ReviewRebuilt: (id) => {
+    ReviewRebuilt: (id, kind) => {
       window.reviewed = (window.reviewed || 0) + 1
+      window.askedKinds = (window.askedKinds || []).concat(kind)
       if (id !== 'ark/focus/old-thing') {
         return Promise.resolve({id: id, why: 'this should never have been asked'})
       }
+      if (kind === 'simplify-typing') {
+        return Promise.resolve({id: id, token: 'tok-old-thing-folded',
+          name: 'old thing', rebuild: kind, choice: 'Simplify typing pauses',
+          caution: 'This folds each run of typing into one step, which removes the ' +
+                   'pauses between those keystrokes.',
+          was: 'use os.\nthe OldThing is an actor.\n',
+          now: '// Generation: 1.\nuse os.\ndo OS\u0027s Type with "hello".\n',
+          changes: true, replaceable: true,
+          was_generation: 'unstated', now_generation: 'current'})
+      }
       return Promise.resolve({id: id, token: 'tok-old-thing-1', name: 'old thing',
+        rebuild: 'current', choice: 'Rebuild with current rules', caution: '',
         was: 'use os.\nthe OldThing is an actor.\n',
         now: '// Generation: 1.\nuse os.\nthe OldThing is an actor.\n',
         changes: true, replaceable: true,
@@ -97,23 +109,36 @@ window.go = {main: {
     ]),
   },
 }}
-let says = ['', '', '', ''], live = [0, 0, 0, 0]
+let says = ['', '', '', ''], live = [0, 0, 0, 0], fold = [0, 0, 0, 0]
 const pick = (i) => {
   const cards = document.querySelectorAll('#routineList .card')
   if (cards.length > i) { cards[i].click() }
 }
+// press clicks a control by id, which is what a person does.
+//
+// NOT the function behind it. Calling the handler directly proves the backend is asked for a
+// choice and says nothing about which button asks for it — and a mutation swapping the second
+// button's argument for the first's survived exactly that. The ids are the surface a person and
+// an assistive technology both reach.
+const press = (id) => { document.getElementById(id).click() }
 const look = (i) => {
   says[i] = document.getElementById('routineWrote').textContent
   live[i] = document.getElementById('routineReviewBtn').disabled ? 0 : 1
+  fold[i] = document.getElementById('routineSimplifyBtn').disabled ? 0 : 1
 }
 const reviewShown = () =>
   !document.getElementById('routineReview').classList.contains('hide')
+const shown = (id) => {
+  const el = document.getElementById(id)
+  return el.classList.contains('hide') ? '' : el.textContent
+}
 let panes = 0, bothgens = 0, afterCancel = 1, replaceLive = 0
+let choiceSaid = '', cautionSaid = '', foldedNow = '', plainCaution = 'x'
 setTimeout(() => { pick(0) }, 1500)
 setTimeout(() => { look(0); pick(1) }, 1800)
 setTimeout(() => { look(1); pick(2) }, 2100)
 setTimeout(() => { look(2); pick(3) }, 2400)
-setTimeout(() => { look(3); pick(1); reviewRebuilt() }, 2700)
+setTimeout(() => { look(3); pick(1); press('routineReviewBtn') }, 2700)
 setTimeout(() => {
   // THE REVIEW: both sources on screen, each labelled with its own reading.
   const was = document.getElementById('routineReviewWas').textContent
@@ -124,15 +149,22 @@ setTimeout(() => {
               document.getElementById('routineReviewNowGen').textContent === 'current')
              ? 1 : 0
   replaceLive = document.getElementById('routineReplaceBtn').disabled ? 0 : 1
-  cancelReview()
+  // THE ORDINARY CHOICE CARRIES NO CAUTION, which is the control for the one below.
+  plainCaution = shown('routineReviewCaution')
+  press('routineReviewCancelBtn')
 }, 3300)
 setTimeout(() => {
   afterCancel = reviewShown() ? 1 : 0
-  // AND THEN REVIEW AGAIN AND REPLACE, which is the half the cancel above cannot
-  // reach: the token has to travel on the way OUT as well as on the way back.
-  reviewRebuilt()
+  // AND NOW THE OTHER CHOICE, which has to reach the backend as its own word and come
+  // back saying which rules made it and what they change.
+  press('routineSimplifyBtn')
 }, 3600)
-setTimeout(() => { replaceWithRebuilt() }, 4200)
+setTimeout(() => {
+  choiceSaid = document.getElementById('routineReviewChoice').textContent
+  cautionSaid = shown('routineReviewCaution')
+  foldedNow = document.getElementById('routineReviewNow').textContent
+  press('routineReplaceBtn')
+}, 4200)
 setTimeout(() => {
   document.title = 'cards=' + document.querySelectorAll('#routineList .card').length +
     ' current=' + (says[0].includes('which is the generation this build writes') ? 1 : 0) +
@@ -150,9 +182,15 @@ setTimeout(() => {
     ' cancelled=' + (window.cancelled || 0) +
     ' cancelledtoken=' + (window.cancelledWith === 'tok-old-thing-1' ? 1 : 0) +
     ' replaced=' + (window.replaced || 0) +
-    ' replacedtoken=' + (window.replacedWith === 'tok-old-thing-1' ? 1 : 0) +
+    ' replacedtoken=' + (window.replacedWith === 'tok-old-thing-folded' ? 1 : 0) +
+    ' foldlive=' + fold[1] + ' foldoff=' + fold[2] +
+    ' kinds=' + (window.askedKinds || []).join('+') +
+    ' choice=' + (choiceSaid.includes('Simplify typing pauses') ? 1 : 0) +
+    ' caution=' + (cautionSaid.includes('removes the') ? 1 : 0) +
+    ' plaincaution=' + (plainCaution === '' ? 1 : 0) +
+    ' foldednow=' + (foldedNow.includes('OS\u0027s Type') ? 1 : 0) +
     ' reviewed=' + (window.reviewed || 0)
-}, 5100)
+}, 5400)
 `
 
 // EACH OF THE FOUR READINGS IS ON THE PAGE IN ITS OWN WORDS.
@@ -293,4 +331,59 @@ func aRenderedGenerationPage(t *testing.T) (string, func(string) int) {
 		v, _ := strconv.Atoi(m[1])
 		return v
 	}
+}
+
+// THE PAGE OFFERS BOTH CHOICES, HANDS EACH ONE ON BY NAME, AND SAYS WHICH MADE THE REVIEW.
+//
+// "A version rebuilt from its recording" means two different things now. A review that did not
+// say which rules made its right-hand pane would be two sources and a Replace button, with the
+// person left to work out from a diff whether the pauses in their typing had just been removed.
+//
+// The caution is the half a diff cannot carry, and it is asserted in both directions: shown for
+// the choice that changes timing and ABSENT for the one that does not, because a warning attached
+// to everything is a warning nobody reads.
+func TestThePageOffersBothRebuildChoicesAndSaysWhichMadeTheReview(t *testing.T) {
+	title, n := aRenderedGenerationPage(t)
+
+	if got := kindsAsked(t, title); got != "current+simplify-typing" {
+		t.Errorf("the page asked the backend for %q, want each choice handed on by "+
+			"its own name: %q", got, title)
+	}
+	if n("choice") != 1 {
+		t.Errorf("the review does not say which choice produced it: %q", title)
+	}
+	if n("caution") != 1 {
+		t.Errorf("the review of the choice that removes pauses inside typing does not "+
+			"say so: %q", title)
+	}
+	if n("plaincaution") != 1 {
+		t.Errorf("the ordinary rebuild shows a caution it has nothing to warn about, "+
+			"so a warning is attached to everything: %q", title)
+	}
+	// AND THE RIGHT-HAND PANE IS THE SIMPLIFIED SOURCE, not the other choice's. Without
+	// this the page could ask for one and render the other.
+	if n("foldednow") != 1 {
+		t.Errorf("the review of the simplified choice does not show the simplified "+
+			"source: %q", title)
+	}
+	// AND THE SECOND BUTTON IS OFFERED AND WITHHELD WITH THE FIRST, from one answer.
+	// Two buttons each with their own condition is two chances to offer what the
+	// backend declines.
+	if n("foldlive") != 1 {
+		t.Errorf("the routine this flow exists for cannot be simplified: %q", title)
+	}
+	if n("foldoff") != 0 {
+		t.Errorf("a routine whose generation this build cannot explain is offered a "+
+			"simplified rebuild anyway: %q", title)
+	}
+}
+
+// kindsAsked is the choices the page handed to the backend, in order.
+func kindsAsked(t *testing.T, title string) string {
+	t.Helper()
+	m := regexp.MustCompile(`\bkinds=(\S*)`).FindStringSubmatch(title)
+	if m == nil {
+		t.Fatalf("the page never reported which choices it asked for: %q", title)
+	}
+	return m[1]
 }

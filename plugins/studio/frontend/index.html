@@ -556,13 +556,26 @@
            if the routine or its recording moved while the review was open, which is also
            the whole of the protection for a routine somebody edited by hand — the edit is
            what the left-hand pane shows. See generation.go. -->
+      <!-- TWO EXPLICIT CHOICES, ONE REVIEW SURFACE.
+           "a version rebuilt from its recording" means two different things: today's
+           generator rules, and those plus folding each run of typing into one step. The
+           second removes the pauses inside a typed run, which is a behaviour change and
+           reads as a tidy-up — so it is a choice with its own words and its own caution
+           rather than an improvement applied quietly, and the review says which choice
+           produced what is on screen. See generation.go. -->
       <div class="row" style="margin-top:10px">
-        <button id="routineReviewBtn" onclick="reviewRebuilt()">Review a rebuilt
-          version</button>
+        <button id="routineReviewBtn"
+          onclick="reviewRebuilt('current')">Rebuild with current rules</button>
+        <button id="routineSimplifyBtn"
+          onclick="reviewRebuilt('simplify-typing')">Simplify typing pauses</button>
         <span class="muted" id="routineReviewNote"></span>
       </div>
       <div class="card hide" id="routineReview" style="margin-top:10px">
         <h3>Nothing has been written yet</h3>
+        <!-- WHICH CHOICE MADE THIS, and what that choice changes. Both from the backend:
+             see Review.Rebuild. -->
+        <div class="muted" id="routineReviewChoice"></div>
+        <div class="banner hide" id="routineReviewCaution"></div>
         <div class="banner bad hide" id="routineReviewRefused"></div>
         <div class="muted" id="routineReviewSays"></div>
         <div class="row" style="margin-top:8px">
@@ -1727,14 +1740,17 @@
  // whatever the page could hand back. See generation.go.
  let reviewing = null
 
- function reviewRebuilt(){
+ function reviewRebuilt(kind){
    const r = routineWith(chosenRoutine)
    if (!r) { return }
-   $('routineReviewBtn').disabled = true
+   // WHICH CHOICE WAS PRESSED, HANDED STRAIGHT ON. The backend refuses a word it
+   // cannot name, so a typo here arrives as a review that says why rather than as a
+   // review of something else under this button's label.
+   paintReviewButtons(r, true)
    text($('routineReviewNote'), 'building a version from its recording — nothing is ' +
      'written')
-   acts.ReviewRebuilt(r.id).then(v => {
-     $('routineReviewBtn').disabled = !r.offer
+   acts.ReviewRebuilt(r.id, kind).then(v => {
+     paintReviewButtons(r, false)
      if (!v || v.why) {
        reviewing = null
        showing($('routineReview'), false)
@@ -1747,10 +1763,28 @@
    })
  }
 
+ // ONE PLACE DECIDES WHETHER EITHER CHOICE MAY BE PRESSED, asked from three.
+ //
+ // Two buttons offering the same routine have to agree about whether it can be rebuilt at
+ // all, and the answer is one field — `offer` — not a condition written per button. See
+ // the note beside it in renderRoutine.
+ function paintReviewButtons(r, busy){
+   const off = busy || !r || !r.offer
+   $('routineReviewBtn').disabled = off
+   $('routineSimplifyBtn').disabled = off
+ }
+
  function drawReview(){
    const v = reviewing
    showing($('routineReview'), !!v)
    if (!v) { return }
+   // WHICH CHOICE PRODUCED THIS, AND WHAT IT CHANGES. Both the backend's words: a
+   // review of two sources is not self-explanatory now that there are two ways to make
+   // the right-hand one, and the caution is the half a diff cannot carry.
+   text($('routineReviewChoice'), v.choice ? v.choice + ' — rebuilt from its own ' +
+     'recording' : '')
+   text($('routineReviewCaution'), v.caution || '')
+   showing($('routineReviewCaution'), !!v.caution)
    text($('routineReviewRefused'), v.refused || '')
    showing($('routineReviewRefused'), !!v.refused)
    // WHAT REPLACING WOULD DO, SAID PLAINLY. A routine today's generator wrote rebuilds
@@ -1831,14 +1865,14 @@
    // WHICH GENERATION WROTE IT, AND WHAT IT WAS WRITTEN WITHOUT.
    //
    // The sentence comes from the backend for all four readings — see the element's
-   // comment. The Review button reads ONE answer, `offer`, which is false when there is
-   // no demonstration to rebuild from and when the generation is one this build cannot
-   // explain; the sentence already says which. A second condition written here could
-   // offer what the backend then declines.
+   // comment. BOTH review buttons read ONE answer, `offer`, through one painter — false
+   // when there is no demonstration to rebuild from and when the generation is one this
+   // build cannot explain, with the sentence saying which. Two buttons each with their
+   // own condition is two chances to offer what the backend then declines.
    text($('routineWrote'), r.wrote || '')
    text($('routineDifferences'), (r.differences || []).join('\n'))
    showing($('routineDifferences'), (r.differences || []).length > 0)
-   $('routineReviewBtn').disabled = !r.offer
+   paintReviewButtons(r, false)
    // AND A REVIEW BELONGS TO ONE ROUTINE. Choosing another card puts it away rather than
    // leaving two sources on screen under somebody else's name.
    if (reviewing && reviewing.id !== r.id) { cancelReview() }

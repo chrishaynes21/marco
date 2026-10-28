@@ -87,7 +87,7 @@ func TestARoutineWithNoDemonstrationIsListedAsNotOfferable(t *testing.T) {
 			again.Wrote)
 	}
 	// AND REVIEWING IT IS REFUSED RATHER THAN FAILING LATER.
-	v := a.ReviewRebuilt(r.ID)
+	v := a.ReviewRebuilt(r.ID, string(orchestrator.RebuildCurrent))
 	if v.Why == "" {
 		t.Fatalf("a routine with no demonstration was reviewed anyway: %+v", v)
 	}
@@ -139,7 +139,7 @@ func TestARoutineFromALaterBuildIsNotOfferedAReviewAndIsUntouched(t *testing.T) 
 	}
 	// AND REVIEWING IT IS DECLINED WITH THE CARD'S OWN SENTENCE, so the greyed button
 	// and the refusal agree.
-	v := a.ReviewRebuilt(r.ID)
+	v := a.ReviewRebuilt(r.ID, string(orchestrator.RebuildCurrent))
 	if v.Why != later.Wrote {
 		t.Errorf("the refusal says %q and the card says %q, so a person pressing "+
 			"past the greyed button is told something else", v.Why, later.Wrote)
@@ -180,7 +180,7 @@ func TestNothingIsReplacedWithoutAReviewInHand(t *testing.T) {
 	// AND WITH ONE IN HAND IT GOES THROUGH, or the rule above is satisfied by a method
 	// that refuses everything. The routine is current, so the replacement is its own
 	// source — which is exactly what makes it checkable: byte for byte.
-	v := a.ReviewRebuilt(r.ID)
+	v := a.ReviewRebuilt(r.ID, string(orchestrator.RebuildCurrent))
 	if v.Why != "" {
 		t.Fatalf("reviewing refused: %s", v.Why)
 	}
@@ -209,7 +209,7 @@ func TestNothingIsReplacedWithoutAReviewInHand(t *testing.T) {
 // is a replacement they explicitly declined.
 func TestCancellingAReviewLetsGoOfTheVersion(t *testing.T) {
 	a, r := aSavedRoutineInStudio(t)
-	v := a.ReviewRebuilt(r.ID)
+	v := a.ReviewRebuilt(r.ID, string(orchestrator.RebuildCurrent))
 	if v.Why != "" {
 		t.Fatalf("reviewing refused: %s", v.Why)
 	}
@@ -233,7 +233,7 @@ func TestAReviewIsOfTheRoutineThatWasAskedAbout(t *testing.T) {
 	a, rs := aLibraryOfThreeRoutines(t)
 	want := rs[2]
 
-	v := a.ReviewRebuilt(want.ID)
+	v := a.ReviewRebuilt(want.ID, string(orchestrator.RebuildCurrent))
 	if v.Why != "" {
 		t.Fatalf("reviewing %q refused: %s", want.Name, v.Why)
 	}
@@ -297,7 +297,7 @@ func TestAReviewOfTwoSameNamedRoutinesIsOfTheOneAddressed(t *testing.T) {
 	// message naming the one they were looking at. A lookup widened to accept a name is
 	// invisible until something passes one, which is why something here does.
 	for _, loose := range []string{"ark graphics", "ark-graphics", "Ark Graphics"} {
-		v := a.ReviewRebuilt(loose)
+		v := a.ReviewRebuilt(loose, string(orchestrator.RebuildCurrent))
 		if v.Why == "" {
 			t.Errorf("a review asked for by %q answered with %q rather than "+
 				"refusing an address that names two routines", loose, v.ID)
@@ -306,7 +306,7 @@ func TestAReviewOfTwoSameNamedRoutinesIsOfTheOneAddressed(t *testing.T) {
 			t.Errorf("a replacement asked for by %q went through", loose)
 		}
 	}
-	v := a.ReviewRebuilt(second)
+	v := a.ReviewRebuilt(second, string(orchestrator.RebuildCurrent))
 	if v.Why != "" {
 		t.Fatalf("reviewing %s refused: %s", second, v.Why)
 	}
@@ -342,7 +342,7 @@ func TestTwoReviewsOfOneRoutineAreTwoReviews(t *testing.T) {
 	route := rt.route()
 	statingNoGenerationInStudio(t, a, route)
 
-	first := a.ReviewRebuilt(r.ID)
+	first := a.ReviewRebuilt(r.ID, string(orchestrator.RebuildCurrent))
 	if first.Why != "" {
 		t.Fatalf("the first review refused: %s", first.Why)
 	}
@@ -355,7 +355,7 @@ func TestTwoReviewsOfOneRoutineAreTwoReviews(t *testing.T) {
 	if err := os.WriteFile(a.reg().Path(route), []byte(edited), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	second := a.ReviewRebuilt(r.ID)
+	second := a.ReviewRebuilt(r.ID, string(orchestrator.RebuildCurrent))
 	if second.Why != "" {
 		t.Fatalf("the second review refused: %s", second.Why)
 	}
@@ -414,8 +414,8 @@ func TestTwoReviewsOfOneRoutineAreTwoReviews(t *testing.T) {
 	}
 	// AND CANCELLING ONE DOES NOT THROW AWAY THE OTHER. Keyed by the routine, letting
 	// go of one review let go of whichever the window held.
-	third := a.ReviewRebuilt(r.ID)
-	fourth := a.ReviewRebuilt(r.ID)
+	third := a.ReviewRebuilt(r.ID, string(orchestrator.RebuildCurrent))
+	fourth := a.ReviewRebuilt(r.ID, string(orchestrator.RebuildCurrent))
 	if third.Token != fourth.Token {
 		t.Fatalf("two reviews of an unchanged routine have different tokens (%q, %q), "+
 			"so this cannot establish that cancelling one keeps the other",
@@ -499,9 +499,9 @@ func TestTwoRoutinesWithTheSameContentsAreTwoReviews(t *testing.T) {
 	for _, r := range a.Routines() {
 		switch r.ID {
 		case routeID(ark):
-			first = a.ReviewRebuilt(r.ID)
+			first = a.ReviewRebuilt(r.ID, string(orchestrator.RebuildCurrent))
 		case routeID(discord):
-			second = a.ReviewRebuilt(r.ID)
+			second = a.ReviewRebuilt(r.ID, string(orchestrator.RebuildCurrent))
 		}
 	}
 	if first.Why != "" || second.Why != "" {

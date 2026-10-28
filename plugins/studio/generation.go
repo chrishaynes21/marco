@@ -72,6 +72,21 @@ type Review struct {
 	// Why is why there is no review at all: no such routine, no demonstration beside it,
 	// a recording that could not be read. Everything else is empty when this is set.
 	Why string `json:"why,omitempty"`
+	// Rebuild is which of the two sets of rules produced this review, Choice is the words
+	// on the control that asked for it, and Caution is what that choice CHANGES about the
+	// routine beyond the generator's own rules.
+	//
+	// ALL THREE SHOWN, because a review of two sources is not self-explanatory: "a version
+	// rebuilt from its recording" means two different things now, and a person comparing
+	// two panes has to know which rules made the right-hand one. The caution is the half
+	// that cannot be left to the diff — folding a typed run removes the pauses inside it,
+	// which is a behaviour change and reads as a tidy-up.
+	//
+	// The words are the backend's for the same reason every other sentence here is: a page
+	// with them typed into it would go on promising whatever it said after the rules moved.
+	Rebuild string `json:"rebuild,omitempty"`
+	Choice  string `json:"choice,omitempty"`
+	Caution string `json:"caution,omitempty"`
 	// Was is the saved source and Now the one a replacement would write, both in full.
 	//
 	// THE WHOLE OF EACH, because the review is of the whole of each. A list of changed
@@ -102,11 +117,17 @@ type Review struct {
 // IT WRITES NOTHING, and it is the only way to reach `ReplaceWithRebuilt`: the review is what
 // that call replaces with, and a replacement nobody reviewed is the thing this flow exists to
 // prevent.
-func (a *Acts) ReviewRebuilt(id string) Review {
+func (a *Acts) ReviewRebuilt(id, kind string) Review {
 	id = strings.TrimSpace(id)
 	if id == "" {
 		return Review{Why: "choose a routine to review"}
 	}
+	// WHICH RULES, STATED BY THE PAGE AND CHECKED HERE. There are two choices and
+	// `orchestrator.Prepare` refuses a word it cannot name, so an unknown one arrives
+	// as a review that says why rather than as a review of something else. Studio
+	// never consults `SimplifySaves`: a surface that can show a comparison is not
+	// excused from showing it by an environment variable it inherited.
+	want := orchestrator.Rebuild(strings.TrimSpace(kind))
 	a.mu.Lock()
 	recording := a.recordingLocked()
 	a.mu.Unlock()
@@ -131,9 +152,9 @@ func (a *Acts) ReviewRebuilt(id string) Review {
 	}
 	rt := chosen.route()
 	d := orchestrator.Deps{Reg: a.reg(), Out: &strings.Builder{}}
-	p, err := d.Prepare(rt)
+	p, err := d.Prepare(rt, want)
 	if err != nil {
-		return Review{ID: id, Why: err.Error()}
+		return Review{ID: id, Name: chosen.Name, Was: chosen.Source, Why: err.Error()}
 	}
 	// THE PREPARED VERSION STAYS HERE, UNDER ITS OWN TOKEN AND NOT UNDER THE ROUTINE'S.
 	//
@@ -146,6 +167,8 @@ func (a *Acts) ReviewRebuilt(id string) Review {
 	a.keepReview(p)
 
 	r := Review{ID: id, Token: p.Token, Name: p.Name, Was: p.Was, Now: p.Now,
+		Rebuild: string(p.Rebuild), Choice: p.Rebuild.Choice(),
+		Caution: p.Rebuild.Caution(),
 		Refused: p.Refused, Changes: p.Changes(), Replaceable: p.Replaceable(),
 		WasGeneration: string(p.WasGeneration.Reading),
 		NowGeneration: string(p.NowGeneration.Reading)}
