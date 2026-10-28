@@ -88,36 +88,45 @@ func main() {
 func run() error {
 	base := filepath.Join(localAppData(), "Marco")
 	binDir := filepath.Join(base, "bin")
-	routesDir := filepath.Join(base, "routes")
 
 	ver, _ := assets.ReadFile("assets/version.txt")
-	if err := extractBins(binDir, string(ver)); err != nil {
-		return fmt.Errorf("unpack: %w", err)
-	}
-	// Seed a single "hello" starter route on first run only; a user's later edits (and any
-	// routes they learn) are never overwritten.
-	if _, err := os.Stat(routesDir); os.IsNotExist(err) {
-		if err := seedHello(routesDir); err != nil {
-			return fmt.Errorf("seed hello route: %w", err)
-		}
+	if err := install(binDir, string(ver)); err != nil {
+		return fmt.Errorf("install: %w", err)
 	}
 
-	// THE SAME STORE AND LIBRARY EVERY BINARY RESOLVES, SAID OUT LOUD.
+	// ── WHERE THE BINARIES ARE IS THIS LAUNCHER'S BUSINESS. WHERE THE DATA IS, IS NOT ──
 	//
-	// `internal/marcopaths` is the one place that answers where the routine library and the
-	// Marco home are, for `marco`, `director` and Studio alike — and its default is `routes`
-	// INSIDE the store, resolved absolutely. Naming both here is not a second answer: it is
-	// this launcher stating which store this installation uses, so nothing downstream
-	// depends on a working directory. See the library note in CLAUDE.md.
-	os.Setenv("MARCO_HOME", base)
+	// `MARCO_BIN` names an executable, which is a fact about this installation and the one
+	// thing here worth stating: it is the marco this bundle unpacked, and a child that
+	// looked elsewhere would be a different build.
+	//
+	// `MARCO_HOME` and `MARCO_ROUTES` are NOT set, and setting them was a defect of this
+	// slice's own making. `internal/marcopaths` is the one place that answers where the
+	// store and the library are — `$MARCO_HOME`, else `%APPDATA%\marco` — for `marco`,
+	// `director` and Studio alike, and an installer that overrode it took two things away
+	// at once: an explicit `$MARCO_HOME` somebody had set, and the shared default every
+	// other way into Marco uses. An existing Studio user would have installed the alpha
+	// and been shown an EMPTY LIBRARY, with their routines exactly where they left them
+	// and nothing saying so.
+	//
+	// So installation and data resolution are separate. Nothing here reads the library,
+	// writes to it, or names it — and nothing here seeds a starter routine into it either:
+	// see the note on seedHello for why that went, and for the one thing it cost.
+	//
+	// An older BUNDLED installation does have data under this same directory, because the
+	// launcher used to put it there. That is a conflict rather than a thing to migrate, and
+	// Studio names it: see `whatOtherLibraryIsHere` in plugins/studio, which is where the
+	// one resolver lives and where a person can act on the answer. Nothing is moved or
+	// merged, by anybody.
+	//
+	// See [[ADR-263-the-alpha-is-the-studio-stack-and-it-says-what-it-is]].
 	os.Setenv("MARCO_BIN", filepath.Join(binDir, "marco.exe"))
-	os.Setenv("MARCO_ROUTES", routesDir)
+	fmt.Printf("Marco %s\n", string(ver))
 
 	rest := os.Args[1:]
 	if legacy, args := wantsTheOverlay(rest); legacy {
 		return runOverlay(binDir, args)
 	}
-	fmt.Printf("Marco %s — routes at %s\n", string(ver), routesDir)
 	return runStudio(binDir, rest)
 }
 
@@ -183,79 +192,140 @@ func localAppData() string {
 	return os.TempDir()
 }
 
-// extractBins unpacks the embedded binaries into binDir, skipping the copy when the stamped
-// version already matches — so relaunching doesn't relock a running instance's exes.
-func extractBins(binDir, ver string) error {
-	stamp := filepath.Join(binDir, ".version")
+// install puts this bundle's binaries where Studio and marco look for them, COMPLETE OR NOT AT ALL.
+//
+// # What the previous version did, and the state it could leave
+//
+// It wrote each file into `bin\` in turn. Windows refuses to overwrite an executing file, so an
+// upgrade while anything from the last one is running fails PART WAY — and the files before the
+// one that failed had already been replaced. The error said "nothing has been changed", which was
+// the one thing that was not true: a new Studio beside an old marco and an old director is
+// exactly the mixed installation the whole sibling discipline exists to prevent, and it looks
+// current from every direction.
+//
+// # So a version is staged whole and then becomes the one in use
+//
+// Each bundle unpacks into its OWN directory — `bin-<version>` — and `bin\` is replaced by it
+// only once every file is written. Staging into a fresh directory can fail halfway and cost
+// nothing: nothing is using it, and the installation in `bin\` has not been touched.
+//
+// The activation is a directory swap, which is the one step that can still fail against running
+// binaries — so it is tried, and on failure the OLD `bin\` is put back and the message says to
+// close Marco. Either the whole new version is in use or the whole old one is, and never a
+// mixture of the two.
+//
+// Previous versions are left on disk rather than deleted. A directory that was in use a moment
+// ago is not something to remove while its processes may still be exiting, and it is the thing
+// that makes the fallback above possible.
+func install(binDir, ver string) error {
+	// ALREADY THIS VERSION: nothing to do, and nothing touched. The stamp lives inside the
+	// active directory, so a half-activated install cannot claim to be complete.
 	if ver != "" {
-		if b, err := os.ReadFile(stamp); err == nil && string(b) == ver {
+		if b, err := os.ReadFile(filepath.Join(binDir, stampName)); err == nil &&
+			string(b) == ver {
 			return nil
 		}
 	}
-	if err := os.MkdirAll(binDir, 0o755); err != nil {
+	staged := binDir + "-" + safeName(ver)
+	if err := os.RemoveAll(staged); err != nil {
+		return fmt.Errorf("clearing %s: %w", staged, err)
+	}
+	if err := stage(staged, ver); err != nil {
+		// NOTHING IS IN USE HERE, so there is nothing to put back. The half-written
+		// staging directory is left for the next attempt to clear.
+		return err
+	}
+	return activate(binDir, staged)
+}
+
+// stage writes the whole bundle into a directory nothing is using.
+func stage(dir, ver string) error {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
 	for _, s := range staged {
 		data, err := assets.ReadFile("assets/" + s.asset)
 		if err != nil {
-			// The embed is a directory now, so a missing asset arrives here rather than
+			// The embed is a directory, so a missing asset arrives here rather than
 			// as a build error. Say which one: an installer that shipped without the
-			// Director or without the accessibility provider looks, to its user, exactly
-			// like a Marco that ignores them.
-			return fmt.Errorf("this build was packaged without %s — re-run pack.ps1", s.asset)
+			// Director or without the accessibility provider looks, to its user,
+			// exactly like a Marco that ignores them.
+			return fmt.Errorf("this build was packaged without %s — re-run pack.ps1",
+				s.asset)
 		}
-		dst := filepath.Join(binDir, filepath.FromSlash(s.dest))
+		dst := filepath.Join(dir, filepath.FromSlash(s.dest))
 		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 			return err
 		}
 		if err := os.WriteFile(dst, data, 0o755); err != nil {
-			// IS IT RUNNING, OR IS IT BROKEN? Two different things to be told.
-			//
-			// Windows refuses to overwrite a file that is executing, so an upgrade
-			// while Studio is open fails exactly here — and "unpack: Access is
-			// denied" sends somebody to look at permissions for a thing that is
-			// simply open. Nothing is killed: a window that is recording, or has a
-			// draft in it that exists nowhere else, is not something an installer
-			// may close on somebody's behalf. So it says what to do and stops.
-			if errors.Is(err, fs.ErrPermission) || isInUse(err) {
-				return fmt.Errorf("%s is in use, so this version could not be "+
-					"installed. Close Marco — including the Studio window "+
-					"and anything it started — and run this again. Nothing "+
-					"has been changed", s.dest)
-			}
-			return err
+			return fmt.Errorf("writing %s: %w", s.dest, err)
 		}
 	}
-	return os.WriteFile(stamp, []byte(ver), 0o644)
+	// THE STAMP LAST, INSIDE THE VERSION IT DESCRIBES. A stamp written first would
+	// describe a directory that is not finished yet, and a staging directory that is
+	// never activated would then be indistinguishable from an installation.
+	return os.WriteFile(filepath.Join(dir, stampName), []byte(ver), 0o644)
 }
 
-// helloRoute is the one starter route the bundle drops in — a friendly global "hello" so a
-// first-run user has something to run (and to see what a route looks like in `marco edit`).
-const helloRoute = `// Marco starter route — a friendly hello. Edit or delete it freely.
-use os.
-
-the Hello is an actor.
-this can Run.
-this's Run does...
-    do OS's Type with "hello".
-    do OS's Sleep with 500.
-    this is ok!
-
-the App is a script.
-do Hello's Run...
-    when ok?
-        log "hello: done".
-    or?
-        log that's error.
-`
-
-// seedHello writes the starter hello route into the global scope.
-func seedHello(routesDir string) error {
-	dst := filepath.Join(routesDir, "global", "hello.marco")
-	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
-		return err
+// activate makes a staged directory the one in use, or leaves the old one exactly as it was.
+func activate(binDir, staged string) error {
+	old := binDir + "-previous"
+	_ = os.RemoveAll(old)
+	if _, err := os.Stat(binDir); err == nil {
+		if err := os.Rename(binDir, old); err != nil {
+			return inUse(err, "Marco")
+		}
 	}
-	return os.WriteFile(dst, []byte(helloRoute), 0o644)
+	if err := os.Rename(staged, binDir); err != nil {
+		// PUT THE OLD ONE BACK. The window between these two renames is the only
+		// moment this installation is not whole, and leaving it there would be worse
+		// than the mixed binaries this function exists to avoid: there would be no
+		// Marco at all.
+		if _, serr := os.Stat(old); serr == nil {
+			_ = os.Rename(old, binDir)
+		}
+		return inUse(err, "Marco")
+	}
+	return nil
+}
+
+// inUse says what to do about a file something is holding, or passes the error on.
+//
+// Windows answers ERROR_SHARING_VIOLATION (32) or ERROR_LOCK_VIOLATION (33) for that, and
+// neither maps onto `fs.ErrPermission` — so a check on permission alone reads "Marco is open" as
+// "your account cannot write here", which is the wrong thing to go and look at. By NUMBER rather
+// than by message text, because the message is localised.
+//
+// Nothing is killed. A window that is recording, or holding a draft that exists nowhere else, is
+// not something an installer may close on somebody's behalf.
+func inUse(err error, what string) error {
+	if errors.Is(err, fs.ErrPermission) || isInUse(err) {
+		return fmt.Errorf("%s is still running, so this version was not installed. "+
+			"Close it — the Studio window and anything it started — and run this "+
+			"again. The version you had is still the one in use", what)
+	}
+	return err
+}
+
+// stampName is the file inside an active bundle that says which version it is.
+const stampName = ".version"
+
+// safeName is a version turned into something that can be a directory name.
+func safeName(ver string) string {
+	if ver == "" {
+		return "staged"
+	}
+	out := make([]rune, 0, len(ver))
+	for _, r := range ver {
+		switch {
+		case r >= '0' && r <= '9', r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z',
+			r == '-', r == '.', r == '_':
+			out = append(out, r)
+		default:
+			out = append(out, '_')
+		}
+	}
+	return string(out)
 }
 
 // isInUse reports whether a write failed because something is executing the file.

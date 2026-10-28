@@ -90,10 +90,44 @@ func New() Recorder { return &winRecorder{} }
 // Package-level capture state — the hook callbacks are C callbacks and can only
 // reach package state. Only one recorder is active at a time.
 var (
-	recMu         sync.Mutex
-	recBuf        []RecordedEvent
-	recPub        chan RecordedEvent
-	recActive     atomic.Bool
+	recMu     sync.Mutex
+	recBuf    []RecordedEvent
+	recPub    chan RecordedEvent
+	recActive atomic.Bool
+	// recSession is which recording the global state above belongs to, raised by every
+	// Start.
+	//
+	// # Why a session number and not a flag
+	//
+	// Because the workers outlive a shutdown that could not complete. The app-switch
+	// poller's one blocking call is a foreground-window read, which does not return while
+	// the window's owning thread is not pumping; the capture worker is doing screen work
+	// and image encoding. `Stop` is bounded, so it gives up and returns — and those two
+	// goroutines are still running, still holding an index into a buffer, and still able
+	// to publish through this package's state.
+	//
+	// So each of them takes the session it belongs to when it starts and compares before
+	// writing. An old poller's late app switch is then dropped instead of appearing in a
+	// later recording, and an old capture cannot write a picture into whatever event
+	// happens to be at its index now.
+	//
+	// See [[ADR-263-the-alpha-is-the-studio-stack-and-it-says-what-it-is]].
+	recSession atomic.Int64
+	// recWedged is set when a shutdown gave up on hooks it could not remove, and no
+	// further recording is allowed in this process.
+	//
+	// THE HOOKS CANNOT BE FENCED FROM HERE, which is why this is a refusal rather than
+	// another session check. They are C callbacks reached by the operating system with no
+	// context of their own; they gate on `recActive`, and the next Start would set that
+	// true again — at which point an abandoned recording's hooks, still installed because
+	// the thread that owns them never answered, would feed the NEW recording. A session
+	// number in Go cannot reach them.
+	//
+	// So a recording that could not be stopped ends recording for the life of the
+	// process, and says that a restart is what fixes it. That is the honest consequence
+	// of hooks that are still installed, and it is what the shutdown's own message
+	// already said: "They stay installed until this process exits."
+	recWedged     atomic.Bool
 	lastMoveNanos atomic.Int64
 	// foreApp is the app poller's last sample, published so the HOOK can tag an event
 	// with the application it landed in without making a process query of its own.
@@ -124,9 +158,12 @@ type winRecorder struct {
 	stopped chan struct{} // hook pump finished
 	// ready closes once the pump publishes its thread id; a blocking pump is woken by a
 	// posted WM_QUIT rather than by a closed channel.
-	ready          chan struct{}
-	threadID       atomic.Uint32
-	pollStopped    chan struct{} // app poller finished
+	ready       chan struct{}
+	threadID    atomic.Uint32
+	pollStopped chan struct{} // app poller finished
+	// session is which recording this is, so its workers can tell whether the global
+	// state still belongs to them. See recSession.
+	session        int64
 	captureStopped chan struct{} // click-template capture worker finished
 	// mode is what this recorder was TOLD to capture, or Inherited when nothing was.
 	//
@@ -215,6 +252,20 @@ var anchorArmed atomic.Bool
 var stopKey = ParseStopKey(os.Getenv("MARCO_STOP_KEY"))
 
 func (r *winRecorder) Start() error {
+	// A SHUTDOWN THAT COULD NOT COMPLETE ENDS RECORDING FOR THIS PROCESS. See recWedged:
+	// the abandoned recording's hooks are still installed and gate on `recActive`, which
+	// the lines below are about to set true again — so a second recording would be fed by
+	// the first one's hooks, and no amount of fencing in Go can reach a C callback.
+	//
+	// Asked FIRST, before anything is published or installed, so a refused Start leaves
+	// the process exactly as it was.
+	if recWedged.Load() {
+		return fmt.Errorf("this Marco cannot record again: a previous recording's " +
+			"keyboard and mouse hooks could not be taken off, so anything " +
+			"recorded now would be fed by them as well. Close Marco and open it " +
+			"again")
+	}
+	r.session = recSession.Add(1)
 	recMu.Lock()
 	recBuf = nil
 	recPub = make(chan RecordedEvent, 1024)
@@ -288,6 +339,12 @@ func (r *winRecorder) Start() error {
 			if img == nil {
 				continue
 			}
+			// AND IS THIS STILL OUR RECORDING? A capture that came back after a
+			// shutdown gave up on it would write a picture into whatever event is
+			// at its index in a LATER recording's buffer. See mine.
+			if !r.mine() {
+				continue
+			}
 			recMu.Lock()
 			if req.idx >= 0 && req.idx < len(recBuf) {
 				recBuf[req.idx].Image = img
@@ -316,7 +373,11 @@ func (r *winRecorder) Start() error {
 	go func() {
 		defer close(r.pollStopped)
 		last := ""
-		if app := winctx.Active(); app != "" {
+		// ONE DECISION, ASKED TWICE. The first sample and every later one differ only
+		// in what `last` is — "" before anything has been seen — so a second copy of
+		// the condition here is a second place for it to drift, and it did: the
+		// session fence was added to one of them first. See appSwitchToRecord.
+		if app := winctx.Active(); r.appSwitchToRecord(app, last) {
 			last = app
 			foreApp.Store(app)
 			record(RecordedEvent{Kind: EvAppSwitch, KeyName: app, T: time.Now()})
@@ -328,10 +389,11 @@ func (r *winRecorder) Start() error {
 			case <-r.done:
 				return
 			case <-t.C:
-				if app := winctx.Active(); app != "" && app != last {
+				if app := winctx.Active(); r.appSwitchToRecord(app, last) {
 					last = app
 					foreApp.Store(app)
-					record(RecordedEvent{Kind: EvAppSwitch, KeyName: app, T: time.Now()})
+					record(RecordedEvent{Kind: EvAppSwitch, KeyName: app,
+						T: time.Now()})
 				}
 			}
 		}
@@ -798,6 +860,9 @@ func waitedFor(ch <-chan struct{}, bound time.Duration) bool {
 // to a run than a hook that outlives it.
 func (r *winRecorder) abandon() []RecordedEvent {
 	recActive.Store(false)
+	// AND NO FURTHER RECORDING IN THIS PROCESS. The hooks are still installed and the
+	// next Start would turn `recActive` back on for them; see recWedged.
+	recWedged.Store(true)
 	r.done = nil
 	recMu.Lock()
 	out := recBuf
@@ -809,4 +874,34 @@ func (r *winRecorder) abandon() []RecordedEvent {
 	// not be the ordinary path minus a step.
 	resolveImages(out, winctx.ImageOf)
 	return out
+}
+
+// mine reports whether the global recording state still belongs to this recorder.
+//
+// Asked by a worker immediately before it publishes anything. A shutdown that could not complete
+// leaves the poller and the capture worker running — the poller inside a foreground-window read
+// that has not returned, the capture inside screen work — and either of them can come back after
+// a later recording has started. Without this, an old poller's app switch appears in somebody
+// else's demonstration and an old capture writes a picture into whatever event is at its index
+// now. See recSession.
+func (r *winRecorder) mine() bool { return recSession.Load() == r.session }
+
+// appSwitchToRecord is whether a sampled foreground app is one to record right now.
+//
+// Three questions, and the third is the one that was missing. The sample has to have found an
+// application at all; it has to be a CHANGE from the last one recorded, which for the first
+// sample means any application at all; and the global recording state has to still belong to this
+// recording.
+//
+// That third question is asked AFTER the sample rather than before it, and the ordering is the
+// point: `winctx.Active()` is the call that blocks, so the instant that matters is the one it
+// returns in. A shutdown that gave up while the poller was inside that read leaves it to come
+// back later — possibly after another recording has started — and an app switch appearing in
+// somebody else's demonstration is a step they never performed.
+//
+// Its own function because the loop asks it twice, and a condition written twice is one that
+// drifts: the fence went into one of the two first. See mine, and
+// `TestAnAbandonedPollersSampleIsNotRecorded`.
+func (r *winRecorder) appSwitchToRecord(app, last string) bool {
+	return app != "" && app != last && r.mine()
 }

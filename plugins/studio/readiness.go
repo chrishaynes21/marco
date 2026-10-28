@@ -44,6 +44,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/chaynes-simpleclouds/marco/internal/marcopaths"
 	"github.com/chaynes-simpleclouds/marco/internal/recorder"
 )
 
@@ -136,6 +137,9 @@ func (a *Acts) Ready() Readiness {
 		Limits:       readinessLimits,
 	}
 	out.Problems = append(out.Problems, madeProblems...)
+	// AND IS THERE A SECOND LIBRARY. See whatOtherLibraryIsHere: the installer used to
+	// put one here, and nothing may move it.
+	out.Problems = append(out.Problems, a.whatOtherLibraryIsHere()...)
 	// ── WHICH BINARY IS THIS ──
 	//
 	// "unknown" is what `buildid` answers when the toolchain left no VCS stamp, which is
@@ -419,4 +423,52 @@ func hashOf(path string) (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+// whatOtherLibraryIsHere names a library that is NOT the one in use, when there is one.
+//
+// # What this closes, and why it was already promised
+//
+// [[ADR-252-a-library-is-a-place-and-a-routine-is-played-where-it-was-made]] says the window
+// "names any library-shaped directory beside its launch location that holds routines and says
+// what to do about it; nothing is adopted or moved, because choosing between two libraries is
+// the person's". `marcopaths.Elsewhere` was written for exactly that and **nothing ever called
+// it** — a complete mechanism with no caller, which is this repository's own recorded failure
+// mode and the reason every new call site gets a mutation run.
+//
+// It matters now because the alpha's installer created the case. Until this slice the launcher
+// set `MARCO_ROUTES` to its own installation directory, so every overlay-era bundle kept its
+// routines under `%LOCALAPPDATA%\Marco\routes`. Installation and data are separate now and the
+// library resolves where it always should — `$MARCO_HOME`, else `%APPDATA%\marco` — which means a
+// person upgrading from a bundled install has routines in a directory nothing reads any more.
+//
+// NOTHING IS MOVED OR MERGED. Two libraries is a thing to be told about, with both paths and the
+// one setting that chooses between them; which one somebody wants is not a question an upgrade
+// may answer on their behalf, and merging them would be an installer editing a library.
+//
+// # Where it looks
+//
+// Beside Studio's own executable, which is `…\Marco\bin` in an installation and `plugins\studio`
+// or the repo root in a tree. `Elsewhere` climbs three levels, which reaches `…\Marco\routes`
+// from `bin\` and the top of a source tree from a binary inside it — the two cases that exist.
+//
+// See [[ADR-263-the-alpha-is-the-studio-stack-and-it-says-what-it-is]].
+func (a *Acts) whatOtherLibraryIsHere() []Problem {
+	exe, err := os.Executable()
+	if err != nil {
+		return nil
+	}
+	found, n := marcopaths.Elsewhere(filepath.Dir(exe))
+	if n == 0 || marcopaths.SameStore(found, a.routesDir) {
+		return nil
+	}
+	return []Problem{{
+		Says: fmt.Sprintf("there is another library beside this Marco with %d "+
+			"routine(s) in it, and it is not the one in use: %s. The one in "+
+			"use is %s", n, found, a.routesDir),
+		Do: "nothing has been moved, and nothing will be. If those are the routines " +
+			"you want, set MARCO_HOME to the folder that contains them and open " +
+			"Marco again; if they are an older install's, leave them or delete " +
+			"the folder yourself",
+	}}
 }

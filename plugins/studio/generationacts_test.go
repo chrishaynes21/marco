@@ -657,3 +657,71 @@ func TestAnInstalledMarcoSaysWhatItIsMadeOf(t *testing.T) {
 		t.Errorf("an unreadable manifest gives %q and %+v", made, problems)
 	}
 }
+
+// A SECOND LIBRARY IS NAMED, AND NOTHING IS MOVED.
+//
+// ADR-252 promised this — "the window names any library-shaped directory beside its launch
+// location that holds routines and says what to do about it; nothing is adopted or moved" — and
+// `marcopaths.Elsewhere` was written for it and NEVER CALLED. A complete mechanism with no
+// caller, which is this repository's recorded failure mode.
+//
+// It matters now because the alpha's installer created the case: until this slice the launcher
+// pointed `MARCO_ROUTES` at its own installation directory, so every overlay-era bundle kept its
+// routines under `%LOCALAPPDATA%\Marco\routes` — and with installation and data separated, that
+// is a library nothing reads any more.
+//
+// See [[ADR-263-the-alpha-is-the-studio-stack-and-it-says-what-it-is]].
+func TestASecondLibraryIsNamedAndNothingIsMoved(t *testing.T) {
+	exe, err := os.Executable()
+	if err != nil {
+		t.Skip("this platform cannot say where the test binary is")
+	}
+	// A LIBRARY BESIDE THIS BINARY, which is where an old bundled install's routines
+	// sit relative to `bin\`. One level up from the executable, which is what
+	// `Elsewhere` climbs.
+	beside := filepath.Join(filepath.Dir(exe), "..", "routes", "global")
+	if err := os.MkdirAll(beside, 0o755); err != nil {
+		t.Skipf("cannot write beside the test binary: %v", err)
+	}
+	at := filepath.Join(beside, "an-older-routine.marco")
+	if _, err := os.Stat(at); err == nil {
+		t.Skip("something is already there")
+	}
+	if err := os.WriteFile(at, []byte("use os.\n\nthe App is a script.\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Remove(at) })
+
+	// AND THE LIBRARY IN USE IS SOMEWHERE ELSE, which is the whole case.
+	a := newActs(t.TempDir())
+	a.routesDir = t.TempDir()
+
+	problems := a.whatOtherLibraryIsHere()
+	if len(problems) != 1 {
+		t.Fatalf("a second library holding a routine is reported as %d problem(s): "+
+			"%+v", len(problems), problems)
+	}
+	for _, says := range []string{"another library", a.routesDir} {
+		if !strings.Contains(problems[0].Says, says) {
+			t.Errorf("the problem says %q and does not mention %q",
+				problems[0].Says, says)
+		}
+	}
+	// AND IT SAYS NOTHING WILL BE MOVED, and what the one setting is. A notice that
+	// named two libraries without saying how to choose would leave somebody stuck.
+	for _, says := range []string{"nothing has been moved", "MARCO_HOME"} {
+		if !strings.Contains(problems[0].Do, says) {
+			t.Errorf("the advice is %q and does not say %q", problems[0].Do, says)
+		}
+	}
+	// AND THE OTHER LIBRARY IS STILL THERE, UNTOUCHED, which is the claim that matters.
+	if _, err := os.Stat(at); err != nil {
+		t.Errorf("the routine in the other library is gone: %v", err)
+	}
+	// AND WHEN THE LIBRARY IN USE IS THAT ONE, THERE IS NOTHING TO SAY. Without this
+	// the notice fires at everybody who has one library in the ordinary place.
+	a.routesDir = filepath.Join(filepath.Dir(exe), "..", "routes")
+	if problems := a.whatOtherLibraryIsHere(); len(problems) != 0 {
+		t.Errorf("the library in use is reported as another library: %+v", problems)
+	}
+}
