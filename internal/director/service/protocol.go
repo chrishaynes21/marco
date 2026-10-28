@@ -54,6 +54,7 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/director/perception/windowref"
 	"github.com/chaynes-simpleclouds/marco/internal/director/values"
 	"github.com/chaynes-simpleclouds/marco/internal/director/workflowstore"
+	"github.com/chaynes-simpleclouds/marco/internal/resolveroute"
 	"github.com/chaynes-simpleclouds/marco/pkg/directorapi"
 	"github.com/chaynes-simpleclouds/marco/pkg/playbill"
 	"time"
@@ -128,7 +129,7 @@ import (
 //
 // So it is bumped for the same reason Version 7 was: not because the field is required, but
 // because the degradation would be quiet and would be believed.
-const ProtocolVersion = 10
+const ProtocolVersion = 11
 
 // RequestType names what a client is asking for.
 type RequestType string
@@ -277,6 +278,22 @@ const (
 	// creates no rehearsal grant, and rendering "learned play available" authorises no
 	// execution.
 	RequestPlaybill RequestType = "PLAYBILL"
+	// RequestResolveRoute asks which saved routine a request in a person's own words
+	// meant. READ-ONLY, and it grants nothing.
+	//
+	// # Why Director answers this and not each surface
+	//
+	// Because the answer depends on two things no surface can supply honestly about
+	// itself. Which routines are ELIGIBLE depends on what is in front, and a window has
+	// the foreground whenever somebody is typing into it; which LIBRARY the answer is
+	// about is Director's, and a surface resolving against its own would be answering a
+	// different question with the same words. Studio grew its own copy of this and the
+	// widget could not reach it, which would have made two answers to one question.
+	//
+	// It returns a route IDENTITY and a sentence. Running a routine is still the person
+	// pressing Play, which goes through the one intake's explicit-identity arm with every
+	// guard it already has — see [[ADR-267-director-owns-route-resolution]].
+	RequestResolveRoute RequestType = "RESOLVE_ROUTE"
 
 	// RequestShutdown stops the service.
 	RequestShutdown RequestType = "SHUTDOWN"
@@ -931,6 +948,42 @@ type PlaybillPayload struct {
 // believes, sitting between the Director and every surface that renders it.
 type PlaybillResponse struct {
 	View playbill.View `json:"view"`
+}
+
+// ── which routine did they mean ───────────────────────────────────────────────
+
+// ResolveRoutePayload asks which saved routine a request named.
+type ResolveRoutePayload struct {
+	// Request is the person's own words.
+	Request string `json:"request"`
+	// Target is the application to read it against, when the person named one.
+	//
+	// AN OVERRIDE AND THE AUTHORITATIVE ANSWER. It is the only one of the three readings
+	// that is a statement of intent rather than an observation, and it is how a surface
+	// that holds the foreground itself — which is every window somebody types into —
+	// says what they meant. Empty asks Director to work it out, which it may decline to:
+	// see resolveroute.Basis.
+	Target string `json:"target,omitempty"`
+	// Library is the route library the CALLER believes it is talking about.
+	//
+	// Sent so a mismatch can be NAMED. Both sides resolve it through `marcopaths`, so
+	// they agree unless the two processes were given different `$MARCO_ROUTES` — and a
+	// surface selecting a routine from a library Director was not reading would be
+	// offering a routine of that name rather than that routine. Empty does not check.
+	Library string `json:"library,omitempty"`
+}
+
+// ResolveRouteResponse carries the answer.
+//
+// The resolver's OWN type, forwarded whole, for the same reason the playbill's is: reshaping it
+// here would be a second opinion about which routine a request named, sitting between the
+// Director and every surface that shows one.
+type ResolveRouteResponse struct {
+	Answer resolveroute.Answer `json:"answer"`
+	// Mismatch is set when the caller named a different library from the one this was
+	// resolved against. The answer is still carried so a surface can say what it would
+	// have selected; a surface that sees this must select NOTHING.
+	Mismatch string `json:"mismatch,omitempty"`
 }
 
 // ── perception events ─────────────────────────────────────────────────────────

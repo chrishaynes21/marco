@@ -250,6 +250,54 @@ func (c *Client) ObservationEvents(p ObservationEventsPayload) (ObservationEvent
 // routes by and the EXISTING request that carries it — Confirm, Clarified or Observation.
 // There is nothing in the reply a caller can act on directly, and no method here that
 // would let one.
+// RequestError is a request the Director ANSWERED and refused, carrying its own code.
+//
+// # Why a type and not a sentence
+//
+// Because "the Director is not running", "this client speaks a protocol it does not" and "it
+// answered and refused" are three different things a person can act on differently, and a
+// surface that rendered all three as the first would send somebody to start a service that is
+// already running. A transport failure comes back as an ordinary error; this is the one that
+// means the service was reached and said no.
+type RequestError struct {
+	Code    string
+	Message string
+}
+
+func (e *RequestError) Error() string {
+	if e.Code == "" {
+		return e.Message
+	}
+	return e.Code + ": " + e.Message
+}
+
+// Incompatible reports whether the refusal was about the protocol itself.
+func (e *RequestError) Incompatible() bool { return e.Code == "protocol_version" }
+
+// ResolveRoute asks which saved routine a request named. It performs nothing.
+func (c *Client) ResolveRoute(p ResolveRoutePayload) (ResolveRouteResponse, error) {
+	resp, err := c.roundTrip(RequestResolveRoute, p)
+	if err != nil {
+		return ResolveRouteResponse{}, err
+	}
+	// AND A REFUSAL IS NOT AN ANSWER WITH NOTHING IN IT.
+	//
+	// The service answers a bad request with an ErrorPayload in a perfectly good
+	// envelope, so unmarshalling it into the response type succeeds and produces a ZERO
+	// answer '+chr(8212)+' which reads as "nothing matched". A protocol the Director does not speak
+	// would have looked exactly like a request it understood and could not satisfy.
+	if resp.Type == ResponseError {
+		var e ErrorPayload
+		_ = json.Unmarshal(resp.Payload, &e)
+		return ResolveRouteResponse{}, &RequestError{Code: e.Code, Message: e.Message}
+	}
+	var out ResolveRouteResponse
+	if err := json.Unmarshal(resp.Payload, &out); err != nil {
+		return ResolveRouteResponse{}, err
+	}
+	return out, nil
+}
+
 func (c *Client) Playbill(p PlaybillPayload) (PlaybillResponse, error) {
 	resp, err := c.roundTrip(RequestPlaybill, p)
 	if err != nil {

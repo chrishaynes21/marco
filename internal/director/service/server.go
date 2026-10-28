@@ -99,6 +99,12 @@ type Runtime interface {
 	// already exists. It must not observe, sample, capture, infer or authorise, and a
 	// front-end polling it must not change what it is describing.
 	Playbill(p PlaybillPayload) playbill.View
+	// ResolveRoute answers which saved routine a request named, and grants nothing.
+	//
+	// ON THE INTERFACE because the policy is the runtime's: the library and the world
+	// model are both its, and the service is the transport. A service that assembled this
+	// itself would be a second place that decides which routine a sentence meant.
+	ResolveRoute(p ResolveRoutePayload) ResolveRouteResponse
 	// ObservationEvents is a session's findings after a cursor.
 	ObservationEvents(p ObservationEventsPayload) ObservationEventsResponse
 	// Events is the perception event log from a cursor.
@@ -568,6 +574,26 @@ func (s *Server) dispatch(req RequestEnvelope, send func(ResponseEnvelope)) bool
 		var p ObservationEventsPayload
 		_ = req.Decode(&p)
 		send(NewResponse(req.RequestID, ResponsePerception, s.runtime.ObservationEvents(p)))
+
+	case RequestResolveRoute:
+		var p ResolveRoutePayload
+		if err := req.Decode(&p); err != nil {
+			send(NewResponse(req.RequestID, ResponseError, ErrorPayload{
+				Code: "malformed", Message: err.Error(),
+			}))
+			return false
+		}
+		// READ-ONLY, AND IT GRANTS NOTHING. Everything below the runtime call is a
+		// read of a library and a world model that already existed; there is no
+		// branch here that starts, authorises, raises, presses or writes, and no
+		// argument a caller could pass that would produce one. It does consult the
+		// configured resolver plugin, which is a subprocess and is the mechanism
+		// this reuses rather than something it smuggles past that rule.
+		//
+		// Removing the runtime call below leaves every surface asking and never
+		// resolving anything, with no error anywhere — the failure the wiring-test
+		// rule exists for. See TestRemovingTheRuntimeCallResolvesNothing.
+		send(NewResponse(req.RequestID, ResponseStatus, s.runtime.ResolveRoute(p)))
 
 	case RequestPlaybill:
 		// THE visibility path. Every presentation — the overlay's Watch and Diagnostics

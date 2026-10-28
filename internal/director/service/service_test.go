@@ -75,6 +75,9 @@ type fakeRuntime struct {
 	// runtime rather than composing an account of its own.
 	playbill      playbill.View
 	playbillCalls int
+	resolveCalls  int
+	resolveAsked  ResolveRoutePayload
+	resolve       ResolveRouteResponse
 	events        EventsResponse
 	providers     []ProviderStatus
 	attached      time.Time
@@ -152,6 +155,16 @@ func (f *fakeRuntime) LiveAnalysis(LiveAnalysisPayload) LiveAnalysisResponse {
 // Playbill is the Director half of the one visibility account. The fake serves whatever
 // a test set, so a round-trip asserts the TRANSPORT and the server's own contribution
 // rather than the Director's derivation, which has its own tests in cmd/director.
+// resolveCalls counts the ONE call that answers which routine a request named, so a mutation
+// that stops making it is visible rather than silent. See TestRemovingTheRuntimeCallResolvesNothing.
+func (f *fakeRuntime) ResolveRoute(p ResolveRoutePayload) ResolveRouteResponse {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.resolveCalls++
+	f.resolveAsked = p
+	return f.resolve
+}
+
 func (f *fakeRuntime) Playbill(PlaybillPayload) playbill.View {
 	f.mu.Lock()
 	defer f.mu.Unlock()
