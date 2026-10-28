@@ -127,6 +127,19 @@ type Deps struct {
 	// So a caller with a mode in mind states it here and it wins. Unstated is every
 	// caller there was, and they are unchanged: see RecordedAs and recorder.Mode.
 	Mode RecordedAs
+	// afterClassifying occupies the one instant the review flow cannot otherwise be asked
+	// about: between deciding which of a routine's images are missing and creating them.
+	//
+	// UNEXPORTED, and nil in every `Deps` anything builds — a `Deps` is made from its
+	// exported fields everywhere, so nothing in production can set this and nothing has a
+	// reason to be notified of that instant. That is the point. The gap is closed by
+	// creating the images exclusively rather than by being narrow, and the only way to
+	// show a gap is closed is to put something in it.
+	//
+	// The same discipline as the stop checks in `internal/oshost`: a tested mechanism is
+	// not a tested moment, and the moment is where this product's defects have been. See
+	// `TestAnImageThatAppearsAfterClassificationIsRefused`.
+	afterClassifying func()
 }
 
 // learnOptions are the simplify defaults for a demonstration, honoring the

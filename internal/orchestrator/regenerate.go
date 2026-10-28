@@ -300,7 +300,23 @@ func (d Deps) Replace(p Prepared) error {
 	if why != "" {
 		return fmt.Errorf("%q is left as it is: %s", p.Name, why)
 	}
-	if err := d.Reg.WriteAssets(images); err != nil {
+	// AND THE CREATION IS ITSELF THE CHECK, because classifying and then writing leaves a
+	// gap. Between deciding a path was missing and writing it, another save — another
+	// Studio, a `marco learn`, a sync — can create it, and `os.WriteFile` would truncate
+	// what they had just written on the strength of a reading taken beforehand. So these
+	// go through `CreateAssets`, which creates exclusively: the path existing IS the
+	// failure, with nothing written to it.
+	if d.afterClassifying != nil {
+		d.afterClassifying()
+	}
+	if err := d.Reg.CreateAssets(images); err != nil {
+		if errors.Is(err, fs.ErrExist) {
+			return fmt.Errorf("%q is left as it is: an image the rebuilt version "+
+				"needs appeared while this was being prepared to write, so "+
+				"something else is writing beside this routine — review it "+
+				"again and the comparison will be against what is there now "+
+				"(%v)", p.Name, err)
+		}
 		return fmt.Errorf("%q is left as it is: the images the rebuilt version needs "+
 			"could not be written: %w", p.Name, err)
 	}

@@ -1142,3 +1142,116 @@ func TestARefusalOnOneImageWritesNoneOfThem(t *testing.T) {
 		t.Errorf("the missing image was not created (%v)", rerr)
 	}
 }
+
+// AN IMAGE THAT APPEARS BETWEEN THE CLASSIFICATION AND THE CREATION IS REFUSED, UNTOUCHED.
+//
+// Classifying every path and then writing the missing ones leaves a gap. Another save — another
+// Studio, a `marco learn`, a sync — can create one of those paths in it, and a create-or-truncate
+// write would then destroy what they had just written on the strength of a reading taken
+// beforehand. The paths are reusable, so this is not a hypothetical collision between two
+// unrelated files: it is the same routine's own image name, written by whatever else is working
+// in that library.
+//
+// DETERMINISTIC, because the gap is occupied on purpose rather than raced for: `afterClassifying`
+// runs between the two, and what it does is what the other save would have done. A tested
+// mechanism is not a tested moment.
+func TestAnImageThatAppearsAfterClassificationIsRefused(t *testing.T) {
+	d, rt, image := anAnchoredRoutine(t)
+	statingNoGeneration(t, d, rt)
+	p, err := d.Prepare(rt)
+	if err != nil {
+		t.Fatalf("preparing: %v", err)
+	}
+	// THE IMAGE IS ABSENT WHEN THE REPLACEMENT IS ASKED FOR, so it classifies as one to
+	// create — which is the only state this is about.
+	if err := os.Remove(image); err != nil {
+		t.Fatal(err)
+	}
+	was, err := os.ReadFile(d.Reg.Path(rt))
+	if err != nil {
+		t.Fatal(err)
+	}
+	const somebodyElses = "a picture another save had just written"
+	d.afterClassifying = func() {
+		if err := os.WriteFile(image, []byte(somebodyElses), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	err = d.Replace(p)
+	if err == nil {
+		t.Fatal("a replacement wrote over an image that appeared after it had decided " +
+			"the path was empty")
+	}
+	if !strings.Contains(err.Error(), "appeared while") {
+		t.Errorf("the refusal is %q and does not say the image appeared", err)
+	}
+	// ITS BYTES ARE WHAT THE OTHER SAVE WROTE, which is the whole of this finding: not
+	// truncated, not replaced, not emptied.
+	if raw, _ := os.ReadFile(image); string(raw) != somebodyElses {
+		t.Errorf("the image holds %q rather than what the other save wrote",
+			string(raw))
+	}
+	// AND THE SOURCE IS AS IT WAS.
+	if raw, _ := os.ReadFile(d.Reg.Path(rt)); string(raw) != string(was) {
+		t.Errorf("the refused replacement wrote the source anyway:\n%s", raw)
+	}
+	// AND WITHOUT ANYTHING APPEARING, THE SAME REPLACEMENT GOES THROUGH — so the
+	// refusal above is not a function that refuses whenever an image is missing.
+	d.afterClassifying = nil
+	if err := os.Remove(image); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.Replace(p); err != nil {
+		t.Fatalf("a replacement whose image is simply missing was refused: %v", err)
+	}
+	if raw, rerr := os.ReadFile(image); rerr != nil ||
+		!bytes.Equal(raw, p.assets[image]) {
+		t.Errorf("the missing image was not created (%v)", rerr)
+	}
+	if raw, _ := os.ReadFile(d.Reg.Path(rt)); string(raw) != p.Now {
+		t.Errorf("the routine does not hold the reviewed version:\n%s", raw)
+	}
+}
+
+// AND THE REGISTRY'S OWN CREATION REFUSES AN EXISTING PATH WITHOUT TOUCHING IT.
+//
+// The mechanism under the moment above, asked directly: `CreateAssets` differs from `WriteAssets`
+// in exactly one way, and it is the one that matters.
+func TestCreatingAssetsRefusesAnExistingPathAndWriteAssetsDoesNot(t *testing.T) {
+	dir := t.TempDir()
+	at := filepath.Join(dir, "a-anchor-1.png")
+	const theirs = "what was already there"
+	if err := os.WriteFile(at, []byte(theirs), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	reg := routes.Registry{Dir: dir}
+	assets := map[string][]byte{at: []byte("what this would write")}
+
+	err := reg.CreateAssets(assets)
+	if !errors.Is(err, fs.ErrExist) {
+		t.Fatalf("creating over an existing image answered %v, which a caller cannot "+
+			"tell from any other failure", err)
+	}
+	if raw, _ := os.ReadFile(at); string(raw) != theirs {
+		t.Errorf("the refused creation changed the file: %q", string(raw))
+	}
+	// AND IT DOES CREATE A PATH THAT IS FREE, or the refusal above is satisfied by a
+	// function that writes nothing.
+	free := filepath.Join(dir, "sub", "a-anchor-2.png")
+	if err := reg.CreateAssets(map[string][]byte{free: []byte("new")}); err != nil {
+		t.Fatalf("creating a free path: %v", err)
+	}
+	if raw, _ := os.ReadFile(free); string(raw) != "new" {
+		t.Errorf("the created image holds %q", string(raw))
+	}
+	// AND `WriteAssets` STILL TRUNCATES, which is correct for a save and is why the two
+	// are separate functions rather than one with a flag.
+	if err := reg.WriteAssets(assets); err != nil {
+		t.Fatal(err)
+	}
+	if raw, _ := os.ReadFile(at); string(raw) != "what this would write" {
+		t.Errorf("WriteAssets no longer overwrites, so a save would now refuse its "+
+			"own images: %q", string(raw))
+	}
+}

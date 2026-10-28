@@ -362,3 +362,42 @@ func (r Registry) Replace(rt Route, source string) error {
 	}
 	return writeAtomic(r.Path(rt), []byte(source))
 }
+
+// CreateAssets writes each image, REFUSING to overwrite one that is already there.
+//
+// # Why this exists beside WriteAssets
+//
+// Because `WriteAssets` uses `os.WriteFile`, which creates OR TRUNCATES, and that is right for a
+// save: a fresh save owns the paths it names, and a collision on the routine's name is refused
+// before any of this. It is wrong for a REPLACEMENT, which decides beforehand which of a
+// routine's images are missing and may only create those. Between deciding and writing, another
+// save — another Studio, a `marco learn`, a sync — can create one of them; `os.WriteFile` would
+// then truncate a file somebody else had just written, having been told it was absent.
+//
+// So the creation itself is the check. `O_CREATE|O_EXCL` fails if the path exists, which closes
+// the gap rather than narrowing it: there is no instant between the test and the write because
+// they are one operation.
+//
+// The caller gets `fs.ErrExist` and is expected to refuse. Files created before that point are
+// left: they are paths that did not exist, nothing references them, and removing them would mean
+// deleting a file between creating it and tidying it up — a narrower version of the hazard this
+// function exists to close.
+func (r Registry) CreateAssets(assets map[string][]byte) error {
+	for path, data := range assets {
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			return err
+		}
+		f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+		if err != nil {
+			return err
+		}
+		if _, err := f.Write(data); err != nil {
+			_ = f.Close()
+			return err
+		}
+		if err := f.Close(); err != nil {
+			return err
+		}
+	}
+	return nil
+}

@@ -10380,3 +10380,51 @@ has never been able to reach, which is what the review said. **Physical recordin
 NOT EXERCISED.**
 
 See [[ADR-262-a-routine-states-which-generation-wrote-it]].
+
+### §41y — classifying is not writing
+
+One P1 left from §41x, and it is the same shape as the three before it: a check that was correct
+about an instant other than the one the act happens in.
+
+`Replace` classified every image path — missing, the same, different, unreadable — and then wrote
+the missing ones through `Registry.WriteAssets`, which is `os.WriteFile`: create **or truncate**.
+Between the classification and the write, another save — another Studio, a `marco learn`, a sync —
+can create one of those paths, and the write would then destroy what they had just written on the
+strength of a reading taken beforehand.
+
+Not a collision between unrelated files. These paths are reusable by design —
+`<base>-anchor-N.png` — so it is the same routine's own image name, written by whatever else is
+working in that library.
+
+So the creation **is** the check. `Registry.CreateAssets` opens each path with
+`O_CREATE|O_EXCL`, which closes the gap rather than narrowing it: there is no instant between the
+test and the write because they are one operation, and the path existing is the failure with
+nothing written to it. `WriteAssets` keeps create-or-truncate, which is right for a save — a fresh
+save owns the paths it names, and a collision on the routine's name is refused long before any of
+this. Two functions rather than one with a flag, because the two callers want opposite things for
+good reasons, and a flag would make the next caller choose.
+
+Files created before such a refusal are **left**. They are paths that did not exist, nothing
+references them, and removing them would mean deleting a file between creating it and tidying it
+up — a narrower version of the hazard being closed.
+
+**And the moment is tested rather than the mechanism.** `Deps.afterClassifying` is an unexported
+seam occupying the instant between the two steps, and what it does is what the other save would
+have done — so the test is deterministic rather than a race hoped for. Nothing in production can
+set it, since a `Deps` is built from its exported fields everywhere, and nothing has a reason to
+be notified of that instant. That is the point: the only way to show a gap is closed is to put
+something in it. The same discipline as the stop checks in `internal/oshost`, and the fourth time
+in this slice that the defect was about WHEN rather than WHAT.
+
+The mechanism underneath is asked directly too: `CreateAssets` answers `fs.ErrExist` and leaves
+the file as it was, creates a path that is free, and `WriteAssets` still truncates — which is the
+assertion that keeps the two from being quietly merged.
+
+3 mutations, 3 killed: the call reverted to `WriteAssets`, the flag changed to `O_TRUNC`, and the
+seam never fired.
+
+No desktop re-run, and the review said so: the scenario replaces one routine with no images, so
+nothing it exercises changed and this case is one it cannot reach. **Physical recording capture
+remains NOT EXERCISED.**
+
+See [[ADR-262-a-routine-states-which-generation-wrote-it]].
