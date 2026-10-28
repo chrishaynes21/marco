@@ -56,6 +56,8 @@ plugins/marco-app/assets/uia.exe
 plugins/marco-app/assets/overlay.exe
 plugins/marco-app/assets/overlay.marco
 plugins/marco-app/assets/version.txt
+plugins/marco-app/assets/studio.exe
+plugins/marco-app/assets/manifest.json
 dist/
 
 # Obsidian editor state for the docs/ vault. The notes are the knowledge; this is
