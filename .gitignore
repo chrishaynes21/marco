@@ -11,9 +11,17 @@
 # Test binary, built with `go test -c`
 *.test
 
-# Code coverage profiles and other test artifacts
+# Code coverage profiles and other test artifacts.
+#
+# NOT `coverage.*`. That pattern also matched cmd/perceptionreplay/coverage.go — 420 lines
+# of production source the root module does not build without — and hid it from git for the
+# whole of its life. It existed on one machine and in no clone, `go build ./...` passed here
+# and failed everywhere, and nothing said so until a commit was checked out into an empty
+# worktree. That is the SECOND time an unexamined pattern swallowed a source file; the
+# anchored `/routes/` note below is the first, and it was written as a comment, which cannot
+# fail. This one is held by `internal/wiringcheck` TestNoIgnorePatternHidesASourceFile.
 *.out
-coverage.*
+coverage.html
 *.coverprofile
 profile.cov
 
