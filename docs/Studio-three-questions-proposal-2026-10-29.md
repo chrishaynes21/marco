@@ -16,9 +16,15 @@ source_paths:
 
 # Three questions Studio runs together, and what each one is missing
 
-Traced at `fb7e677`. **Nothing is implemented here.** This is what exists, what is missing, and
-the smallest behaviour that would close each gap — one proposal, three slices, in the order they
-should be built.
+Traced at `fb7e677`. This is what exists, what is missing, and the smallest behaviour that would
+close each gap — one proposal, four slices, in the order they should be built.
+
+**Status.** The two that change no behaviour are **implemented**: Simplify's discoverability and
+the availability explanations, with the app-less Play sentence corrected. The two that do —
+`Rescope` and the playback target — are **contracts, revised and not yet built**, and both were
+sharpened after review: a rescope is a reviewed move between identities rather than a save under
+another word, and playback targeting covers global and in-place routines rather than only the
+application-bound ones.
 
 The three questions must stay apart, because they are decided at different moments, by different
 people, about different things:
@@ -66,23 +72,32 @@ See [[ADR-262-a-routine-states-which-generation-wrote-it]].
 
 Nothing in the mechanism. Everything in the finding of it.
 
-- Both buttons live inside `<details>Rebuild and re-record</details>`, closed on arrival.
-- **`Routine.Update` is computed, sent to the page, included in the redraw signature — and never
-  rendered.** The page reads it only to decide whether to redraw. The one fact that says "there is
-  something here worth your attention" is invisible.
+- Both buttons lived inside `<details>Rebuild and re-record</details>`, closed on arrival.
+- **`Routine.Update` was computed, sent to the page, included in the redraw signature — and never
+  rendered.** The page read it only to decide whether to redraw.
 - `Simplify typing pauses` is offered identically whether or not it would change a single step.
-  The honest reading of a greyed-out-or-not pair of buttons is "these always apply".
+  That one stands: see below for why finding out in advance costs a rebuild per routine per poll,
+  and what is said instead.
 
-### The smallest missing behaviour
+### The smallest missing behaviour — implemented
 
-**One line on the selected routine, when `update` is true, saying so and opening the detail.**
-No backend change, no new call, no write. The capability stops being hidden; what it does when
+**A visible `Review simplification` beside Play, conditioned on the stored demonstration.** No
+backend change, no new call, no write. The capability stops being hidden; what it does when
 pressed is unchanged, including every consent and refusal.
+
+**And NOT conditioned on `update`, which was this proposal's own mistake.** `Update` is about
+GENERATIONS — whether a difference between the rules that wrote this file and today's bears on
+it — and a routine today's rules wrote rebuilds byte for byte under them while still being full
+of typing pauses worth folding. Making `update` the entrance would have hidden simplification
+from most of a library. The entrance is `offer`: the routine still has its own recording beside
+it, and this build can explain its generation. Today's-rules review joins it on the same row only
+when `update` is true, because that IS the question `update` answers.
 
 Deliberately **not** proposed: computing in advance whether simplifying would change anything.
 That means building the rebuild for every listed routine on every poll, and `Prepare` reads a
-demonstration off disk and re-simplifies it. The cheap honest alternative is that pressing Review
-writes nothing — which is already true, and can be said in the sentence.
+demonstration off disk and re-simplifies it. The honest alternative is already there — pressing
+Review writes nothing, which is said beside the button, and the review card then says in words
+when the rebuilt version is identical to the routine you have.
 
 ---
 
@@ -115,35 +130,64 @@ FOCUS    routes/<app>/focus/<slug>.marco     from anywhere; brings <app> forward
 
 ### What is missing
 
-- **The three choices are a bare `<select>` labelled `it works`.** Each option says what the
-  routine does (`only while Discord is in front`) and none says what it costs: that asking for it
-  by name from anywhere else will not find it.
+- **The three choices were a bare `<select>` labelled `it works`.** Each option said what the
+  routine does (`only while Discord is in front`) and none said what it costs: that asking for it
+  by name from anywhere else will not find it. *(Fixed: each option now says both, and the
+  selected routine's panel says where it can be asked for.)*
 - **A saved routine's availability cannot be changed.** `Resave` is the only rescope and it is
   gated on `Unrunnable` — a routine that already refuses every press, where there is nothing to
   weigh up. For a routine that works, the only way to move it between the three is to record it
   again.
 - The forced-scope sentence is shown at review and never again. A person who returns to a guarded
-  routine a week later finds no answer to "why can't I make this work in place?"
+  routine a week later finds no answer to "why can't I make this work in place?" *(Partly fixed:
+  the sentence that stands where the withdrawn chooser was now says why, at the save. On a SAVED
+  routine it is still not said, because the honest answer there is "and here is how to move it",
+  which is `Rescope`.)*
 
 ### The smallest missing behaviour
 
-**`Rescope(route, want Scope)`: save the routine again, from its own demonstration, under a scope
-the person states.** The mechanism exists in `Resave`, which already re-simplifies the stored
-demonstration, writes under a stated scope and deletes the old identity. What has to be added
-around it is the discipline `Resave` does not need and this does:
+**Done first, and now implemented (`fb7e677`…):** the explanation alone, no new behaviour — each
+scope says where the routine can be ASKED FOR as well as where it works, at the save and on the
+saved routine, and the withdrawn chooser says why. That is worth having even if `Rescope` is never
+built, and nothing about `Rescope` is understandable without it.
 
-1. `WhyNotThisScope` decides which of the three are offerable, and the forbidden ones are shown
-   **with their reason**, not hidden — the question "why can't I?" is the one being answered.
-2. It goes through `Keep` with a **consent naming the version the person was shown**, not through
-   `Save`, which writes over. `Resave` may skip consent because the file it replaces refuses every
-   press; this one replaces a routine that works. See
-   [[ADR-266-one-set-of-rules-for-keeping-a-recording]].
-3. A routine with no stored demonstration cannot be rescoped, and says so — the same refusal
-   Review already makes.
+#### Then: Rescope is a reviewed MOVE BETWEEN IDENTITIES
 
-Smaller first slice, if one is wanted: the explanation alone, no new behaviour — each option says
-where it can be asked for, and the saved routine's panel says it too. That is worth doing even if
-`Rescope` is never built, and it is a prerequisite for `Rescope` being understandable.
+**Not a save under a different word.** A route's identity is its folder, so changing the scope
+creates a route at a new path and ends one at an old path — two files, two libraries' worth of
+things that can already be there, and a window between them. `Resave` is useful machinery and is
+**not a complete move contract**: it is allowed to be immediate precisely because the file it
+replaces refuses every press, so there is nothing to lose and nothing to collide with that is
+worth protecting.
+
+The contract, which must be built before the behaviour:
+
+1. **The destination is checked, and a collision needs its own consent.** A routine of this name
+   may already exist at the destination scope — `settings` in place and `settings` from anywhere
+   are two routes and always were. Consent to move is not consent to overwrite. `Keep`'s
+   `Consent` names one routine AND the version of it somebody was shown, re-read at the write;
+   a move with no destination consent is `routes.Registry.Create` with `O_CREATE|O_EXCL`, which
+   refuses rather than writes.
+2. **The source is shown before approval, because rebuilding can replace a hand edit.** The move
+   re-renders the routine from its stored demonstration — which is the only honest way to change
+   the scope, since the `Activate` a focus route carries is generated and a context route's is
+   stripped — and a person who edited their generated file by hand would lose that edit. So the
+   resulting source is on the screen, beside what is saved now, before anything is written. This
+   is the same discipline `regenerate.go` already applies, for the same reason, and it is not
+   optional here just because the person asked for a move rather than a rebuild.
+3. **The original is removed only after the destination exists and has been re-validated.** Write
+   the new route, read it back, check it is what was approved — then delete the old one. In that
+   order, with no window where neither exists, and a failed delete leaves two routines and SAYS
+   so rather than reporting a move that half happened. (`Resave` deletes after a successful save
+   already; what it does not do is re-read.)
+4. **`WhyNotThisScope` decides which destinations are offerable**, and the forbidden ones are
+   shown **with their reason** rather than hidden — "why can't I?" is the question being asked.
+5. **A routine with no stored demonstration cannot be moved**, and says so: there is nothing to
+   render from, and rewriting generated Marco by hand is how two things that have to agree stop
+   agreeing.
+
+See [[ADR-266-one-set-of-rules-for-keeping-a-recording]] for the lock, the consent-to-a-version
+rule and the exclusive create, all of which this uses unchanged.
 
 ---
 
@@ -181,6 +225,17 @@ exactly the shape that was recorded. The guard was never a claim about *which* w
 claim about what the window is *like*. Nothing anywhere states which one was meant, because
 nothing can: there is no flag, no field, no question.
 
+**And the precise limit of the fix, stated before it is built.** Today's guard validates **the
+window bound for execution** — that the window this run brought forward is still alive, in front,
+the same program, the same process, the same size and the same scale. It does not validate that
+this is the window, or the document, the demonstration was made in. Explicit playback selection
+fixes the CHOICE: it replaces enumeration order with a person's answer, and carries that answer
+into the binding. **It does not establish semantic equivalence with the recorded document**, and
+nothing proposed here does. Two Explorer windows showing different folders remain two windows
+Marco cannot tell apart on its own; what changes is that it stops guessing and the person says
+which. Anything stronger would need something durable about the document, which is a different
+question and is not this one — see [[ADR-071-a-window-is-not-a-place]].
+
 Two smaller things fall out of the same hole:
 
 - **`marco do` has no window argument.** `parseDoArgs` in `cmd/marco/assistant.go` takes
@@ -190,57 +245,86 @@ Two smaller things fall out of the same hole:
 - **A routine that works anywhere has no target at all.** `PlayRoutine` raises nothing when
   `App` is empty, so the run begins with Studio in front and the keystrokes go wherever the
   foreground is. *(Read off the code path, not observed — it wants a test before it is stated as
-  fact.)* And the page tells that person `Play brings the application forward and presses for
-  real`, which is a sentence about an application that routine does not have. That one is mine,
-  from the visual pass, and it is a one-line fix whichever way this goes.
+  fact.)* The page used to tell that person `Play brings the application forward and presses for
+  real`, about an application that routine does not have; that sentence was mine, from the visual
+  pass, and is **corrected** — it now says that nothing is brought forward and the presses go
+  into whatever is in front.
 
 ### The smallest missing behaviour
 
-**A window stated for one run, carried to the one place that binds it.** Three parts, none of
-which touches the language or the saved routine:
+**A window stated for one run — HANDLE AND OWNING PROCESS — carried to everything that acts on
+it.** None of it touches the language or the saved routine:
 
 1. **Studio asks only when there is a question.** `Deps.Pickable` already lists windows a person
-   can choose between, foreground first, Marco's own excluded. Filtered to the routine's
-   application: nought or one window, no question is asked and nothing changes; two or more, the
-   chooser appears, defaulting to what `theWindowToRaise` would have picked.
-2. **`marco do --window=hwnd:N`** carries it, beside `--app`, as a fact about this invocation.
-3. **The host binds the stated window** instead of `findWindow`'s first — after confirming it
-   belongs to the application the route names. A stated window that has closed, or that belongs
-   to another program, **refuses**; it must not fall back to "the first one", which would be the
-   ambiguity coming back in silently while the person believed they had answered it.
+   can choose between, foreground first, Marco's own excluded. Nought or one candidate, no
+   question is asked and nothing changes; two or more, the chooser appears, defaulting to what
+   `theWindowToRaise` would have picked.
+2. **The selected window is visible beside Play**, not only inside the chooser. What a run is
+   about to act on is part of what Play means, and a choice made and then hidden is a choice the
+   person cannot check before pressing.
+3. **`marco do --window=hwnd:N --window-pid:P`** carries it beside `--app`, as a fact about this
+   invocation. **The PID travels with the handle**, because a handle alone is not an identity:
+   Windows reuses them, and the guard's own process check is only meaningful against a process
+   that was named at selection time.
+4. **One decision, used twice.** Studio raises THAT handle instead of consulting
+   `theWindowToRaise` again, and the host binds THAT handle instead of `findWindow`'s first.
+   Today those are two independent choosers that happen to agree; after this there is one answer
+   and two users of it.
+5. **Disappearance or a change of owner REFUSES.** A stated window that has closed, or whose
+   handle now belongs to another process, stops the run and says which — it must never fall back
+   to "the first one", which is the ambiguity returning silently while the person believes they
+   answered it.
+
+**It covers all three kinds of route, because availability does not answer this question:**
+
+- **Application-bound (focus).** As above: the handle and PID reach `Activate`'s binding, and the
+  guard then checks that window as it always did.
+- **In place (context).** The route carries no `Activate`, so there is nothing for the host to
+  bind — but Studio still raises something before the run, and *that* is the choice. Same
+  chooser, same handle, same refusals; it ends at the raise instead of at a binding.
+- **Anywhere (global).** The hard one, and the one with no answer today: a global routine names
+  no application, so **where its keystrokes should go is not implied by anything it carries**.
+  Availability says it can be asked for from anywhere; it does not say what it acts on. Play
+  therefore needs an **explicit handoff**: the person names the window this run is for, Studio
+  raises it and hands the foreground on, exactly as it does for an application — and if they name
+  nothing, Play says what will receive the presses rather than running with Studio in front and
+  discovering it afterwards. (Whether "nothing named" should run at all is the one open product
+  question in this slice, and it is the owner's to answer, not mine.)
 
 **The guard does not change at all, and is not weakened.** It still refuses unless the bound
 window is alive, in front, the same process, the same program, the same size and the same scale.
-Stating a window decides only *which* window gets bound — the thing that was previously decided by
-enumeration order. The guard gets stricter in effect, because the window it confirms is now the
-one somebody named.
+Stating a window decides only *which* window gets bound — previously decided by enumeration
+order — and the PID carried beside the handle gives the existing process check something that was
+named by a person rather than found by a search.
 
 **Nothing is stored.** A handle is not an identity ([[ADR-071-a-window-is-not-a-place]]) and
 neither is a title; a title may ADDRESS a window and must never identify one. The choice is made
 at Play, used by one run, and forgotten — which is exactly why this is not the same question as
 availability.
 
-### What this cannot reach
-
-Only routes that bring a window forward — which is the guarded case, and the one that matters.
-A context routine carries no `Activate`, so there is nothing to bind: choosing a window there
-means choosing what **Studio** raises before the run, which needs no flag. A global routine has no
-window in it at all; the honest answer for one of those is the gap named above, not a target.
-
 ---
 
 ## Order, and what each slice costs
 
-1. **Simplify discoverability.** One sentence on a routine that has one. No backend change.
-   Smallest, and it makes an existing capability real.
-2. **Availability, said in words.** Each scope explains where the routine can be asked for, at
-   the save and on the saved routine, in the vocabulary `resolveroute.Eligible` actually uses.
-   No behaviour change.
-3. **`Rescope`.** The first real behaviour: `Resave`'s mechanism, `WhyNotThisScope`'s rules, and
-   `Keep`'s consent. Refuses what the contract forbids, and says why rather than hiding it.
-4. **Playback target.** The largest, and the one with a defect under it: a chooser in Studio, a
-   `--window` on `marco do`, a stated binding in the host, and a refusal where there is now a
-   silent choice.
+1. **Simplify discoverability — DONE.** `Review simplification` is beside Play, conditioned on
+   the routine still having its own demonstration (`offer`) and **not** on the generator's rules
+   having moved (`update`), which answers a different question: a routine today's rules wrote
+   rebuilds byte for byte under them and can still be full of typing pauses. Today's-rules review
+   joins it on the same row only when a generation difference bears on that file. Both say that
+   nothing is written, and the review card already says when a rebuild would change nothing.
+2. **Availability, said in words — DONE.** Each scope says where the routine can be ASKED FOR as
+   well as where it works, in the vocabulary `resolveroute.Eligible` uses, at the save and on the
+   saved routine; the withdrawn chooser says why a guarded recording has one choice. And the
+   sentence under Play no longer promises an application an app-less routine does not name.
+3. **`Rescope`.** The first real behaviour, and a **reviewed move between identities** rather
+   than a save under another word: destination checked with its own consent, resulting source
+   shown before approval because the rebuild can replace a hand edit, and the original removed
+   only after the destination exists and has been re-read.
+4. **Playback target.** The largest, and the one with a defect under it: a chooser in Studio, the
+   selected window visible beside Play, a handle AND its owning process carried through the raise
+   and the binding, one decision where there are now two, a refusal on disappearance or a change
+   of owner — and an explicit handoff for the global routines whose availability answers nothing
+   about where their keystrokes should go.
 
 ## Not proposed
 
@@ -251,3 +335,18 @@ window in it at all; the honest answer for one of those is the gap named above, 
   `CLAUDE.md`'s governance rule sets.
 - **Touching the recording scope.** `Deps.Watch` and the chosen window are settled
   ([[ADR-268-record-only-the-chosen-window]]) and are not what any of this is about.
+
+## The rendered states, after the two implemented slices
+
+At `docs/images/studio-ui/`, thirteen headless renders of the production page. The three that
+show this work:
+
+| | |
+| --- | --- |
+| `4-selected-routine.png` | an application routine: where it is asked for, `Play brings Discord forward`, `Review simplification` |
+| `4e-selected-in-place.png` | in place: **asked for only while Notepad is in front**, and today's-rules review beside the simplification because a generation difference bears on it |
+| `4d-selected-anywhere.png` | no application: **`Play presses for real, into whatever is in front when it runs`** — the sentence that used to promise an application this routine does not have |
+
+The fixtures behind them were corrected too: `app-front` was not one of the three scopes, and
+there was no app-less routine in the set at all — which is why the sentence that was wrong about
+one could not be seen in any picture.

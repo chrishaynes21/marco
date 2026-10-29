@@ -641,8 +641,16 @@ func (a *Acts) Recording() Recording {
 		if where == "" {
 			where = "the application it was recorded in"
 		}
-		out.Brings = fmt.Sprintf("Runs in %s. Marco brings it forward before "+
-			"playback.", where)
+		// AND WHY IT IS NOT A CHOICE, which is the half a withdrawn control cannot
+		// say for itself. This was "Runs in %s. Marco brings it forward before
+		// playback." — true, and silent about the thing a person is looking for when
+		// the chooser they expected is missing. The other two scopes bring no window
+		// forward, so a press checked against the window it was made in would have
+		// nothing to be checked against. See orchestrator.ScopeFor and
+		// WhyNotThisScope, which refuses the same pairing at the write.
+		out.Brings = fmt.Sprintf("Runs in %s, which Marco brings forward. Its presses "+
+			"are checked against that window, so the other two choices would "+
+			"leave every one of them refusing.", where)
 	}
 	if saved != "" {
 		out.Said = fmt.Sprintf("Saved %q — %s", c.name, saved)

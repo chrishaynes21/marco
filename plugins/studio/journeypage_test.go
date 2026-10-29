@@ -385,6 +385,129 @@ func TestEveryStepSentenceTheBackendWritesHasAVerb(t *testing.T) {
 	}
 }
 
+// A SECOND LOOK AT A ROUTINE IS REACHABLE WITHOUT OPENING ANYTHING.
+//
+// `internal/orchestrator/regenerate.go` is a careful four-step flow — prepare, review, replace or
+// cancel, with consent digests and a refusal if either file moved while the review was open — and
+// both of its entrances were inside a `<details>` that arrives closed. A complete capability
+// reachable only by somebody who already knew it was there.
+//
+// WHAT CONDITIONS IT IS THE DEMONSTRATION, NOT THE GENERATION. `offer` is the backend's answer
+// to "is there a recording beside this routine that a rebuild could be made from, and can this
+// build explain its generation" — and `update` answers something else entirely: whether a
+// difference between generations bears on this file. A routine today's rules wrote rebuilds byte
+// for byte under them and can still be full of typing pauses worth folding, so conditioning the
+// simplification on `update` would hide it from most of the library.
+func TestASecondLookAtARoutineIsOfferedWithoutOpeningADetail(t *testing.T) {
+	page := thePage(t)
+	if d := insideDetails(page, `id="routineSimplifyBtn"`); d != "" {
+		t.Errorf("the simplification review is inside a collapsed <details> (%q), "+
+			"which is where nobody found it", d)
+	}
+	if !before(page, `id="routinePlayBtn"`, `id="routineSimplifyBtn"`) {
+		t.Error("the second look comes before Play, which is the one thing this " +
+			"panel is for")
+	}
+	// AND IT SAYS IT WRITES NOTHING, beside the button rather than after the press.
+	// A control that shows a comparison and one that rewrites somebody's routine must
+	// not look alike.
+	row := between(t, page, `id="routineSecondLook"`, `</div>`)
+	if !strings.Contains(row, "Nothing is written") {
+		t.Errorf("the second-look row does not say that nothing is written: %q", row)
+	}
+
+	js := page[strings.Index(page, "<script>"):]
+	// AND IT IS SHOWN ON `offer`, NOT ON `update`.
+	if !regexp.MustCompile(`showing\(\$\('routineSecondLook'\),[^)]*r\.offer`).MatchString(js) {
+		t.Error("the second-look row is not shown by `offer`, which is the answer " +
+			"about whether the routine still has a demonstration to rebuild from")
+	}
+	shown := regexp.MustCompile(`showing\(\$\('routineSecondLook'\),\s*(.*)\)`).
+		FindStringSubmatch(js)
+	if shown != nil && strings.Contains(shown[1], "update") {
+		t.Errorf("the simplification is conditioned on `update` (%q), which is about "+
+			"the GENERATION — a routine today's rules wrote can still have typing "+
+			"pauses in it", shown[1])
+	}
+	// AND TODAY'S-RULES REVIEW IS THE ONE `update` CONDITIONS, because that IS the
+	// question it answers.
+	if !regexp.MustCompile(`showing\(\$\('routineReviewBtn'\),[^)]*r\.update`).MatchString(js) {
+		t.Error("today's-rules review is not conditioned on `update`")
+	}
+	// AND THE REVIEW CARD STILL SAYS WHEN A REBUILD WOULD CHANGE NOTHING. Two
+	// identical panes with a Replace button over them is a window offering to do
+	// nothing, and pressing a button that is safe should still end in a sentence.
+	if !strings.Contains(js, "would change nothing") {
+		t.Error("the review no longer says when the rebuilt version is identical")
+	}
+}
+
+// AND NOTHING PROMISES AN APPLICATION THE ROUTINE DOES NOT NAME.
+//
+// The sentence under Play read `Play brings the application forward and presses for real`, shown
+// for every runnable routine — including one saved to work ANYWHERE, which names no application
+// and brings nothing forward. For that routine the promise was simply false, and the truth is
+// the thing worth saying: nothing is raised, so the presses go to whatever holds the foreground.
+func TestPlayNeverPromisesAnApplicationARoutineDoesNotName(t *testing.T) {
+	page := thePage(t)
+	// NOT IN THE MARKUP. A sentence typed into the element is one sentence for every
+	// routine, which is how this went wrong.
+	el := between(t, page, `id="routinePlayMeans"`, "</div>")
+	if strings.Contains(el, "application forward") {
+		t.Errorf("the sentence under Play is written into the page, so it says the "+
+			"same thing about every routine: %q", el)
+	}
+	js := page[strings.Index(page, "<script>"):]
+	means := between(t, js, "function playMeans(r){", "\n }")
+	if !strings.Contains(means, "r.app") {
+		t.Error("what Play means is not decided by whether the routine names an " +
+			"application")
+	}
+	// THE APP-LESS ARM SAYS WHERE THE PRESSES GO, and does not name an application.
+	arms := strings.SplitN(means, "?", 2)
+	if len(arms) != 2 {
+		t.Fatalf("playMeans is not one choice between two sentences: %q", means)
+	}
+	appless := arms[1][strings.Index(arms[1], ":"):]
+	for _, must := range []string{"in front", "names no application"} {
+		if !strings.Contains(appless, must) {
+			t.Errorf("a routine with no application is told %q, which does not "+
+				"mention %q", appless, must)
+		}
+	}
+}
+
+// AND THE PANEL SAYS WHERE A ROUTINE CAN BE ASKED FOR, WHICH IS NOT WHERE IT WORKS.
+//
+// `resolveroute.Eligible` is one rule for the ask box, the widget and `marco dispatch`: a global
+// routine and one that brings its own application forward are eligible from anywhere, and an
+// in-place routine ONLY while its application is the context. Nothing in this window said so, so
+// a routine saved in place was simply missing when somebody asked for it from anywhere else —
+// and the library looked as though it had lost something.
+func TestThePanelSaysWhereARoutineCanBeAskedFor(t *testing.T) {
+	page := thePage(t)
+	js := page[strings.Index(page, "<script>"):]
+	asked := between(t, js, "function askedFor(r){", "\n }")
+	if !strings.Contains(asked, "r.app") || !strings.Contains(asked, "app-anywhere") {
+		t.Errorf("where a routine can be asked for is not decided by its scope: %q",
+			asked)
+	}
+	// AND PLAY IS UNAFFECTED, SAID IN BOTH ARMS. Choosing a card is not asking for
+	// anything by name, and a person reading "only while Notepad is in front" beside a
+	// live Play button has been told two things that contradict each other.
+	if strings.Count(asked, "Play works from") != 2 {
+		t.Errorf("one of the two answers does not say that Play is unaffected: %q",
+			asked)
+	}
+	// AND THE SCOPE CHOOSER SAYS IT TOO, at the moment the choice is made rather than
+	// a week later.
+	opts := between(t, js, "[['app',", "].forEach")
+	if !strings.Contains(opts, "only offered while") {
+		t.Errorf("the scope chooser says where a routine works and not where it can "+
+			"be reached: %q", opts)
+	}
+}
+
 // AND THE REVIEW SAYS IT WILL NOT RUN, IN THE PAGE, ABOVE THE REASON.
 //
 // This is the other end of a copy cut. `whyItWillNotRun` used to say three things — the count,

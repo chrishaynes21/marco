@@ -752,6 +752,16 @@
       <h3 id="routineIdentity" style="margin-top:16px"></h3>
       <div class="muted" id="routineIdentityWhere"></div>
 
+      <!-- AND WHERE YOU CAN ASK FOR IT, which is a different question from where it works
+           and is the one nothing in this window answered.
+           A routine saved to work in place is offered BY NAME only while its application
+           is in front — `resolveroute.Eligible`, which is the one rule for the ask box,
+           the widget and `marco dispatch` alike. Somebody who saved one and then could
+           not find it from anywhere else was reading a library that looked incomplete.
+           The row above says where it WORKS; this says where it can be REACHED. Written
+           by `askedFor`. -->
+      <div class="muted" style="margin-top:4px" id="routineAskedFor"></div>
+
       <!-- WHETHER ITS PRESSES ARE CHECKED, BEFORE PLAY RATHER THAN AFTER.
            Three states and one of them is a promise: a guarded routine stops at the first
            press it cannot check, a legacy one presses where it was recorded having checked
@@ -778,9 +788,39 @@
       <!-- SAID ONCE, AND ONLY WHEN IT APPLIES. The warning used to be in the button's own
            label AND in the card's paragraph above the list. It belongs next to the button,
            and it belongs nowhere at all when the button cannot be pressed: the refusal
-           above is what that person needs to read. -->
-      <div class="muted hide" style="margin-top:6px" id="routinePlayMeans">Play brings the
-        application forward and presses for real.</div>
+           above is what that person needs to read.
+
+           AND IT NAMES NO APPLICATION A ROUTINE DOES NOT HAVE. The sentence was `Play
+           brings the application forward and presses for real`, shown for EVERY runnable
+           routine — including one saved to work anywhere, which names no application and
+           brings nothing forward. For that one the whole promise was false, and the half
+           that is true is worse than vague: nothing is raised, so the presses go wherever
+           the foreground is, which at the instant somebody clicks Play is this window.
+           Written by `playMeans`. -->
+      <div class="muted hide" style="margin-top:6px" id="routinePlayMeans"></div>
+      <!-- AND A SECOND LOOK AT WHAT MARCO WOULD WRITE TODAY, WITHOUT OPENING ANYTHING.
+           `Simplify typing pauses` and `Rebuild with current rules` were both inside the
+           collapsed detail below, which is the whole of why nobody found them: a complete
+           review-and-replace flow, with consent and a refusal when either file moved,
+           reachable only by somebody who already knew it was there.
+
+           Offered whenever the routine still has its own demonstration beside it, which
+           is what a rebuild is made from — NOT only when the generator's rules have
+           moved. A routine today's rules wrote can still be full of typing pauses, and
+           `update` answers a different question. Today's-rules review joins it on the
+           same row only when there IS a generation difference that bears on this file.
+
+           Nothing is written by either: they open the review card below, which is where
+           Replace lives. That is said once, here, because a button that rewrites
+           somebody's routine and a button that shows them a comparison must not look
+           alike. See drawRoutinePlay. -->
+      <div class="row hide" style="margin-top:10px" id="routineSecondLook">
+        <button id="routineSimplifyBtn"
+          onclick="reviewRebuilt('simplify-typing')">Review simplification</button>
+        <button class="hide" id="routineReviewBtn"
+          onclick="reviewRebuilt('current')">Review today's rules</button>
+        <span class="muted">Shows a comparison. Nothing is written until you replace it.</span>
+      </div>
       <details style="margin-top:10px">
         <summary>What it will do, as Marco saved it</summary>
         <pre id="routineSource"></pre>
@@ -821,18 +861,18 @@
            if the routine or its recording moved while the review was open, which is also
            the whole of the protection for a routine somebody edited by hand — the edit is
            what the left-hand pane shows. See generation.go. -->
-      <!-- TWO EXPLICIT CHOICES, ONE REVIEW SURFACE.
+      <!-- TWO EXPLICIT CHOICES, ONE REVIEW SURFACE, AND BOTH ARE UP BESIDE PLAY NOW.
            "a version rebuilt from its recording" means two different things: today's
            generator rules, and those plus folding each run of typing into one step. The
            second removes the pauses inside a typed run, which is a behaviour change and
            reads as a tidy-up — so it is a choice with its own words and its own caution
            rather than an improvement applied quietly, and the review says which choice
-           produced what is on screen. See generation.go. -->
+           produced what is on screen. See generation.go.
+
+           The buttons moved OUT of this detail: `routineSecondLook`, under Play. What is
+           left here is the note they write into, because a person who pressed one of them
+           is reading the review card and not this summary. -->
       <div class="row" style="margin-top:10px">
-        <button id="routineReviewBtn"
-          onclick="reviewRebuilt('current')">Rebuild with current rules</button>
-        <button id="routineSimplifyBtn"
-          onclick="reviewRebuilt('simplify-typing')">Simplify typing pauses</button>
         <span class="muted" id="routineReviewNote"></span>
       </div>
       <div class="row" style="margin-top:10px">
@@ -1930,9 +1970,15 @@
      const scope = $('capScope')
      const had = scope.value
      scope.innerHTML = ''
-     ;[['app', 'only while ' + app + ' is in front'],
-       ['app-anywhere', 'from anywhere — bring ' + app + ' forward first'],
-       ['everywhere', 'anywhere, and switch nothing']].forEach(([v, says]) => {
+     // EACH ONE SAYS WHERE IT WORKS AND WHERE IT CAN BE ASKED FOR, which are two
+     // facts and were one. `only while Discord is in front` describes the run; what it
+     // does not say is that asking for the routine BY NAME from anywhere else will not
+     // find it either — `resolveroute.Eligible` offers an in-place routine only while
+     // its application is the context. That is the half somebody discovers a week later
+     // with a library that looks like it has lost something. See askedFor.
+     ;[['app', 'only in ' + app + ', and only offered while it is in front'],
+       ['app-anywhere', 'from anywhere — brings ' + app + ' forward'],
+       ['everywhere', 'from anywhere, switching nothing']].forEach(([v, says]) => {
        const o = document.createElement('option')
        o.value = v; o.textContent = says
        scope.appendChild(o)
@@ -2283,10 +2329,61 @@
  // Two buttons offering the same routine have to agree about whether it can be rebuilt at
  // all, and the answer is one field — `offer` — not a condition written per button. See
  // the note beside it in renderRoutine.
+ // THE SECOND LOOK: SHOWN WHEN THE DEMONSTRATION IS STILL THERE, not when the rules moved.
+ //
+ // `offer` is the backend's one answer — the routine still has its own recording beside it,
+ // and its generation is one this build can explain — and BOTH buttons read it, because a
+ // page with its own copy of that rule is a page that offers what the backend then declines.
+ //
+ // The row appears or does not; the buttons inside it are disabled only while one is in
+ // flight. A control that is permanently greyed with nothing beside it is a dead end this
+ // product has shipped before, so when there is no offer the whole row goes and the sentence
+ // explaining why is in the detail below, beside the generation it is about.
+ //
+ // `update` is a DIFFERENT question — whether a generation difference bears on this file —
+ // and it is why today's-rules review is conditioned separately. A routine today's rules
+ // wrote rebuilds byte for byte under them and can still be full of typing pauses.
  function paintReviewButtons(r, busy){
+   showing($('routineSecondLook'), !!(r && r.offer))
+   showing($('routineReviewBtn'), !!(r && r.offer && r.update))
    const off = busy || !r || !r.offer
    $('routineReviewBtn').disabled = off
    $('routineSimplifyBtn').disabled = off
+ }
+
+ // WHAT PLAY DOES, FOR THE ROUTINE IN FRONT OF SOMEBODY RATHER THAN FOR ROUTINES.
+ //
+ // A routine with an application is brought forward by name. One saved to work anywhere
+ // names no application, raises nothing, and presses into whatever holds the foreground —
+ // which is THIS WINDOW at the instant somebody clicks Play. Saying "brings the application
+ // forward" there promised an application the route does not have; saying nothing at all
+ // would leave the one case that needs a sentence without one.
+ //
+ // Held by TestPlayNeverPromisesAnApplicationARoutineDoesNotName.
+ function playMeans(r){
+   if (!r) { return '' }
+   return r.app
+     ? 'Play brings ' + r.app + ' forward and presses for real.'
+     : 'Play presses for real, into whatever is in front when it runs. This routine ' +
+       'names no application, so Marco brings nothing forward.'
+ }
+
+ // WHERE A ROUTINE CAN BE ASKED FOR BY NAME, which is not where it works.
+ //
+ // One rule, `resolveroute.Eligible`, serving the ask box, the widget and `marco dispatch`:
+ // a global routine and one that brings its own application forward are eligible from
+ // anywhere, and an in-place routine ONLY while its application is in front. Nothing in this
+ // window said so, so a routine saved in place looked missing from everywhere else.
+ //
+ // Play is unaffected and says so: this panel is reached by choosing a card, which is not
+ // asking for anything by name.
+ function askedFor(r){
+   if (!r) { return '' }
+   if (!r.app || r.scope === 'app-anywhere') {
+     return 'Ask for it by name from anywhere; Play works from here either way.'
+   }
+   return 'Ask for it by name only while ' + r.app + ' is in front; Play works from ' +
+     'here either way.'
  }
 
  function drawReview(){
@@ -2414,6 +2511,7 @@
    // panel used to open with provenance and never name the routine it was about.
    text($('routineIdentity'), r.name || '')
    text($('routineIdentityWhere'), whereItWorks(r))
+   text($('routineAskedFor'), askedFor(r))
    // WHAT IT CHECKS, WHEN THAT IS NOT WHAT THE BANNER BELOW SAYS. An incomplete
    // routine's checking and its reason for refusing are one sentence, and the backend
    // sends it as `why` alone rather than in both — so an empty line here is a line that
@@ -2428,6 +2526,7 @@
    showing($('routineWhy'), !r.runnable)
    text($('routineWhy'), r.why || '')
    showing($('routinePlayMeans'), !!r.runnable)
+   text($('routinePlayMeans'), playMeans(r))
    text($('routineSource'), r.source || '')
    // WHICH GENERATION WROTE IT, AND WHAT IT WAS WRITTEN WITHOUT.
    //

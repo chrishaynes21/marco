@@ -901,9 +901,19 @@ func TestAGuardedRecordingIsSavedToBringItsApplicationForward(t *testing.T) {
 		t.Errorf("review says the scope is %q", r.Scope)
 	}
 	if !strings.Contains(r.Brings, "arkascended") ||
-		!strings.Contains(r.Brings, "brings it forward") {
+		!strings.Contains(r.Brings, "brings forward") {
 		t.Errorf("review says %q, and a person has to be told that Marco brings "+
 			"the application forward before playback", r.Brings)
+	}
+	// AND WHY THE CHOICE IS NOT THEIRS, which a withdrawn control cannot say for
+	// itself. This sentence stands where a chooser was, so it has to answer the
+	// question somebody asks on finding one missing — and the answer is that the
+	// other two bring no window forward for a checked press to be checked against.
+	for _, says := range []string{"checked", "refus"} {
+		if !strings.Contains(r.Brings, says) {
+			t.Errorf("review says %q, which does not say why the other two "+
+				"scopes are not offered (%q)", r.Brings, says)
+		}
 	}
 }
 
