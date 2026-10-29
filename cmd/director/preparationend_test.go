@@ -64,7 +64,7 @@ func aStallingActRun(t *testing.T, delay string,
 	answer func(t *testing.T, out *liveOut, press func(uint16, bool)) func()) []runstate.Event {
 
 	t.Helper()
-	name := anActOverTheWindowInFront(t)
+	name := anActOverAStatedWindow(t)
 	src, press := navsource.NewSynthetic()
 	t.Cleanup(func() { _ = src.Close() })
 	was := newKeySource
@@ -218,7 +218,7 @@ func TestTheStartQuestionOffersOnlyTheKeysStartAccepts(t *testing.T) {
 // correction applied to one of two preparation gates is the shape of defect this whole exercise
 // keeps turning up.
 func TestTheClockOnlyPreparationIsAnnouncedAndEnded(t *testing.T) {
-	name := anActOverTheWindowInFront(t)
+	name := anActOverAStatedWindow(t)
 	path := filepath.Join(t.TempDir(), "events.jsonl")
 	out := &liveOut{}
 	// NO --hotkeys AND NO --application, which is what `lookAfterWaiting` wants: a run

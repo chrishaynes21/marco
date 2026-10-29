@@ -70,11 +70,18 @@ github.com/chaynes-simpleclouds/marco/plugins/overlay TestOverlaySleeperHelper �
 github.com/chaynes-simpleclouds/marco/plugins/overlay TestOverlayEchoHelper — the child half of a helper-process test; it declines unless runEchoChild spawned it
 github.com/chaynes-simpleclouds/marco/plugins/overlay TestOverlayEnvDumpHelper — the child half of a helper-process test; it declines unless envOfNextChild spawned it
 
-# ── THE ONE TEST THAT ASKS A REAL MODEL ───────────────────────────────────────
+# ── THE ONE TEST THAT ASKS A REAL MODEL — BEHIND A TAG, NOT HERE
 # Studio's ask box is held by headless tests with a stand-in resolver, which establish the policy
-# and nothing about whether a request ever leaves the process. This one asks the real plugin,
-# which asks a real model server. Neither is in this repository and neither is a thing a test may
-# start — a model server is somebody's machine — so it declines when either is absent rather than
-# passing on a machine where nothing was asked. On a set-up machine (setup.ps1 builds the plugin
-# and installs Ollama) it RUNS, and a skip here means this gate did not exercise the connection.
-github.com/chaynes-simpleclouds/marco/cmd/director TestAParaphraseReachesTheResolverThroughDirector — needs plugins/llama built and a local model server answering; it is the only test that exercises the resolver connection rather than a stand-in, and it goes through Director, which owns route resolution
+# and nothing about whether a request ever leaves the process. That test asks the real plugin,
+# which asks a real model server. Neither is in this repository and neither is a thing a test
+# may start — a model server is somebody's machine.
+#
+# So it is behind `-tags resolver`, and the reason is this ledger rather than the test: a
+# CONDITIONAL skip is the one thing a declaration cannot express. An undeclared skip fails the
+# gate, and a declaration whose test ran and did not skip fails it too — so the same honest
+# test was a finding on a machine with Ollama running and a finding on one without. Neither
+# rule is wrong; this ledger is for a skip that is ALWAYS a skip, and that was a third thing.
+#
+# `-tags corpus` is the precedent: `go test -tags resolver ./cmd/director/`, REQUIRED for a
+# resolver change. Any other test needing something this repository does not contain belongs
+# behind a tag for the same reason, not here.

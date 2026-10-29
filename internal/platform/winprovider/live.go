@@ -15,9 +15,32 @@ import (
 // there is deliberately nowhere for one to live: the whole point of the type is that its
 // answers are current, and a Live that could be stale would be worse than none.
 
+// ── THE DESKTOP, WHICH IS A FACT AND THEREFORE A SEAM ───────────────────────
+//
+// Every read of the window system goes through these three, so a test can state the desktop
+// instead of borrowing the owner's. Production never replaces them.
+//
+// THREE NAMES, ONE SETTER. They are deliberately not three knobs: a stated window list under a
+// LIVE handle lookup is the shape of defect that makes a test pass while the rule it names does
+// nothing, which is what `orchestrator.ForegroundForTest` exists to prevent one layer up. The
+// only way to set them is `DesktopForTest`, which answers all three out of one list.
+//
+// Why a seam here at all: a test of DIRECTOR'S RUN LOGIC — a deadline, a question, a grant —
+// had to manufacture a performable act, and the only way to get one was to photograph whatever
+// was in front of the owner. That made eight to ten tests of arithmetic and bookkeeping fail
+// whenever a game was on screen, for a reason none of them was about. The live claims stay live
+// and are tagged; these supply their own desktop. See
+// [[ADR-269-a-screen-free-gate-and-the-tests-that-need-the-screen]].
+var (
+	liveWindows  = winctx.LiveWindows
+	lookUpWindow = winctx.LookUpWindow
+	processAlive = winctx.ProcessAlive
+	ownedSurface = winctx.IsOwnedSurface
+)
+
 // Live reports what a handle currently is.
 func (p *Provider) Live(_ context.Context, handle uintptr) (windowref.Candidate, bool) {
-	w, ok := winctx.LookUpWindow(handle)
+	w, ok := lookUpWindow(handle)
 	if !ok {
 		return windowref.Candidate{}, false
 	}
@@ -26,7 +49,7 @@ func (p *Provider) Live(_ context.Context, handle uintptr) (windowref.Candidate,
 
 // ProcessAlive reports whether a process currently exists.
 func (p *Provider) ProcessAlive(_ context.Context, pid uint32) bool {
-	return winctx.ProcessAlive(pid)
+	return processAlive(pid)
 }
 
 // Candidates lists the current top-level windows belonging to an application.
@@ -114,7 +137,7 @@ func (p *Provider) AllCandidates(_ context.Context) []windowref.Candidate {
 //
 // Deleting this must fail TestAnOwnedSurfaceIsNeverOfferedAsACandidate.
 func offered() []winctx.LiveWindow {
-	return theUsersWindows(winctx.LiveWindows(), winctx.IsOwnedSurface)
+	return theUsersWindows(liveWindows(), ownedSurface)
 }
 
 // theUsersWindows drops Marco's own surfaces from a live window list.

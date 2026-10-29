@@ -1,3 +1,22 @@
+//go:build desktop
+
+// TESTS THAT NEED THE SCREEN, AND THEREFORE DO NOT RUN IN THE SCREEN-FREE STAGE.
+//
+// `go test -tags desktop ./cmd/director/` runs these, and `gate.ps1` runs them in the stage
+// that already takes the desktop. They are out of the default suite for a reason about the
+// LEDGER rather than about the tests: their preconditions are facts about the owner's screen
+// — a window has to be there, hold still across three looks, and keep a control under the
+// same point — and `gate-skips.txt` can express neither state of a skip that depends on the
+// environment. An undeclared skip fails the gate and a declaration whose test ran fails it too,
+// so the same honest test was a finding with a game on screen and a finding without one. The
+// ledger is for a skip that is always a skip; `-tags resolver` and `-tags corpus` are the
+// precedent.
+//
+// What these establish, and what does NOT establish it instead: see the inventory in
+// [[ADR-269-a-screen-free-gate-and-the-tests-that-need-the-screen]]. Tests of Director's run
+// logic that merely NEEDED a performable act have moved to `anActOverAStatedWindow` and run by
+// default; nothing here was replaced by that.
+
 package main
 
 // THE FINAL INPUT BOUNDARY, AGAINST REAL WINDOWS.
@@ -26,8 +45,6 @@ package main
 
 import (
 	"context"
-	"go/parser"
-	"go/token"
 	"strings"
 	"testing"
 	"time"
@@ -39,36 +56,6 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/director/workflowstore"
 	"github.com/chaynes-simpleclouds/marco/internal/platform/winprovider"
 )
-
-// aBackgroundApplication finds a real application with a visible window that is NOT in front.
-//
-// Returns the image name, or skips. Deliberately not the foreground one: this test is about the
-// state where the target has lost the desktop, and taking the foreground to create it would
-// interrupt whoever is using the machine.
-func aBackgroundApplication(t *testing.T, p *winprovider.Provider) string {
-	t.Helper()
-	all := p.AllCandidates(context.Background())
-	if len(all) == 0 {
-		t.Skip("no top-level windows on this machine, so there is no live window " +
-			"state to check against")
-	}
-	front := map[string]bool{}
-	for _, c := range all {
-		if c.Foreground && c.Application != "" {
-			front[strings.ToLower(c.Application)] = true
-		}
-	}
-	for _, c := range all {
-		img := strings.ToLower(strings.TrimSpace(c.Application))
-		if img == "" || c.Minimized || !c.Visible || front[img] {
-			continue
-		}
-		return img
-	}
-	t.Skip("every windowed application on this machine is in the foreground, so the " +
-		"state this checks does not exist here")
-	return ""
-}
 
 // A TARGET THAT NO LONGER LEADS THE DESKTOP IS REFUSED AT THE BOUNDARY, ON REAL WINDOWS.
 //
@@ -174,35 +161,6 @@ func TestTheRealBoundaryRefusesAnApplicationTheWorkflowDoesNotBelongTo(t *testin
 		t.Errorf("the unscoped refusal at the boundary is %q", why)
 	}
 	t.Logf("live refusal: %s", why)
-}
-
-// AND NOTHING IN EITHER TEST CAN PRESS OR TAKE THE FOREGROUND.
-//
-// A live test that could emit input is a live test nobody can run while somebody is using the
-// machine, and these are meant to be safe to run during a game.
-//
-// Asserted over this file's IMPORTS rather than its text — a text scan finds the forbidden
-// words in the list that forbids them, which is a test that fails on its own prohibition. What
-// must be true is that nothing here can REACH an actuator: both tests drive `stillThere`, which
-// answers a question and returns a bool.
-func TestTheLiveBoundaryTestsCannotEmitInput(t *testing.T) {
-	parsed, err := parser.ParseFile(token.NewFileSet(), "foregroundlive_test.go", nil,
-		parser.ImportsOnly)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, imp := range parsed.Imports {
-		for _, forbidden := range []string{
-			"marcoexec", "oshost", "internal/driver", "internal/runtime",
-			"internal/winctx",
-		} {
-			if strings.Contains(imp.Path.Value, forbidden) {
-				t.Errorf("the live boundary tests import %s; they must "+
-					"observe and refuse, never act or take the "+
-					"foreground", imp.Path.Value)
-			}
-		}
-	}
 }
 
 // noRelook is the fresh look these tests deliberately do not take.

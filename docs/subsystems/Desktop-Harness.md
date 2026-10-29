@@ -590,6 +590,28 @@ recording’s shutdown gives itself three bounded waits of five seconds each, an
 has to exit after them. See [[ADR-264-the-gate-answers-for-what-did-not-run]], and the eight
 `marco do` processes that were found on this desktop hours after the tests that spawned them.
 
+## The screen-free stage must be usable while somebody uses their computer
+
+Stage 1 (`go run ./cmd/gate`) is the stage with no screen in it, and it was not usable that way.
+Fourteen tests of Director's RUN LOGIC — a deadline announced, a question withdrawn, a grant for
+another Act refusing — had to manufacture a performable act first, and the only way to get one
+was to photograph whatever was in front of the owner. With a game on screen, two consecutive runs
+of the same tree reported 8 findings and then 6, a different set each time, every one of them an
+undeclared skip naming a window that would not hold still.
+
+Those fourteen state their own desktop now (`winprovider.DesktopForTest`, one list answering the
+window list, the handle lookup, process liveness and ownership — no individual knobs, because a
+stated list under a live lookup is a test that passes while its rule does nothing). Production
+perception still reads the pixels; they are drawn rather than captured. The tests whose
+preconditions genuinely ARE facts about the screen went behind `-tags desktop`, which `gate.ps1`
+runs as stage 4 of 5 — before the harness, because they only look, while stage 5 presses.
+
+**No conditional skips, in either direction.** `gate-skips.txt` can express neither state of an
+environment-dependent skip: an undeclared skip fails the gate and a declaration whose test ran
+fails it too. The inventory tying each moved test to the claim it establishes — including the two
+that were nearly moved and need no screen at all — is in
+[[ADR-269-a-screen-free-gate-and-the-tests-that-need-the-screen]].
+
 ## The gate for a change to chords
 
 `plugins\e2e\run.cmd -only keys` is the regression gate for an executable change to the chord

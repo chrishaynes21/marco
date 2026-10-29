@@ -255,6 +255,34 @@ go run ./cmd/gate                      # its first stage alone, which needs no s
   clock, nothing injected) and `go run ./cmd/perceptionreplay -frames -stride N <dir>` replays
   the pixels through the production perception path. `-frames` is a BOOL and the directory is
   POSITIONAL; putting the directory first silently ignores `-stride`.
+- **The live resolver test is behind `-tags resolver`**: `go test -tags resolver ./cmd/director/`,
+  REQUIRED for a resolver change, because it is the only test that asks the real plugin and a
+  real model server rather than a stand-in. It is out of the default suite for a reason about the
+  LEDGER and not about the test: a conditional skip is the one thing `gate-skips.txt` cannot
+  express — an undeclared skip fails the gate and a declaration whose test ran fails it too, so
+  the same honest test was a finding with Ollama running and a finding without it. The ledger is
+  for a skip that is always a skip. **Any other test that needs something this repository does
+  not contain belongs behind a tag for the same reason, not in the ledger.**
+- **AND A TEST WHOSE PRECONDITIONS ARE FACTS ABOUT THE OWNER'S SCREEN IS BEHIND `-tags desktop`**:
+  `go test -tags desktop ./cmd/director/`, which `gate.ps1` runs as stage 4 of 5 — before the
+  harness, because these only LOOK while stage 5 presses. Stage 1 has to be usable while somebody
+  is using their computer and was not: fourteen tests of Director's RUN LOGIC (a deadline
+  announced, a question withdrawn, a grant for another Act refusing, a startup failure recorded)
+  had to manufacture a performable act first, and the only way to get one was to photograph
+  whatever was in front of the owner — so they inherited every precondition that photograph has,
+  and two runs of the same tree gave 8 findings and then 6, a different set each time, with a game
+  on screen. They state their own desktop now: `winprovider.DesktopForTest` answers the window
+  list, the handle lookup, process liveness AND ownership out of ONE list, with no individual
+  knobs, because a stated list under a live lookup is a test that passes while its rule does
+  nothing. The pixels are DRAWN and production perception still reads them — `structure.Propose`
+  finds four control-shaped regions agreeing at 1.000, where a real window in front of somebody
+  playing agreed at 0.339 — but the APPLICATION may not be invented, because a run resolves it and
+  refuses: *a workflow may only act on the application it was shown in*. Don't tag a file by its
+  name: two of `groundbykey_test.go`'s three tests reach no desktop at all, and tagging the file
+  would have taken them out of the default suite. And THE GUARD IS NOT TAGGED
+  (`TestADesktopTestCanObserveButNeverAct`), because a guard that is only present when the thing
+  it guards is running is not a guard. See
+  [[ADR-269-a-screen-free-gate-and-the-tests-that-need-the-screen]].
 - **The full-frame perception corpus test is behind `-tags corpus`** and is REQUIRED for a
   perception change: `go test -tags corpus ./cmd/perceptionreplay/` (about 145s). It is out of the
   default suite because it was starving other packages — `cmd/marco` past its 600s limit, and a

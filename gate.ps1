@@ -3,7 +3,8 @@
 #   1. the suites, with what declined and what outlived them (cmd\gate)
 #   2. the bundle, packed from this tree (pack.ps1)
 #   3. the bundle INSTALLED from an isolated directory, reporting what it is made of
-#   4. the complete desktop harness against those installed binaries (plugins\e2e)
+#   4. the tests whose preconditions are facts about the screen (-tags desktop)
+#   5. the complete desktop harness against those installed binaries (plugins\e2e)
 #
 # -- WHY THE ORDER IS THE POINT ------------------------------------------------
 #
@@ -31,8 +32,8 @@
 #
 #   .\gate.ps1                 all four stages
 #   .\gate.ps1 -SuitesOnly     stage 1, which needs no screen
-#   .\gate.ps1 -Installed <bin>  stages 1 and 4 against an installation you already have
-#   .\gate.ps1 -Only play      stage 4 limited to one family (NOT the gate: a partial run)
+#   .\gate.ps1 -Installed <bin>  stages 1, 4 and 5 against an installation you already have
+#   .\gate.ps1 -Only play      stage 5 limited to one family (NOT the gate: a partial run)
 #
 # See [[ADR-264-the-gate-answers-for-what-did-not-run]].
 
@@ -94,7 +95,7 @@ Write-Host ""
 Write-Host "marco gate" -ForegroundColor Cyan
 Write-Host "  this tree: $root"
 if (-not $SuitesOnly) {
-    Write-Host "  stage 4 takes your screen and performs real input into its own fixture window." -ForegroundColor Yellow
+    Write-Host "  stages 4 and 5 take your screen; stage 5 performs real input into its own fixture window." -ForegroundColor Yellow
 }
 Write-Host ""
 
@@ -103,14 +104,14 @@ Write-Host ""
 # TOLD WHICH TREE IT IS FOR, rather than left to read whichever directory it was started from:
 # `.\gate.ps1` from the root and `D:\Macros\marco\gate.ps1` from anywhere else would otherwise be
 # two different runs, and the second would gate a tree nobody named.
-Write-Host "== 1/4  the suites, and what declined or outlived them" -ForegroundColor Cyan
+Write-Host "== 1/5  the suites, and what declined or outlived them" -ForegroundColor Cyan
 & go -C $root run ./cmd/gate -root $root
 $suites = $LASTEXITCODE
 Stage "suites" $suites "cmd\gate"
 if ($suites -ne 0) { Verdict }
 
 if ($SuitesOnly) {
-    Narrowed "the bundle, its installation and every desktop scenario (-SuitesOnly)"
+    Narrowed "the bundle, its installation, the tests that need the screen and every desktop scenario (-SuitesOnly)"
     Verdict
 }
 
@@ -118,7 +119,7 @@ if ($SuitesOnly) {
 $bin = $Installed
 if ($bin -eq "") {
     Write-Host ""
-    Write-Host "== 2/4  packing the bundle" -ForegroundColor Cyan
+    Write-Host "== 2/5  packing the bundle" -ForegroundColor Cyan
     $bundle = Join-Path $root "dist\Marco.exe"
     # WHAT IS THERE BEFORE, so that what is there after can be compared with it.
     $was = $null
@@ -189,7 +190,7 @@ if ($bin -eq "") {
     # accident and an installation cannot rely on. The first packed alpha reported a missing
     # file and an unreadable manifest here, both correct bundles.
     Write-Host ""
-    Write-Host "== 3/4  installing it from an isolated directory" -ForegroundColor Cyan
+    Write-Host "== 3/5  installing it from an isolated directory" -ForegroundColor Cyan
     $iso = Join-Path $env:TEMP ("marco-gate-" + (Get-Date -Format "yyyyMMdd-HHmmss"))
     New-Item -ItemType Directory -Force -Path $iso | Out-Null
     Copy-Item $bundle (Join-Path $iso "Marco.exe")
@@ -224,18 +225,39 @@ exit `$LASTEXITCODE
     $bin = Join-Path $local "Marco\bin"
 } else {
     Write-Host ""
-    Write-Host "== 2-3/4  skipped: testing the installation at $bin" -ForegroundColor Yellow
+    Write-Host "== 2-3/5  skipped: testing the installation at $bin" -ForegroundColor Yellow
     Stage "pack" 0 "skipped (-Installed)"
     Stage "install" 0 $bin
     Narrowed "whether this tree packs a bundle that installs cleanly from nowhere (-Installed), so stages 2 and 3 did not run"
 }
 
-# -- 4. THE COMPLETE DESKTOP HARNESS, AGAINST THOSE BINARIES -------------------
+# -- 4. THE TESTS WHOSE PRECONDITIONS ARE FACTS ABOUT THE SCREEN ---------------
+#
+# `-tags desktop`. These are out of stage 1 on purpose: stage 1 must be usable while somebody is
+# using their computer, and a test that needs a window to be there and to hold still across three
+# looks is a test that reports a finding whenever a game is on screen. They are not declared
+# skips, because `gate-skips.txt` can express neither state of an environment-dependent one: an
+# undeclared skip fails the gate, and a declaration whose test ran fails it too.
+#
+# BEFORE THE HARNESS AND NOT AFTER IT. These only LOOK at the screen; stage 5 performs real input
+# into its own fixture window. Running the observers first means a failure here is read against a
+# desktop nothing has pressed yet.
+#
+# Run from the tree rather than the installation, because a build tag is a property of the source
+# and there is nothing tagged in a bundle.
+Write-Host ""
+Write-Host "== 4/5  the tests that need the screen (-tags desktop)" -ForegroundColor Cyan
+& go -C $root test -count=1 -tags desktop ./cmd/director/
+$desktopTests = $LASTEXITCODE
+Stage "desktop tests" $desktopTests "go test -tags desktop .\cmd\director"
+if ($desktopTests -ne 0) { Verdict }
+
+# -- 5. THE COMPLETE DESKTOP HARNESS, AGAINST THOSE BINARIES -------------------
 #
 # EVERY REGISTERED SCENARIO. `-only` is not the gate: a selection that matched some of them is a
 # partial run, and the scenario that did not run is the one whose question nobody asked.
 Write-Host ""
-Write-Host "== 4/4  the complete desktop harness against the installed binaries" -ForegroundColor Cyan
+Write-Host "== 5/5  the complete desktop harness against the installed binaries" -ForegroundColor Cyan
 $harnessArgs = @("-installed", $bin)
 if ($Only -ne "") {
     Write-Host "  NOT THE GATE: -Only $Only runs some of the scenarios, which is a partial run." -ForegroundColor Yellow

@@ -169,6 +169,11 @@ func nameOf(e ast.Expr) string {
 // starts. The run that reaches the loop at all is the `--repair` case, and it returns before the
 // runner is built.
 func TestAnAbsentOptionalSourceIsRecordedAsAStartupFailure(t *testing.T) {
+	// A STATED DESKTOP, because this claim is about Director and not about the
+	// screen: the helper below needs an acquirable application, and borrowing the
+	// owner's made this skip whenever their machine had none to spare. See
+	// `anActOverAStatedWindow`.
+	theStatedWindow(t)
 	windows := winprovider.New()
 	app := anAcquirableApplication(t, windows)
 
@@ -231,6 +236,11 @@ func TestAnAbsentOptionalSourceIsRecordedAsAStartupFailure(t *testing.T) {
 // A separate test because it is a different seam and a different place in the sequence: the
 // regrounder is built before the runner, where the other two are built after it.
 func TestRepairWithoutOCRIsRecordedAsAStartupFailure(t *testing.T) {
+	// A STATED DESKTOP, because this claim is about Director and not about the
+	// screen: the helper below needs an acquirable application, and borrowing the
+	// owner's made this skip whenever their machine had none to spare. See
+	// `anActOverAStatedWindow`.
+	theStatedWindow(t)
 	windows := winprovider.New()
 	app := anAcquirableApplication(t, windows)
 

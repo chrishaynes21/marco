@@ -1,3 +1,25 @@
+//go:build resolver
+
+// This file is behind `-tags resolver`, and the reason is the gate's ledger rather than the
+// test.
+//
+// It needs two things that are not in this repository and that a test may not start: the
+// `plugins/llama` binary, and a model server on somebody's machine. So it declined when either
+// was absent — and a conditional skip is the one thing `gate-skips.txt` CANNOT express. An
+// undeclared skip fails the gate, and a declaration whose test ran and did not skip fails it
+// too, so the same honest test was a finding on a machine with Ollama running and a finding on
+// one without. Not a defect in either rule: the ledger is for a skip that is always a skip, and
+// this is a third thing.
+//
+// `-tags corpus` is the precedent (see the full-frame perception corpus, CLAUDE.md): a test that
+// needs something the repository does not contain is out of the default suite and is REQUIRED
+// for a change to the thing it covers. So:
+//
+//	go test -tags resolver ./cmd/director/     # required for a resolver change
+//
+// It is still the only test that exercises the connection rather than a stand-in, and the gate
+// now says plainly that it did not run it instead of excusing a skip that did not happen.
+
 package main
 
 // AND ONE REAL PARAPHRASE REACHES THE RESOLVER THROUGH DIRECTOR.

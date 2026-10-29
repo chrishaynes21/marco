@@ -195,6 +195,11 @@ func TestTheBoundaryIsNotPutInAModeItHasNoWindowFor(t *testing.T) {
 // same shape as the boundary tests beside it, because `stillThere` resolves a real window before
 // it decides anything.
 func TestGeometryReplayTakesNoLookAtThePressBoundary(t *testing.T) {
+	// A STATED DESKTOP, because this claim is about Director and not about the
+	// screen: the helper below needs an acquirable application, and borrowing the
+	// owner's made this skip whenever their machine had none to spare. See
+	// `anActOverAStatedWindow`.
+	theStatedWindow(t)
 	windows := winprovider.New()
 	app := aBackgroundApplication(t, windows)
 	tracker := windowref.NewTracker(windows)

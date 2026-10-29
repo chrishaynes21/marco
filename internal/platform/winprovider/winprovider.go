@@ -113,5 +113,5 @@ func rect(r winctx.Rect) directorapi.Rect {
 // name.
 func (p *Provider) Owned(id directorapi.WindowID) bool {
 	h, ok := ParseHandle(id)
-	return ok && winctx.IsOwnedSurface(h)
+	return ok && ownedSurface(h)
 }

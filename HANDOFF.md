@@ -11784,3 +11784,27 @@ under a LIVE foreground reading orders by a handle no row has — the ordering r
 and the test passed. **5 of 5 mutations killed**, one of them the Studio act returning no windows
 at all, which the early-return version of that test did not notice.
 
+## The screen-free gate, made screen-free
+
+Reported as a finding against Roadmap 36 and ruled a slice of its own: stage 1 of the gate could
+not pass while the owner used their computer. Every one of the 8-then-6 undeclared skips came from
+ONE fixture that photographs the live foreground window, and fourteen tests of Director's run
+logic reached it only because they needed a performable act.
+
+The diagnosis was traced rather than inferred, which the Architect asked for explicitly: variation
+plus an animated game suggests an environmental cause and does not establish one. What establishes
+it is the dependency, and two measurements. Drawn pixels under the live window's identity: all
+eleven pass with the game animating, because none of them presses anything. Stated identity as
+well: all eleven fail, with *a workflow may only act on the application it was shown in* — which
+is why the whole desktop is stated and not only the picture.
+
+Two things were nearly got wrong by reading filenames instead of code. `groundbykey_test.go` holds
+three tests and only ONE touches a desktop; tagging the file would have taken two claims that need
+no screen out of the default suite, which is the quiet loss of coverage the slice exists to
+prevent. And the guard asserting the live tests cannot reach an actuator was inside the file it
+protects, so it would have been absent from every run except the one where those tests run against
+a real screen.
+
+See [[ADR-269-a-screen-free-gate-and-the-tests-that-need-the-screen]] for the inventory tying each
+moved test to its claim.
+

@@ -21,43 +21,8 @@ import (
 	"time"
 
 	"github.com/chaynes-simpleclouds/marco/internal/platform/navsource"
-	"github.com/chaynes-simpleclouds/marco/internal/platform/winprovider"
-	"github.com/chaynes-simpleclouds/marco/internal/routes"
 	"github.com/chaynes-simpleclouds/marco/internal/runs"
-
-	"github.com/chaynes-simpleclouds/marco/internal/director/demonstrated"
 )
-
-// anActOverTheWindowInFront saves a routine built from a real look and a one-interaction Act over
-// it, and returns the name to select the Act by.
-//
-// The window in front is the one window a test may use without touching anybody's focus, and the
-// routine is built from a REAL look at it so its control could be re-acquired — see
-// `aRoutineFromALookAt`, whose reasoning this borrows wholesale.
-func anActOverTheWindowInFront(t *testing.T) string {
-	t.Helper()
-	home := t.TempDir()
-	t.Setenv("MARCO_HOME", home)
-	t.Setenv("MARCO_ROUTES", filepath.Join(home, "routes"))
-
-	windows := winprovider.New()
-	art := aRoutineFromALookAt(t, windows, theForegroundWindow(t, windows))
-	store := mustOpenStore(t)
-	if err := store.SaveSequence(art); err != nil {
-		t.Fatal(err)
-	}
-	src, binds, err := demonstrated.Compose(art, "an act",
-		[]demonstrated.Named{{Position: 0, Name: "the control in front"}},
-		time.Now(), marcoChecks{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	rt := routes.Route{Slug: routes.Slug(art.Name)}
-	if err := demonstrated.Save(routesHere(), rt, src, binds, time.Now()); err != nil {
-		t.Fatal(err)
-	}
-	return art.Name
-}
 
 // A STALLED PLAY ENDS AT ITS DEADLINE, AND SAYS SO.
 //
@@ -66,7 +31,7 @@ func anActOverTheWindowInFront(t *testing.T) string {
 // wall clock: the command returns within a few seconds of `--seconds`, nothing was pressed, and
 // the attempt still got a finalized record.
 func TestAStalledPlayEndsAtItsDeadline(t *testing.T) {
-	name := anActOverTheWindowInFront(t)
+	name := anActOverAStatedWindow(t)
 
 	// THE SYNTHETIC HOOK, in place of the desktop's — and NOBODY PRESSES ANYTHING on it.
 	// A run whose questions go unanswered is exactly the stall this is about.
@@ -166,7 +131,7 @@ func answerOnlyTheStart(t *testing.T, out *liveOut, press func(uint16, bool)) fu
 // Plus the Act's own identity, which an audit needs beside the demonstration: a record with only
 // the demonstration cannot tell two Acts over one demonstration apart.
 func TestThePlaysRecordIsWrittenFromItsAccount(t *testing.T) {
-	name := anActOverTheWindowInFront(t)
+	name := anActOverAStatedWindow(t)
 	src, press := navsource.NewSynthetic()
 	t.Cleanup(func() { _ = src.Close() })
 	was := newKeySource

@@ -74,6 +74,29 @@ func main() {
 	fmt.Println("this installation is made of nothing at all")
 }
 `)
+	// AND A STAND-IN FOR THE STAGE THAT NEEDS THE SCREEN: a package with a desktop-tagged
+	// test in it that passes. Without one the stage fails for want of a directory, which
+	// is exactly what it did when the stage was added — and a stage quietly left out of
+	// this tree would let every case below pass while the script did whatever it liked,
+	// which is the thing this whole file exists to prevent.
+	write("cmd/director/main.go", "package main\n\nfunc main() {}\n")
+	// AND IT LEAVES A MARK WHEN IT RUNS, because "the stage printed a header" is not
+	// evidence that the stage did anything: a mutation pointing the stage at the DEFAULT
+	// suite, and another leaving this tree with no tagged test at all, both survived an
+	// assertion that only read the output.
+	write("cmd/director/desktop_test.go", "//go:build desktop\n\npackage main\n\n"+
+		"import (\n\t\"os\"\n\t\"testing\"\n)\n\n"+
+		"func TestTheStandInDesktopTestPasses(t *testing.T) {\n"+
+		"\tif err := os.WriteFile(\"ran.txt\", []byte(\"ran\"), 0o644); err != nil {\n"+
+		"\t\tt.Fatal(err)\n\t}\n}\n")
+	// AND A TEST THAT IS ONLY THERE WHEN THE TAG IS NOT, which is how the stage is held
+	// to running the TAGGED configuration: with the tag this file is excluded and the
+	// stage passes; without it this fails and takes the stage down with it.
+	write("cmd/director/untagged_test.go", "//go:build !desktop\n\npackage main\n\n"+
+		"import \"testing\"\n\n"+
+		"func TestTheStageRanTheDefaultSuiteInstead(t *testing.T) {\n"+
+		"\tt.Fatal(\"the stage that needs the screen ran the default suite\")\n}\n")
+
 	write("plugins/e2e/run.cmd", "@echo off\r\necho stand-in harness passed\r\nexit /b 0\r\n")
 
 	built := filepath.Join(root, "bundle.exe")
@@ -251,6 +274,44 @@ func TestANarrowedRunSaysWhatItDidNotAsk(t *testing.T) {
 	}
 }
 
+// AND A TEST THAT NEEDS THE SCREEN AND FAILS STOPS THE GATE.
+//
+// The failure path of the stage, which nothing exercised: the stand-in's tagged test passes, so
+// a mutation IGNORING the stage's exit code survived every other case in this file. A stage
+// whose failure is ignored is a gate that reports success while the thing it just ran is broken,
+// which is the one outcome this whole file exists to prevent.
+//
+// `-Installed` so the run reaches the stage without packing anything: the bundle is not what
+// this is about.
+func TestADesktopTestThatFailsStopsTheGate(t *testing.T) {
+	root := aTreeShapedLikeThisOne(t)
+	if err := os.WriteFile(
+		filepath.Join(root, "cmd", "director", "desktop_test.go"),
+		[]byte("//go:build desktop\n\npackage main\n\nimport \"testing\"\n\n"+
+			"func TestTheStandInDesktopTestFails(t *testing.T) {\n"+
+			"\tt.Fatal(\"the window would not hold still\")\n}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	said, code := theGate(t, root, "-Installed", filepath.Join(root, "dist"))
+
+	if code == 0 {
+		t.Fatalf("a failing desktop test left the gate reporting success:\n%s", said)
+	}
+	if !strings.Contains(said, "4/5  the tests that need the screen") {
+		t.Errorf("the run never reached the stage that failed:\n%s", said)
+	}
+	// AND THE STAGE IS NAMED, so a reader of the last lines knows which one went rather
+	// than only that something did.
+	if !strings.Contains(said, "desktop tests") {
+		t.Errorf("the verdict does not name the stage that failed:\n%s", said)
+	}
+	// AND THE HARNESS NEVER RAN: a stage that failed must stop the run BEFORE the one
+	// that takes the screen and presses things.
+	if strings.Contains(said, "5/5  the complete desktop harness") {
+		t.Errorf("the gate went on to press things after a stage failed:\n%s", said)
+	}
+}
+
 // AND THE SUITES ON THEIR OWN ARE NOT THE GATE EITHER.
 //
 // The cheapest partial run there is, and so the one most likely to be quoted: it opens no
@@ -267,9 +328,22 @@ func TestASuitesOnlyRunDoesNotClaimTheGate(t *testing.T) {
 	if !strings.Contains(said, "PASSED WHAT IT RAN, WHICH WAS NOT THE GATE") {
 		t.Errorf("a suites-only run was not told apart from the gate:\n%s", said)
 	}
-	if !strings.Contains(said,
-		"not asked: the bundle, its installation and every desktop scenario") {
-		t.Errorf("the verdict does not say what -SuitesOnly left out:\n%s", said)
+	// WHAT IT LEFT OUT, NAMED PIECE BY PIECE RATHER THAN AS ONE SENTENCE.
+	//
+	// It was one sentence, and that was the wrong shape: adding the stage for the tests
+	// that need the screen changed the sentence, this assertion failed, and the failure
+	// said nothing about which of the four pieces was now missing. Each piece asserted
+	// separately means a stage added later either appears in the verdict or fails here by
+	// name — which is the whole claim this file makes, that a partial run says what it
+	// did not ask.
+	for _, piece := range []string{
+		"not asked:", "the bundle", "its installation",
+		"the tests that need the screen", "every desktop scenario",
+	} {
+		if !strings.Contains(said, piece) {
+			t.Errorf("the verdict of a -SuitesOnly run does not mention %q, so "+
+				"it claims something it never ran:\n%s", piece, said)
+		}
 	}
 	if strings.Contains(said, "every registered scenario") {
 		t.Errorf("a run of the suites alone claimed every registered scenario:\n%s",
@@ -302,6 +376,31 @@ func TestAWholeRunClaimsTheGate(t *testing.T) {
 	}
 	if strings.Contains(said, "NOT THE GATE") {
 		t.Errorf("a whole run called itself partial:\n%s", said)
+	}
+	// AND EVERY STAGE ACTUALLY RAN, each named, which is the assertion that was missing.
+	//
+	// Nothing held the stages to running. Deleting the whole of the stage that needs the
+	// screen left every case in this file passing: the verdict still claimed the gate,
+	// `-SuitesOnly` still listed the stage among what it had not asked, and the only
+	// evidence it had gone was its absence from output nobody read. Naming them here
+	// means a stage that stops running fails by name, and a stage added later has one
+	// line to add.
+	for _, stage := range []string{
+		"1/5  the suites",
+		"2/5  packing the bundle",
+		"3/5  installing it",
+		"4/5  the tests that need the screen",
+		"5/5  the complete desktop harness",
+	} {
+		if !strings.Contains(said, stage) {
+			t.Errorf("a whole run never reached stage %q:\n%s", stage, said)
+		}
+	}
+	// AND THE TAGGED TEST ACTUALLY RAN, read off the mark it leaves rather than off the
+	// output: see the stand-in for the two mutations that survived the output alone.
+	if _, err := os.Stat(filepath.Join(root, "cmd", "director", "ran.txt")); err != nil {
+		t.Errorf("the stage that needs the screen left no mark, so its tagged test "+
+			"never ran: %v\n%s", err, said)
 	}
 	// AND THE LIMIT IS STILL PRINTED ON A GREEN RUN, which is the one sentence in here
 	// that a reader of a pass most needs.

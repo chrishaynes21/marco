@@ -83,6 +83,24 @@ func modules() []module {
 			"alpha bundle uses it"},
 		{dir: "plugins/llama", why: "needs a local model server running, and " +
 			"nothing in the alpha bundle uses it"},
+		// AND ONE THAT IS NOT A MODULE AT ALL, which is why it is last.
+		//
+		// The three above are modules this gate does not build. This is a TAGGED
+		// SUBSET of the engine module it just ran: `cmd/director` holds a handful of
+		// tests whose preconditions are facts about the owner's screen — a window
+		// has to be there and hold still — and this stage must be usable while
+		// somebody is using their computer. They are behind `-tags desktop` and
+		// `gate.ps1` runs them in the stage that already takes the desktop.
+		//
+		// It is listed here so a reader of THIS stage is told they did not run,
+		// rather than finding out from the absence of their names. A conditional skip
+		// would have been the other way to arrange it, and `gate-skips.txt` can
+		// express neither state of one: an undeclared skip fails, and a declaration
+		// whose test ran fails too.
+		{dir: "cmd/director -tags desktop",
+			why: "these tests need the owner's screen, so the screen-free stage " +
+				"never runs them; `gate.ps1` does, in the stage that takes " +
+				"the desktop (`go test -tags desktop ./cmd/director/`)"},
 	}
 }
 

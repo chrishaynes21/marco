@@ -434,7 +434,7 @@ func TestAPressTheGrantDoesNotNameIsRefused(t *testing.T) {
 // performed. And nothing is observed — there is no stream at all, because the refusal happens
 // before the run's own account is opened.
 func TestAGrantForAnotherActStopsTheCommand(t *testing.T) {
-	name := anActOverTheWindowInFront(t)
+	name := anActOverAStatedWindow(t)
 	g := agGrantGiven(t, "an Act nobody composed", "the control in front")
 	path := filepath.Join(t.TempDir(), "events.jsonl")
 
@@ -681,7 +681,7 @@ func TestAGrantedRunStillWaitsForEachOutcome(t *testing.T) {
 // `workflowstore.Standing` needs is absent — which is exactly a case a person must be told
 // about rather than asked about.
 func TestAGrantedRunAsksNobodyAnything(t *testing.T) {
-	name := anActOverTheWindowInFront(t)
+	name := anActOverAStatedWindow(t)
 
 	// A KEY HOOK THAT NOBODY PRESSES. Installed because Studio passes --hotkeys so
 	// that F9 still stops a run; what it must NOT do is answer anything.

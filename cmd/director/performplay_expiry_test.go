@@ -128,7 +128,7 @@ func answerAfter(t *testing.T, out *liveOut, press func(uint16, bool),
 // must be true afterwards is that nothing was pressed, no authorisation was granted, and the
 // attempt was finalized with the clock named as the reason.
 func TestAnAnswerAfterTheDeadlineAuthorisesNothing(t *testing.T) {
-	name := anActOverTheWindowInFront(t)
+	name := anActOverAStatedWindow(t)
 	src, press := navsource.NewSynthetic()
 	t.Cleanup(func() { _ = src.Close() })
 	was := newKeySource

@@ -100,7 +100,7 @@ func TestAnEarlyRefusalEndsTheEventStream(t *testing.T) {
 // This also covers EARLY START: the person says they are ready before the delay is spent, and the
 // run proceeds without waiting out the rest of it.
 func TestThePreparationDeadlineIsSaidAndAnEarlyStartIsHonoured(t *testing.T) {
-	name := anActOverTheWindowInFront(t)
+	name := anActOverAStatedWindow(t)
 	src, press := navsource.NewSynthetic()
 	t.Cleanup(func() { _ = src.Close() })
 	was := newKeySource
@@ -167,7 +167,7 @@ func TestThePreparationDeadlineIsSaidAndAnEarlyStartIsHonoured(t *testing.T) {
 // the event after a question that expired has no question in it. Nobody answers anything here, so
 // every question the run puts expires.
 func TestAQuestionThatExpiresIsWithdrawnFromTheState(t *testing.T) {
-	name := anActOverTheWindowInFront(t)
+	name := anActOverAStatedWindow(t)
 	src, press := navsource.NewSynthetic()
 	t.Cleanup(func() { _ = src.Close() })
 	was := newKeySource
