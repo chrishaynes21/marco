@@ -20,11 +20,11 @@ Traced at `fb7e677`. This is what exists, what is missing, and the smallest beha
 close each gap — one proposal, four slices, in the order they should be built.
 
 **Status.** The two that change no behaviour are **implemented**: Simplify's discoverability and
-the availability explanations, with the app-less Play sentence corrected. The two that do —
-`Rescope` and the playback target — are **contracts, revised and not yet built**, and both were
-sharpened after review: a rescope is a reviewed move between identities rather than a save under
-another word, and playback targeting covers global and in-place routines rather than only the
-application-bound ones.
+the availability explanations, with the app-less Play sentence corrected. **`Rescope` is
+implemented as a contract** in `internal/orchestrator/rescope.go` — the mechanism and its rules,
+held by tests that stand in both of its interleavings; it has **no surface yet**, which is the
+next bounded step. **Playback targeting is a contract, ruled on and not built**, and is the slice
+after that. See [[ADR-271-a-rescope-is-a-reviewed-move-between-identities]].
 
 The three questions must stay apart, because they are decided at different moments, by different
 people, about different things:
@@ -151,7 +151,31 @@ scope says where the routine can be ASKED FOR as well as where it works, at the 
 saved routine, and the withdrawn chooser says why. That is worth having even if `Rescope` is never
 built, and nothing about `Rescope` is understandable without it.
 
-#### Then: Rescope is a reviewed MOVE BETWEEN IDENTITIES
+#### Then: Rescope is a reviewed MOVE BETWEEN IDENTITIES — now built
+
+**Implemented as the contract below plus the five completion requirements added in review**, all
+of which are in `internal/orchestrator/rescope.go` and held by tests:
+
+1. The review's token binds the original's source **and demonstration**, the destination identity
+   **and what was at it**, the library, the scope asked for, and the exact proposed output.
+2. Both identities are locked in a deterministic order — `lockOrder`, taken from the identities
+   themselves — and both are revalidated under those locks before anything is written.
+3. A destination collision needs separate, version-bound consent; without it the creation is
+   `O_CREATE|O_EXCL`, so a routine appearing inside the lock is the failure rather than something
+   written over.
+4. The destination's source **and demonstration** are read back before the original is removed,
+   and the original is revalidated immediately before removal — a newer version is never deleted.
+5. A failure leaves the original intact wherever possible, and a destination that succeeded with
+   a removal that failed reports **"Copied; original retained"**, never "Moved".
+
+Selecting the scope a routine already has is refused as nothing to do. A hand edit is preserved
+unless the person approves the displayed rebuilt source — which is what the review shows and what
+the token binds.
+
+**What is not built: the surface.** Nothing in Studio calls either function yet, and that is the
+next bounded step.
+
+The reasoning each rule came from:
 
 **Not a save under a different word.** A route's identity is its folder, so changing the scope
 creates a route at a new path and ends one at an old path — two files, two libraries' worth of
@@ -252,6 +276,24 @@ Two smaller things fall out of the same hole:
 
 ### The smallest missing behaviour
 
+**STUDIO MUST NOT PLAY WITHOUT AN IDENTIFIED EXTERNAL WINDOW.** Ruled, and it resolves the open
+question this section used to leave to the owner:
+
+- **One candidate** may be selected automatically — and is shown beside Play, not assumed.
+- **Several candidates** require a visible choice. Nothing is picked on the person's behalf.
+- **No candidate** means Play is **unavailable, with the reason**. It does not run into whatever
+  happens to be in front, which is this window.
+- **Global availability does not mean "send input into Studio."** A routine that can be asked for
+  from anywhere still has to act on something, and that something is named.
+- **The selected window receives the INITIAL HANDOFF**, and that is all it may be described as.
+  It is not a guarantee that every subsequent keystroke stays there: a routine can switch windows
+  itself, a dialog can take focus, an application can move the foreground. Saying "confined to
+  this window" would be a promise the foreground does not make — which is the same class of claim
+  `Window-checked` was corrected to avoid.
+- **Existing CLI behaviour is preserved** unless the invocation explicitly supplies the new window
+  selection. `marco do --play=… --app=…` keeps doing exactly what it does today; the new flags are
+  additive, and a run that names no window behaves as it always has.
+
 **A window stated for one run — HANDLE AND OWNING PROCESS — carried to everything that acts on
 it.** None of it touches the language or the saved routine:
 
@@ -286,10 +328,9 @@ it.** None of it touches the language or the saved routine:
   no application, so **where its keystrokes should go is not implied by anything it carries**.
   Availability says it can be asked for from anywhere; it does not say what it acts on. Play
   therefore needs an **explicit handoff**: the person names the window this run is for, Studio
-  raises it and hands the foreground on, exactly as it does for an application — and if they name
-  nothing, Play says what will receive the presses rather than running with Studio in front and
-  discovering it afterwards. (Whether "nothing named" should run at all is the one open product
-  question in this slice, and it is the owner's to answer, not mine.)
+  raises it and hands the foreground on, exactly as it does for an application. **Naming nothing
+  does not run** — that was the one open question here and it is answered above: no candidate
+  means Play is unavailable with the reason, because the alternative is pressing into this window.
 
 **The guard does not change at all, and is not weakened.** It still refuses unless the bound
 window is alive, in front, the same process, the same program, the same size and the same scale.
@@ -316,15 +357,19 @@ availability.
    well as where it works, in the vocabulary `resolveroute.Eligible` uses, at the save and on the
    saved routine; the withdrawn chooser says why a guarded recording has one choice. And the
    sentence under Play no longer promises an application an app-less routine does not name.
-3. **`Rescope`.** The first real behaviour, and a **reviewed move between identities** rather
-   than a save under another word: destination checked with its own consent, resulting source
-   shown before approval because the rebuild can replace a hand edit, and the original removed
-   only after the destination exists and has been re-read.
+3. **`Rescope` — the contract is DONE; the surface is not.** The first real behaviour, and a
+   **reviewed move between identities** rather than a save under another word: both ends locked
+   in a fixed order and revalidated, the destination checked with its own version-bound consent,
+   the resulting source shown before approval because the rebuild can replace a hand edit, the
+   destination read back, and the original removed only after that — reported as a COPY when the
+   removal does not happen. Eight mutations, eight failures, two of them standing in instants
+   nothing else can reach. **Next: the surface** — a chooser on the selected routine, the two
+   sources, the destination's consent card, and the copy-not-move result said plainly.
 4. **Playback target.** The largest, and the one with a defect under it: a chooser in Studio, the
    selected window visible beside Play, a handle AND its owning process carried through the raise
    and the binding, one decision where there are now two, a refusal on disappearance or a change
-   of owner — and an explicit handoff for the global routines whose availability answers nothing
-   about where their keystrokes should go.
+   of owner — an explicit handoff for global routines, and **no Play at all without an identified
+   external window**.
 
 ## Not proposed
 

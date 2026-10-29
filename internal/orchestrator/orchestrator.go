@@ -186,6 +186,17 @@ type Deps struct {
 	// not a tested moment, and the moment is where this product's defects have been. See
 	// `TestAnImageThatAppearsAfterClassificationIsRefused`.
 	afterClassifying func()
+	// afterDestination occupies the instant a MOVE cannot otherwise be asked about: the
+	// destination is written and the original is still there, which is the one moment in
+	// a rescope when both exist.
+	//
+	// Everything after it — reading the destination back, revalidating the original,
+	// removing it — is about what can happen in exactly this interval. UNEXPORTED and nil
+	// in every `Deps` anything builds, for the same reason as the seam above: the way to
+	// show that an interval is handled is to stand in it.
+	//
+	// See `TestAMoveThatCannotRemoveTheOriginalSaysCopied`.
+	afterDestination func()
 }
 
 // learnOptions are the simplify defaults for a demonstration, honoring the

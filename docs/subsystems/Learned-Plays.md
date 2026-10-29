@@ -312,6 +312,22 @@ supply only the interaction: a card, a question whose Enter means NO, or — whe
 looking — a refusal. What is deliberately not shared is what each path CAPTURES. See
 [[ADR-266-one-set-of-rules-for-keeping-a-recording]].
 
+## And changing where one works is a move, not an edit
+
+Where a routine works IS its folder, so the three scopes are three files and changing between
+them creates a route at one path and ends one at another. `orchestrator.PrepareRescope` renders
+the routine for the scope asked for, from its own demonstration, and writes nothing;
+`orchestrator.Rescope` performs the move under BOTH locks — revalidating both ends, creating the
+destination exclusively unless a version-bound consent says to replace what is there, reading the
+destination back before anything is removed, and never deleting an original that is newer than
+the one reviewed.
+
+A move that wrote the destination and could not remove the original says **"Copied; original
+retained"** and never "Moved": two routines exist, and a person told otherwise goes looking for
+one of them. A hand edit is not carried across — the rendering comes from the recording — so the
+file as it stands is one side of the review and what would be written is the other. See
+[[ADR-271-a-rescope-is-a-reviewed-move-between-identities]].
+
 ## Related
 
 - [[Plays]] — what the person is holding once this chain finishes: kind, scope, standing
