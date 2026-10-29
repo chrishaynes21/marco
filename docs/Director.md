@@ -63,6 +63,7 @@ succeeding. [[Learned-Plays]] is the note; ADRs 023–032 are the constraints.
 - [[Windows]] — window identity, liveness, stale-capture prevention
 - [[Passive-Observation]] — watching without a reachable execution path
 - [[Capability-review-2026-10-13]] — what the teach-once chain demonstrates, simulates, asks a person for, and has not built
+- [[Alpha-candidate-2026-10-29]] — the alpha handoff: commit ids, what has been verified and with what, what has NOT been run, and what the green does not claim
 - [[Navigation]] — what the player did, as meaning rather than as keys
 
 **Interpreting**

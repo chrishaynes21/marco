@@ -11831,3 +11831,44 @@ The comparison is split from the read now, and the moment is stated rather than 
 `TestAListenerOnAFrameThatAlreadyFinishedDoesNotDeadlock` fails in five seconds with the fix
 reverted and passes with it, answering through a channel with a deadline because a regression is
 a hang, and a hang is otherwise a ten-minute timeout naming whichever test was unlucky.
+
+## And the repository did not build from a clone
+
+Checking that those three commits could be bisected — each one into an empty worktree, build it,
+run the packages it touched — found something older and worse than any of them.
+
+`cmd/perceptionreplay/coverage.go` is 420 lines: the walker, the classifier, and the coverage
+report that says which steps a recording can and cannot speak for. `workflow.go` calls all of it.
+It was never committed. `.gitignore` carried `coverage.*` under a comment about coverage
+profiles, and that pattern matches a `.go` file as readily as a `.out` file, so the package
+existed on one machine and in no clone. `go build ./...` passed here and failed in every checkout
+of this history.
+
+Nothing said so and nothing could. `git status` does not list an ignored file — that is what
+ignoring means. The suite ran against the working tree, which had the file. So did the gate. A
+reviewer reading a commit saw `workflow.go` calling functions that, as far as the repository was
+concerned, did not exist, and no tool objected.
+
+It is the SECOND time. Further down the same `.gitignore`:
+
+    # User routes ignored — ANCHORED.
+    # Unanchored `routes/` matches a directory of that name at ANY depth, so it also
+    # excluded internal/routes/ — and internal/routes/origin.go, a source file the build
+    # needs, was silently left out of a commit.
+
+The same accident, already paid for, already understood, written down as prose two lines below
+where `coverage.*` was later added. A comment cannot fail. That is the whole argument of
+`internal/wiringcheck`, and the rule lives there now:
+`TestNoIgnorePatternHidesASourceFile` asks whether any pattern in `.gitignore` matches a `.go`,
+`.ps1` or `.cmd` file that exists in this tree, and `matchesIgnore` is a pure function so the
+two real accidents can be facts in a table beside the patterns that must not fire — because with
+the pattern narrowed and the file committed, the live gate passes and would pass just as happily
+if the rule always answered no.
+
+It reads source and not content on purpose. Its first run reported `/routes/` hiding three
+`.marco` files, which is correct and deliberate: that is the person's own route store. A gate
+that fires on a state nobody should change is a gate somebody turns off.
+
+The candidate as a whole — commit ids, what has been verified and with what, what has NOT been
+run, and what the green does not claim — is written up in
+[[Alpha-candidate-2026-10-29]].
