@@ -501,6 +501,20 @@
   <!-- WHILE IT WATCHES. Two buttons and no clock: it ends when you say so. -->
   <div class="card hide" id="capturing">
     <div id="capDoing" style="font-size:15px"></div>
+    <!-- THE CHOSEN WINDOW, ON ITS OWN LINE.
+         A recording is OF ONE WINDOW, chosen before it starts, and this is the only place
+         the window is named while it matters — the dropdown that chose it is on the card
+         before this one, and gone by now.
+
+         It was ALREADY HERE, as the tail of the state above: `Recording "x" in <window>…`.
+         An audit of this view said it was missing, and that was wrong — a line-truncated
+         reading of the source, corrected rather than quietly dropped. What was true is
+         that the defining fact of a confined recording was the end of a sentence that
+         begins with something else. Same string, same source, its own line.
+
+         Named as the person chose it, which is the backend's wording and not this page's:
+         see recording.go. -->
+    <div class="muted hide" style="margin-top:4px" id="capInWindow"></div>
     <!-- PAUSED, AND VISIBLE WHILE IT IS HAPPENING.
          A confined recording goes silent the moment somebody leaves the window, and
          silence looks exactly like a recording that is still going: alt-tab to check
@@ -513,9 +527,16 @@
          it heads off is an expectation: somebody who pressed Record again on a routine
          may reasonably think Save will replace it. It will not. See again.go. -->
     <div class="muted hide" style="margin-top:6px" id="capAgain"></div>
-    <div class="muted" style="margin-top:6px">Do it now. Come back here and press
-      <b>Stop recording</b> when you are done — bringing this window forward and
-      pressing the button is not part of what you are teaching.</div>
+    <!-- AND THE TWO WAYS OUT, WITH NOTHING BETWEEN THEM AND THE STATE ABOVE.
+         A 21-word instruction stood here — "Do it now. Come back here and press Stop
+         recording when you are done…" — which is what the Stop button says. The half of
+         it worth keeping is that coming back here is not part of the demonstration, and
+         that is true of this whole window rather than of this moment: Studio's own
+         interactions are left out of every recording. See recording.go.
+
+         `capKey` is the CONFIGURED stop key, from `Recording.StopKey`, so the button is
+         not the only way out and the other way is written where somebody can see it. It
+         is whatever this machine is set to and is never named here. -->
     <div class="row" style="margin-top:12px">
       <button class="go" id="capStopBtn" onclick="stopCapture()">Stop recording</button>
       <button class="stop" onclick="cancelCapture()">Cancel</button>
@@ -528,24 +549,51 @@
        yet, so Cancel is a real alternative and the scope is a question somebody answers
        rather than one this window guesses. -->
   <div class="card hide" id="capReview">
+    <!-- THE ORDER IS THE POINT, AND THE ORDER WAS THE DEFECT.
+         Seven status lines stood above `capSteps`, so the thing a person is being asked to
+         approve — what they just demonstrated — was the EIGHTH element in the card.
+
+         Nothing is hidden and nothing is removed. Every line here has a reason to be
+         readable: two of them are the difference between a routine that refuses at run
+         time and one that does not save at all, one is the case where Save SUCCEEDS and
+         writes a second routine beside the one somebody meant to replace, and one is a
+         mode that used to depend on an environment variable nobody could see. A collapsed
+         detail would be this card deciding which of those a person does not need.
+
+         So the blocks moved: what was recorded, then the steps, then the scope they are
+         saved under, then what would stop or surprise a save, then Save.
+         See [[Studio-UI-audit-2026-10-29]]. -->
     <div id="capSaid"></div>
+
+    <!-- WHAT WAS DEMONSTRATED, FIRST. The draft in plain words, one line each, in order,
+         from the recording that ran. It is the thing being approved. -->
+    <ol id="capSteps" class="muted" style="margin-top:10px"></ol>
+
+    <!-- AND THE SCOPE BESIDE THEM, with what it was observed in above it: a scope is a
+         choice about those steps and reads as one next to them.
+
+         `capScopeRow` is shown only when the choice IS the person's — `showing(…, !r.brings)`
+         in pollCapture, untouched here. A recording with a guarded press has ONE scope it
+         can be saved under, and the chooser is withdrawn rather than defaulted, because
+         two of the three scopes promise to switch nothing and their routes would refuse
+         every press. Moving this block does not widen that. -->
+    <div class="muted" style="margin-top:12px" id="capWhere"></div>
+    <!-- HOW IT WILL BE PERFORMED, when that is not a choice. See pollCapture. -->
+    <div class="muted hide" style="margin-top:6px" id="capBrings"></div>
+    <div class="row hide" style="margin-top:10px" id="capScopeRow">
+      <label style="width:7em">it works</label>
+      <select id="capScope"></select></div>
+
     <!-- WHAT THIS RECORDING CANNOT CHECK, AND WHETHER DOING IT AGAIN WOULD HELP.
          A press that asked to be checked against the window it was made in and is
          missing a measurement will REFUSE at run time, so this is the sentence that
          makes keeping it an informed choice rather than a surprise the first time
          somebody runs it. Empty and hidden when everything was measured. -->
-    <div class="no hide" style="margin-top:6px" id="capMissing"></div>
+    <div class="no hide" style="margin-top:12px" id="capMissing"></div>
     <!-- AND WHAT CANNOT BE SAVED AT ALL, which is a different sentence from the one
          above: that one is a routine that saves and then refuses, this one does not
          save. Said here so a generator error does not arrive at a button press. -->
     <div class="no hide" style="margin-top:6px" id="capUnsupported"></div>
-    <div class="muted" style="margin-top:6px" id="capWhere"></div>
-    <!-- AND WHAT IT CAPTURED, at review and again on the saved card. The same sentence
-         as beside Record, from the recording that actually ran rather than from what
-         this window intended. -->
-    <div class="muted" style="margin-top:6px" id="capReviewCaptures"></div>
-    <!-- THE SAME SENTENCE AT REVIEW, where Save is the next button. -->
-    <div class="muted hide" style="margin-top:6px" id="capAgainReview"></div>
     <!-- AND WHEN THE DEMONSTRATION WAS MADE SOMEWHERE ELSE.
          A warning rather than a note, because this is the case where Save SUCCEEDS and
          does the wrong thing: which routine a save writes is decided by the application
@@ -553,13 +601,14 @@
          route, with no collision to refuse and a second routine quietly kept beside the
          one somebody set out to replace. -->
     <div class="no hide" style="margin-top:6px" id="capAgainElsewhere"></div>
-    <ol id="capSteps" class="muted" style="margin-top:10px"></ol>
-    <!-- HOW IT WILL BE PERFORMED, when that is not a choice. See pollCapture. -->
-    <div class="muted hide" style="margin-top:10px" id="capBrings"></div>
-    <div class="row hide" style="margin-top:10px" id="capScopeRow">
-      <label style="width:7em">it works</label>
-      <select id="capScope"></select></div>
-    <div class="row" style="margin-top:10px">
+    <!-- AND WHAT IT CAPTURED, at review and again on the saved card. The same sentence
+         as beside Record, from the recording that actually ran rather than from what
+         this window intended. -->
+    <div class="muted" style="margin-top:6px" id="capReviewCaptures"></div>
+    <!-- THE SAME SENTENCE AT REVIEW, where Save is the next button. -->
+    <div class="muted hide" style="margin-top:6px" id="capAgainReview"></div>
+
+    <div class="row" style="margin-top:14px">
       <button class="go" id="capSaveBtn" onclick="saveCapture()">Save</button>
       <button class="stop" onclick="cancelCapture()">Cancel</button>
       <span class="muted" id="capSaveNote"></span>
@@ -1707,8 +1756,16 @@
      text($('capAgainElsewhere'), r.again_elsewhere || '')
      showing($('capAgainElsewhere'), !!r.again_elsewhere)
      if (r.active) {
-       text($('capDoing'), 'Recording ' + (r.name ? '“' + r.name + '”' : '')
-         + (r.window ? ' in ' + r.window : '') + '…')
+       text($('capDoing'), 'Recording ' + (r.name ? '“' + r.name + '”' : '') + '…')
+       // THE WINDOW ON ITS OWN LINE, not as a trailing clause of the state.
+       //
+       // It was already here — `Recording "x" in <window>…` — so this is not a fact the
+       // page was missing, and an audit of this view said it was. What it was NOT was
+       // readable at a glance: the one thing a confined recording is defined by was the
+       // tail of a sentence that begins with something else. Same string, same source,
+       // its own line.
+       text($('capInWindow'), r.window ? 'in ' + r.window : '')
+       showing($('capInWindow'), !!r.window)
        // PAUSED, SAID WHILE IT IS HAPPENING. See capPaused.
        text($('capPaused'), r.paused || '')
        showing($('capPaused'), !!r.paused)

@@ -217,3 +217,92 @@ func insideDetails(page, anchor string) string {
 	}
 	return ""
 }
+
+// AND THE RECORDING STATE NAMES THE WINDOW IT IS RECORDING.
+//
+// A recording is OF ONE WINDOW, chosen before it starts, and the dropdown that chose it is on
+// the card before this one. So this card is the only place the window is named while it matters.
+//
+// It was already named, as the tail of `Recording "x" in <window>…`; what this holds is that it
+// has a line of its own and that the line is filled from `Recording.Window` rather than from
+// anything this page worked out.
+func TestTheRecordingStateNamesItsWindowAndItsWayOut(t *testing.T) {
+	page := thePage(t)
+	card := between(t, page, `id="capturing"`, `id="capReview"`)
+
+	for _, id := range []string{"capDoing", "capInWindow", "capPaused", "capStopBtn", "capKey"} {
+		if !strings.Contains(card, `id="`+id+`"`) {
+			t.Errorf("the recording card has no %s", id)
+		}
+	}
+	for _, c := range []struct{ first, then, why string }{
+		{`id="capDoing"`, `id="capInWindow"`, "the window follows the state it belongs to"},
+		{`id="capInWindow"`, `id="capPaused"`, "and comes before the pause, which is about it"},
+		{`id="capPaused"`, `id="capStopBtn"`, "the state comes before the way out of it"},
+	} {
+		if !before(card, c.first, c.then) {
+			t.Errorf("%s is not before %s: %s", c.first, c.then, c.why)
+		}
+	}
+
+	// AND THE STOP KEY IS THE CONFIGURED ONE. Never a key named in this page: the button is
+	// not the only way out, and the other way belongs to the machine.
+	js := page[strings.Index(page, "<script>"):]
+	if !strings.Contains(js, "r.stop_key") {
+		t.Error("the recording card does not read `stop_key`, so the other way out is " +
+			"either unnamed or named by this page")
+	}
+	for _, key := range []string{"F9", "F10", "F12", "Esc"} {
+		if regexp.MustCompile(`['"\s>(]` + key + `['"\s<),.]`).MatchString(card) {
+			t.Errorf("the recording card names %q. The stop key is whatever this "+
+				"machine is configured with, and the page renders what the "+
+				"backend says it is.", key)
+		}
+	}
+
+	// AND NOTHING SAYS AGAIN WHAT THE BUTTON SAYS. The 21-word instruction that stood here
+	// told somebody to press Stop recording when they were done.
+	if strings.Contains(card, "Come back here and press") {
+		t.Error("the recording card still instructs the person to press the button " +
+			"that is in front of them")
+	}
+}
+
+// AND THE REVIEW PUTS WHAT WAS DEMONSTRATED FIRST.
+//
+// Seven status lines stood above the step list, so the thing being approved was the eighth
+// element in the card. The order here is the whole claim; nothing is hidden, which is the other
+// half of it — every line in this card is a reason a save would refuse, surprise or be checked
+// differently, and a collapsed detail would be the card deciding which of those a person does
+// not need.
+func TestTheReviewShowsTheStepsBeforeEverythingAboutThem(t *testing.T) {
+	page := thePage(t)
+	card := between(t, page, `id="capReview"`, `id="repairCard"`)
+
+	order := []string{
+		`id="capSaid"`,           // what was recorded
+		`id="capSteps"`,          // THE DEMONSTRATED STEPS
+		`id="capScopeRow"`,       // the scope they are saved under, beside them
+		`id="capMissing"`,        // what would refuse at run time
+		`id="capUnsupported"`,    // what cannot be saved at all
+		`id="capAgainElsewhere"`, // and where Save succeeds and does the wrong thing
+		`id="capSaveBtn"`,        // then Save
+		`id="capTaken"`,          // and only then the two ways on from a refusal
+	}
+	for i := 0; i+1 < len(order); i++ {
+		if !before(card, order[i], order[i+1]) {
+			t.Errorf("%s must come before %s in the review card", order[i], order[i+1])
+		}
+	}
+
+	// AND THE SCOPE CHOOSER KEEPS ITS ENFORCEMENT. It is offered only when the choice is
+	// the person's: a recording with a guarded press has ONE scope it can be saved under,
+	// and the chooser is withdrawn rather than defaulted, because two of the three promise
+	// to switch nothing and their routes would refuse every press. Moving the block must
+	// not widen that, so the condition is asserted rather than assumed.
+	js := page[strings.Index(page, "<script>"):]
+	if !regexp.MustCompile(`showing\(\$\('capScopeRow'\),\s*!r\.brings\s*\)`).MatchString(js) {
+		t.Error("the scope chooser is no longer shown only when `brings` is empty, so a " +
+			"guarded recording may now be offered a scope it cannot be saved under")
+	}
+}

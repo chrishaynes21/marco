@@ -270,3 +270,50 @@ the page before this slice, 39 after, none added and none removed.
 States **2** and **3** — recording and review — are the next slice. The Scenes view keeps its
 own text problem (a 49-word paragraph about where pictures are kept); it was not in this slice
 and is not fixed by it.
+
+## The second slice: recording and review
+
+**Recording.** The chosen window has a line of its own under the state, the configured stop key
+is beside the two ways out, and the 21-word instruction telling somebody to press the button in
+front of them is gone. The pause sentence is the backend's and names **the window you left** —
+never the application somebody went to, which the backend does not supply and the page does not
+invent.
+
+**One correction to this page's own findings.** "The chosen window is not shown while recording"
+was wrong. The page already appended `in <window>` to the state line; the extraction that
+produced that finding truncated the continuation line. What was true is that the defining fact
+of a confined recording was the tail of a sentence beginning with something else. Corrected here
+rather than quietly dropped, because a page that measured a view is worth no more than its worst
+measurement.
+
+**Review.** The order the Architect specified: what was recorded, the demonstrated steps, the
+scope they are saved under, then what would stop or surprise a save, then Save, then the two ways
+on from a refusal. **Nothing is hidden.** Every line in that card is a reason a save would refuse,
+surprise or be checked differently, and a collapsed detail would be the card deciding which of
+those a person does not need.
+
+**Scope enforcement is unchanged and asserted rather than assumed.** `capScopeRow` is still shown
+only when `brings` is empty: a recording with a guarded press has one scope it can be saved under,
+and the chooser is withdrawn rather than defaulted, because two of the three promise to switch
+nothing and their routes would refuse every press. A test fails if that condition changes.
+
+### Rendered states
+
+Ten headless renders, at `docs/images/studio-ui/`, and collected with their claims at
+<https://claude.ai/artifact/Q9KaZ5dGi4bxXFTeXYKfya>.
+
+| | |
+| --- | --- |
+| `1-find-or-record.png`, `1b-record-form-open.png` | the question first, one way in |
+| `2-recording.png`, `2b-recording-paused.png` | the window named, the configured stop key, the pause |
+| `3-review.png`, `3b-review-with-warnings.png` | steps first; and a forced scope with the chooser withdrawn |
+| `4-selected-routine.png`, `4b-selected-unrunnable.png`, `4c-maintenance-open.png` | Play alone, a refusal in full view, maintenance collapsed |
+| `scenes-rail-entry.png` | the Scene tools in their own entry |
+
+### Held by
+
+- `plugins/studio` `TestTheRecordingStateNamesItsWindowAndItsWayOut` — the window on its own
+  line, the order of the card, the stop key read from the backend and **no key named in the
+  page**, and the instruction gone.
+- `plugins/studio` `TestTheReviewShowsTheStepsBeforeEverythingAboutThem` — the eight-element
+  order, and the scope chooser's condition unchanged.
