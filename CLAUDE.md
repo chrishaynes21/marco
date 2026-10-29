@@ -302,12 +302,29 @@ go run ./cmd/cleanroom                 # its second: builds the COMMITTED source
   (`TestADesktopTestCanObserveButNeverAct`), because a guard that is only present when the thing
   it guards is running is not a guard. See
   [[ADR-269-a-screen-free-gate-and-the-tests-that-need-the-screen]].
-- **The full-frame perception corpus test is behind `-tags corpus`** and is REQUIRED for a
-  perception change: `go test -tags corpus ./cmd/perceptionreplay/` (about 145s). It is out of the
-  default suite because it was starving other packages — `cmd/marco` past its 600s limit, and a
-  latency assertion from 962µs to 60ms. `go test ./...` still gates perception through the
-  every-tenth-frame test in the same package. See
-  [[ADR-167-a-slow-gate-and-two-rules-that-measured-worse]].
+- **BOTH perception-corpus tests are behind `-tags corpus`** and are REQUIRED for a perception
+  change: `go test -tags corpus ./cmd/perceptionreplay/` (the full-frame one is about 145s). The
+  full-frame one went out of the default suite because it was starving other packages — `cmd/marco`
+  past its 600s limit, and a latency assertion from 962µs to 60ms. **The every-tenth-frame one
+  joined it**, and the sentence that used to be here — "`go test ./...` still gates perception
+  through the every-tenth-frame test" — was true on ONE MACHINE: it reads an L0 recording from
+  `$MARCO_FRAME_CORPUS` or `.tmp/`, both uncommitted, so in a clean checkout it SKIPPED, and a
+  skip is green. Under the tag it refuses instead, because selecting it is asking for the corpus.
+  `go test ./...` gates perception through the hundred-odd deterministic tests in that package,
+  over synthetic fixtures; what it does not gate is the measurement against a real recording. See
+  [[ADR-167-a-slow-gate-and-two-rules-that-measured-worse]] and
+  [[ADR-270-packaging-is-gated-on-a-clean-checkout]].
+- **A TEST THAT NEEDS A PACKED BUNDLE IS BEHIND `-tags packaging`, AND THE GATE RUNS IT.** The
+  distinction that decides where a precondition goes: `-tags resolver`, `-tags corpus`,
+  `-tags vision` and `-tags desktop` stand for something this repository DOES NOT CONTAIN — a
+  model server, a recording, vendored weights, somebody's screen — and each is selected by hand. A
+  PACKED BUNDLE is something this repository MAKES, so `plugins/marco-app`'s six installation
+  tests are not an external prerequisite: `gate.ps1` stages the bundle and runs them in the same
+  stage, REJECTS A SKIP, and refuses to install a bundle whose own installation tests did not run.
+  Under the tag the precondition fails rather than skips. Same for the one shadow test that needs
+  the vendored weights (`-tags vision`): only THAT TEST moved, because
+  `shadowwiring_test.go` holds five others that touch no model at all. See
+  [[ADR-270-packaging-is-gated-on-a-clean-checkout]].
 - **`go build` in `plugins/vision` produces a detector that detects NOTHING.** The ONNX
   backend is behind `-tags onnxvision` and the default build answers "no model loaded" to
   everything, which reads as a missing subsystem rather than an unbuilt one. Use

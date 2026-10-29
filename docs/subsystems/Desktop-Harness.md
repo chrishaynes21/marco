@@ -528,7 +528,14 @@ that takes somebody’s screen:
 
 1. **the suites**, with what declined and what outlived them (`cmd/gate`)
 2. **a clean checkout of this commit**, built and gated from the committed source (`cmd/cleanroom`)
-3. **the bundle**, packed from this tree (`pack.ps1`)
+3. **the bundle**, packed from this tree (`pack.ps1`) — and then, in the same stage, the six
+   `plugins/marco-app` tests that install, upgrade, activate and roll back a staged bundle
+   (`-tags packaging`). They are out of stage 1 because nothing has staged a bundle there, and
+   they used to SKIP for that reason, which is green: in a clean checkout that was six findings,
+   and in the owner's tree they ran only because `pack.ps1` had been run at some point in the
+   past. The tag is not permission to go unrun — a packed bundle is something this repository
+   MAKES, so this stage stages one and then runs them, **rejects a skip**, rejects a selection
+   that matched no test, and refuses to install a bundle whose own installation tests did not run.
 4. **the bundle installed** from an isolated directory, reporting what it is made of
 5. **the tests whose preconditions are facts about the screen** (`-tags desktop`)
 6. **every registered scenario** against those installed binaries

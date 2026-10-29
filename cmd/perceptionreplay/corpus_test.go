@@ -1,3 +1,5 @@
+//go:build corpus
+
 package main
 
 import (
@@ -78,7 +80,16 @@ func corpusDir() string {
 func TestAtACoarseCadenceTheCorpusIdentifiesTheMenu(t *testing.T) {
 	dir := corpusDir()
 	if dir == "" {
-		t.Skip("no local L0 recording found; set $MARCO_FRAME_CORPUS to run it.")
+		// A REFUSAL AND NOT A SKIP, because this file is behind `-tags corpus` and
+		// running it is asking for the corpus. It used to skip, and a skip is green:
+		// on the owner's machine the recording was under `.tmp/` and it ran, and in a
+		// clean checkout it skipped and `cmd/gate` reported a finding. An L0 recording
+		// is hundreds of megabytes of captured frames, so it is genuinely supplied
+		// from outside the repository -- which makes an explicitly selected test the
+		// right shape, and a silent pass the wrong one.
+		t.Fatal("no L0 recording found: set $MARCO_FRAME_CORPUS to one, or put it " +
+			"at .tmp/game-capture-review/tm-menu-steps-sanitized. This test is " +
+			"behind `-tags corpus`, so running it is asking for the corpus.")
 	}
 	r, err := replayFrames(dir, 10, 0, false)
 	if err != nil {

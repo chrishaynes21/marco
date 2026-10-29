@@ -11908,3 +11908,59 @@ which survived at first, because every refusal case matched the stage's printed 
 
 See [[ADR-270-packaging-is-gated-on-a-clean-checkout]]. The result of the run against the
 candidate is in [[Alpha-candidate-2026-10-29]].
+
+## And the first clean-checkout run found that the suite could not run anywhere else
+
+Two runs, and they found different things.
+
+The first, against `9833e37`: **110 failures and 9 findings** for a commit whose suite is green
+here. 108 of them were one defect. `.gitattributes` said `* text=auto` and nothing more —
+`text=auto` decides what is STORED, and says nothing about what is CHECKED OUT, which is then
+whatever `core.autocrlf` says. So a fresh clone got CRLF for every extension nobody had listed,
+and `internal/driver`'s golden cases compared bytes and failed with a `got` and a `want` that
+printed identically: seventeen against eighteen. The lesson was already in that file, written for
+Studio's embedded page as a list of three extensions rather than as a rule, so the next extension
+inherited the old default. The default states `eol=lf` now and the guard is about the default, not
+a list.
+
+The second, against `eca0515`: **2 failures and 9 findings**, and every one of them a test whose
+preconditions are facts about ONE MACHINE.
+
+- `internal/spectest`'s two governance gates walked `../../routes`. They had never been able to
+  run anywhere but here, and what they checked was whatever the owner had happened to record.
+- `internal/osmod` read `../../routes/os.marco`, one historical copy, and skipped when it was
+  absent.
+- `plugins/marco-app`'s six installation tests skipped unless `pack.ps1` had been run at some
+  point in the past.
+- One `cmd/director` shadow test skipped without vendored weights and a gcc-built plugin.
+- `cmd/perceptionreplay`'s coarse-cadence test skipped without an L0 recording under `.tmp/`.
+
+The rule that sorted them: **a missing repository-generated artifact is not an external
+prerequisite.** A model server, a recording, vendored weights and somebody's screen are things
+this repository does not contain, and a test needing one is an integration test somebody selects,
+behind a tag, failing rather than skipping when the thing is absent. A packed bundle, a seeded
+module and a generated route are things this repository MAKES, and a test needing one must make
+it.
+
+So the two governance gates make a different and stronger claim: not *the routes in this library
+stay inside Core* but *representative programs produced by this build stay inside Core and name no
+backstage concept*. The matrix is 24 programs — `codegen` over every step kind it supports and the
+anchor forms that change what it emits, plus Director's play lowering and six lowered operations —
+each compiled through `driver.CheckSource`, which resolves `use os.` to the tracked canonical
+module. Its coverage is checked against the `StepKind` constants rather than asserted by a
+comment, and a kind that is neither exercised nor excused BY NAME fails.
+
+`osmod` stopped comparing one copy and started checking the mechanism: for every capability the
+canonical surface exports, a sibling carrying the canonical source resolves as the built-in does,
+and a sibling with that export removed makes the capability unreachable. That second half is the
+drift the test was written for — six capabilities missing from a stale copy — stated instead of
+waited for.
+
+And the checkers are held with deliberately invalid examples, because they passed before this
+change and would have passed with a checker that always answered "nothing wrong".
+
+One documented claim turned out to be about this machine and is corrected rather than kept:
+CLAUDE.md said `go test ./...` still gates perception through the every-tenth-frame test. It did
+here, where the recording is under `.tmp/`.
+
+See [[ADR-270-packaging-is-gated-on-a-clean-checkout]] and [[Alpha-candidate-2026-10-29]].

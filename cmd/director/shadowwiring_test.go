@@ -1,8 +1,6 @@
 package main
 
 import (
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -89,48 +87,5 @@ func TestTheRegisteredShadowProviderIsStructurallyShadow(t *testing.T) {
 	if !observation.IsShadow(p) {
 		t.Fatal("the shadow provider is not recognised as one; the collector would route " +
 			"its evidence into the collection Admitted() reads")
-	}
-}
-
-// The shadow detector must not configure the authoritative one.
-//
-// This is a regression test for a defect caught in the first live start, not a hypothetical.
-// The shadow bridge was configured with process-wide os.Setenv; a bridge host launches its
-// child on first USE rather than at construction; so both plugin children spawned after the
-// setters ran and both inherited ScreenParser. Two vision processes, same model, no error —
-// the experiment had silently become the authoritative detector.
-func TestBuildingTheShadowDetectorDoesNotTouchTheProcessEnvironment(t *testing.T) {
-	t.Setenv(shadowVisionEnv, "screenparser")
-	t.Setenv("MARCO_ONNXRUNTIME", "anything-non-empty")
-	// A model that REALLY EXISTS, so construction runs to completion. Pointing this at a
-	// missing file made an earlier version of this test vacuous: it returned at the stat
-	// check and never reached the code being tested, then passed against the defect.
-	model := filepath.Join("..", "..", "tools", "vision-export", "weights", "screenparser-1280.onnx")
-	if _, err := os.Stat(model); err != nil {
-		t.Skip("the ScreenParser model is not present; this test needs construction to complete")
-	}
-	t.Setenv("MARCO_SCREENPARSER_MODEL", model)
-
-	// And a plugin path that resolves from the test working directory, for the same
-	// reason: an unresolvable one returns before the code under test.
-	plugin := filepath.Join("..", "..", "plugins", "vision", "vision.exe")
-	if _, err := os.Stat(plugin); err != nil {
-		t.Skip("the vision plugin is not built; this test needs construction to complete")
-	}
-	t.Setenv("DIRECTOR_VISION", plugin)
-
-	// Whatever the authoritative side had configured must survive untouched.
-	t.Setenv("MARCO_VISION_MODEL", "authoritative-model.onnx")
-	t.Setenv("MARCO_VISION_CONF", "0.50")
-
-	newShadowVision(nil, nil, nil)
-
-	if got := os.Getenv("MARCO_VISION_MODEL"); got != "authoritative-model.onnx" {
-		t.Errorf("MARCO_VISION_MODEL is now %q — building the shadow detector overwrote the "+
-			"authoritative detector's configuration, and because bridges spawn lazily the "+
-			"authoritative plugin would inherit it", got)
-	}
-	if got := os.Getenv("MARCO_VISION_CONF"); got != "0.50" {
-		t.Errorf("MARCO_VISION_CONF is now %q, want 0.50", got)
 	}
 }

@@ -153,3 +153,61 @@ tree and names the files. It is strict on purpose: `gate.ps1` is the release gat
 - `internal/wiringcheck` `TestNoIgnorePatternHidesASourceFile` and
   `TestTheIgnoreRuleCatchesBothAccidentsItIsAbout` — the specific accident, with both real cases
   stated in a table beside the patterns that must not fire.
+
+## And the first run found that the suite could not run anywhere else
+
+The stage's own first result, against `eca0515`: **2 failures and 9 findings** in the clone, for a
+commit whose suite is green in the tree it was cloned from. Not line endings — that was the run
+before, and it is fixed. These were tests whose preconditions are facts about **one machine**.
+
+The rule applied to all of them: **a missing repository-generated artifact is not an external
+prerequisite.** A model server, a captured recording, vendored weights and somebody's screen are
+things this repository does not contain, and a test needing one is an integration test somebody
+selects. A packed bundle, a seeded module and a generated route are things this repository
+**makes**, and a test needing one must make it.
+
+| What failed or skipped | What it had been reading | What it does now |
+| --- | --- | --- |
+| `internal/spectest` `TestGeneratedMarcoStaysInsideCore`, `TestGeneratedMarcoNamesNoBackstageConcept` — **failed** | `../../routes`, the person's own route library | A deterministic matrix of 24 programs produced by this build: `codegen.RouteAs` over every step kind the generator supports and the anchor forms that change what it emits, plus `marcoexec`'s play lowering and six lowered operations. Each is compiled through `driver.CheckSource`, which resolves `use os.` to the tracked canonical module. |
+| `internal/osmod`'s seeded-surface test — **skipped** (the name went with the rewrite, which is why it is described here rather than cited: `internal/wiringcheck` holds this page to naming tests that exist) | `../../routes/os.marco`, one historical copy | The canonical module supplied in an isolated fixture, and the MECHANISM checked rather than one copy of it: for every capability the surface exports, a sibling carrying the canonical source resolves as the built-in does, and a sibling with that export removed makes the capability unreachable. |
+| `plugins/marco-app` × 6 — **skipped** | `assets/`, staged by a `pack.ps1` run at some point in the past | Behind `-tags packaging`, which `gate.ps1` runs in the stage that stages the bundle — and which REJECTS a skip. Under the tag the precondition fails rather than skips. |
+| `cmd/director` `TestBuildingTheShadowDetectorDoesNotTouchTheProcessEnvironment` — **skipped** | vendored ScreenParser weights and a gcc-built plugin | Behind `-tags vision`, failing rather than skipping when they are absent. Genuinely supplied from outside, so an explicitly selected integration test. |
+| `cmd/perceptionreplay` `TestAtACoarseCadenceTheCorpusIdentifiesTheMenu` — **skipped** | an L0 recording under `$MARCO_FRAME_CORPUS` or `.tmp/` | Behind `-tags corpus` with the full-frame one, failing rather than skipping. Hundreds of megabytes of captured frames is supplied from outside. |
+
+**The claim the two governance gates make is different now, and stronger.** It was *the routes in
+this library stay inside Core*; it is *representative programs produced by this build stay inside
+Core and name no backstage concept*. A leak reaches a library only after the generator has written
+it; the generator is asked directly here, and the matrix's coverage is checked against the
+`StepKind` constants rather than asserted by a comment — a kind that is neither exercised nor
+excused by name fails.
+
+**And the checkers are held with deliberately invalid examples.** They passed before this change,
+against a library on one machine, and they would have passed with a checker that always answered
+"nothing wrong" — a rule about a broken thing cannot be established from an unbroken one. Six
+broken programs are stated: a sentence opening with a named extension, one Core has no word for, a
+legal sentence naming a confidence, a backstage word in a comment, a stem-only match, and one that
+breaks both rules at once so neither gate can rely on the other having caught it.
+
+**One documented claim turned out to be about this machine and is corrected rather than kept.**
+CLAUDE.md said `go test ./...` still gates perception through the every-tenth-frame test. It did
+here, where the recording is under `.tmp/`. It gates perception through the deterministic tests in
+that package; the measurement against a real recording is `-tags corpus`.
+
+## Enforced by, for the test corrections
+
+- `internal/spectest` `TestGeneratedMarcoStaysInsideCore` and
+  `TestGeneratedMarcoNamesNoBackstageConcept` — the two gates, over the matrix.
+- `internal/spectest` `TestTheMatrixCoversEveryStepKind` — the coverage rule, read from the
+  `StepKind` constants, with a stale excuse failing too.
+- `internal/spectest` `TestTheGovernanceCheckersObjectToProgramsThatBreakTheRules` and
+  `TestTheGovernanceCheckersLeaveAnOrdinaryRouteAlone` — both directions, because a checker that
+  answered "broken" to everything would pass the first.
+- `internal/osmod` `TestASiblingOSModuleShadowsTheEmbeddedSurface`,
+  `TestTheFixtureReadsEveryExportOfTheCanonicalModule` and
+  `TestDroppingAnExportLeavesTheRestOfTheModuleIntact` — the mechanism, the fixture reading the
+  whole surface, and the drifted sibling being drifted rather than broken.
+- `cmd/gate` `TestAPackagingTestThatSkipsStopsTheGate` and
+  `TestAPackagingStageThatRanNothingIsNotAPass` — a skip and an empty selection are each refused,
+  and nothing is installed after either.
+- `cmd/gate` `TestAWholeRunClaimsTheGate` — the packaging stage recorded as passed in the verdict
+  table, not only printed on the way past.

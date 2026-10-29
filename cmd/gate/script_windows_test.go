@@ -86,6 +86,16 @@ func main() {
 		"\nverdict: PASSED\n"), 0o644)
 }
 `)
+	// AND A STAND-IN FOR THE TESTS THAT NEED A PACKED BUNDLE.
+	//
+	// Its own module, because the real one is: `go -C plugins\marco-app test` is how the
+	// stage reaches it. Without this the stage fails for want of a directory, which is
+	// exactly what the desktop stage did when it was added -- and a stage quietly left out
+	// of this tree would let every case below pass while the script did whatever it liked.
+	write("plugins/marco-app/go.mod", "module marcoappstub\n\ngo 1.26\n")
+	write("plugins/marco-app/staged_test.go", "//go:build packaging\n\npackage main\n\n"+
+		"import \"testing\"\n\n"+
+		"func TestTheStandInPackagingTestPasses(t *testing.T) {}\n")
 	// AND A STAND-IN FOR THE PACKED BUNDLE, which answers the one thing stage 4 asks of
 	// it: that it installs without reporting a PROBLEM.
 	write("cmd/bundle/main.go", `package main
@@ -461,6 +471,11 @@ func TestAWholeRunClaimsTheGate(t *testing.T) {
 	// the table is what it recorded. Deleting the `Stage "clean checkout" 0 ...` line left
 	// every other assertion in this file passing, because the refusal cases all match the
 	// header text too.
+	if !strings.Contains(said, "passed  packaging") {
+		t.Errorf("a whole run did not record the packaging tests as a stage that "+
+			"passed, so the verdict does not say the staged bundle was "+
+			"exercised:\n%s", said)
+	}
 	if !strings.Contains(said, "passed  clean checkout") {
 		t.Errorf("a whole run did not record the clean checkout as a stage that "+
 			"passed, so the verdict does not say it happened:\n%s", said)
@@ -651,5 +666,90 @@ func TestAnUncommittedChangeStopsTheGateBeforeAnythingIsPacked(t *testing.T) {
 	if strings.Contains(said, "3/6  packing the bundle") {
 		t.Errorf("the gate packed a working tree that no clean checkout had built:\n%s",
 			said)
+	}
+}
+
+// AND A PACKAGING TEST THAT SKIPS STOPS THE GATE, rather than counting as a pass.
+//
+// # Why a skip and not a failure
+//
+// Because the failure arm is the easy one and it is not what happened. Six `plugins/marco-app`
+// tests install, upgrade, activate and roll back a staged bundle, and in a tree nobody had packed
+// they called a precondition that SKIPPED. A skip is green: `go test` printed `ok`, the suite
+// passed, and the six tests that are the whole of the installation story established nothing. In
+// the owner's tree they ran, because `pack.ps1` had been run at some point in the past; in a
+// clean checkout they skipped, and `cmd/gate` reported six findings.
+//
+// The tag moved them out of stage 1, where there is nothing to install. This stage is where the
+// bundle has JUST been staged, so a skip here means the staging did not do its half -- and the
+// one thing this stage must not do is read that as success.
+func TestAPackagingTestThatSkipsStopsTheGate(t *testing.T) {
+	root := aTreeShapedLikeThisOne(t)
+	if err := os.WriteFile(filepath.Join(root, "plugins", "marco-app", "staged_test.go"),
+		[]byte("//go:build packaging\n\npackage main\n\nimport \"testing\"\n\n"+
+			"func TestTheStandInPackagingTestSkips(t *testing.T) {\n"+
+			"\tt.Skip(\"assets/studio.exe is not staged in this tree\")\n}\n"),
+		0o644); err != nil {
+		t.Fatal(err)
+	}
+	// A PACKER THAT PRODUCES A BUNDLE, so the run reaches the stage at all.
+	if err := os.WriteFile(filepath.Join(root, "pack.ps1"), []byte(
+		"$ErrorActionPreference = \"Stop\"\r\n"+
+			"Copy-Item (Join-Path $PSScriptRoot \"bundle.exe\") "+
+			"(Join-Path $PSScriptRoot \"dist\\Marco.exe\") -Force\r\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	said, code := theGate(t, root)
+
+	if code == 0 {
+		t.Fatalf("a packaging test that skipped left the gate reporting success:\n%s", said)
+	}
+	for _, says := range []string{
+		"the tests that need a packed bundle",
+		"SKIPPED after the bundle was staged",
+		"packaging tests",
+	} {
+		if !strings.Contains(said, says) {
+			t.Errorf("the gate does not say %q:\n%s", says, said)
+		}
+	}
+	// AND NOTHING WAS INSTALLED. The stage sits between packing and installing on
+	// purpose: a bundle whose own installation tests did not run is not a bundle to
+	// install from an isolated directory and then press things against.
+	if strings.Contains(said, "4/6  installing it") {
+		t.Errorf("the gate installed a bundle whose packaging tests had skipped:\n%s", said)
+	}
+}
+
+// AND A PACKAGING STAGE THAT SELECTED NOTHING IS NOT A PASS EITHER.
+//
+// The quieter half. `-tags packaging` picking out no test at all produces a `go test` that exits
+// zero and prints `ok`, with nothing having run -- which is how a tag typo, or a file whose build
+// constraint was changed, would read. It must not be the same outcome as six tests passing.
+func TestAPackagingStageThatRanNothingIsNotAPass(t *testing.T) {
+	root := aTreeShapedLikeThisOne(t)
+	// A TAGGED FILE WITH NO TEST IN IT: the package builds, the tag selects it, and
+	// nothing runs.
+	if err := os.WriteFile(filepath.Join(root, "plugins", "marco-app", "staged_test.go"),
+		[]byte("//go:build packaging\n\npackage main\n\nvar nothingHere = true\n"),
+		0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "pack.ps1"), []byte(
+		"$ErrorActionPreference = \"Stop\"\r\n"+
+			"Copy-Item (Join-Path $PSScriptRoot \"bundle.exe\") "+
+			"(Join-Path $PSScriptRoot \"dist\\Marco.exe\") -Force\r\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	said, code := theGate(t, root)
+
+	if code == 0 {
+		t.Fatalf("a packaging stage that ran no test at all reported success:\n%s", said)
+	}
+	if !strings.Contains(said, "the tag selected nothing") {
+		t.Errorf("the gate does not say the stage established nothing:\n%s", said)
+	}
+	if strings.Contains(said, "4/6  installing it") {
+		t.Errorf("the gate installed after a stage that ran nothing:\n%s", said)
 	}
 }

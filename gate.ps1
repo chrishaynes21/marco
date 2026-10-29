@@ -261,6 +261,47 @@ if ($bin -eq "") {
     }
     Stage "pack" 0 "dist\Marco.exe"
 
+    # -- AND THE TESTS THAT NEED A PACKED BUNDLE, NOW THAT THERE IS ONE --------
+    #
+    # `-tags packaging`: six tests that install, upgrade, activate and roll back a staged
+    # bundle. They are out of stage 1 because nothing has staged one there -- and they used to
+    # SKIP for that reason, which is green, so a clean checkout reported six findings and the
+    # owner's tree ran them only because `pack.ps1` had been run at some point in the past.
+    #
+    # THE TAG IS NOT PERMISSION TO GO UNRUN. The other tags in this repository stand for
+    # something it does not contain: a model server, somebody's screen, a recording. A packed
+    # bundle is something it MAKES, and `pack.ps1` has just made one -- so these run here, in
+    # the stage that staged them, and A SKIP IS REJECTED. Counting a skip as a pass is the
+    # defect this whole arrangement is the fix for.
+    Write-Host ""
+    Write-Host "   and the tests that need a packed bundle (-tags packaging)" -ForegroundColor Cyan
+    $pkgDir = Join-Path $root "plugins\marco-app"
+    $pkgSaid = & go -C $pkgDir test -count=1 -v -tags packaging ./...
+    $pkgCode = $LASTEXITCODE
+    $pkgSkipped = @($pkgSaid | Select-String -Pattern "^\s*--- SKIP:").Count
+    $pkgRan = @($pkgSaid | Select-String -Pattern "^\s*--- PASS:").Count
+    $pkgSaid | Select-String -Pattern "^(ok|FAIL|---)|^\s*--- (FAIL|SKIP):" |
+        ForEach-Object { Write-Host "  $_" }
+    $pkgWhy = ""
+    if ($pkgCode -ne 0) {
+        $pkgWhy = "go test -tags packaging exited $pkgCode"
+    } elseif ($pkgSkipped -gt 0) {
+        $pkgWhy = ("$pkgSkipped of these tests SKIPPED after the bundle was staged. A " +
+            "skip is green, so this stage rejects one: the bundle it was supposed to " +
+            "install is either not there or not the one it looked for.")
+    } elseif ($pkgRan -eq 0) {
+        $pkgWhy = ("no test reported PASS, so the tag selected nothing and the stage " +
+            "established nothing")
+    }
+    if ($pkgWhy -ne "") {
+        Stage "packaging tests" 1 $pkgWhy
+        Write-Host ""
+        Write-Host "gate: the packed bundle was not exercised, so nothing was installed." -ForegroundColor Red
+        Write-Host "  $pkgWhy" -ForegroundColor Red
+        Verdict
+    }
+    Stage "packaging tests" 0 "$pkgRan test(s), go test -tags packaging .\plugins\marco-app"
+
     # -- 4. INSTALLED, FROM SOMEWHERE THAT IS NOT THIS TREE --------------------
     #
     # With LOCALAPPDATA and APPDATA pointed away from the owner's, no repository beside it and

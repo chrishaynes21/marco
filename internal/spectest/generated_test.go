@@ -2,7 +2,6 @@ package spectest_test
 
 import (
 	"os"
-	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
@@ -62,37 +61,20 @@ var outsideCore = map[string]string{
 	"what":    "diagnostics",
 }
 
-// generatedRoots are the directories holding programs Director wrote or routes depend on.
+// generatedPrograms is what the two gates below are run over: programs THIS BUILD produces.
 //
-// `testdata` is deliberately excluded: those fixtures exist to exercise the whole language,
+// It used to walk `../../routes` — the person's own route library, which `/routes/` ignores on
+// purpose. So the claim was about whatever that person had happened to record, the gates could
+// not run on any other machine, and the first clean checkout of this repository FAILED both of
+// them for want of the directory. `theMatrix` generates the programs instead, deterministically,
+// over every route shape the generator supports and both of Director's lowering paths.
+//
+// `testdata` was and remains excluded: those fixtures exist to exercise the whole language,
 // including the extensions, and holding them to Core would be holding the compiler's own tests
 // to the generator's budget.
-var generatedRoots = []string{"../../routes"}
-
 func generatedPrograms(t *testing.T) map[string]string {
 	t.Helper()
-	out := map[string]string{}
-	for _, root := range generatedRoots {
-		err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
-			if err != nil || d.IsDir() || !strings.HasSuffix(path, ".marco") {
-				return err
-			}
-			raw, rerr := os.ReadFile(path)
-			if rerr != nil {
-				return rerr
-			}
-			out[filepath.ToSlash(path)] = string(raw)
-			return nil
-		})
-		if err != nil {
-			t.Fatalf("walking %s: %v", root, err)
-		}
-	}
-	if len(out) == 0 {
-		t.Fatalf("no generated programs found under %v; this test is proving nothing",
-			generatedRoots)
-	}
-	return out
+	return theMatrix(t)
 }
 
 var commentOrBlank = regexp.MustCompile(`^\s*(//.*)?$`)
@@ -127,25 +109,21 @@ func TestGeneratedMarcoStaysInsideCore(t *testing.T) {
 	sort.Strings(names)
 
 	for _, name := range names {
-		for i, line := range strings.Split(programs[name], "\n") {
-			w := firstWord(line)
-			if w == "" {
-				continue
-			}
-			if area, ok := outsideCore[w]; ok {
+		lines := strings.Split(programs[name], "\n")
+		for _, leak := range outsideCoreLines(programs[name]) {
+			at := strings.TrimSpace(lines[leak.Line-1])
+			if leak.Area != "" {
 				t.Errorf("%s:%d opens with %q (%s), which is outside Marco Core.\n"+
 					"    %s\n"+
 					"  Generated Marco is held to the vocabulary of spec/Core.md. Widening it "+
 					"is a language decision, not a generator detail — see Core.md#governance",
-					name, i+1, w, area, strings.TrimSpace(line))
+					name, leak.Line, leak.Word, leak.Area, at)
 				continue
 			}
-			if !coreVocabulary[w] {
-				t.Errorf("%s:%d opens with %q, which spec/Core.md does not describe.\n"+
-					"    %s\n"+
-					"  Either the sentence is wrong or Core.md is out of date; both are "+
-					"worth a person looking at", name, i+1, w, strings.TrimSpace(line))
-			}
+			t.Errorf("%s:%d opens with %q, which spec/Core.md does not describe.\n"+
+				"    %s\n"+
+				"  Either the sentence is wrong or Core.md is out of date; both are "+
+				"worth a person looking at", name, leak.Line, leak.Word, at)
 		}
 	}
 }
@@ -159,12 +137,6 @@ func TestGeneratedMarcoStaysInsideCore(t *testing.T) {
 // The list is the cognitive vocabulary this repository has actually built over the last several
 // milestones. If one of these words turns up in a route, Director has leaked.
 func TestGeneratedMarcoNamesNoBackstageConcept(t *testing.T) {
-	backstage := []string{
-		"confidence", "hypothesis", "evidence", "candidate", "assessment",
-		"checkpoint", "perception", "semanticmemory", "corroborat", "verdict",
-		"screenparser", "shadow", "inference", "fingerprint", "signature",
-		"topology", "recall", "provenance", "quarantine",
-	}
 	programs := generatedPrograms(t)
 	names := make([]string, 0, len(programs))
 	for name := range programs {
@@ -173,16 +145,12 @@ func TestGeneratedMarcoNamesNoBackstageConcept(t *testing.T) {
 	sort.Strings(names)
 
 	for _, name := range names {
-		for i, line := range strings.Split(programs[name], "\n") {
-			lower := strings.ToLower(line)
-			for _, word := range backstage {
-				if strings.Contains(lower, word) {
-					t.Errorf("%s:%d mentions %q.\n    %s\n"+
-						"  That is a backstage concept. Director may know why it chose an "+
-						"action; Marco says what it intends to do — see Core.md#governance",
-						name, i+1, word, strings.TrimSpace(line))
-				}
-			}
+		lines := strings.Split(programs[name], "\n")
+		for _, leak := range backstageLines(programs[name]) {
+			t.Errorf("%s:%d mentions %q.\n    %s\n"+
+				"  That is a backstage concept. Director may know why it chose an "+
+				"action; Marco says what it intends to do — see Core.md#governance",
+				name, leak.Line, leak.Word, strings.TrimSpace(lines[leak.Line-1]))
 		}
 	}
 }

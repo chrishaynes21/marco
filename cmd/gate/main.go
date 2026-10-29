@@ -101,6 +101,39 @@ func modules() []module {
 			why: "these tests need the owner's screen, so the screen-free stage " +
 				"never runs them; `gate.ps1` does, in the stage that takes " +
 				"the desktop (`go test -tags desktop ./cmd/director/`)"},
+		// AND THIS ONE IS NOT AN EXTERNAL PREREQUISITE, which is why the sentence is
+		// different. The three plugin suites above need something this repository does
+		// not contain. A packed bundle is something this repository MAKES, so the tag is
+		// not permission to go unrun: the packing stage stages it and then runs these,
+		// and rejects a skip rather than counting one as a pass.
+		{dir: "plugins/marco-app -tags packaging",
+			why: "these install, upgrade, activate and roll back a PACKED bundle, " +
+				"which nothing has staged in this tree yet; `gate.ps1` runs " +
+				"them in the stage that packs one, immediately after staging " +
+				"(`go test -tags packaging ./plugins/marco-app/`)"},
+		// AND THE THREE THAT ARE GENUINELY SUPPLIED FROM OUTSIDE.
+		//
+		// Reported for the same reason as the others: a tagged subset is a question
+		// nobody asked, and a silence reads as a question with no answer rather than as
+		// a question nobody put. Each names the command that runs it, so the answer is
+		// one line away.
+		{dir: "cmd/director -tags resolver",
+			why: "the only test that asks the real plugin and a real model server " +
+				"rather than a stand-in; neither is in this repository and a " +
+				"model server is somebody's machine, so it is REQUIRED for a " +
+				"resolver change and selected by hand " +
+				"(`go test -tags resolver ./cmd/director/`)"},
+		{dir: "cmd/director -tags vision",
+			why: "needs the vendored ScreenParser weights and a vision plugin built " +
+				"with gcc, neither of which is committed; it is the one shadow " +
+				"test that has to reach the end of construction " +
+				"(`go test -tags vision ./cmd/director/`)"},
+		{dir: "cmd/perceptionreplay -tags corpus",
+			why: "the two tests that replay a real L0 recording, which is hundreds " +
+				"of megabytes of captured frames and is not committed; REQUIRED " +
+				"for a perception change, and the deterministic tests in that " +
+				"package ran above " +
+				"(`go test -tags corpus ./cmd/perceptionreplay/`)"},
 	}
 }
 
