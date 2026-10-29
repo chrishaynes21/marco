@@ -134,8 +134,61 @@
  /* ── surfaces, spent by role rather than stamped on everything ── */
  .card{background:var(--raise);border:1px solid var(--line);border-radius:var(--r);
        padding:15px 17px;margin-bottom:10px}
- .card.pick{cursor:pointer;transition:border-color .12s,transform .12s}
- .card.pick:hover{border-color:var(--spot-dim)}
+ /* ── THE VISUAL PASS ──────────────────────────────────────────────────────────
+    One sans family throughout, and MONO FOR VALUES ONLY — coordinates, chords,
+    paths, source. That is a different axis from hierarchy, which is carried by
+    weight, size and space; mono never reaches a heading, a sentence or a button.
+
+    And fewer bordered containers. Eleven boxes down a page make all eleven the
+    same weight, which is how a window full of real distinctions came to read as
+    one flat list of cards. See [[Studio-UI-audit-2026-10-29]]. */
+
+ /* A ROUTINE IS A ROW. Hairlines between, so the names carry the list. */
+ .card.pick{background:none;border:0;border-top:1px solid var(--line);
+        border-radius:0;padding:13px 10px;margin:0;cursor:pointer;
+        transition:background .12s}
+ .card.pick:hover{background:var(--sink)}
+ .card.pick:last-child{border-bottom:1px solid var(--line)}
+ .card.pick h3{font:600 17px/1.25 var(--display);letter-spacing:-.012em;margin:0}
+ /* THE ROW'S OWN LINE: name and where on the left, one status word on the right. */
+ .rowline{display:flex;gap:10px 16px;align-items:center;justify-content:space-between}
+ .rowline > div{min-width:0}
+
+ /* A STATUS IS A WORD. The sentence it stands for is in the panel below, once,
+    about the routine somebody actually chose — not three times down a list. */
+ .pill{display:inline-block;font:500 11.5px/1 var(--text);padding:5px 9px;
+        border-radius:999px;white-space:nowrap;flex:none}
+ .pill.ok{background:var(--ok-bg);color:var(--ok)}
+ .pill.un{color:var(--faint);border:1px solid var(--line)}
+ .pill.no{background:var(--no-bg);color:var(--no)}
+
+ /* A STEP IS A ROW: number, verb, value. The value is ONE cell, so a click's
+    coordinates stay together and the verbs line up down the page. `.whole` is the
+    fallback for a step this page has no verb for, which keeps the backend's whole
+    sentence rather than losing half of it to a guess. */
+ ol.steps{counter-reset:s;margin:14px 0 0;padding:0;list-style:none}
+ ol.steps li{counter-increment:s;display:grid;grid-template-columns:24px 96px 1fr;
+        gap:4px 14px;align-items:baseline;padding:5px 0;color:var(--dim)}
+ ol.steps li::before{content:counter(s);font:400 12px/22px var(--mach);
+        color:var(--faint)}
+ ol.steps b{color:var(--ink);font-weight:600}
+ ol.steps .val{font:400 14px var(--mach);color:var(--dim);overflow-wrap:anywhere}
+ ol.steps .whole{grid-column:2 / -1}
+
+ /* A LIVE STATE LOOKS LIVE, AND A HELD ONE LOOKS HELD. The whole reason the paused
+    state exists is that silence looks exactly like a recording that is still
+    going, so it may not look like the same card in a different mood. */
+ .band{border-radius:var(--r);padding:16px 18px}
+ .band.rec{background:linear-gradient(90deg,var(--no-bg),transparent 72%);
+        box-shadow:inset 3px 0 0 var(--no)}
+ .band.hold{background:var(--warn-bg);box-shadow:inset 3px 0 0 var(--warn)}
+ .statusword{font:700 21px/1.15 var(--display);letter-spacing:-.02em}
+ .statusword.hold{color:var(--warn)}
+
+ /* THE PRIMARY ACTION, GIVEN ITS WEIGHT. One filled button per screen. */
+ button.go.big{font-size:15px;padding:11px 24px}
+ /* AND A BLOCKING HEADING, which is a short line in the warning's own colour. */
+ .wontrun{font:700 15px/1.3 var(--display);color:var(--no);margin-bottom:3px}
  /* The chosen one is MARKED, not outlined again: a second border around a thing
     that already has one is how every card ended up looking the same. */
  .card.on{border-color:var(--line);box-shadow:inset 3px 0 0 var(--spot);
@@ -499,8 +552,8 @@
   </div>
 
   <!-- WHILE IT WATCHES. Two buttons and no clock: it ends when you say so. -->
-  <div class="card hide" id="capturing">
-    <div id="capDoing" style="font-size:15px"></div>
+  <div class="band rec hide" id="capturing">
+    <div class="statusword" id="capDoing"></div>
     <!-- THE CHOSEN WINDOW, ON ITS OWN LINE.
          A recording is OF ONE WINDOW, chosen before it starts, and this is the only place
          the window is named while it matters — the dropdown that chose it is on the card
@@ -563,11 +616,18 @@
          So the blocks moved: what was recorded, then the steps, then the scope they are
          saved under, then what would stop or surprise a save, then Save.
          See [[Studio-UI-audit-2026-10-29]]. -->
+    <!-- WHICH ROUTINE SAVE WILL CREATE, ABOVE THE SUMMARY OF IT.
+         The card opened with `Recorded 6 steps, 4 of them presses.` and never said what the
+         thing being saved is called — which is the name the person typed before recording,
+         the name Save writes under, and the name a collision would be refused against. The
+         draft's own name, from the backend; `nameOr` has a fallback for a recording that was
+         never given one, and so does this. -->
+    <h3 id="capReviewName" style="margin:0 0 8px"></h3>
     <div id="capSaid"></div>
 
     <!-- WHAT WAS DEMONSTRATED, FIRST. The draft in plain words, one line each, in order,
          from the recording that ran. It is the thing being approved. -->
-    <ol id="capSteps" class="muted" style="margin-top:10px"></ol>
+    <ol id="capSteps" class="steps"></ol>
 
     <!-- AND THE SCOPE BESIDE THEM, with what it was observed in above it: a scope is a
          choice about those steps and reads as one next to them.
@@ -589,7 +649,17 @@
          missing a measurement will REFUSE at run time, so this is the sentence that
          makes keeping it an informed choice rather than a surprise the first time
          somebody runs it. Empty and hidden when everything was measured. -->
-    <div class="no hide" style="margin-top:12px" id="capMissing"></div>
+    <!-- AND THE HEADING THAT GOES WITH THE BUTTON BELOW.
+         `This routine won't run.` immediately above the reason, and `Save anyway` on the
+         button: the two together are what make keeping it an informed choice instead of a
+         surprise the first time somebody presses Play. The reason underneath is the
+         backend's and is now two short sentences — the count and the repair — because the
+         other two things that sentence used to carry are said by this heading and that
+         button. See whyItWillNotRun. -->
+    <div class="hide" style="margin-top:12px" id="capWontRunBox">
+      <div class="wontrun">This routine won't run.</div>
+      <div class="no" id="capMissing"></div>
+    </div>
     <!-- AND WHAT CANNOT BE SAVED AT ALL, which is a different sentence from the one
          above: that one is a routine that saves and then refuses, this one does not
          save. Said here so a generator error does not arrive at a button press. -->
@@ -1756,7 +1826,17 @@
      text($('capAgainElsewhere'), r.again_elsewhere || '')
      showing($('capAgainElsewhere'), !!r.again_elsewhere)
      if (r.active) {
-       text($('capDoing'), 'Recording ' + (r.name ? '“' + r.name + '”' : '') + '…')
+       // ONE WORD FOR THE STATE, AND THE BAND CHANGES COLOUR WITH IT.
+       //
+       // `Recording` and `Paused` are the two things a person has to tell apart at a
+       // glance, and they used to differ by a sentence appearing underneath an
+       // otherwise identical card. The word is the heading now and the card is red
+       // while it records, amber while it is held.
+       const held = !!r.paused
+       text($('capDoing'), held ? 'Paused' : 'Recording')
+       $('capDoing').classList.toggle('hold', held)
+       $('capturing').classList.toggle('rec', !held)
+       $('capturing').classList.toggle('hold', held)
        // THE WINDOW ON ITS OWN LINE, not as a trailing clause of the state.
        //
        // It was already here — `Recording "x" in <window>…` — so this is not a fact the
@@ -1764,11 +1844,14 @@
        // readable at a glance: the one thing a confined recording is defined by was the
        // tail of a sentence that begins with something else. Same string, same source,
        // its own line.
-       text($('capInWindow'), r.window ? 'in ' + r.window : '')
-       showing($('capInWindow'), !!r.window)
+       // THE NAME AND THE WINDOW, which is what the state is ABOUT. Shown while
+       // recording; while paused the line below says what to do instead.
+       text($('capInWindow'), (r.name ? '“' + r.name + '”' : 'This recording') +
+         (r.window ? ' — in ' + r.window : ''))
+       showing($('capInWindow'), !held)
        // PAUSED, SAID WHILE IT IS HAPPENING. See capPaused.
        text($('capPaused'), r.paused || '')
-       showing($('capPaused'), !!r.paused)
+       showing($('capPaused'), held)
        // AND THE OTHER WAY OUT, NAMED. The button is not the only one and somebody
        // who never comes back to this window still has to be able to finish.
        text($('capKey'), r.stop_key ? 'or press ' + r.stop_key : '')
@@ -1788,10 +1871,12 @@
        + '\u0000' + (r.steps || []).join('|')
      if (sig === shownCapture) { return }
      shownCapture = sig
+     // WHICH ROUTINE THIS WILL BE, from the draft's own name. See capReviewName.
+     text($('capReviewName'), r.name ? 'Review “' + r.name + '”' : 'Review this recording')
      text($('capSaid'), r.said || '')
      $('capSaid').className = r.failed ? 'no' : 'ok'
      text($('capMissing'), r.missing || '')
-     showing($('capMissing'), !!r.missing)
+     showing($('capWontRunBox'), !!r.missing)
      text($('capUnsupported'), r.unsupported || '')
      showing($('capUnsupported'), !!r.unsupported)
      text($('capWhere'), (r.application
@@ -1804,7 +1889,24 @@
      list.innerHTML = ''
      ;(r.steps || []).forEach(s => {
        const li = document.createElement('li')
-       li.textContent = s
+       const cut = verbOf(s)
+       if (cut) {
+         const b = document.createElement('b')
+         b.textContent = cut[0]
+         const v = document.createElement('span')
+         v.className = 'val'
+         v.textContent = cut[1]
+         li.append(b, v)
+       } else {
+         // NO VERB THIS PAGE KNOWS, SO THE WHOLE SENTENCE STANDS. A step the
+         // backend has words for and this page does not is still a step that
+         // will run; losing half of it to a guess would be a review of a
+         // different routine. See stepVerbs.
+         const v = document.createElement('span')
+         v.className = 'val whole'
+         v.textContent = s
+         li.append(v)
+       }
        list.appendChild(li)
      })
      // AND WHERE IT SHOULD WORK, ASKED RATHER THAN GUESSED — EXCEPT WHEN IT IS NOT A
@@ -1840,6 +1942,21 @@
      // AND SAVE IS NOT OFFERED FOR A RECORDING THAT CANNOT BE SAVED, for either
      // reason: nothing to keep, or a step that cannot be stopped at.
      $('capSaveBtn').disabled = !r.pressable || !!r.unsupported
+     // AND THE BUTTON SAYS WHAT PRESSING IT COSTS, when that is known in advance.
+     //
+     // `Save anyway` ONLY when saving is allowed AND the routine is known not to run:
+     // `incomplete` is the contract working — the draft is a true record of what somebody
+     // did, it saves, and it refuses to press rather than press somewhere nobody checked.
+     //
+     // NEVER for `unsupported`, which is the other thing entirely: that one does not save
+     // at all, so a button offering to save it anyway would be offering something that
+     // cannot happen. It stays `Save`, and it is disabled above.
+     //
+     // And it decides nothing. An invalid scope and a failed replacement-consent check are
+     // refused at the write by `keep`, after this label was chosen and regardless of it;
+     // a collision is still refused and still offers `Replace` by name.
+     text($('capSaveBtn'),
+       (r.incomplete && !r.unsupported) ? 'Save anyway' : 'Save')
    }).finally(() => setTimeout(pollCapture, 400))
  }
 
@@ -2085,16 +2202,27 @@
      }
      // WHERE IT WORKS AND WHEN IT WAS KEPT. Both, because a person who has just
      // recorded the same thing twice tells them apart by the clock and nothing else.
-     const where = esc(whereItWorks(r))
-     card.innerHTML = '<h3>' + esc(r.name) + '</h3>' +
-       '<div class="muted">' + where +
-       (r.saved_at ? '  ·  saved ' + esc(r.saved_at) : '') + '</div>' +
-       '<div class="' + (r.runnable ? (r.contract === 'guarded' ? 'ok' : 'muted')
-                                    : 'no') + '">' +
-       esc(r.runnable
-             ? (r.contract === 'guarded' ? 'every press is checked'
-                                         : 'its presses are not checked')
-             : 'cannot be performed as it stands') + '</div>'
+     // ONE WORD PER ROW, and the sentence it stands for once, in the panel below,
+     // about the routine somebody actually chose. The list used to carry a whole
+     // clause on every row — `every press is checked`, `cannot be performed as it
+     // stands` — so the thing a person scans for (the NAME) competed with three
+     // lines of explanation beside it, eleven times down the page.
+     // `Window-checked`, AND NOT `Checked`, WHICH MEANS SOMETHING ELSE.
+     //
+     // What is checked is the WINDOW: the same program, the same size, the same scale as
+     // the one the press was recorded against. It is NOT a claim that the routine did
+     // what the person wanted, and `Checked` on its own invites exactly that reading —
+     // a word on a row has no sentence beside it to narrow it. Marco does not verify an
+     // application's outcome and must not appear to.
+     //
+     // Held by TestAStatusWordNeverClaimsAnOutcomeWasVerified.
+     const status = !r.runnable ? ['no', "Won't run"]
+       : r.contract === 'guarded' ? ['ok', 'Window-checked'] : ['un', 'Unchecked']
+     card.innerHTML = '<div class="rowline"><div>' +
+       '<h3>' + esc(r.name) + '</h3>' +
+       '<div class="muted">' + esc(whereItWorks(r)) +
+       (r.saved_at ? '  ·  ' + esc(r.saved_at) : '') + '</div></div>' +
+       '<span class="pill ' + status[0] + '">' + esc(status[1]) + '</span></div>'
      list.appendChild(card)
    })
    renderRoutine()
@@ -2231,6 +2359,36 @@
    return r.scope === 'app-anywhere'
      ? 'brings ' + r.app + ' forward'
      : 'only while ' + r.app + ' is in front'
+ }
+
+ // THE VERBS A STEP CAN OPEN WITH, and what to call the column.
+ //
+ // `oneStep` in recording.go writes a step as one sentence — `left-click at 100, 200`,
+ // `press ctrl+shift+m`, `wait 250ms`. A row needs the verb and the value apart, so the
+ // sentence is split HERE, on a closed list, with the rest kept verbatim as the value.
+ //
+ // Longest prefix first, because `let go of ` and `press ` are both prefixes of nothing
+ // else but order still decides which is tried. Anything this list does not open is
+ // rendered whole rather than guessed at, and `plugins/studio`
+ // TestEveryStepSentenceTheBackendWritesHasAVerb holds the list against `oneStep`.
+ const stepVerbs = [
+   ['let go of ', 'Let go'],
+   ['left-click at ', 'Left-click'],
+   ['right-click at ', 'Right-click'],
+   ['middle-click at ', 'Middle-click'],
+   ['bring ', 'Bring'],
+   ['drag ', 'Drag'],
+   ['press ', 'Press'],
+   ['type ', 'Type'],
+   ['hold ', 'Hold'],
+   ['wait ', 'Wait'],
+ ]
+
+ function verbOf(s){
+   for (const [prefix, verb] of stepVerbs) {
+     if (s.startsWith(prefix)) { return [verb, s.slice(prefix.length)] }
+   }
+   return null
  }
 
  function renderRoutine(){

@@ -872,21 +872,34 @@ func whyItWillNotRun(steps []macroir.Step) string {
 			missing = append(missing, one)
 		}
 	}
-	repair := "Record it again with the program running and in front of you, and " +
-		"the measurements should arrive."
+	// SHORTER, BUT IT STILL NAMES WHICH MEASUREMENT DID NOT ARRIVE.
+	//
+	// This was one 50-word sentence carrying four things: how many presses, which
+	// measurements were absent, what saving would mean, and what to do. The page now says
+	// the third of those itself — `This routine won't run.` above this, and `Save anyway`
+	// on the button — so that clause is gone from here.
+	//
+	// THE NAMED MEASUREMENT STAYS, and a first attempt at this cut it. Three tests exist to
+	// stop exactly that: `TestReviewNamesWhicheverMeasurementFailed` walks the four things
+	// that can be absent and requires each to be named, because they are not
+	// interchangeable — "what scale it was drawn at" on a Windows that cannot report one
+	// means recording it again will NOT help, and the other three mean it will. A person
+	// deciding whether to keep this needs to know which they have.
+	//
+	// So the reduction is the clause the screen now carries, not the one it does not.
+	repair := "Record it again with the program in front of you."
 	if lacks["what scale it was drawn at"] && !canReadWindowScale() {
-		repair = "This computer's Windows is too old to report a window's scale, " +
-			"so recording it again will not change that: a routine that " +
-			"checks the window it was made in cannot be made on this machine."
+		repair = "This computer's Windows cannot report a window's scale, so a " +
+			"routine that checks the window it was made in cannot be made " +
+			"on this machine."
 	}
 	press := "press"
 	if presses > 1 {
 		press = "presses"
 	}
-	return fmt.Sprintf("%d %s here asked to be checked against the window they "+
-		"were made in, and %s was not measured. Saving this keeps the "+
-		"recording, and it will REFUSE to press rather than press somewhere "+
-		"nobody checked. %s", presses, press, andAll(missing), repair)
+	return fmt.Sprintf("%d %s asked to be checked and %s was not measured, so this "+
+		"will REFUSE rather than press somewhere nobody checked. %s",
+		presses, press, andAll(missing), repair)
 }
 
 // andAll is a list a person reads: "a", "a and b", "a, b and c".

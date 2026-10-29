@@ -751,7 +751,14 @@ func TestAScaleThisComputerCannotReportIsNotRepairable(t *testing.T) {
 
 	r := reviewOf(t, func(e *recorder.RecordedEvent) { e.Dpi = 0 })
 
-	if !strings.Contains(r.Missing, "too old") ||
+	// THE THREE THINGS IT HAS TO SAY, and `too old` is not one of them.
+	//
+	// This asserted the phrase `too old` as well, and the copy pass dropped it: the age of
+	// this computer's Windows is the CAUSE and not the thing a person can act on. What they
+	// can act on is that it cannot be done here, which is asserted below and unchanged —
+	// along with the two halves that matter just as much, that the scale is the reason and
+	// that another demonstration is not the answer.
+	if !strings.Contains(r.Missing, "scale") ||
 		!strings.Contains(r.Missing, "cannot be made on this machine") {
 		t.Errorf("the account reads %q, and on a computer that can never "+
 			"report a scale it has to say so rather than ask for another "+

@@ -6,6 +6,8 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/chaynes-simpleclouds/marco/internal/macroir"
 )
 
 // THE ORDER OF THE CONTROLS ON THE JOURNEY IS THE CLAIM, so it is the thing held.
@@ -279,7 +281,20 @@ func TestTheReviewShowsTheStepsBeforeEverythingAboutThem(t *testing.T) {
 	page := thePage(t)
 	card := between(t, page, `id="capReview"`, `id="repairCard"`)
 
+	// AND IT NAMES THE ROUTINE SAVE WILL CREATE, above the summary of it. The card opened
+	// with "Recorded 6 steps, 4 of them presses." and never said what the thing being saved
+	// is called -- the name the person typed, the name Save writes under, and the name a
+	// collision is refused against.
+	if !before(card, `id="capReviewName"`, `id="capSaid"`) {
+		t.Error(`the review card does not name the routine above its summary`)
+	}
+	js0 := page[strings.Index(page, "<script>"):]
+	if !regexp.MustCompile(`capReviewName'\),\s*r\.name`).MatchString(js0) {
+		t.Error("the review name is not the draft's own name from the backend")
+	}
+
 	order := []string{
+		`id="capReviewName"`,     // which routine this will be
 		`id="capSaid"`,           // what was recorded
 		`id="capSteps"`,          // THE DEMONSTRATED STEPS
 		`id="capScopeRow"`,       // the scope they are saved under, beside them
@@ -304,5 +319,200 @@ func TestTheReviewShowsTheStepsBeforeEverythingAboutThem(t *testing.T) {
 	if !regexp.MustCompile(`showing\(\$\('capScopeRow'\),\s*!r\.brings\s*\)`).MatchString(js) {
 		t.Error("the scope chooser is no longer shown only when `brings` is empty, so a " +
 			"guarded recording may now be offered a scope it cannot be saved under")
+	}
+}
+
+// EVERY SENTENCE `oneStep` WRITES OPENS WITH A VERB THE PAGE KNOWS — or is rendered whole.
+//
+// # Why this is a test and not a comment
+//
+// The page splits a step into a row: number, verb, value. The backend writes a step as one
+// SENTENCE (`left-click at 100, 200`), so the split happens in the page, against a closed list of
+// prefixes. A list drifts: add a step kind, change a verb, and the page quietly renders the new
+// sentence in the wrong column or loses half of it.
+//
+// So this calls `oneStep` — the real one, in this package — over a step of every kind, and asks
+// the page's own table to open the result. A kind the backend has no sentence for falls through
+// to its bare name, and must render WHOLE rather than be split by a prefix that happens to fit.
+func TestEveryStepSentenceTheBackendWritesHasAVerb(t *testing.T) {
+	verbs := stepVerbsInThePage(t)
+	if len(verbs) < 8 {
+		t.Fatalf("only %d verbs were read out of the page, so this is checking almost "+
+			"nothing: %v", len(verbs), verbs)
+	}
+
+	for _, c := range []struct {
+		why   string
+		step  macroir.Step
+		whole bool // true when the page must keep the sentence rather than split it
+	}{
+		{"a left click", macroir.Step{Kind: macroir.StepClick, X: 100, Y: 200}, false},
+		{"a right click", macroir.Step{Kind: macroir.StepClick, X: 1, Y: 2,
+			Button: "right"}, false},
+		{"a middle click", macroir.Step{Kind: macroir.StepClick, X: 1, Y: 2,
+			Button: "middle"}, false},
+		{"a click measured inside the window", macroir.Step{Kind: macroir.StepClick,
+			X: 1, Y: 2, WinRel: true, RelX: 3, RelY: 4}, false},
+		{"a key", macroir.Step{Kind: macroir.StepKey, Key: "ctrl+shift+m"}, false},
+		{"a repeated key", macroir.Step{Kind: macroir.StepKey, Key: "down",
+			Count: 3}, false},
+		{"a held key", macroir.Step{Kind: macroir.StepKeyDown, Key: "shift"}, false},
+		{"a released key", macroir.Step{Kind: macroir.StepKeyUp, Key: "shift"}, false},
+		{"typed text", macroir.Step{Kind: macroir.StepType, Text: "hello"}, false},
+		{"a wait", macroir.Step{Kind: macroir.StepWait, Ms: 250}, false},
+		{"a drag", macroir.Step{Kind: macroir.StepDrag, X: 1, Y: 2, X2: 3, Y2: 4}, false},
+		{"an application switch", macroir.Step{Kind: macroir.StepActivate,
+			Text: "Discord"}, false},
+		// AND THE ONES WITH NO SENTENCE, which `oneStep` renders as their own name.
+		{"a kind with no sentence", macroir.Step{Kind: macroir.StepFind}, true},
+		{"a loop", macroir.Step{Kind: macroir.StepLoop, Count: 2}, true},
+	} {
+		line := oneStep(c.step)
+		verb, rest := openedBy(verbs, line)
+		switch {
+		case c.whole && verb != "":
+			t.Errorf("%s is written as %q, which the page splits on %q and shows as "+
+				"%q. A step the page has no verb for must keep its whole "+
+				"sentence rather than lose the front of it.", c.why, line, verb, rest)
+		case !c.whole && verb == "":
+			t.Errorf("%s is written as %q and the page has no verb that opens it, so "+
+				"it falls back to the whole sentence in the value column. Add "+
+				"the prefix to `stepVerbs`.", c.why, line)
+		case !c.whole && rest == "":
+			t.Errorf("%s is written as %q and the page's verb leaves no value beside "+
+				"it", c.why, line)
+		}
+	}
+}
+
+// AND THE BUTTON SAYS `Save anyway` ONLY WHEN SAVING IS ALLOWED AND THE ROUTINE WILL NOT RUN.
+//
+// Two states that read alike and are not: `incomplete` SAVES and then refuses to press, so
+// keeping it is a real choice somebody can make knowingly. `unsupported` does not save at all, so
+// a button offering to save it anyway would offer something that cannot happen.
+//
+// The label decides nothing — an invalid scope and a failed replacement-consent check are refused
+// at the write, after this — so what is held here is the label itself and the guard on it.
+func TestSaveAnywayIsOfferedOnlyWhereSavingIsAllowed(t *testing.T) {
+	js := thePage(t)[strings.Index(thePage(t), "<script>"):]
+
+	label := regexp.MustCompile(
+		`text\(\$\('capSaveBtn'\),\s*\n?\s*\(([^)]*)\)\s*\?\s*'Save anyway'\s*:\s*'Save'\)`)
+	m := label.FindStringSubmatch(js)
+	if m == nil {
+		t.Fatal("the Save button's label is not chosen between `Save anyway` and `Save` " +
+			"in one expression, so what decides it cannot be read here")
+	}
+	cond := strings.ReplaceAll(m[1], " ", "")
+	if !strings.Contains(cond, "r.incomplete") {
+		t.Error("`Save anyway` is not conditioned on the recording being incomplete")
+	}
+	if !strings.Contains(cond, "!r.unsupported") {
+		t.Errorf("`Save anyway` is not guarded against an unsupported recording (%q). "+
+			"That one does not save at all, so offering to save it anyway offers "+
+			"something that cannot happen.", m[1])
+	}
+
+	// AND REPLACEMENT STILL SAYS REPLACE, naming what it replaces. `Save anyway` is about
+	// a routine that will not run; it is not a second way to overwrite one.
+	if !regexp.MustCompile(`id="capReplaceBtn"[^>]*>Replace<`).MatchString(thePage(t)) {
+		t.Error("the replacement button no longer says `Replace`")
+	}
+}
+
+// stepVerbsInThePage reads the page's own prefix table, in its own order.
+func stepVerbsInThePage(t *testing.T) [][2]string {
+	t.Helper()
+	page := thePage(t)
+	i := strings.Index(page, "const stepVerbs = [")
+	if i < 0 {
+		t.Fatal("the page has no `stepVerbs` table")
+	}
+	// THE ARRAY'S OWN CLOSING BRACKET, not the first `]` in it: every entry ends with one,
+	// so cutting at the first left a table of nothing and the guard read zero verbs.
+	block := page[i:]
+	end := strings.Index(block, "\n ]")
+	if end < 0 {
+		t.Fatal("the `stepVerbs` table does not end where this expects it to")
+	}
+	block = block[:end]
+	var out [][2]string
+	for _, m := range regexp.MustCompile(`\['([^']*)',\s*'([^']*)'\]`).
+		FindAllStringSubmatch(block, -1) {
+		out = append(out, [2]string{m[1], m[2]})
+	}
+	return out
+}
+
+// openedBy is the page's rule, in Go: the first prefix that opens the line wins.
+func openedBy(verbs [][2]string, line string) (verb, rest string) {
+	for _, v := range verbs {
+		if strings.HasPrefix(line, v[0]) {
+			return v[1], line[len(v[0]):]
+		}
+	}
+	return "", line
+}
+
+// A STATUS WORD SAYS WHAT WAS CHECKED, AND NEVER THAT AN OUTCOME WAS VERIFIED.
+//
+// `Window-checked` means the window checks are present: the press is checked against the same
+// program, size and scale it was recorded against. It does not mean the routine did what the
+// person wanted, and Marco cannot know that — it presses and reports what the press returned.
+//
+// The risk is a word, not a sentence. On a row there is nothing beside it to narrow it, so
+// `Checked`, `Verified`, `Confirmed`, `Works` would each be read as a claim about the OUTCOME.
+// The first draft of this pass said `Checked` for exactly that reason: it was shorter.
+func TestAStatusWordNeverClaimsAnOutcomeWasVerified(t *testing.T) {
+	js := thePage(t)[strings.Index(thePage(t), "<script>"):]
+	i := strings.Index(js, "const status = ")
+	if i < 0 {
+		t.Fatal("the row's status words are not chosen in one place any more")
+	}
+	line := js[i : strings.Index(js[i:], "\n")+i+200]
+
+	for _, word := range []string{"'Verified'", "'Confirmed'", "'Works'", "'Passed'",
+		"'Succeeded'", "'Checked'"} {
+		if strings.Contains(line, word) {
+			t.Errorf("a routine row is labelled %s. That reads as a claim about what "+
+				"the routine ACHIEVED. What is known is narrower: the window "+
+				"checks are present. Say which check it is.", word)
+		}
+	}
+	if !strings.Contains(line, "'Window-checked'") {
+		t.Error("the guarded row does not say WHICH check it has, so the word is open " +
+			"to being read as a verified outcome")
+	}
+}
+
+// AND SPLITTING A STEP INTO A ROW NEVER OMITS PART OF THE ACTION.
+//
+// The page shows a step as number, verb and value, by stripping a known prefix off the sentence
+// the backend wrote. That is only safe while the prefix is a VERB PHRASE: the moment a prefix
+// could contain a digit, a quote or a bracket, stripping it would delete part of what the step
+// does, and the row would describe a different action from the one that was recorded.
+//
+// So the invariant is about the prefixes themselves rather than about any one step: letters,
+// spaces and hyphens only. A prefix that cannot carry data cannot drop any.
+func TestSplittingAStepCanNeverDropPartOfIt(t *testing.T) {
+	verbs := stepVerbsInThePage(t)
+	safe := regexp.MustCompile(`^[a-z][a-z \-]*$`)
+	for _, v := range verbs {
+		if !safe.MatchString(v[0]) {
+			t.Errorf("the page strips %q off a step to find its verb. A prefix that "+
+				"is not plain words could carry part of the action, and "+
+				"stripping it would show a step that does less than the one "+
+				"recorded.", v[0])
+		}
+		if v[1] == "" {
+			t.Errorf("the prefix %q has no verb to show in its place", v[0])
+		}
+	}
+	// AND AN UNRECOGNISED SENTENCE IS KEPT WHOLE, which is the other half: a step this
+	// page has no verb for still has to be shown in full.
+	page := thePage(t)
+	if !strings.Contains(page, "v.className = 'val whole'") ||
+		!strings.Contains(page, "v.textContent = s") {
+		t.Error("an unrecognised step is no longer rendered as its whole sentence")
 	}
 }
