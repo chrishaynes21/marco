@@ -1,5 +1,28 @@
-# Normalize line endings: store text as LF, check out native.
-* text=auto
+# Normalize line endings: store text as LF, and CHECK IT OUT AS LF.
+#
+# NOT `check out native`, which is what this line used to say, and the difference is a
+# reproducibility defect rather than a preference. With core.autocrlf=true and no `eol=` on the
+# default, every extension nobody thought to list is checked out with CRLF -- so a FRESH CLONE
+# gets different bytes from the tree it was cloned from, and every test that compares bytes fails
+# for everybody except the people who had never re-checked-out the file.
+#
+# Measured: a clean checkout of 9833e37 failed 108 of `internal/driver`'s golden cases, each one
+# reporting a mismatch whose `got` and `want` looked IDENTICAL -- 17 bytes against 18. The
+# testdata `expected.txt` files were the extension nobody listed.
+#
+# The lesson was already here, in the web-assets paragraph below, written when the same thing
+# happened to Studio's page. It was written as a list of three extensions instead of as a rule,
+# so the next extension inherited the old default. Rules generalise; lists wait.
+#
+# `text=auto` still DETECTS binary, so .png, .ico, .syso and the rest are unaffected: `eol=lf`
+# applies only to what git has decided is text.
+#
+# Held by `internal/wiringcheck` TestTheCheckedOutLineEndingIsNotLeftToTheMachine.
+* text=auto eol=lf
+
+# The golden corpus, compared BYTE FOR BYTE by `internal/driver` TestGolden. Listed as well as
+# covered by the default, because this is the extension that proved the default was wrong.
+*.txt   text eol=lf
 *.go    text eol=lf
 *.md    text eol=lf
 *.marco text eol=lf
