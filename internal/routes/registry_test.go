@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"testing"
 )
 
@@ -131,6 +132,62 @@ func must(t *testing.T, err error) {
 	t.Helper()
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+// A MOVE REMOVES THE SOURCE FIRST, AND SAYS WHAT IT COULD NOT SWEEP AFTERWARDS.
+//
+// `Delete` takes the demonstration and the images first and the source last, which is right for a
+// deletion — everything is going — and wrong for a MOVE, which is allowed to fail at the removal
+// and promises the original is retained when it does. Through that order, a failed source removal
+// left a routine whose recording and images were already gone.
+//
+// So the two halves are separate calls. This holds both: `DeleteSource` touches nothing beside
+// the routine, and `DeleteLeftovers` NAMES what it could not take — litter under a slug is a file
+// the next routine saved there inherits. The failure is arranged with a directory in the
+// recording's place, which `os.Remove` refuses on every platform and needs no permissions, no
+// open handle and no second process.
+func TestAMovesRemovalTakesTheSourceFirstAndNamesWhatItLeaves(t *testing.T) {
+	reg := newReg(t)
+	rt := Route{App: "forza", Slug: "drift"}
+	must(t, reg.Save(rt, "the Drift is a script."))
+	must(t, reg.SaveRecording(rt, []byte("[]")))
+	anchor := filepath.Join(filepath.Dir(reg.Path(rt)), rt.Slug+"-anchor-1.png")
+	must(t, os.WriteFile(anchor, []byte("png"), 0o644))
+
+	// ── THE SOURCE, AND NOTHING ELSE ──
+	must(t, reg.DeleteSource(rt))
+	if reg.Has(rt) {
+		t.Fatal("the source is still there")
+	}
+	if !reg.HasRecording(rt) {
+		t.Error("removing the source took the demonstration with it, so a failed " +
+			"move would leave a routine that can never be rebuilt")
+	}
+	if _, err := os.Stat(anchor); err != nil {
+		t.Errorf("removing the source took an anchor image with it: %v", err)
+	}
+	must(t, reg.DeleteSource(rt)) // idempotent: the end state asked for is the end state
+
+	// ── AND THEN THE REST, WITH WHAT IT COULD NOT TAKE NAMED ──
+	if residue := reg.DeleteLeftovers(rt); len(residue) != 0 {
+		t.Errorf("it reports litter it did not leave: %v", residue)
+	}
+	if reg.HasRecording(rt) {
+		t.Error("the demonstration is still there")
+	}
+	if _, err := os.Stat(anchor); !os.IsNotExist(err) {
+		t.Errorf("the anchor image is still there: %v", err)
+	}
+
+	// ── AND SOMETHING IT CANNOT REMOVE IS SAID RATHER THAN SWALLOWED ──
+	stuck := Route{App: "forza", Slug: "stuck"}
+	must(t, reg.Save(stuck, "the Stuck is a script."))
+	inTheWay := reg.RecordingPath(stuck)
+	must(t, os.MkdirAll(filepath.Join(inTheWay, "something"), 0o755))
+	residue := reg.DeleteLeftovers(stuck)
+	if len(residue) != 1 || !strings.Contains(residue[0], "demonstration") {
+		t.Errorf("what could not be swept is reported as %v", residue)
 	}
 }
 

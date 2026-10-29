@@ -193,6 +193,21 @@ func (r Registry) Rename(from, to Route) error {
 
 // Delete removes a route, its stored demonstration, and any image-template files it
 // generated (no error if absent).
+//
+// # The order is wrong for a MOVE, and right for a deletion
+//
+// The demonstration and the images go FIRST, and the source last. For somebody deleting a
+// routine that is the harmless order — everything is going — and it has the property a deletion
+// wants: a failure partway leaves no routine whose dependencies are missing, because the source
+// is the last thing removed and a routine with its source still there is one that was never
+// deleted.
+//
+// It is exactly wrong for a move, which removes the original only AFTER the copy is verified and
+// must be able to say "original retained" truthfully: if the source removal fails here, the
+// recording and the images are already gone and what is retained is a routine that can no longer
+// be reviewed, rebuilt or moved — and, with anchors, may no longer run. A move uses
+// [Registry.DeleteSource] and [Registry.DeleteLeftovers] instead, in that order. See
+// [[ADR-271-a-rescope-is-a-reviewed-move-between-identities]].
 func (r Registry) Delete(rt Route) error {
 	dir := r.locDir(rt)
 	if err := os.Remove(filepath.Join(dir, rt.Slug+recExt)); err != nil && !os.IsNotExist(err) {
@@ -212,6 +227,58 @@ func (r Registry) Delete(rt Route) error {
 		return nil
 	}
 	return err
+}
+
+// DeleteSource removes a route's SOURCE and nothing else.
+//
+// The first half of a move's removal, and the half that decides whether the move happened at all:
+// a routine is its `.marco`, so while that is there the routine is there. Everything beside it —
+// the demonstration, the anchor images — is a dependency of a routine that still exists, and
+// removing any of it before this has succeeded is how "original retained" becomes a half a
+// routine. See [Registry.Delete] for why the opposite order is right for a deletion.
+//
+// Absent is not a failure: the end state asked for is the end state.
+func (r Registry) DeleteSource(rt Route) error {
+	if rt.Slug == "" {
+		return fmt.Errorf("routes: a play needs a name")
+	}
+	err := os.Remove(filepath.Join(r.locDir(rt), rt.Slug+".marco"))
+	if os.IsNotExist(err) {
+		return nil
+	}
+	return err
+}
+
+// DeleteLeftovers removes what sat beside a route whose source has already gone.
+//
+// The second half, and it is NOT allowed to fail the move: by the time this runs the routine
+// does not exist — nothing resolves it, nothing can play it, nothing can review it — so what is
+// left is litter rather than a routine. Litter that cannot be swept is still worth SAYING, which
+// is what the return value is for: a recording left behind under a slug is a file the next
+// routine saved there would inherit.
+//
+// Returns one sentence per thing it could not remove, in the order it tried them, and nothing at
+// all when the place is clean.
+func (r Registry) DeleteLeftovers(rt Route) []string {
+	dir := r.locDir(rt)
+	var residue []string
+	if err := os.Remove(filepath.Join(dir, rt.Slug+recExt)); err != nil && !os.IsNotExist(err) {
+		residue = append(residue, fmt.Sprintf("its demonstration (%v)", err))
+	}
+	if matches, err := filepath.Glob(filepath.Join(dir, rt.Slug+"-anchor-*.png")); err == nil {
+		for _, m := range matches {
+			if err := os.Remove(m); err != nil && !os.IsNotExist(err) {
+				residue = append(residue, fmt.Sprintf("%s (%v)",
+					filepath.Base(m), err))
+			}
+		}
+	}
+	// AND THE RENDEZVOUS FILE, which holds nothing and is litter once the route has gone.
+	// Best-effort and never reported: a save in flight has it open, and on Windows that
+	// refuses the removal — which is the right answer, because that save is about to
+	// recreate it anyway.
+	_ = os.Remove(r.LockPath(rt))
+	return residue
 }
 
 // List returns every route across all scopes, sorted and de-duplicated.

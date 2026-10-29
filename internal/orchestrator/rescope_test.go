@@ -15,6 +15,7 @@ package orchestrator
 // defect would be, and standing in it is the only way to show it is closed.
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -423,6 +424,122 @@ func TestAMoveNeverDeletesAnOriginalThatChangedAndSaysItCopied(t *testing.T) {
 	// ── AND THE DESTINATION IS WHAT WAS REVIEWED ──
 	if dst, _ := os.ReadFile(d.Reg.Path(to)); string(dst) != m.Now {
 		t.Error("the destination is not the source the review displayed")
+	}
+}
+
+// AND AN ORIGINAL THAT CANNOT BE REMOVED IS RETAINED WHOLE, NOT IN PIECES.
+//
+// # The defect this closes
+//
+// `Rescope` used to remove the original with `Registry.Delete`, which takes the demonstration and
+// the anchor images FIRST and the source LAST. That order is right for a deletion — everything is
+// going — and exactly wrong for a move, which is allowed to fail at the removal and promises
+// "original retained" when it does.
+//
+// Through `Delete`, a source removal that failed left a routine whose recording and images were
+// already gone: one that can no longer be reviewed, rebuilt or moved, and with anchors one that
+// can no longer run. The result said the original was retained, and what was retained was a
+// third of it.
+//
+// So the source goes first and nothing beside it is touched until that has succeeded. The
+// removal is behind a seam because the real causes — a file Windows holds open, a permission, a
+// sync — are a different answer on every platform, and what is being held is the ORDER.
+func TestAMoveThatCannotRemoveTheOriginalLeavesItWhole(t *testing.T) {
+	d, rt := aMovableRoutine(t)
+	to := routes.Route{App: "notepad", Slug: rt.Slug}
+	// AN ANCHOR IMAGE BESIDE IT, written by hand because what is being tested is the
+	// REMOVAL: `Registry.Delete` globs exactly this name, so a file of this name is
+	// precisely what the old order would have taken before it tried the source.
+	anchor := filepath.Join(filepath.Dir(d.Reg.Path(rt)), rt.Slug+"-anchor-1.png")
+	if err := os.WriteFile(anchor, []byte("not really a png"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	sourceWas, _ := os.ReadFile(d.Reg.Path(rt))
+	recWas, _ := d.Reg.LoadRecording(rt)
+
+	was := removeSource
+	t.Cleanup(func() { removeSource = was })
+	removeSource = func(routes.Registry, routes.Route) error {
+		return fmt.Errorf("the file is open in another program")
+	}
+
+	m, err := d.PrepareRescope(rt, ScopeApp, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := d.Rescope(m, Consent{})
+	if err != nil {
+		t.Fatalf("the move errored rather than reporting a copy: %v", err)
+	}
+
+	// ── IT SAYS COPIED, NOT MOVED ──
+	if got.Removed {
+		t.Error("the move reports the original as removed")
+	}
+	for _, says := range []string{"Copied", "original retained"} {
+		if !strings.Contains(got.Says, says) {
+			t.Errorf("the result reads %q and does not say %q", got.Says, says)
+		}
+	}
+
+	// ── THE DESTINATION IS COMPLETE ──
+	dst, derr := os.ReadFile(d.Reg.Path(to))
+	if derr != nil {
+		t.Fatalf("the copy is not at the destination: %v", derr)
+	}
+	if string(dst) != m.Now {
+		t.Error("the copy is not the source the review displayed")
+	}
+	if rec, ok := d.Reg.LoadRecording(to); !ok ||
+		routes.DigestOf(string(rec)) != routes.DigestOf(string(recWas)) {
+		t.Error("the copy has no demonstration beside it, so what was retained is " +
+			"the only complete routine")
+	}
+
+	// ── AND THE ORIGINAL IS WHOLE: SOURCE, DEMONSTRATION AND IMAGE ──
+	if now, err := os.ReadFile(d.Reg.Path(rt)); err != nil ||
+		string(now) != string(sourceWas) {
+		t.Errorf("the original source is not as it was (%v)", err)
+	}
+	if rec, ok := d.Reg.LoadRecording(rt); !ok ||
+		string(rec) != string(recWas) {
+		t.Error("the retained original has lost its demonstration, so it can never " +
+			"be reviewed, rebuilt or moved again")
+	}
+	if png, err := os.ReadFile(anchor); err != nil || string(png) != "not really a png" {
+		t.Errorf("the retained original has lost an anchor image, so it may no "+
+			"longer run (%v)", err)
+	}
+}
+
+// AND THE CONTROL: A REMOVAL THAT SUCCEEDS STILL ENDS THE ORIGINAL, AND SWEEPS UP AFTER IT.
+//
+// The other half of the test above, and the one that fails if the fix is "never remove anything".
+func TestAMoveThatRemovesTheOriginalTakesWhatSatBesideIt(t *testing.T) {
+	d, rt := aMovableRoutine(t)
+	anchor := filepath.Join(filepath.Dir(d.Reg.Path(rt)), rt.Slug+"-anchor-1.png")
+	if err := os.WriteFile(anchor, []byte("not really a png"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got, err := moved(t, d, rt, ScopeApp, Consent{})
+	if err != nil {
+		t.Fatalf("the move was refused: %v", err)
+	}
+	if !got.Removed || !strings.HasPrefix(got.Says, "Moved") {
+		t.Fatalf("the move reads %q", got.Says)
+	}
+	if len(got.Residue) != 0 {
+		t.Errorf("it reports litter it did not leave: %v", got.Residue)
+	}
+	for what, path := range map[string]string{
+		"source":        d.Reg.Path(rt),
+		"demonstration": d.Reg.RecordingPath(rt),
+		"anchor image":  anchor,
+	} {
+		if _, err := os.Stat(path); !os.IsNotExist(err) {
+			t.Errorf("the original's %s is still there, waiting to be inherited "+
+				"by the next routine saved under that slug", what)
+		}
 	}
 }
 

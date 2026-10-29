@@ -50,6 +50,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"strings"
 
 	"github.com/chaynes-simpleclouds/marco/internal/mlog"
 	"github.com/chaynes-simpleclouds/marco/internal/recorder"
@@ -120,6 +121,12 @@ type Rescoped struct {
 	To routes.Route
 	// Removed is whether the original is gone. False means both exist.
 	Removed bool
+	// Residue is what sat beside the original and could not be swept once it had gone —
+	// its demonstration, an anchor image, its provenance sidecar. Empty in the ordinary
+	// case, and NEVER a reason the move failed: the routine is gone, so what is left is
+	// litter rather than a routine. Reported because a recording left under a slug is a
+	// file the next routine saved there would inherit.
+	Residue []string
 	// Says is the sentence for a person: "Moved …", or "Copied …; original retained: …"
 	// with the reason the original is still there.
 	Says string
@@ -453,23 +460,61 @@ func (d Deps) Rescope(m Rescoping, consent Consent) (Rescoped, error) {
 			"the original changed while this was being written, so it has been "+
 				"left where it is")}, nil
 	}
-	if err := d.Reg.Delete(m.From); err != nil {
+	// ── THE SOURCE FIRST, AND NOTHING BESIDE IT UNTIL THAT HAS SUCCEEDED ──
+	//
+	// NOT `Registry.Delete`, which removes the demonstration and the anchor images FIRST
+	// and the source last. That order is right for a deletion — everything is going, and a
+	// failure partway leaves no routine whose dependencies are missing — and it is exactly
+	// wrong here, because this removal is allowed to fail and the promise when it does is
+	// that the original is RETAINED. Through `Delete`, a source removal that failed
+	// (Windows holding the file open, a permission, a sync) would have left a routine
+	// whose recording and images were already gone: a routine that can no longer be
+	// reviewed, rebuilt or moved, and with anchors one that can no longer run. "Original
+	// retained" would have been a sentence about something that was not there any more.
+	//
+	// A routine IS its `.marco`: while that is there the routine is there, so removing it
+	// is what makes this a move, and everything else is litter afterwards.
+	if err := removeSource(d.Reg, m.From); err != nil {
 		return Rescoped{To: m.To, Says: copiedSays(m.Name, m.TakenID,
-			fmt.Sprintf("the original could not be removed (%v)", err))}, nil
+			fmt.Sprintf("the original could not be removed (%v), and nothing "+
+				"beside it was touched", err))}, nil
 	}
-	// AND THE PROVENANCE SIDECAR OF THE ORIGINAL, which `Delete` does not take.
+	// ── AND ONLY NOW WHAT SAT BESIDE IT ──
+	//
+	// The routine is gone: nothing resolves it, nothing can play it. What is left cannot
+	// fail the move, and is still worth saying — a recording left under a slug is a file
+	// the next routine saved there would inherit.
+	residue := d.Reg.DeleteLeftovers(m.From)
+	// AND THE PROVENANCE SIDECAR, which neither of those takes.
 	//
 	// It is not copied to the destination: it describes bytes that no longer exist there,
 	// and the destination is a fresh rendering. Left behind it would sit under that slug
-	// waiting to be inherited by the next unrelated routine saved there — the same
-	// orphan `Registry.Rename` carries its sidecar to avoid. Best-effort: nothing about a
-	// move depends on it, and the move has already happened.
-	_ = d.Reg.DeleteOrigin(m.From)
+	// waiting to be inherited by the next unrelated routine saved there — the same orphan
+	// `Registry.Rename` carries its sidecar to avoid.
+	if err := d.Reg.DeleteOrigin(m.From); err != nil {
+		residue = append(residue, fmt.Sprintf("its provenance (%v)", err))
+	}
 	mlog.Info("rescope: moved", "route", m.Name, "from", RouteID(m.From),
 		"to", RouteID(m.To), "scope", string(m.Want),
-		"replaced", consent.Given())
-	return Rescoped{To: m.To, Removed: true,
-		Says: fmt.Sprintf("Moved %q to %s.", m.Name, RouteID(m.To))}, nil
+		"replaced", consent.Given(), "residue", len(residue))
+	says := fmt.Sprintf("Moved %q to %s.", m.Name, RouteID(m.To))
+	if len(residue) > 0 {
+		says += fmt.Sprintf(" What was beside it at %s could not be removed: %s.",
+			RouteID(m.From), strings.Join(residue, "; "))
+	}
+	return Rescoped{To: m.To, Removed: true, Residue: residue, Says: says}, nil
+}
+
+// removeSource is the one removal a move's promise depends on.
+//
+// A variable so a test can make it fail. Nothing else replaces it, and the claim it exists for —
+// that a failed source removal leaves the demonstration and the images exactly where they are —
+// cannot be made to happen on a real filesystem on purpose without arranging a locked file, a
+// permission or a sync, each of which is a different answer on each platform. The same seam the
+// guarded-press boundary uses for `windowFacts`, for the same reason. See
+// TestAMoveThatCannotRemoveTheOriginalLeavesItWhole.
+var removeSource = func(reg routes.Registry, rt routes.Route) error {
+	return reg.DeleteSource(rt)
 }
 
 // lockOrder is which of two routes is locked first, and it never depends on which end of the move
