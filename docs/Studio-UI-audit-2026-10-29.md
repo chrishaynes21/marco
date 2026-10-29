@@ -362,3 +362,9 @@ one case where `Record it again` is the wrong advice.
   this one, from a format string that read correctly.
 - `plugins/studio` `TestASavedRoutineIsListedAndReadyToPlay` — the guarded sentence by its two
   meanings (what is checked, and that it stops) rather than by its old wording.
+
+### What comes after this pass
+
+The UI pass closed at `fb7e677`. The three product decisions it deliberately did not touch —
+discoverability of review-and-replace, route availability, and the playback target — are traced
+and proposed in [[Studio-three-questions-proposal-2026-10-29]].
