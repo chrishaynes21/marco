@@ -280,6 +280,15 @@ func (c *Client) ResolveRoute(p ResolveRoutePayload) (ResolveRouteResponse, erro
 	if err != nil {
 		return ResolveRouteResponse{}, err
 	}
+	return resolveAnswerOf(resp)
+}
+
+// resolveAnswerOf reads one response envelope as an answer or as the refusal it is.
+//
+// Its own function so the translation can be exercised against an envelope rather than against a
+// service: what is worth holding is this branch, and the one way to produce it from a client is a
+// payload the service cannot decode.
+func resolveAnswerOf(resp ResponseEnvelope) (ResolveRouteResponse, error) {
 	// AND A REFUSAL IS NOT AN ANSWER WITH NOTHING IN IT.
 	//
 	// The service answers a bad request with an ErrorPayload in a perfectly good

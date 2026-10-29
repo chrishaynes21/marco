@@ -1120,6 +1120,68 @@ func offerLearn(h *model, name string) {
 	promptAsk.Store(true)
 }
 
+// pendingRoutine is the routine a resolution offered, waiting for a yes.
+//
+// Beside `pendingPrompt` rather than reusing it, because the two offers end differently: one
+// starts a recording and the other performs something that already exists, and a single slot
+// would make "y" mean whichever was set last. Guarded by the same mutex.
+var pendingRoutine offeredRoutine
+
+// offeredRoutine is a routine Director named, in the three parts an invocation is built from.
+//
+// THE WHOLE IDENTITY, carried rather than re-derived. A name is not unique and neither is a slug;
+// the invocation it becomes is `--play` plus `--app` plus `--focus`, which is the intake's
+// explicit-identity arm where no phrase is looked up again.
+type offeredRoutine struct {
+	name, id, app, slug string
+	focus               bool
+}
+
+// offerRoutine asks whether to run the routine a resolution named.
+//
+// AN OFFER. Nothing has been performed, and nothing is performed until somebody answers. Enter
+// means YES here, as it does for the learn offer beside it: both are "the thing you asked for",
+// and neither costs anything that cannot be undone by a stop.
+func offerRoutine(h *model, name, id, app, slug string, focus bool) {
+	pendingPromptMu.Lock()
+	pendingRoutine = offeredRoutine{name: name, id: id, app: app, slug: slug, focus: focus}
+	pendingPrompt = ""
+	pendingPromptMu.Unlock()
+	shown := name
+	if shown == "" {
+		shown = id
+	}
+	h.setStatus("found: " + shown)
+	h.setPrompt(fmt.Sprintf("Run %q? [y]es / [n]o: ", shown))
+	promptAsk.Store(true)
+}
+
+// takePendingRoutine returns and clears the routine a resolution offered.
+func takePendingRoutine() offeredRoutine {
+	pendingPromptMu.Lock()
+	defer pendingPromptMu.Unlock()
+	r := pendingRoutine
+	pendingRoutine = offeredRoutine{}
+	return r
+}
+
+// runOfferedRoutine performs the routine somebody just said yes to.
+//
+// Through the SAME door as everything else, with the identity Director named. Nothing here
+// decides anything about the routine: this is the one confirmed invocation, built from three
+// fields and sent.
+func runOfferedRoutine(h *model, r offeredRoutine) {
+	args := []string{"do", "--play=" + r.slug}
+	if r.app != "" {
+		args = append(args, "--app="+r.app)
+	}
+	if r.focus {
+		args = append(args, "--focus")
+	}
+	mlogI("overlay: running what Director named", "id", r.id, "args", args)
+	go func() { _ = spawnIntakeChild(h, r.name, true, args...) }()
+}
+
 // takePendingLearn returns and clears the pending learn-offer name.
 func takePendingLearn() string {
 	pendingPromptMu.Lock()

@@ -62,6 +62,17 @@ func dispatchIntake(h *model, phrase string, source invoke.Source) {
 	go func() {
 		r := spawnIntakeChild(h, phrase, track, args...)
 		if r.offersLearn() {
+			// ── BEFORE OFFERING TO RECORD ONE, ASK WHETHER MARCO HAS IT ──
+			//
+			// Nothing took the phrase, which is the moment a person is about to
+			// be offered a recording session. They may well have a routine for
+			// it under another name, and that offer is then the one answer that
+			// is certainly wrong. Director is asked which saved routine the
+			// words named; it holds the scope policy and the library, and this
+			// surface holds neither. See resolve.go.
+			if offerWhatMarcoHas(h, phrase) {
+				return
+			}
 			mlogI("overlay: nothing took it — offering learn", "phrase", phrase)
 			offerLearn(h, phrase)
 		}

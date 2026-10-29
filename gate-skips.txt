@@ -77,4 +77,4 @@ github.com/chaynes-simpleclouds/marco/plugins/overlay TestOverlayEnvDumpHelper �
 # start — a model server is somebody's machine — so it declines when either is absent rather than
 # passing on a machine where nothing was asked. On a set-up machine (setup.ps1 builds the plugin
 # and installs Ollama) it RUNS, and a skip here means this gate did not exercise the connection.
-github.com/chaynes-simpleclouds/marco/plugins/studio TestAParaphraseReachesTheResolverAndComesBackAsAnIdentity — needs plugins/llama built and a local model server answering; it is the only test that exercises the resolver connection rather than a stand-in
+github.com/chaynes-simpleclouds/marco/cmd/director TestAParaphraseReachesTheResolverThroughDirector — needs plugins/llama built and a local model server answering; it is the only test that exercises the resolver connection rather than a stand-in, and it goes through Director, which owns route resolution

@@ -90,7 +90,13 @@ const D = {name: 'trackmania video', application: 'trackmania',
 const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCA' +
   'AAAC0lEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
 window.go = {main: {
-  Backend: {Loaded: () => Promise.resolve()},
+  Backend: {
+    Loaded: () => Promise.resolve(),
+    // DIRECTOR ANSWERS THE ASK BOX NOW, so a stub without this is a page whose
+    // request box throws — which is the right failure: a binding the page calls and
+    // the window does not export is what these harnesses exist to catch.
+    SuggestRoutine: () => Promise.resolve({answer: {kind: 'none'}}),
+  },
   Acts: {
     // THE ASK BOX. Bound at startup, so a stub without it is a page that paints
     // nothing - which is the right failure: a binding the page calls and the window
@@ -213,7 +219,13 @@ const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCA
   'AAAC0lEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
 let tick = 0
 window.go = {main: {
-  Backend: {Loaded: () => Promise.resolve()},
+  Backend: {
+    Loaded: () => Promise.resolve(),
+    // DIRECTOR ANSWERS THE ASK BOX NOW, so a stub without this is a page whose
+    // request box throws — which is the right failure: a binding the page calls and
+    // the window does not export is what these harnesses exist to catch.
+    SuggestRoutine: () => Promise.resolve({answer: {kind: 'none'}}),
+  },
   Acts: {
     // THE ASK BOX. Bound at startup, so a stub without it is a page that paints
     // nothing - which is the right failure: a binding the page calls and the window
@@ -353,7 +365,13 @@ func renderForCounters(t *testing.T, browser, stub string) string {
 const reviewHarness = `
 window.__scopeRedraws = 0
 window.go = {main: {
-  Backend: {Loaded: () => Promise.resolve()},
+  Backend: {
+    Loaded: () => Promise.resolve(),
+    // DIRECTOR ANSWERS THE ASK BOX NOW, so a stub without this is a page whose
+    // request box throws — which is the right failure: a binding the page calls and
+    // the window does not export is what these harnesses exist to catch.
+    SuggestRoutine: () => Promise.resolve({answer: {kind: 'none'}}),
+  },
   Acts: {
     // THE ASK BOX. Bound at startup, so a stub without it is a page that paints
     // nothing - which is the right failure: a binding the page calls and the window
@@ -464,7 +482,13 @@ func TestTheReviewAStopButtonOpensIsRenderedOnce(t *testing.T) {
 // them — and that a library sitting somewhere else is named rather than passed over in silence.
 const libraryHarness = `
 window.go = {main: {
-  Backend: {Loaded: () => Promise.resolve()},
+  Backend: {
+    Loaded: () => Promise.resolve(),
+    // DIRECTOR ANSWERS THE ASK BOX NOW, so a stub without this is a page whose
+    // request box throws — which is the right failure: a binding the page calls and
+    // the window does not export is what these harnesses exist to catch.
+    SuggestRoutine: () => Promise.resolve({answer: {kind: 'none'}}),
+  },
   Acts: {
     // THE ASK BOX. Bound at startup, so a stub without it is a page that paints
     // nothing - which is the right failure: a binding the page calls and the window
@@ -640,7 +664,13 @@ window.__saved = 0
 window.__replaced = ''
 window.__as = ''
 window.go = {main: {
-  Backend: {Loaded: () => Promise.resolve()},
+  Backend: {
+    Loaded: () => Promise.resolve(),
+    // DIRECTOR ANSWERS THE ASK BOX NOW, so a stub without this is a page whose
+    // request box throws — which is the right failure: a binding the page calls and
+    // the window does not export is what these harnesses exist to catch.
+    SuggestRoutine: () => Promise.resolve({answer: {kind: 'none'}}),
+  },
   Acts: {
     // THE ASK BOX. Bound at startup, so a stub without it is a page that paints
     // nothing - which is the right failure: a binding the page calls and the window
@@ -738,7 +768,13 @@ func TestOrdinarySaveNeverReplacesAndTheChoiceIsPressed(t *testing.T) {
 // compared side by side — which is the whole point: the rows sit next to each other.
 const historyHarness = `
 window.go = {main: {
-  Backend: {Loaded: () => Promise.resolve()},
+  Backend: {
+    Loaded: () => Promise.resolve(),
+    // DIRECTOR ANSWERS THE ASK BOX NOW, so a stub without this is a page whose
+    // request box throws — which is the right failure: a binding the page calls and
+    // the window does not export is what these harnesses exist to catch.
+    SuggestRoutine: () => Promise.resolve({answer: {kind: 'none'}}),
+  },
   Acts: {
     // THE ASK BOX. Bound at startup, so a stub without it is a page that paints
     // nothing - which is the right failure: a binding the page calls and the window

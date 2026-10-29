@@ -290,7 +290,15 @@ func processActions(h *model, emit func(event)) {
 			// answer to the live child. Off the hook thread, so the write is safe.
 			if ans, ok := h.submitPromptPending(); ok {
 				promptAsk.Store(false)
-				if name := takePendingLearn(); name != "" {
+				// A ROUTINE DIRECTOR NAMED, offered before the learn offer.
+				// Checked first because the two offers are different slots and
+				// only one of them is ever set; see offerRoutine.
+				if r := takePendingRoutine(); r.id != "" {
+					h.clearPrompt()
+					if ans == "" || ans == "y" || ans == "yes" {
+						runOfferedRoutine(h, r)
+					}
+				} else if name := takePendingLearn(); name != "" {
 					// Unknown-command learn OFFER (no child runs on decline), so wipe the
 					// prompt/transcript ourselves — otherwise it lingers in the HUD.
 					h.clearPrompt()

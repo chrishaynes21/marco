@@ -192,6 +192,19 @@ go run ./cmd/gate                      # its first stage alone, which needs no s
   NOT shared, on purpose: the capture mode (the terminal states nothing and still does) and the
   owner-strip rule (`Deps.OwnerTailOnly`). `saveTaught`/`chooseScope` are retained for
   `LearnVoice`. See [[ADR-266-one-set-of-rules-for-keeping-a-recording]].
+- **DIRECTOR OWNS ROUTE RESOLUTION, and every surface asks it.** `internal/resolveroute` is the
+  policy and `cmd/director` is its only caller, reached over the service protocol
+  (`RESOLVE_ROUTE`, read-only). Exact versus fuzzy is an implementation detail inside that package
+  and NOT an ownership boundary, so there is no local fallback: the ask box, the widget's offer and
+  `marco dispatch` go dark when Director does and SAY SO — not running, speaking another
+  protocol, or answered and refused are three different sentences. Cards and Play keep working.
+  THE FOREGROUND NEEDS PROVENANCE: a world-model observation can be seconds old and already wrong
+  (the window provider excludes Marco's own surfaces, so with Studio in front none is produced at
+  all) or name a Marco window (accessibility does not exclude them), so a context is granted only
+  by a live foreground reading through the excluding path, a stated target is the authoritative
+  override, and a basis that cannot be relied on carries NO application. Resolution returns an
+  identity and grants nothing; Play is still the person. See
+  [[ADR-267-director-owns-route-resolution]].
 - **Studio can be ASKED for a routine in words, and the resolver it asks was dead.**
   `internal/dispatch` + `plugins/llama` + a local Ollama had a Dispatcher, an Advisor, a
   trust-but-verify `validate` and `$MARCO_RESOLVER` pinned by `setup.ps1` — reached only by

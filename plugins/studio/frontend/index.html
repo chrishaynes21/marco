@@ -916,6 +916,10 @@
  const words = ws => (ws || []).join(' · ')
 
  let acts = null
+ // AND THE BACKEND, which is where a Director fact comes from. The resolution is one:
+ // the scope policy, the library and the candidate labels are Director's, and this
+ // window asks rather than deciding. See plugins/studio/resolve.go.
+ let backend = null
  let view = 'acts'
  // THE ACTS THIS PAGE IS SHOWING, kept so that pressing Play can say which version of an Act
  // was on screen when it was pressed. See play().
@@ -964,6 +968,7 @@
  }
  ready(() => {
    acts = window.go.main.Acts
+   backend = window.go.main.Backend
    paintLive(); show('acts'); loadActs(); loadDemos(); loadHistory(); loadApps()
    loadLibrary()
    poll(); pollLearning(); pollCapture(); pollRepairs(); pollRoutines()
@@ -1768,19 +1773,32 @@
    $('askBtn').disabled = true
    $('askSaid').textContent = 'asking...'
    $('askWho').textContent = ''
-   acts.SuggestRoutine(text, $('askTarget').value).then(sug => {
+   // DIRECTOR ANSWERS THIS, NOT THIS WINDOW. The scope policy, the library and the
+   // candidate labels are all its; what arrives is a route identity and a sentence.
+   // See plugins/studio/resolve.go.
+   backend.SuggestRoutine(text, $('askTarget').value).then(sug => {
      sug = sug || {}
-     $('askSaid').textContent = sug.reply || ''
-     // THE TARGET BESIDE THE REQUEST, read off the answer rather than off what this
-     // page sent, so the two cannot disagree about which application it was read
-     // against.
-     const against = sug.target ? ('in ' + sug.target) : 'no application targeted'
-     $('askWho').textContent = against + '  ·  ' + (sug.offered || 0) +
-       ' routine(s) offered  ·  ' + (sug.source || '?') + '  ·  ' + (sug.resolver || '')
-     if (sug.kind === 'run' && sug.id) {
+     // AND A DIRECTOR THAT COULD NOT ANSWER SAYS WHICH OF THE THREE IT WAS: not
+     // running, speaking another protocol, or having refused. There is no local
+     // fallback, because exact matching is part of the resolution Director owns.
+     if (sug.why) {
+       $('askSaid').textContent = sug.why
+       $('askWho').textContent = ''
+       return
+     }
+     const a = sug.answer || {}
+     $('askSaid').textContent = a.reply || ''
+     // WHAT IT WAS READ AGAINST AND HOW THAT WAS KNOWN, off the answer rather than
+     // off what this page sent: a window has the foreground whenever somebody types
+     // into it, so the basis is the part worth showing and not just the name.
+     const ctx = a.context || {}
+     $('askWho').textContent = (ctx.says || ('basis ' + (ctx.basis || '?'))) +
+       '  ·  ' + (a.offered || 0) + ' routine(s) offered  ·  ' +
+       (a.source || '?') + '  ·  ' + (a.resolver || '')
+     if (a.kind === 'run' && a.id) {
        // SELECTED, NOT RUN. Exactly what clicking the card does.
-       chosenRoutine = sug.id; shownRoutines = ''; drawRoutines()
-       const card = $('routine-' + sug.id.replace(/[^a-z0-9]+/gi, '-'))
+       chosenRoutine = a.id; shownRoutines = ''; drawRoutines()
+       const card = $('routine-' + a.id.replace(/[^a-z0-9]+/gi, '-'))
        if (card) { card.scrollIntoView({block:'nearest'}) }
      }
    }).finally(() => { asking = false; $('askBtn').disabled = false })

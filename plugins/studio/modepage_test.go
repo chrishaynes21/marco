@@ -29,7 +29,13 @@ import (
 // selected would pass if the stated one came last.
 const modeHarness = `
 window.go = {main: {
-  Backend: {Loaded: () => Promise.resolve()},
+  Backend: {
+    Loaded: () => Promise.resolve(),
+    // DIRECTOR ANSWERS THE ASK BOX NOW, so a stub without this is a page whose
+    // request box throws — which is the right failure: a binding the page calls and
+    // the window does not export is what these harnesses exist to catch.
+    SuggestRoutine: () => Promise.resolve({answer: {kind: 'none'}}),
+  },
   Acts: {
     // THE ASK BOX. Bound at startup, so a stub without it is a page that paints
     // nothing - which is the right failure: a binding the page calls and the window

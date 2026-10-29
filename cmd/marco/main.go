@@ -75,6 +75,13 @@ func main() {
 		// voice). A pure client: the Director service owns all the state.
 		runDirector(os.Args[2:])
 		return
+	case "resolve":
+		// WHICH SAVED ROUTINE DID THEY MEAN. A client of Director, which owns
+		// route resolution and the scope policy behind it; this performs nothing
+		// and starts nothing. The overlay uses it at the one moment it already has
+		// — when nothing took a phrase. See cmd/marco/resolve.go.
+		runResolve(os.Args[2:])
+		return
 	case "dispatch":
 		// Classify a phrase into one PLAY-LEVEL decision (run/teach/chat/clarify)
 		// without acting. This is NOT the Director (which plans desktop actions from a

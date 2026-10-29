@@ -11528,3 +11528,99 @@ and the promise is that what somebody looked at is what got written. The first v
 assertion was the stronger one, and it failed for the right reason.
 
 See [[ADR-266-one-set-of-rules-for-keeping-a-recording]].
+
+## 48. Director owns route resolution
+
+ADR-265 gave Studio a request box and gave it the resolution with it — scope eligibility,
+candidate labels, the namesake rules, the resolver conversation — all inside `plugins/studio`,
+which is its own Go module. The next slice was to give the widget the same thing, and the widget
+cannot import any of it. Wiring it would have meant a second scope policy, a second label scheme
+and a second place deciding which routine a sentence named.
+
+So the policy moved to `internal/resolveroute` and **Director is its only caller**. Every surface
+asks over the service protocol it already speaks. Exact matching versus a model's opinion is an
+implementation detail inside that package rather than an ownership boundary: a surface does not
+hold half of a decision, so there is **no local fallback** — Studio's ask box, the widget's offer
+and `marco dispatch` all go dark when Director does, and say so. Cards and Play keep working,
+because neither ever asked Director anything.
+
+### The foreground needed provenance, and age was not it
+
+The first design was going to trust Director's world model with an age bound. Both ways that
+fails were traced in the code rather than reasoned about:
+
+- The window-system provider takes its foreground claim from `winprovider.offered()`, which drops
+  every Marco-owned surface. So with Studio in front **no application observation is produced at
+  all** and the last one stands — one second old and already wrong.
+- The accessibility provider takes the bridge's first window with no such exclusion, so a fresh
+  observation can name a Marco window.
+
+`resolveroute.Where` therefore grants a context only from a foreground reading taken **now**
+through the excluding path. A stated target still beats both, because it is the only one of the
+three readings that is a statement of intent. And a basis that cannot be relied on **carries no
+application at all** — not the app with a caveat, because the field the eligibility filter and the
+plugin are handed must only be filled when it is known. That also makes a Marco-owned observation
+harmless with no list of Marco's window names to check against: it cannot be corroborated, so it
+is not a context, so it names nothing.
+
+Global and anywhere-in-application routines are eligible under every basis. Context-only routines
+are offered under `stated` and `observed` alone.
+
+### Director validates what is submitted
+
+A target this library has nothing saved for is **said** rather than quietly honoured, and still
+honoured as what they meant. A caller naming a different library is told **which two** and selects
+nothing — cleared by Director rather than left to a surface to remember, because an answer that
+must not be acted on does not carry the thing to act on.
+
+### A refusal is not an answer with nothing in it
+
+Found while wiring the first client, and the reason the error handling was worth correcting: the
+service answers a bad request with an `ErrorPayload` in a perfectly good envelope, so
+unmarshalling it into the response type **succeeded** and produced a zero answer — which reads as
+"nothing matched". A protocol the Director does not speak would have been indistinguishable from a
+request it understood and could not satisfy. `service.RequestError` carries the code, and all
+three states are reported apart everywhere: not running, running and speaking another protocol, or
+answered and refused.
+
+### What each surface does now
+
+**Studio** asks through the client it already dials. Its target dropdown stayed local, because
+that is library browsing and not resolution policy — and what keeps it safe is that Director
+validates what is submitted, so a stale list costs a sentence and never a selection.
+
+**The widget** asks at the moment it already had: nothing took the phrase and it is about to offer
+to record a routine. Somebody who typed *make the pictures nicer* may well have one under another
+name, and that offer is then the one answer that is certainly wrong. It goes through
+`marco resolve --json` — a client, with no Director connection of its own and `AutoStart` false,
+because a read does not start a service that observes the desktop. A yes sends the whole identity
+back through the same door.
+
+**`marco dispatch` and the `marco assistant` REPL** are thin adapters over the same owner, so
+`internal/dispatch` now has exactly one caller. The REPL's mapping is semantics-preserving:
+`Propose` meant "the Advisor's own suggestion and nothing else", and that is `source == advisor`.
+
+### What holds it
+
+**16 of 16 mutations killed**, and four of them only after the tests that catch them were written:
+the first run survived at the transport and surface boundary, because nothing exercised the
+service round trip for this request or Studio's error classification. Both are now cases.
+
+`TestResolvingPerformsNothing` asserts the library is byte-for-byte unchanged across five
+requests and that no run record was reserved — zero route execution and zero input, with the
+plugin subprocess allowed, because that is the mechanism this reuses.
+
+And the real paraphrase goes through Director: *adjust ark video quality* →
+`arkascended/focus/ark-graphics`, through Director's own handler, its library and its context
+decision, to the real plugin and the real model server. It covers the resolution path end to end
+and does **not** cross the service socket; that transport is held separately with a fake runtime,
+which is the right split — this is about whether the question reaches a model, and that is about
+whether a request reaches a runtime.
+
+### Nothing deferred
+
+`internal/dispatch` has one caller. Narration, the planner and recording are untouched, as is
+`internal/invoke`: the intake's play lookup is still exact, because it is the authority door and
+"near enough" is a judgement.
+
+See [[ADR-267-director-owns-route-resolution]].

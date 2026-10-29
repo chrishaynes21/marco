@@ -357,6 +357,12 @@ Director's. So a request that is not a play’s own name goes to Director to be 
 screen, and nothing in that door ever consults a language model about which saved routine somebody
 meant.
 
+**AND THAT SECOND DOOR IS DIRECTOR'S NOW.** The policy below lived in Studio's own module,
+where the widget could not reach it; it is `internal/resolveroute` behind a read-only
+`RESOLVE_ROUTE`, and every surface asks. See
+[[ADR-267-director-owns-route-resolution]] — including why there is no local fallback, and why a
+world-model observation of the foreground is evidence rather than proof.
+
 Studio has a second door, and it is a SUGGESTION rather than an invocation. It reads a request in
 a person’s own words, offers the eligible routines to the optional resolver plugin, and SELECTS
 the one that comes back — by its whole identity, which is then handed to the Play button that was

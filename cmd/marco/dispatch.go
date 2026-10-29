@@ -1,13 +1,14 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
 
+	"github.com/chaynes-simpleclouds/marco/internal/director/service"
 	"github.com/chaynes-simpleclouds/marco/internal/dispatch"
+	"github.com/chaynes-simpleclouds/marco/internal/marcopaths"
 	"github.com/chaynes-simpleclouds/marco/internal/orchestrator"
 )
 
@@ -34,8 +35,28 @@ func runDispatch(args []string) {
 		fmt.Fprintln(os.Stderr, `usage: marco dispatch "<phrase>" [--json]`)
 		os.Exit(2)
 	}
-	d := newDeps()
-	dec := dispatch.New(dispatch.Default()).Decide(context.Background(), phrase, d.Reg.Slugs(), appOf(d))
+	// ── THE RESOLUTION IS DIRECTOR'S, AND THIS IS A THIN ADAPTER OVER IT ──
+	//
+	// It used to run  here, against this process's own slug list and its own
+	// idea of the foreground — which is a second answer to "which saved routine did they
+	// mean", out of a library nobody checked. Director owns that now. What is kept is this
+	// command's shape: one phrase in, one classification out, printing either prose or
+	// JSON, acting on nothing.
+	//
+	// It needs Director, and says which of the three ways it could not be asked. There is
+	// no local fallback: exact matching is part of the resolution and not a smaller
+	// question this command may answer for itself.
+	dec, why := dispatchThroughDirector(phrase)
+	if why != "" {
+		if jsonMode {
+			_ = json.NewEncoder(os.Stdout).Encode(struct {
+				Why string
+			}{why})
+		} else {
+			fmt.Fprintln(os.Stderr, why)
+		}
+		os.Exit(resolveExit)
+	}
 	if jsonMode {
 		enc := json.NewEncoder(os.Stdout)
 		_ = enc.Encode(struct {
@@ -65,7 +86,14 @@ func runDispatch(args []string) {
 // fuzzy-confirm flow (including any legacy $MARCO_RESOLVER). So the assistant
 // behaves exactly as before unless a converse-capable brain is configured.
 func converseTurn(d orchestrator.Deps, line string) bool {
-	proposal, ok := dispatch.New(dispatch.Default()).Propose(context.Background(), line, d.Reg.Slugs(), appOf(d))
+	// THROUGH DIRECTOR, and still ONLY the resolver`s own suggestion.
+	//
+	// `Propose` meant "the Advisor`s validated proposal and nothing else", so that an
+	// unconfigured machine left this REPL`s own flow intact. Director answers every
+	// request — exact, advisor or fallback — so the same meaning is `source == advisor`
+	// and nothing else: the arm that IS the Advisor. A thin adapter, and the semantics
+	// are the ones that were here.
+	proposal, ok := proposeThroughDirector(line)
 	if !ok {
 		return false
 	}
@@ -113,4 +141,64 @@ func converseTurn(d orchestrator.Deps, line string) bool {
 	default:
 		return false
 	}
+}
+
+// dispatchThroughDirector asks Director and shapes the answer as this command has always printed
+// it, or says why it could not be asked.
+//
+// A COMPATIBILITY ADAPTER and nothing more: the four intent words are dispatch's own and reach
+// here unchanged, because Director answers with them.
+func dispatchThroughDirector(phrase string) (dispatch.Decision, string) {
+	c, err := directorConnect(false)
+	if err != nil {
+		return dispatch.Decision{}, whyNoDirectorHere(err)
+	}
+	defer c.Close()
+	out, err := c.ResolveRoute(service.ResolveRoutePayload{
+		Request: phrase, Library: marcopaths.Routes(),
+	})
+	if err != nil {
+		return dispatch.Decision{}, whyRefusedHere(err)
+	}
+	if out.Mismatch != "" {
+		return dispatch.Decision{}, out.Mismatch
+	}
+	a := out.Answer
+	// THE SLUG IS WHAT THIS COMMAND HAS ALWAYS PRINTED, and the whole identity is in the
+	// JSON for anything that needs it. prettyRoute takes a slug.
+	return dispatch.Decision{Intent: a.Kind, Route: a.Slug, Name: a.Name,
+		Reply: a.Reply}, ""
+}
+
+// proposeThroughDirector is Director's answer, kept only when the resolver itself produced it.
+//
+// False for everything else, which is what `Propose` answered and is what leaves this REPL's own
+// deterministic flow alone: a machine with no resolver configured, or one whose resolver had
+// nothing to say, behaves exactly as it did before any of this existed. A Director that cannot be
+// asked is the same answer for the same reason — said in the log rather than silently, because
+// this is a developer surface and a silent nothing is what it would otherwise look like.
+func proposeThroughDirector(line string) (dispatch.Decision, bool) {
+	c, err := directorConnect(false)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, whyNoDirectorHere(err))
+		return dispatch.Decision{}, false
+	}
+	defer c.Close()
+	out, err := c.ResolveRoute(service.ResolveRoutePayload{
+		Request: line, Library: marcopaths.Routes(),
+	})
+	if err != nil {
+		fmt.Fprintln(os.Stderr, whyRefusedHere(err))
+		return dispatch.Decision{}, false
+	}
+	if out.Mismatch != "" {
+		fmt.Fprintln(os.Stderr, out.Mismatch)
+		return dispatch.Decision{}, false
+	}
+	a := out.Answer
+	if a.Source != dispatch.SourceAdvisor {
+		return dispatch.Decision{}, false
+	}
+	return dispatch.Decision{Intent: a.Kind, Route: a.Slug, Name: a.Name,
+		Reply: a.Reply}, true
 }

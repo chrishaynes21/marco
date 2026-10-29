@@ -80,6 +80,12 @@ func (s *stubRuntime) ObservationEvents(service.ObservationEventsPayload) servic
 // Playbill is the Director half of the visibility account. A stub Director watches
 // nothing, which is exactly what it is entitled to report — and the thin client has to
 // render that as a normal condition rather than as an error.
+// ResolveRoute answers nothing: this stub is here to exercise the transport and the client, and
+// a resolution it invented would be a second opinion in a test about plumbing.
+func (s *stubRuntime) ResolveRoute(service.ResolveRoutePayload) service.ResolveRouteResponse {
+	return service.ResolveRouteResponse{}
+}
+
 func (s *stubRuntime) Playbill(service.PlaybillPayload) playbill.View {
 	return playbill.View{
 		Version: playbill.Version,

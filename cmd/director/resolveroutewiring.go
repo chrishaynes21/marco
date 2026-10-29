@@ -58,10 +58,23 @@ func (r *Runtime) ResolveRoute(p service.ResolveRoutePayload) service.ResolveRou
 	resolver := resolveroute.Resolver{Reg: reg, Advisor: dispatch.Default()}
 	where := r.whereToRead(p.Target)
 
+	library := theLibrary(reg)
+	// ── AND A TARGET NOBODY HAS ROUTINES FOR IS SAID, NOT SILENTLY HONOURED ──
+	//
+	// A stated target is authoritative about INTENT and is still a claim about this
+	// library: somebody can name an application Director has nothing saved for, from a
+	// dropdown built somewhere else or from a request assembled by hand. Honouring it
+	// quietly produces an answer with no in-place routine in it and nothing saying why,
+	// which reads as "Marco has nothing for this" when the truth is "not in the library
+	// I am reading".
+	if where.Basis == resolveroute.Stated && !anyRoutineFor(library, where.App) {
+		where.Says += "; nothing in this library is saved for " + where.App
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), resolveTimeout)
 	defer cancel()
 	out := service.ResolveRouteResponse{
-		Answer: resolver.Resolve(ctx, p.Request, theLibrary(reg), where),
+		Answer: resolver.Resolve(ctx, p.Request, library, where),
 	}
 	// ── AND A LIBRARY THAT IS NOT THE CALLER'S IS NAMED ──
 	//
@@ -74,6 +87,16 @@ func (r *Runtime) ResolveRoute(p service.ResolveRoutePayload) service.ResolveRou
 		out.Mismatch = "this was resolved against the library at " + reg.Dir +
 			" and you asked about " + asked + ", so a routine of that name here " +
 			"is a different routine — nothing has been selected"
+		// AND THE SELECTION IS CLEARED HERE, not left for a surface to remember.
+		//
+		// The first version carried the identity and a note saying a surface must
+		// not use it, which is a rule in a comment. Director decides and the surface
+		// renders: an answer that must not be acted on does not carry the thing to
+		// act on. What is left is the question and the two library paths.
+		out.Answer.ID, out.Answer.App, out.Answer.Slug = "", "", ""
+		out.Answer.Focus, out.Answer.Name, out.Answer.Scope = false, "", ""
+		out.Answer.Kind = "clarify"
+		out.Answer.Reply = out.Mismatch
 	}
 	return out
 }
@@ -147,4 +170,21 @@ func (r *Runtime) foregroundNow() resolveroute.Seen {
 		return resolveroute.Seen{}
 	}
 	return resolveroute.Seen{App: c.Application, At: time.Now(), OK: true}
+}
+
+// anyRoutineFor reports whether this library holds a routine saved for an application.
+//
+// Any scope of it, because the question is whether the library knows the application at all, not
+// whether it has something in-place for it: a target naming an application with only
+// anywhere-in-application routines is a target somebody can legitimately have meant.
+func anyRoutineFor(cs []resolveroute.Candidate, app string) bool {
+	if app == "" {
+		return false
+	}
+	for _, c := range cs {
+		if strings.EqualFold(c.App(), app) {
+			return true
+		}
+	}
+	return false
 }
