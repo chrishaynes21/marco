@@ -232,6 +232,18 @@ func cancelTree(f *Frame) {
 
 func statusMatches(f *Frame, statusName string) bool {
 	status, custom := f.statusPair()
+	return statusNameMatches(status, custom, statusName)
+}
+
+// statusNameMatches is the comparison alone, with the status pair already in hand.
+//
+// SEPARATE BECAUSE ONE CALLER ALREADY HOLDS THE FRAME'S LOCK. `tryInstallStatusListener`
+// decides under `child.mu` whether the child has already terminated, and asking
+// `statusMatches` there sent it back into `statusPair`, which takes the same mutex -- a
+// `sync.Mutex` is not reentrant, so the goroutine blocked on itself and the scheduler then
+// waited on its WaitGroup forever. Intermittent because it needs the child to have terminated
+// BEFORE the listener is installed, which is a race the child usually loses.
+func statusNameMatches(status Status, custom, statusName string) bool {
 	if custom != "" && custom == statusName {
 		return true
 	}
@@ -605,7 +617,9 @@ func (r *runner) tryInstallStatusListener(parent *Frame, child *Frame, frameName
 	child.mu.Lock()
 	if child.terminated {
 		// markDone has already drained — fire ourselves if the status matches.
-		match := statusMatches(child, sp.Status)
+		// THE PAIR IS READ HERE, not through the accessor: this is inside
+		// `child.mu` and `statusPair` takes it again. See statusNameMatches.
+		match := statusNameMatches(child.status, child.customStatus, sp.Status)
 		child.mu.Unlock()
 		if match {
 			if err := r.runBlock(parent, body); err != nil {

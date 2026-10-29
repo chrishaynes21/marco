@@ -11808,3 +11808,26 @@ a real screen.
 See [[ADR-269-a-screen-free-gate-and-the-tests-that-need-the-screen]] for the inventory tying each
 moved test to its claim.
 
+## And a deadlock in the runtime, found by the suite that was being made honest
+
+Not part of the slice, and found by it: the engine suite timed out at ten minutes on
+`TestGolden/lock_mutex`, and a forty-attempt hunt caught it again on attempt twelve — on
+`TestGolden/saveapp_full`, a different case. Not a slow test and not load: a self-deadlock.
+
+`runner.tryInstallStatusListener` takes `child.mu` to decide whether the child has already
+terminated, and asked `statusMatches` for the answer INSIDE that critical section.
+`statusMatches` calls `Frame.statusPair`, which takes the same mutex, and a `sync.Mutex` is not
+reentrant — so the goroutine blocked on itself and the scheduler went on waiting on its
+WaitGroup. A Marco program whose observation body attaches just after its target finishes hung
+forever. It is intermittent because it needs the child to have terminated BEFORE the install,
+which is a race the child usually loses.
+
+The accessor that deadlocks is the one added to fix the Status DATA RACE, whose own note recorded
+"no lock nesting" — checked on the side that FIRES listeners, not the side that installs them.
+Guarding a field with an accessor moves the lock into every reader, and the compiler can say that
+every site was updated while saying nothing about which sites were already holding the lock.
+
+The comparison is split from the read now, and the moment is stated rather than raced for:
+`TestAListenerOnAFrameThatAlreadyFinishedDoesNotDeadlock` fails in five seconds with the fix
+reverted and passes with it, answering through a channel with a deadline because a regression is
+a hang, and a hang is otherwise a ten-minute timeout naming whichever test was unlucky.
