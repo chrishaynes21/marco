@@ -433,6 +433,19 @@ func TestTheLearnOfferFiresOnlyWhenNothingTookIt(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			takePendingLearn() // start clean
+			// AND DIRECTOR SAYS THIS IS SOMETHING TO RECORD.
+			//
+			// The learn offer used to be what the door did with ANY phrase
+			// nothing took. It is now Director{Q}s own `learn` decision and
+			// nothing else — because every other answer it gives is a
+			// reason to say something instead, and a resolver that could not
+			// be asked is not evidence that Marco has nothing. So this case
+			// supplies that decision; the cases where it is absent are in
+			// resolve_test.go, through the same door.
+			//
+			// What a person can still always do is ask: `learn <name>` is one
+			// of the overlay{Q}s own words and reaches the recorder directly.
+			answering(t, saysLearn(), "")
 			done := make(chan struct{})
 			restore := stubIntakeChild(t, func(h *model, name string, track bool, args ...string) childRun {
 				defer close(done)
@@ -782,4 +795,12 @@ func TestTheLogSaysHowACommandEnded(t *testing.T) {
 			t.Errorf("the log does not carry %q:\n%s", want, got)
 		}
 	}
+}
+
+// saysLearn is Director answering that a phrase is something to record.
+func saysLearn() resolved {
+	var r resolved
+	r.Answer.Kind = "learn"
+	r.Answer.Reply = "I have nothing like that saved."
+	return r
 }

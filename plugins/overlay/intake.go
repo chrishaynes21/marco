@@ -70,7 +70,14 @@ func dispatchIntake(h *model, phrase string, source invoke.Source) {
 			// is certainly wrong. Director is asked which saved routine the
 			// words named; it holds the scope policy and the library, and this
 			// surface holds neither. See resolve.go.
-			if offerWhatMarcoHas(h, phrase) {
+			//
+			// AND WHAT IT DID DECIDES WHETHER THERE IS A LEARN OFFER AT ALL.
+			// Every answer but one is a reason to say something and stop:
+			// "which of these did you mean" must not become "shall I record
+			// another", and a resolver that could not be asked must not
+			// become a recording session either.
+			switch offerWhatMarcoHas(h, phrase) {
+			case offeredRun, saidWhyNot:
 				return
 			}
 			mlogI("overlay: nothing took it — offering learn", "phrase", phrase)

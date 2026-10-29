@@ -203,7 +203,11 @@ go run ./cmd/gate                      # its first stage alone, which needs no s
   all) or name a Marco window (accessibility does not exclude them), so a context is granted only
   by a live foreground reading through the excluding path, a stated target is the authoritative
   override, and a basis that cannot be relied on carries NO application. Resolution returns an
-  identity and grants nothing; Play is still the person. See
+  identity and grants nothing; Play is still the person. AN ADAPTER CARRIES THE WHOLE IDENTITY
+  (id/app/slug/focus) through confirmation, or the door resolves the words again and performs a
+  namesake. And only Director's own `learn` decision becomes a learn offer: with Director
+  unavailable the widget offers nothing, which is the boundary rather than a bug —
+  `learn <name>` is still one of the overlay's own words. See
   [[ADR-267-director-owns-route-resolution]].
 - **Studio can be ASKED for a routine in words, and the resolver it asks was dead.**
   `internal/dispatch` + `plugins/llama` + a local Ollama had a Dispatcher, an Advisor, a

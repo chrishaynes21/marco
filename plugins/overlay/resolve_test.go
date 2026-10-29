@@ -1,27 +1,50 @@
 package main
 
-// WHAT THE WIDGET DOES WITH DIRECTOR'S ANSWER.
+// WHAT THE WIDGET DOES WITH DIRECTOR'S ANSWER, THROUGH THE DOOR IT COMES IN BY.
 //
 // The moment under test is the one that already existed: nothing took the phrase, and the widget
-// is about to offer to record a routine. A person who typed "make the pictures nicer" may have a
-// routine for it under another name, and that offer is then the one answer that is certainly
-// wrong.
+// is about to offer to record a routine. Somebody who typed "make the pictures nicer" may have
+// one under another name, and that offer is then the one answer that is certainly wrong.
 //
-// Through the surface's own seam rather than by spawning `marco resolve`: what is worth holding
-// here is what the widget DOES with each shape of answer, and the resolution itself is held where
-// it lives, in `internal/resolveroute`.
+// # Why these go through `dispatchIntake` and not only the helper
+//
+// Because the defect was in the JOIN. The helper answered a bool and the door read every false as
+// permission to offer a recording — so "which of your two routines called settings did you mean?"
+// became "shall I record another one", and a Director that could not be asked produced the same
+// offer, which is a local fallback by another route in a design whose whole point is that there
+// is not one. A test of the helper alone passed throughout.
 
 import (
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/chaynes-simpleclouds/marco/internal/invoke"
+	"github.com/chaynes-simpleclouds/marco/internal/outcome"
 )
 
 // answering makes the resolve seam reply with one answer, and puts it back afterwards.
-func answering(t *testing.T, r resolved, ok bool) {
+func answering(t *testing.T, r resolved, why string) {
 	t.Helper()
 	was := askWhichRoutine
-	askWhichRoutine = func(string) (resolved, bool) { return r, ok }
+	askWhichRoutine = func(string) (resolved, string) { return r, why }
 	t.Cleanup(func() { askWhichRoutine = was })
+}
+
+// nothingTookIt makes the intake child answer the way it does when no play and no Director
+// could take a phrase, and records every child the door starts.
+func nothingTookIt(t *testing.T) *[][]string {
+	t.Helper()
+	var started [][]string
+	was := spawnIntakeChild
+	spawnIntakeChild = func(h *model, phrase string, track bool, args ...string) childRun {
+		started = append(started, args)
+		// THE SHAPE `offersLearn` READS: the engine announced no route and the
+		// outcome word says nothing took it.
+		return childRun{result: string(outcome.Unavailable)}
+	}
+	t.Cleanup(func() { spawnIntakeChild = was })
+	return &started
 }
 
 // aRun is Director having named a routine, with every part of the identity.
@@ -37,112 +60,209 @@ func aRun() resolved {
 	return r
 }
 
-// AND IT OFFERS WHAT DIRECTOR NAMED INSTEAD OF OFFERING TO RECORD ONE.
-func TestTheWidgetOffersTheRoutineDirectorNamed(t *testing.T) {
-	h := &model{}
-	answering(t, aRun(), true)
-
-	if !offerWhatMarcoHas(h, "make the pictures nicer") {
-		t.Fatal("the learn offer was not replaced, so somebody is being asked to " +
-			"record a routine they already have")
-	}
-	// IT IS AN OFFER AND NOT A RUN. Nothing has been performed; what is pending is a
-	// question.
-	if r := pendingRoutine; r.id != "arkascended/focus/ark-graphics" {
-		t.Fatalf("the pending offer is %+v", r)
-	}
-	// AND THE WHOLE IDENTITY IS WHAT IS PENDING, in the three parts an invocation is
-	// built from: a name is not unique and neither is a slug.
-	taken := takePendingRoutine()
-	if taken.app != "arkascended" || taken.slug != "ark-graphics" || !taken.focus {
-		t.Errorf("the offer does not carry the whole identity: %+v", taken)
-	}
-	// AND IT IS TAKEN ONCE. A second Enter must not run it again.
-	if again := takePendingRoutine(); again.id != "" {
-		t.Errorf("the offer survived being taken: %+v", again)
+// settled waits for the door's own goroutine to finish with the phrase.
+//
+// `dispatchIntake` returns immediately on purpose — a replay runs for minutes and a spoken stop
+// arrives as a second phrase — so this waits for the prompt the asynchronous half raises rather
+// than assuming it has happened.
+func settled(t *testing.T, until func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(3 * time.Second)
+	for !until() {
+		if time.Now().After(deadline) {
+			t.Fatal("the door never finished with the phrase")
+		}
+		time.Sleep(5 * time.Millisecond)
 	}
 }
 
-// AND NO ANSWER IS NOT AN ANSWER OF NONE.
+// AND A ROUTINE DIRECTOR NAMED IS OFFERED INSTEAD OF A RECORDING.
+func TestTheDoorOffersTheRoutineDirectorNamed(t *testing.T) {
+	h := &model{}
+	nothingTookIt(t)
+	answering(t, aRun(), "")
+
+	dispatchIntake(h, "make the pictures nicer", invoke.SourceTyped)
+	settled(t, anOfferIsPending)
+
+	// THE OFFER IS THE RUN, AND THERE IS NO LEARN OFFER BESIDE IT.
+	r := takePendingRoutine()
+	if r.id != "arkascended/focus/ark-graphics" {
+		t.Fatalf("the pending offer is %+v", r)
+	}
+	if name := takePendingLearn(); name != "" {
+		t.Errorf("a learn offer was raised as well: %q", name)
+	}
+	// AND THE WHOLE IDENTITY IS WHAT IS PENDING: a name is not unique and neither is a
+	// slug, so the three parts an invocation is built from travel together.
+	if r.app != "arkascended" || r.slug != "ark-graphics" || !r.focus {
+		t.Errorf("the offer does not carry the whole identity: %+v", r)
+	}
+}
+
+// AND THE INVOCATION A YES PRODUCES IS THE IDENTITY, NOT THE WORDS.
+func TestSayingYesRunsTheIdentityAndNotTheName(t *testing.T) {
+	h := &model{}
+	started := nothingTookIt(t)
+	answering(t, aRun(), "")
+	dispatchIntake(h, "make the pictures nicer", invoke.SourceTyped)
+	settled(t, anOfferIsPending)
+
+	before := len(*started)
+	runOfferedRoutine(h, takePendingRoutine())
+	settled(t, func() bool { return len(*started) > before })
+
+	args := (*started)[len(*started)-1]
+	want := []string{"do", "--play=ark-graphics", "--app=arkascended", "--focus"}
+	if strings.Join(args, " ") != strings.Join(want, " ") {
+		t.Errorf("the invocation is %v, want %v", args, want)
+	}
+	// AND THE PHRASE IS NOWHERE IN IT, which is the point: the words would be resolved
+	// again, by the registry's priority order, and with two routines of that name the
+	// one performed would be whichever the second lookup lands on.
+	for _, a := range args {
+		if strings.Contains(a, "pictures") {
+			t.Errorf("the invocation carries the words that were typed: %v", args)
+		}
+	}
+}
+
+// ── AND NOTHING ELSE BECOMES A RECORDING SESSION ─────────────────────────────
+
+// WHICH IS THE DEFECT THIS IS ABOUT, THROUGH THE DOOR.
 //
-// Three ways there is no answer, and none of them may become a silent offer to record something:
-// a Director that could not be asked, one that refused, and a library that is not the one this
-// phrase is about. Each is SAID, and the learn offer then stands as it always did.
-func TestTheWidgetSaysWhyThereIsNoAnswerAndStillOffersLearn(t *testing.T) {
+// A clarification, a chat reply, a refusal, a mismatch and a timeout are five answers with one
+// thing in common: none of them is Marco saying it has nothing. Only Director's own `learn`
+// decision is.
+func TestOnlyDirectorsLearnDecisionBecomesALearnOffer(t *testing.T) {
+	clarify := func() resolved {
+		var r resolved
+		r.Answer.Kind = "clarify"
+		r.Answer.Reply = `"settings" is the name of 2 routines`
+		return r
+	}
+	chat := func() resolved {
+		var r resolved
+		r.Answer.Kind = "chat"
+		r.Answer.Reply = "I press things somebody has shown me."
+		return r
+	}
+	runWithNothing := func() resolved {
+		var r resolved
+		r.Answer.Kind = "run" // and no identity, which must not become an offer
+		r.Answer.Reply = "Opening it."
+		return r
+	}
+	unavailable := func() resolved {
+		var r resolved
+		r.Why = "the Director is not running, so nothing can resolve this request"
+		return r
+	}
+	mismatch := func() resolved {
+		var r resolved
+		r.Mismatch = "this was resolved against the library at A and you asked about B"
+		return r
+	}
+
 	for _, how := range []struct {
-		say  string
-		make func() resolved
-		want string
+		say   string
+		make  func() resolved
+		why   string
+		want  string
+		learn bool
 	}{
-		{"the Director is not running", func() resolved {
+		{"a clarification", clarify, "", "name of 2 routines", false},
+		{"a chat reply", chat, "", "shown me", false},
+		{"a run with nothing to run", runWithNothing, "", "Opening it", false},
+		{"a Director that is not running", unavailable, "", "not running", false},
+		{"a library mismatch", mismatch, "", "library at A", false},
+		{"a timeout", func() resolved { return resolved{} },
+			"the Director did not answer which routine that is within 6s", "within 6s", false},
+		{"nothing readable", func() resolved { return resolved{} },
+			"what answered which routine that is could not be read", "could not be read", false},
+		// AND THE ONE THAT IS. Without this the rule above is satisfied by a widget
+		// that has stopped offering to learn anything at all.
+		{"Director saying it is something to record", func() resolved {
 			var r resolved
-			r.Why = "the Director is not running, so nothing can resolve this request"
+			r.Answer.Kind = "learn"
+			r.Answer.Reply = "I have nothing like that saved."
 			return r
-		}, "not running"},
-		{"it speaks another protocol", func() resolved {
-			var r resolved
-			r.Why = "the Director is running and speaks a different protocol from " +
-				"this command"
-			return r
-		}, "different protocol"},
-		{"a different library", func() resolved {
-			var r resolved
-			r.Mismatch = "this was resolved against the library at A and you asked " +
-				"about B"
-			return r
-		}, "library at A"},
+		}, "", "nothing like that", true},
 	} {
 		h := &model{}
-		answering(t, how.make(), true)
-		if offerWhatMarcoHas(h, "make the pictures nicer") {
-			t.Errorf("%s: the learn offer was replaced by something that is not an "+
-				"answer", how.say)
-		}
+		nothingTookIt(t)
+		answering(t, how.make(), how.why)
+
+		dispatchIntake(h, "make the pictures nicer", invoke.SourceTyped)
+		settled(t, func() bool {
+			return strings.Contains(strings.Join(said(h), " "), how.want) ||
+				anOfferIsPending()
+		})
+
 		if r := takePendingRoutine(); r.id != "" {
 			t.Errorf("%s: something was offered to run: %+v", how.say, r)
 		}
+		// THE LEARN OFFER, OR ITS ABSENCE.
+		//
+		// Read from the prompt the door raises rather than from the helper's answer,
+		// because the join is what was wrong.
+		offered := takePendingLearn() != ""
+		if offered != how.learn {
+			t.Errorf("%s: learn offered=%v, want %v (said: %v)", how.say, offered,
+				how.learn, said(h))
+		}
+		// AND WHAT HAPPENED IS SAID, whichever it was.
 		if !strings.Contains(strings.Join(said(h), " "), how.want) {
-			t.Errorf("%s: the HUD does not say why: %v", how.say, said(h))
+			t.Errorf("%s: the HUD does not say %q: %v", how.say, how.want, said(h))
 		}
 	}
 }
 
-// AND A RESOLUTION THAT NAMED NO ROUTINE LETS THE LEARN OFFER STAND.
+// AND THE RESOLVER CHILD DOES NOT OUTLIVE THE ASK.
 //
-// The ordinary case for something Marco has never been shown. The sentence is still worth having
-// — it says what was eligible and who answered — and then the offer to record one is the right
-// answer rather than a wrong one.
-func TestAResolutionThatNamedNothingLeavesTheLearnOffer(t *testing.T) {
-	var none resolved
-	none.Answer.Kind = "learn"
-	none.Answer.Reply = "I have nothing like that saved."
-	h := &model{}
-	answering(t, none, true)
+// The bound used to be a `select` around a goroutine: the wait ended and the child kept running,
+// holding a pipe nobody would read and, through it, whatever the resolver plugin had started. A
+// surface that abandons a process it spawned is the shape of the eight `marco do` processes this
+// repository spent a release gate on.
+//
+// So the bound and the reaping are one act — `CommandContext` plus `Output` — and this holds the
+// thing that can be held without a desktop: that the ask RETURNS, with a reason, rather than
+// leaving the caller waiting on something it has stopped listening to.
+func TestTheAskIsBoundedAndSaysSo(t *testing.T) {
+	was := askWhichRoutine
+	askWhichRoutine = func(string) (resolved, string) {
+		// What the real one answers when its context ends.
+		return resolved{}, "the Director did not answer which routine that is within 6s"
+	}
+	t.Cleanup(func() { askWhichRoutine = was })
 
-	if offerWhatMarcoHas(h, "make the pictures nicer") {
-		t.Error("a resolution that named no routine replaced the learn offer")
+	h := &model{}
+	done := make(chan disposition, 1)
+	go func() { done <- offerWhatMarcoHas(h, "make the pictures nicer") }()
+	select {
+	case got := <-done:
+		if got != saidWhyNot {
+			t.Errorf("a timeout produced disposition %v, want the one that offers "+
+				"nothing further", got)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("the ask did not return, so the caller is waiting on something it has " +
+			"stopped listening to")
 	}
-	if !strings.Contains(strings.Join(said(h), " "), "nothing like that") {
-		t.Errorf("what Director said was not shown: %v", said(h))
-	}
-	if r := takePendingRoutine(); r.id != "" {
-		t.Errorf("something was offered to run: %+v", r)
+	if !strings.Contains(strings.Join(said(h), " "), "within 6s") {
+		t.Errorf("the timeout is not reported: %v", said(h))
 	}
 }
 
-// AND A SEAM THAT ANSWERED NOTHING AT ALL IS THE SAME AS NO ANSWER.
+// anOfferIsPending peeks at the two offer slots WITHOUT taking either.
 //
-// `marco resolve` printing nothing, or something unreadable: the widget says nothing it cannot
-// support and falls back to the offer it would have made anyway.
-func TestAnUnreadableAnswerLeavesTheLearnOffer(t *testing.T) {
-	h := &model{}
-	answering(t, resolved{}, false)
-	if offerWhatMarcoHas(h, "make the pictures nicer") {
-		t.Error("an unreadable answer replaced the learn offer")
-	}
-	if r := takePendingRoutine(); r.id != "" {
-		t.Errorf("something was offered to run: %+v", r)
-	}
+// Its own helper because the first version of these tests waited on `takePendingLearn`, which
+// clears what it reads — so the wait consumed the very offer the assertion two lines later was
+// about, and the test failed for being a test rather than for anything the code did.
+func anOfferIsPending() bool {
+	pendingPromptMu.Lock()
+	defer pendingPromptMu.Unlock()
+	return pendingPrompt != "" || pendingRoutine.id != ""
 }
 
 // said is the HUD's log lines, under the lock the surface uses.

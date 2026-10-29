@@ -1029,8 +1029,26 @@ func TestTheAdvisorProposesAndDoesNotPerform(t *testing.T) {
 		t.Fatal("an external model names a play and it is performed with no question asked — " +
 			"a guess in front of the door, wearing the door's authority")
 	}
-	if strings.Index(arm, "askYes(") > strings.Index(arm, "runDo(") {
+	// AND THE PERFORMER IS NAMED, which is `runChosen` and not `runDo`.
+	//
+	// It used to be `runDo`, which sends a PHRASE through the door — and the door resolves
+	// a phrase again, by the registry's own priority order, so with two routines of that
+	// name the one performed was whichever the second lookup landed on rather than the one
+	// that had just been agreed to. The identity travels now. If this literal ever stops
+	// matching, the arm has been rewritten and this test is the thing that has to be read
+	// again rather than quietly satisfied.
+	at := strings.Index(arm, "runChosen(")
+	if at < 0 {
+		t.Fatal("nothing in the advisor's run arm performs the routine, so this test is " +
+			"no longer about anything")
+	}
+	if strings.Index(arm, "askYes(") > at {
 		t.Fatal("the play is performed before the person is asked")
+	}
+	if strings.Contains(arm, "runDo(") {
+		t.Fatal("the advisor's run arm sends a phrase through the door, which resolves " +
+			"it again: with two routines of that name the one performed is " +
+			"whichever the second lookup lands on")
 	}
 }
 

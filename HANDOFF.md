@@ -11623,4 +11623,70 @@ whether a request reaches a runtime.
 `internal/invoke`: the intake's play lookup is still exact, because it is the authority door and
 "near enough" is a judgement.
 
+
+### Two adapter defects, and one consequence worth naming
+
+**The CLI adapters discarded the identity.** They reduced Director's answer to `a.Slug`; the REPL
+confirmed that slug and `runDo` sent it through the door as WORDS — which the door resolves again,
+by the registry's own priority order. With `settings` saved for two applications, or under two
+scopes of one, the routine performed was whichever the second lookup landed on and not the one
+Director proposed and the person agreed to. The comment claimed the whole identity was in the JSON
+for anything that needed it, and only the slug was.
+
+A `proposal` now carries the route in the three parts an invocation is built from, the confirmation
+question names the identity rather than just a name, and `requestFor` builds an
+explicit-identity request — extracted so it can be asserted without performing anything, since
+`marco do` presses for real. The JSON gained `id`, `app`, `slug` and `focus`; `route` stays,
+because something may be reading it.
+
+`TestResolvingTheNameAgainLandsSomewhereElse` is the one that shows why it mattered: it asserts
+what the NAME resolves to, confirms that is not what Director would have proposed for two of the
+three namesakes, and then that the explicit identity reaches exactly the route that was agreed to.
+
+**The widget turned everything into Learn.** The helper answered a bool and the door read every
+false as permission to offer a recording. So "which of your two routines called settings did you
+mean?" became "shall I record another one", and a Director that could not be asked produced the
+same offer — a local fallback by another route, in a design whose whole point is that there is not
+one.
+
+Three dispositions now, and only `wouldLearn` may become a learn offer:
+
+	offeredRun     a routine was named and the HUD is asking whether to run it
+	wouldLearn     DIRECTOR said this is something to record
+	saidWhyNot     something was said and nothing further is offered
+
+A clarification, a chat reply, a refusal, a mismatch, a timeout and an unreadable reply are all the
+third. **The consequence, stated rather than buried: with Director unavailable the widget no longer
+offers to record anything.** That is the boundary working as agreed, and what a person can still
+always do is ask — `learn <name>` is one of the overlay's own words and reaches the recorder
+directly. The pre-existing `TestTheLearnOfferFiresOnlyWhenNothingTookIt` now supplies Director's
+decision, because the offer IS that decision.
+
+**And the resolver child no longer outlives the ask.** The bound was a `select` around a goroutine:
+the wait ended, the caller moved on, and the child kept running — holding a pipe nobody would read
+and, through it, whatever the plugin had started. That is the shape of the eight `marco do`
+processes this repository spent a release gate on. It is `CommandContext` plus `Output` now, so the
+bound and the reaping are one act, and a timeout produces a reason rather than an offer.
+
+### What holds it
+
+**10 of 10 mutations killed**, and three of them only after the code was made testable: the
+invocation builder was inside `runChosen` where nothing could see it, and the child runner was
+only ever stubbed. `TestTheResolverChildIsBoundedAndReaped` points `$MARCO_BIN` at a child that
+hangs and asks the real `runResolveChild`, with a `TestMain` answering as that child because the
+runner builds its own argv and cannot be told to run one named test. Its control is a child that
+answers, without which a runner that always timed out would pass.
+
+The widget's cases go through `dispatchIntake` rather than the helper, which is where the defect
+was: eight answers through the door, seven of which must offer nothing further, and Director's
+`learn` decision as the control.
+
+A test of mine was wrong on the way and worth recording: the wait for a pending offer called
+`takePendingLearn`, which CLEARS what it reads — so it consumed the very offer the assertion two
+lines later was about. There is a peek now. And `TestTheAdvisorProposesAndDoesNotPerform` was
+grepping for `runDo(`; it names `runChosen(` and additionally fails if `runDo(` comes back.
+
+A third thing fell out of writing the table: a `run` answer carrying no identity said **nothing at
+all** to the person, because the reply was only logged for non-run kinds. It says so now.
+
 See [[ADR-267-director-owns-route-resolution]].

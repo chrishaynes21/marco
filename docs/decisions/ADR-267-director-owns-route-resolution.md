@@ -2,7 +2,7 @@
 type: adr
 status: accepted
 date: 2026-10-28
-decision: "ACCEPTED — DIRECTOR OWNS ROUTE RESOLUTION, AND EVERY SURFACE ASKS IT. Studio grew a request box and the whole of scope eligibility, candidate labelling and the resolver conversation lived in `plugins/studio` — its own module, which the widget cannot import. Wiring the widget to it would have meant a second scope policy, a second way of building labels and a second place deciding which routine a sentence named: two answers to one question. So the policy is `internal/resolveroute` and Director is its only caller, reached by every surface over the service protocol they already speak. EXACT VERSUS FUZZY IS AN IMPLEMENTATION DETAIL INSIDE THAT PACKAGE AND NOT AN OWNERSHIP BOUNDARY: a surface does not hold half of a decision, so there is NO local fallback — Studio's ask box, the widget and `marco dispatch` all go dark when Director does, and say so, while cards and Play keep working because neither ever asked it anything. `RESOLVE_ROUTE` is read-only, returns a route IDENTITY in the three parts an invocation is built from, and grants nothing: running a routine is still the person pressing Play through the one intake's explicit-identity arm, and `internal/invoke` is untouched. It does consult the configured resolver plugin, which is a subprocess — zero execution means zero route execution and zero input, not zero child processes. THE FOREGROUND NEEDS PROVENANCE AND AN OBSERVATION'S AGE IS NOT PROOF: the window-system provider takes its foreground claim from `winprovider.offered()`, which drops every Marco-owned surface, so with Studio in front NO application observation is produced and the last one stands — fresh, and already wrong; and the accessibility provider takes the bridge's first window with no such exclusion, so a fresh observation can name a Marco window. Both were traced. So a context is granted only by a foreground reading taken NOW through the excluding path, a stated target remains the authoritative override, and a basis that cannot be relied on carries NO application at all — not the app with a caveat, because the field the eligibility filter and the plugin are given must only be filled when it is known. Global and anywhere-in-application routines are eligible under every basis; context-only routines are offered under `stated` and `observed` alone. Director VALIDATES what is submitted: a target this library has nothing saved for is said, and a caller naming a different library is told which two and SELECTS NOTHING, cleared by Director rather than left to a surface to remember. And a refusal is not an answer with nothing in it — the service answers a bad request with an ErrorPayload in a good envelope, so unmarshalling it produced a zero answer that read as \"nothing matched\", which would have made a protocol the Director does not speak indistinguishable from a request it understood; `service.RequestError` carries the code, and the three states are reported apart. `marco dispatch` and the `marco assistant` REPL are thin adapters over the same owner, so `internal/dispatch` has exactly one caller. No new transport, no planner work, no recording work."
+decision: "ACCEPTED — DIRECTOR OWNS ROUTE RESOLUTION, AND EVERY SURFACE ASKS IT. Studio grew a request box and the whole of scope eligibility, candidate labelling and the resolver conversation lived in `plugins/studio` — its own module, which the widget cannot import. Wiring the widget to it would have meant a second scope policy, a second way of building labels and a second place deciding which routine a sentence named: two answers to one question. So the policy is `internal/resolveroute` and Director is its only caller, reached by every surface over the service protocol they already speak. EXACT VERSUS FUZZY IS AN IMPLEMENTATION DETAIL INSIDE THAT PACKAGE AND NOT AN OWNERSHIP BOUNDARY: a surface does not hold half of a decision, so there is NO local fallback — Studio's ask box, the widget and `marco dispatch` all go dark when Director does, and say so, while cards and Play keep working because neither ever asked it anything. `RESOLVE_ROUTE` is read-only, returns a route IDENTITY in the three parts an invocation is built from, and grants nothing: running a routine is still the person pressing Play through the one intake's explicit-identity arm, and `internal/invoke` is untouched. It does consult the configured resolver plugin, which is a subprocess — zero execution means zero route execution and zero input, not zero child processes. THE FOREGROUND NEEDS PROVENANCE AND AN OBSERVATION'S AGE IS NOT PROOF: the window-system provider takes its foreground claim from `winprovider.offered()`, which drops every Marco-owned surface, so with Studio in front NO application observation is produced and the last one stands — fresh, and already wrong; and the accessibility provider takes the bridge's first window with no such exclusion, so a fresh observation can name a Marco window. Both were traced. So a context is granted only by a foreground reading taken NOW through the excluding path, a stated target remains the authoritative override, and a basis that cannot be relied on carries NO application at all — not the app with a caveat, because the field the eligibility filter and the plugin are given must only be filled when it is known. Global and anywhere-in-application routines are eligible under every basis; context-only routines are offered under `stated` and `observed` alone. Director VALIDATES what is submitted: a target this library has nothing saved for is said, and a caller naming a different library is told which two and SELECTS NOTHING, cleared by Director rather than left to a surface to remember. And a refusal is not an answer with nothing in it — the service answers a bad request with an ErrorPayload in a good envelope, so unmarshalling it produced a zero answer that read as \"nothing matched\", which would have made a protocol the Director does not speak indistinguishable from a request it understood; `service.RequestError` carries the code, and the three states are reported apart. `marco dispatch` and the `marco assistant` REPL are thin adapters over the same owner, so `internal/dispatch` has exactly one caller. AND AN ADAPTER CARRIES THE WHOLE IDENTITY OR IT CARRIES NOTHING: the first versions reduced the answer to its SLUG, and the REPL then confirmed that slug and sent it through the door as WORDS — which the door resolves again, so with two routines of one name the routine performed was whichever the second lookup landed on and not the one that was agreed to. A `proposal` carries the route in the three parts an invocation is built from, the question names the identity, and the JSON actually contains it. AND THE WIDGET{Q}S DISPOSITIONS ARE EXPLICIT: a bool meant the door read every answer but a run as permission to offer a recording, so "which of your two routines called settings did you mean?" became "shall I record another one" and a Director that could not be asked produced the same offer — a local fallback by another route. Only Director{Q}s own `learn` decision becomes a learn offer; a clarification, a chat reply, a refusal, a mismatch, a timeout and an unreadable reply all say what happened and offer nothing further. The consequence is stated rather than buried: WITH DIRECTOR UNAVAILABLE THE WIDGET NO LONGER OFFERS TO RECORD ANYTHING, which is the boundary working as agreed, and `learn <name>` remains one of the overlay{Q}s own words. And the resolver child no longer outlives the ask: the bound was a `select` around a goroutine, so the wait ended and the child kept running — the shape of the eight `marco do` processes this repository spent a release gate on. It is `CommandContext` plus `Output` now, so the bound and the reaping are one act. No new transport, no planner work, no recording work."
 supersedes: []
 affects:
   - execution
@@ -132,6 +132,46 @@ its cards come from, and nothing is eligible or ineligible because of what it sa
 safe is that Director validates what is submitted — so a stale or wrong list costs somebody a
 sentence and never a selection.
 
+## An adapter carries the whole identity or it carries nothing
+
+The first adapters reduced Director's answer to its slug. The REPL confirmed that slug, and
+`runDo` sent it through the door as **words** — which the door resolves again, by the registry's
+own priority order. With `settings` saved for two applications, or under two scopes of one, the
+routine performed was whichever the second lookup landed on and not the one Director proposed and
+the person agreed to. The comment there said the whole identity was in the JSON for anything that
+needed it; only the slug was.
+
+So a `proposal` carries the route in the three parts an invocation is built from, the confirmation
+question names the identity rather than just a name, and `requestFor` builds the
+explicit-identity request — extracted so it can be asserted without performing anything, since
+`marco do` presses for real.
+
+## The widget's dispositions are explicit
+
+The helper answered a bool and the door read every false as permission to offer a recording. So
+*which of your two routines called settings did you mean?* became *shall I record another one*,
+and a Director that could not be asked produced the same offer — which is a **local fallback by
+another route**, in a design whose whole point is that there is not one.
+
+	offeredRun     a routine was named and the HUD is asking whether to run it
+	wouldLearn     DIRECTOR said this is something to record
+	saidWhyNot     something was said and nothing further is offered
+
+**The consequence, named rather than buried: with Director unavailable the widget no longer offers
+to record anything.** That is the boundary working as agreed. What a person can still always do is
+ask — `learn <name>` is one of the overlay's own words and reaches the recorder directly.
+
+And a `run` answer carrying no identity used to say nothing at all, because the reply was logged
+only for non-run kinds. It says so now.
+
+## The resolver child does not outlive the ask
+
+The bound was a `select` around a goroutine: the wait ended, the caller moved on, and the child
+kept running — holding a pipe nobody would read and, through it, whatever the plugin had
+started. A surface that abandons a process it spawned is the shape of the eight `marco do`
+processes this repository spent a release gate on. `CommandContext` plus `Output` makes the bound
+and the reaping one act, and a timeout produces a reason rather than an offer.
+
 ## Enforced by
 
 - `internal/resolveroute` `TestOnlyTheScopesTheContextAllowsAreOffered` — the three scopes against
@@ -179,10 +219,31 @@ sentence and never a selection.
   says which of the three it was — with nothing else claimed, because there is no answer to draw.
 - `plugins/studio` `TestTheTargetsAreTheApplicationsWithInPlaceRoutines` — the dropdown, which is
   browsing: an application with no window is still offered, marked.
-- `plugins/overlay` `TestTheWidgetOffersTheRoutineDirectorNamed`,
-  `TestTheWidgetSaysWhyThereIsNoAnswerAndStillOffersLearn`,
-  `TestAResolutionThatNamedNothingLeavesTheLearnOffer` and
-  `TestAnUnreadableAnswerLeavesTheLearnOffer` — the offer carries the whole identity and is taken
-  once; and none of the four ways there is no answer becomes a silent offer to record something.
+- `plugins/overlay` `TestTheDoorOffersTheRoutineDirectorNamed` and
+  `TestSayingYesRunsTheIdentityAndNotTheName` — through `dispatchIntake`, which is where the
+  defect was: the offer carries the whole identity, there is no learn offer beside it, and the
+  invocation a yes produces is `--play`/`--app`/`--focus` with the typed words NOWHERE in it.
+- `plugins/overlay` `TestOnlyDirectorsLearnDecisionBecomesALearnOffer` — eight answers through the
+  door: a clarification, a chat reply, a run with nothing to run, a Director that is not running,
+  a library mismatch, a timeout and an unreadable reply all say what happened and offer NOTHING
+  further; only Director’s own `learn` decision becomes a learn offer, which is the control
+  without which a widget that had stopped offering to learn anything would pass.
+- `plugins/overlay` `TestTheAskIsBoundedAndSaysSo` — the ask returns with a reason rather than
+  leaving the caller waiting on a child it has stopped listening to.
+- `plugins/overlay` `TestTheLearnOfferFiresOnlyWhenNothingTookIt` — unchanged in what it holds
+  about the door, and now supplying Director’s decision, because the offer is that decision.
+- `plugins/overlay` `TestTheResolverChildIsBoundedAndReaped` — a REAL child that hangs, reached by
+  pointing `$MARCO_BIN` at this binary with a `TestMain` answering as that child (the runner builds
+  its own argv and cannot be told to run one named test): the ask comes back well inside the
+  child’s life, says it timed out and how long it waited, and carries no answer. With the control
+  beside it — a child that answers — without which a runner that always timed out would pass.
+- `cmd/marco` `TestAConfirmedProposalInvokesTheExactRouteDirectorNamed` — three namesakes, and the
+  request a confirmation becomes built by the PRODUCTION function: it names the route and carries
+  no words for the door to resolve.
+- `cmd/marco` `TestResolvingTheNameAgainLandsSomewhereElse` — what the name resolves to, that it is
+  not what Director would have proposed for two of the three, and that the explicit identity
+  reaches exactly the route that was agreed to.
+- `cmd/marco` `TestTheAdvisorProposesAndDoesNotPerform` — the confirmation still comes first, now
+  naming `runChosen` and failing if `runDo` comes back.
 
 See [[ADR-265-say-what-you-want-and-studio-offers-the-routine]], [[Invocation]] and [[Plays]].
