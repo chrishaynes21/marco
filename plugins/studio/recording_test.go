@@ -503,7 +503,13 @@ func TestReviewExplainsAMeasurementThatFailed(t *testing.T) {
 		t.Error("the draft does not say it is incomplete, so the page has " +
 			"nothing to warn with")
 	}
-	for _, want := range []string{"1 press", "which program owned it", "REFUSE",
+	// THE COUNT, THE MEASUREMENT AND THE REPAIR — and `REFUSE` is not one of them any
+	// more. The page says it won't run in the heading directly above this sentence and
+	// offers `Save anyway` directly below it, so the clause that said it a third time is
+	// gone. That the SCREEN still says it is held by the page's own test
+	// (TestTheReviewSaysItWillNotRunAboveTheReason); what this sentence has to carry is
+	// which measurement did not arrive and whether another demonstration would help.
+	for _, want := range []string{"1 press", "which program owned it",
 		"Record it again"} {
 		if !strings.Contains(r.Missing, want) {
 			t.Errorf("the account reads %q and does not mention %q",
@@ -682,6 +688,43 @@ func TestARecordingAndARunExcludeEachOther(t *testing.T) {
 	if why := a.StartRecording("something else", ""); why == "" {
 		t.Error("a second recording was started over a draft nobody had saved " +
 			"or cancelled")
+	}
+}
+
+// AND THE SENTENCE AGREES WITH ITS OWN COUNT.
+//
+// # Why this is a test and not a reading
+//
+// `1 press lack` reached the screen in this file's previous copy pass, from a format string that
+// counted presses and then named one in a word that did not bend with the count. The copy pass
+// after it shortened the sentence again, which moved the verb — so this is the second edit in two
+// changes to touch exactly the construction that broke, and neither edit could be checked by
+// reading the format string, because both readings looked right.
+//
+// So the function is called over one unmeasured press and then two, and what is asserted is the
+// agreement itself. The measurement names are CLAUSES ("which program owned it"), which is why
+// they are introduced with a colon rather than hung off a verb; that is asserted too, since a
+// later shortening that drops the colon produces "1 press is missing which program owned it".
+func TestTheWontRunSentenceAgreesWithItsOwnCount(t *testing.T) {
+	// A press that asked to be checked and whose program had gone: the one measurement
+	// that fails after the hooks are down. See notMeasured.
+	press := macroir.Step{Kind: macroir.StepClick, RelTo: macroir.RelToWindow,
+		WinRel: true, RelX: 10, RelY: 20, WinW: 1920, WinH: 1080, Dpi: 144}
+	for _, c := range []struct {
+		presses int
+		want    string
+	}{
+		{1, "1 press is missing a measurement: which program owned it."},
+		{2, "2 presses are missing measurements: which program owned it."},
+	} {
+		steps := make([]macroir.Step, c.presses)
+		for i := range steps {
+			steps[i] = press
+		}
+		if said := whyItWillNotRun(steps); !strings.Contains(said, c.want) {
+			t.Errorf("%d unmeasured press(es) reads %q, which does not open "+
+				"%q", c.presses, said, c.want)
+		}
 	}
 }
 

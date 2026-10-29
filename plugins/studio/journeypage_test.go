@@ -385,6 +385,41 @@ func TestEveryStepSentenceTheBackendWritesHasAVerb(t *testing.T) {
 	}
 }
 
+// AND THE REVIEW SAYS IT WILL NOT RUN, IN THE PAGE, ABOVE THE REASON.
+//
+// This is the other end of a copy cut. `whyItWillNotRun` used to say three things — the count,
+// the measurement, and that the routine would REFUSE — under a heading that had just said the
+// third of them and above a button that said it again. The refusal clause came out of the
+// backend sentence, and a test in `recording_test.go` stopped asserting the word.
+//
+// Which leaves the SCREEN as the only thing that says it, so the screen is where it is held: the
+// heading exists, it reads as a refusal, it is immediately above the reason, and it appears under
+// the same condition — a box shown on `r.missing` with the reason inside it, rather than two
+// elements with two conditions, one of which can be false while the other is true.
+func TestTheReviewSaysItWillNotRunAboveTheReason(t *testing.T) {
+	page := thePage(t)
+	box := between(t, page, `id="capWontRunBox"`, `id="capUnsupported"`)
+	if !strings.Contains(box, "This routine won't run.") {
+		t.Errorf("the review does not say the routine will not run above the reason "+
+			"it will not: %q", box)
+	}
+	if !before(box, "won't run", `id="capMissing"`) {
+		t.Error("the reason comes before the heading that makes sense of it")
+	}
+	// ONE CONDITION FOR BOTH, which is what the box is for: a heading that can stand
+	// over nothing, or a reason that can stand under nothing, is the state this
+	// arrangement exists to make impossible.
+	js := page[strings.Index(page, "<script>"):]
+	if !regexp.MustCompile(`showing\(\$\('capWontRunBox'\),\s*!!r\.missing\)`).MatchString(js) {
+		t.Error("the won't-run heading is no longer shown by the same answer that " +
+			"fills the reason")
+	}
+	if regexp.MustCompile(`showing\(\$\('capMissing'\)`).MatchString(js) {
+		t.Error("the reason has acquired a condition of its own, so it can be shown " +
+			"without the heading or hidden under it")
+	}
+}
+
 // AND THE BUTTON SAYS `Save anyway` ONLY WHEN SAVING IS ALLOWED AND THE ROUTINE WILL NOT RUN.
 //
 // Two states that read alike and are not: `incomplete` SAVES and then refuses to press, so

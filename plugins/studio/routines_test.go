@@ -191,9 +191,17 @@ func TestASavedRoutineIsListedAndReadyToPlay(t *testing.T) {
 	if r.Contract != string(orchestrator.Guarded) {
 		t.Errorf("its contract is %q, want %q", r.Contract, orchestrator.Guarded)
 	}
-	if !strings.Contains(r.Checks, "checked against the window it was recorded in") {
-		t.Errorf("the sentence about its presses does not say they are checked: %q",
-			r.Checks)
+	// THE TWO MEANINGS, NOT THE OLD SENTENCE. This asserted the clause "checked against
+	// the window it was recorded in" and the copy pass shortened the sentence to
+	// "Checks the program, window size and scale before each press. Stops if a check
+	// fails." — 14 words for the 32 it replaced, saying the same two things. What a person
+	// needs before Play is WHAT IS CHECKED and WHAT HAPPENS WHEN A CHECK FAILS, so those
+	// are what is held: the three measurements by name, and the stop.
+	for _, want := range []string{"program", "size", "scale", "stop"} {
+		if !strings.Contains(strings.ToLower(r.Checks), want) {
+			t.Errorf("the sentence about its presses does not mention %q: %q",
+				want, r.Checks)
+		}
 	}
 	// AND THE MARCO IT WAS SAVED AS, because a routine is legal Marco so that somebody
 	// can read what they kept and recognise it.
@@ -336,6 +344,68 @@ func TestARoutineMissingAMeasurementIsNotOfferedForPlay(t *testing.T) {
 	}
 	if why := playing(t, a, "ark graphics"); why == "" {
 		t.Fatal("pressing Play on it started a run")
+	}
+}
+
+// AND THE PANEL NEVER SAYS ONE THING TWICE.
+//
+// The selected routine's panel renders the checks line and then, under it, the reason it will not
+// run. For an incomplete routine those were THE SAME STRING — the listing handed one sentence to
+// both fields — so the one routine whose panel a person has a reason to read carefully said the
+// same words in two consecutive lines, the second of them in a red banner.
+//
+// What is held is the SHAPE of that mistake rather than the one case of it: no two lines of this
+// panel carry the same sentence, whatever the contract. And the half that must survive the fix is
+// asserted here too: whichever line says it, the measurement is still named, because which one is
+// missing is what decides whether another demonstration would help.
+func TestNothingInTheRoutinePanelIsSaidTwice(t *testing.T) {
+	for _, c := range []struct {
+		what string
+		lose func(*recorder.RecordedEvent)
+		says string
+	}{
+		{"everything was measured", nil, ""},
+		{"the scale could not be read",
+			func(p *recorder.RecordedEvent) { p.Dpi = 0 },
+			"what scale it was drawn at"},
+		{"the window would not say how big it is",
+			func(p *recorder.RecordedEvent) { p.WinW, p.WinH = 0, 0 },
+			"how wide that window was"},
+	} {
+		t.Run(c.what, func(t *testing.T) {
+			a := aSavedRoutine(t, "app-anywhere", c.lose)
+			r, found := routineCalled(a.Routines(), "ark graphics")
+			if !found {
+				t.Fatal("it is not listed at all")
+			}
+			// EVERY LINE THE PANEL PAINTS FROM THIS ROW, and the sentence
+			// each one would show. `Captures` and `Wrote` are in the
+			// collapsed detail; these four are the ones above Play.
+			lines := map[string]string{
+				"checks": r.Checks, "why": r.Why,
+				"captures": r.Captures, "wrote": r.Wrote,
+			}
+			for one, said := range lines {
+				for other, also := range lines {
+					if one >= other || said == "" {
+						continue
+					}
+					if said == also {
+						t.Errorf("the %s line and the %s "+
+							"line both read %q", one,
+							other, said)
+					}
+				}
+			}
+			if c.says == "" {
+				return
+			}
+			if !strings.Contains(r.Checks+" "+r.Why, c.says) {
+				t.Errorf("nothing in the panel names the missing "+
+					"measurement %q: checks %q, why %q",
+					c.says, r.Checks, r.Why)
+			}
+		})
 	}
 }
 

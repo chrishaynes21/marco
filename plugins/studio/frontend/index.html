@@ -2399,7 +2399,12 @@
    // panel used to open with provenance and never name the routine it was about.
    text($('routineIdentity'), r.name || '')
    text($('routineIdentityWhere'), whereItWorks(r))
+   // WHAT IT CHECKS, WHEN THAT IS NOT WHAT THE BANNER BELOW SAYS. An incomplete
+   // routine's checking and its reason for refusing are one sentence, and the backend
+   // sends it as `why` alone rather than in both — so an empty line here is a line that
+   // would have been the next one twice. See routines.go.
    text($('routineChecks'), r.checks || '')
+   showing($('routineChecks'), !!r.checks)
    // WHAT IT WAS RECORDED AS, OR NOTHING AT ALL. See the element's comment: absent is
    // rendered as absent, and `recorded as` names it as a statement the file makes rather
    // than as a property this window worked out.

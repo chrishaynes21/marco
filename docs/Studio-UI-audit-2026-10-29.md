@@ -317,3 +317,48 @@ Ten headless renders, at `docs/images/studio-ui/`, and collected with their clai
   page**, and the instruction gone.
 - `plugins/studio` `TestTheReviewShowsTheStepsBeforeEverythingAboutThem` — the eight-element
   order, and the scope chooser's condition unchanged.
+
+### The copy reduction, after the visual pass
+
+Approved as the last piece of this slice: *"the incomplete review repeats its headline with
+another explanation of refusal"*, and the selected routine's checks paragraph was a paragraph.
+Measured in words, before and after:
+
+| | before | after |
+| --- | --- | --- |
+| the review's reason a routine will not run | 34 | 20 |
+| the same, on a Windows that can never report a scale | 51 | 37 |
+| what a guarded routine checks | 34 | 15 |
+| what a legacy routine does not check | 30 | 19 |
+| why a saved routine refuses every press | 40 | 17 |
+
+**What came out, in each case, is the thing the screen says itself.** The review's reason said
+`REFUSE` under a heading reading `This routine won't run.` and above a button reading
+`Save anyway` — one fact in three places, and the heading is the one that cannot be missed. The
+guarded sentence named the three measurements twice over. The legacy sentence closed on how
+routines saved before Marco measured windows behave, which is this program's history rather than
+anything about the routine in front of somebody.
+
+**And one line went entirely.** For an incomplete routine the listing handed ONE sentence to both
+`Checks` and `Why`, and the panel renders both — so the one routine whose panel is worth reading
+carefully said the same words twice in a row, the second time in a red banner. The sentence is
+in `Why` alone now.
+
+**What was kept, deliberately:** which measurement did not arrive, in every case, because
+`what scale it was drawn at` on a Windows that cannot report one means another demonstration will
+not help and the other three mean it will; and the separate remedy for that Windows, which is the
+one case where `Record it again` is the wrong advice.
+
+### Held by, after the copy reduction
+
+- `plugins/studio` `TestTheReviewSaysItWillNotRunAboveTheReason` — the page says the routine will
+  not run, immediately above the reason, under the same condition. This is the half the backend
+  sentence stopped saying, so the screen is where it is now asserted.
+- `plugins/studio` `TestNothingInTheRoutinePanelIsSaidTwice` — no two lines of the selected
+  routine's panel carry the same sentence, whatever the contract, and the missing measurement is
+  still named by one of them.
+- `plugins/studio` `TestTheWontRunSentenceAgreesWithItsOwnCount` — `1 press is` and
+  `2 presses are`, over the real function. `1 press lack` reached the screen in the pass before
+  this one, from a format string that read correctly.
+- `plugins/studio` `TestASavedRoutineIsListedAndReadyToPlay` — the guarded sentence by its two
+  meanings (what is checked, and that it stops) rather than by its old wording.

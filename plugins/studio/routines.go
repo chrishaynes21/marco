@@ -101,10 +101,12 @@ type Routine struct {
 	// legacy, guarded or incomplete. The BASIS is the contract and everything else is a
 	// measurement, so this is a state the saved file is IN. See ADR-251.
 	Contract string `json:"contract"`
-	// Checks is that in a sentence, which is the part a person needs: "every press is
-	// checked against the window it was recorded in" is the promise, and "it does not
-	// say what scale that window was drawn at, so it will refuse rather than press" is
-	// the one case where reading it beforehand saves somebody a minute of refusals.
+	// Checks is that in a sentence, which is the part a person needs: what is checked
+	// before each press, and what the routine does when a check fails.
+	//
+	// EMPTY WHEN Why SAYS IT. An incomplete routine's account of its own checking IS the
+	// reason it will not run, and the panel renders both lines one under the other — so
+	// for that contract this is left empty and the sentence is in Why. See Routines.
 	Checks string `json:"checks,omitempty"`
 	// Mode is what the saved source STATES it was recorded as, and Captures is that in a
 	// sentence. Both absent when it says nothing.
@@ -272,7 +274,15 @@ func (a *Acts) Routines() []Routine {
 			// IT SAVES AND THEN REFUSES, which is the contract working rather
 			// than a broken file — and it is still not something to press Play on
 			// and watch. The sentence says what it lacks; see ADR-251.
-			r.Why = r.Checks
+			//
+			// AND IT IS SAID ONCE. The sentence MOVES: it was handed to both
+			// fields and the panel renders both, the checks line and then the
+			// refusal banner under it, so an incomplete routine said the same
+			// words twice in a row. The banner is where it belongs — it is red,
+			// it is beside a Play button that will not run, and a person reading
+			// one line reads that one. Held by
+			// TestNothingInTheRoutinePanelIsSaidTwice.
+			r.Why, r.Checks = r.Checks, ""
 		default:
 			// AND IS IT STILL LEGAL MARCO. Asked through the production checker,
 			// because a routine is a file somebody can open and edit and the
@@ -328,25 +338,29 @@ func scopeWord(rt routes.Route) string {
 
 // checksSentence says what a routine's contract means for pressing Play on it.
 //
-// Three sentences for three states, and the middle one is the only promise: a legacy routine
-// presses where it was recorded having checked nothing, which is how every routine saved before
-// any of this behaves and is not a fault to report — it is what somebody chose when they saved
-// it. See ADR-251.
+// Three sentences for three states, and the first is the only promise: a legacy routine presses
+// where it was recorded having checked nothing, which is how every routine saved before any of
+// this behaves and is not a fault to report — it is what somebody chose when they saved it. See
+// ADR-251.
+//
+// SHORT ENOUGH TO BE READ BEFORE PLAY, which is the only moment it is for. The guarded sentence
+// was 32 words naming the three measurements twice over, and ended in a promise that took a
+// clause of its own; the legacy one closed with a sentence about how routines saved before Marco
+// measured windows behave, which is this program's history rather than anything about the
+// routine in front of somebody. What each one has to carry is WHAT IS CHECKED and WHAT HAPPENS
+// WHEN A CHECK FAILS. The incomplete one carries the measurement as well, because which
+// measurement is missing is what decides whether another demonstration would help.
 func checksSentence(c orchestrator.Contract, lacks []string) string {
 	switch c {
 	case orchestrator.Guarded:
-		return "Every press is checked against the window it was recorded in — the " +
-			"same program, the same size, the same scale — and the routine stops " +
-			"at the first press that cannot be checked."
+		return "Checks the program, window size and scale before each press. Stops " +
+			"if a check fails."
 	case orchestrator.Incomplete:
-		return "A press in this routine asks to be checked against the window it was " +
-			"made in and the recording is missing " + andAll(saidTerms(lacks)) +
-			", so it will refuse rather than press somewhere nobody checked. " +
-			"Record it again."
+		return "The recording is missing " + andAll(saidTerms(lacks)) + ", so every " +
+			"press refuses. Record it again."
 	default:
 		return "Its presses are not checked: each one happens at the point it was " +
-			"recorded at, whatever is there now. This is how every routine saved " +
-			"before Marco measured windows behaves."
+			"recorded at, whatever is there now."
 	}
 }
 

@@ -872,12 +872,14 @@ func whyItWillNotRun(steps []macroir.Step) string {
 			missing = append(missing, one)
 		}
 	}
-	// SHORTER, BUT IT STILL NAMES WHICH MEASUREMENT DID NOT ARRIVE.
+	// TWO THINGS, AND THE SCREEN SAYS THE REST OF IT.
 	//
-	// This was one 50-word sentence carrying four things: how many presses, which
-	// measurements were absent, what saving would mean, and what to do. The page now says
-	// the third of those itself — `This routine won't run.` above this, and `Save anyway`
-	// on the button — so that clause is gone from here.
+	// This was one 50-word sentence carrying four: how many presses, which measurements
+	// were absent, what saving one of these would mean, and what to do about it. The page
+	// says the third itself — `This routine won't run.` immediately above this, `Save
+	// anyway` on the button below it — and then said REFUSE here as well, so the person
+	// read one fact under a heading that had just made it. What is left is the count and
+	// the named measurement, and then the repair.
 	//
 	// THE NAMED MEASUREMENT STAYS, and a first attempt at this cut it. Three tests exist to
 	// stop exactly that: `TestReviewNamesWhicheverMeasurementFailed` walks the four things
@@ -886,20 +888,24 @@ func whyItWillNotRun(steps []macroir.Step) string {
 	// means recording it again will NOT help, and the other three mean it will. A person
 	// deciding whether to keep this needs to know which they have.
 	//
-	// So the reduction is the clause the screen now carries, not the one it does not.
+	// So what goes is what the screen carries, never what only this sentence can say.
 	repair := "Record it again with the program in front of you."
 	if lacks["what scale it was drawn at"] && !canReadWindowScale() {
 		repair = "This computer's Windows cannot report a window's scale, so a " +
 			"routine that checks the window it was made in cannot be made " +
 			"on this machine."
 	}
-	press := "press"
+	// AND IT AGREES WITH ITSELF. A `%d press(es)` and a verb that does not bend with it
+	// is how `1 press lack` reached the screen in this file's last copy pass; and the
+	// things that can be absent are CLAUSES — "which program owned it", "what scale it
+	// was drawn at" — so they are introduced rather than used as the object of a verb,
+	// which is how "1 press lacks which program owned it" reads.
+	press, are, measurement := "press", "is", "a measurement"
 	if presses > 1 {
-		press = "presses"
+		press, are, measurement = "presses", "are", "measurements"
 	}
-	return fmt.Sprintf("%d %s asked to be checked and %s was not measured, so this "+
-		"will REFUSE rather than press somewhere nobody checked. %s",
-		presses, press, andAll(missing), repair)
+	return fmt.Sprintf("%d %s %s missing %s: %s. %s",
+		presses, press, are, measurement, andAll(missing), repair)
 }
 
 // andAll is a list a person reads: "a", "a and b", "a, b and c".
