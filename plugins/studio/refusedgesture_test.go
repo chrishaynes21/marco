@@ -46,7 +46,7 @@ func TestAReviewSaysWhyAGestureCannotBeKept(t *testing.T) {
 	held := &heldRecorder{events: aGestureThatCannotBeWrittenDown("arkascended", owner,
 		ownerApp)}
 	a.recording = func() recorder.Recorder { return held }
-	if why := a.StartRecording("ark graphics"); why != "" {
+	if why := a.StartRecording("ark graphics", ""); why != "" {
 		t.Fatalf("StartRecording refused: %s", why)
 	}
 	if why := a.StopRecording(); why != "" {

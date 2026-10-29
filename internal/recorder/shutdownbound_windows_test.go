@@ -50,14 +50,29 @@ func aCleanPackage(t *testing.T) {
 	t.Helper()
 	wasWedged, wasSession := recWedged.Load(), recSession.Load()
 	wasFore := foreApp.Load()
+	// AND THE CONFINEMENT, which is capture state like every other line here: a test that
+	// starts a confined recording leaves `bound` holding a key and `confined` true, and
+	// the next test to drive a hook body directly would then have its click gated by a
+	// window chosen in somebody else's test. That is not hypothetical — it is how
+	// `TestAStatedCoordinateModeOverridesInheritedAnchors` failed first.
+	wasConfined, wasTarget := confined.Load(), targetHWnd.Load()
+	wasTargetPID, wasGone := targetPID.Load(), gone.Load()
+	wasApp := targetApp.Load()
 	recMu.Lock()
-	wasBuf, wasPub := recBuf, recPub
+	wasBuf, wasPub, wasBound := recBuf, recPub, bound
 	recMu.Unlock()
 	t.Cleanup(func() {
 		recWedged.Store(wasWedged)
 		recSession.Store(wasSession)
+		confined.Store(wasConfined)
+		targetHWnd.Store(wasTarget)
+		targetPID.Store(wasTargetPID)
+		gone.Store(wasGone)
+		if wasApp != nil {
+			targetApp.Store(wasApp)
+		}
 		recMu.Lock()
-		recBuf, recPub = wasBuf, wasPub
+		recBuf, recPub, bound = wasBuf, wasPub, wasBound
 		recMu.Unlock()
 		// NOT IF THERE WAS NO SAMPLE YET: an atomic.Value refuses a nil, and
 		// "nothing has been sampled" is the state a fresh process is in.
@@ -66,6 +81,14 @@ func aCleanPackage(t *testing.T) {
 		}
 	})
 	recWedged.Store(false)
+	confined.Store(false)
+	gone.Store(false)
+	targetHWnd.Store(0)
+	targetPID.Store(0)
+	targetApp.Store("")
+	recMu.Lock()
+	bound = nil
+	recMu.Unlock()
 }
 
 // aRecordingThatWillNotFinishShuttingDown is a recorder waiting on channels nobody closes.

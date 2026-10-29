@@ -33,6 +33,15 @@ func ForegroundOrigin() (left, top int, ok bool) { return 0, 0, false }
 // back to the app poller's sample.
 func ForegroundProcess() (hwnd uintptr, pid uint32, ok bool) { return 0, 0, false }
 
+// ForegroundWindow is unavailable without a window backend, so the recorder's admission gate
+// reads UNKNOWN and admits nothing. A stub that answered otherwise would be a stub deciding
+// that off-target input belongs in a recording.
+func ForegroundWindow() uintptr { return 0 }
+
+// WindowAlive is unavailable without a window backend. False, never a guess: see the Windows
+// side for why an unestablished identity is not one.
+func WindowAlive(hwnd uintptr, pid uint32) bool { return false }
+
 // ForegroundInfo is unavailable without a window backend.
 func ForegroundInfo() (left, top int, name string, ok bool) { return 0, 0, "", false }
 

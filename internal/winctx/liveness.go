@@ -44,6 +44,22 @@ func WindowProcessID(hwnd uintptr) uint32 {
 	return pid
 }
 
+// WindowAlive reports whether hwnd is still a window AND still owned by pid.
+//
+// Both halves, which is the lesson at the top of this file applied to a recording: a handle on
+// its own is not an identity, so a dead window's number can come back as a live window of some
+// other process, and a recorder that asked only `IsWindow` would carry on admitting input from
+// a window the person never chose. It is "a pid is not a process" read the other way round.
+//
+// pid 0 means the owner was never read, and then there is nothing to confirm against: false,
+// because an identity that cannot be established is not one.
+func WindowAlive(hwnd uintptr, pid uint32) bool {
+	if hwnd == 0 || pid == 0 || !IsWindow(hwnd) {
+		return false
+	}
+	return WindowProcessID(hwnd) == pid
+}
+
 // ProcessAlive reports whether a process currently exists and has not exited.
 //
 // Opening the process is not enough on its own: a handle to an exited process still opens

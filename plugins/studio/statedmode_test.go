@@ -65,7 +65,7 @@ func aRecordingWithAnchorsInherited(t *testing.T, name string) (*Acts,
 		heldRecorder: heldRecorder{events: anUnshieldedGlanceAtStudio(owner, ownerApp)},
 	}
 	a.recording = func() recorder.Recorder { return rec }
-	if why := a.StartRecording(name); why != "" {
+	if why := a.StartRecording(name, ""); why != "" {
 		t.Fatalf("StartRecording refused: %s", why)
 	}
 	return a, rec

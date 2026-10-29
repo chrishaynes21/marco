@@ -44,7 +44,7 @@ func BenchmarkClickShape(b *testing.B) {
 // attribution each one makes and the foreground title the press reads.
 func BenchmarkNewClickBothEdges(b *testing.B) {
 	for b.Loop() {
-		newClick("left", true, 500, 400)
-		newClick("left", false, 600, 450)
+		aClick("left", true, 500, 400)
+		aClick("left", false, 600, 450)
 	}
 }

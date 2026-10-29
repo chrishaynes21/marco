@@ -27,7 +27,7 @@ import "testing"
 //
 // `recordClickDown` is the function the mouse hook calls. Everything it needs is package state —
 // the event buffer, the capture queue, the arm — and the one thing it needs a desktop for is
-// `clickAttribution`, which is already a seam for exactly this reason.
+// `attributionNow`, which is already a seam for exactly this reason.
 func aRecordingOf(t *testing.T, anchorsInherited, stateCoordinates, armed bool) bool {
 	return aRecordedClick(t, "left", anchorsInherited, stateCoordinates, armed)
 }
@@ -42,9 +42,9 @@ func aRecordedClick(t *testing.T, button string, anchorsInherited, stateCoordina
 	armed bool) bool {
 
 	t.Helper()
-	wasAnchors, wasAttr, wasShape := captureAnchors, clickAttribution, clickShape
+	wasAnchors, wasAttr, wasShape := captureAnchors, attributionNow, clickShape
 	t.Cleanup(func() {
-		captureAnchors, clickAttribution, clickShape = wasAnchors, wasAttr, wasShape
+		captureAnchors, attributionNow, clickShape = wasAnchors, wasAttr, wasShape
 		plainCoordinates.Store(false)
 		anchorArmed.Store(false)
 		recMu.Lock()
@@ -52,7 +52,7 @@ func aRecordedClick(t *testing.T, button string, anchorsInherited, stateCoordina
 		recMu.Unlock()
 	})
 	// A DESKTOP THAT ANSWERS, so the click is built without asking Windows anything.
-	clickAttribution = func() (uintptr, uint32, string) { return 0x4210, 4812, "arkascended" }
+	attributionNow = func() whose { return whose{hwnd: 0x4210, pid: 4812, ok: true} }
 	clickShape = func(uintptr) (int, int, int, int, int, bool) {
 		return 0, 0, 1920, 1080, 96, true
 	}

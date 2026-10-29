@@ -511,16 +511,105 @@ func runRename(args []string) {
 	fmt.Printf("Renamed %q to %q.\n", prettyRoute(rt.Slug), prettyRoute(newRt.Slug))
 }
 
+// howMuchToRecord turns `--whole-desktop` into the scope and the sentence said before the
+// recording starts.
+//
+// # Why it is said at all
+//
+// Because the default CHANGED. A person whose routine is four steps when they demonstrated six
+// is owed the reason BEFORE they demonstrate, not only in review afterwards — and the
+// recorder has to be told before its hooks go on, so this is the one moment both halves are
+// known. See orchestrator.Watching.
+//
+// A function because `runAssistantLearn` exits the process, and a rule that can only be reached
+// through something that calls `os.Exit` is a rule nothing can ask about.
+func howMuchToRecord(wholeDesktop bool) (orchestrator.Watching, string) {
+	if wholeDesktop {
+		return orchestrator.WholeDesktop, "Recording the whole desktop " +
+			"(everything you do, anywhere, until you stop)."
+	}
+	return orchestrator.OneWindow, "Recording one window: whichever you go to next. " +
+		"Anything you do elsewhere is not recorded."
+}
+
+// chooseTheWindow settles which window a recording is of.
+//
+// # Why an unattended caller may not be asked
+//
+// `--auto` saves with nobody having looked, so there is nobody to answer a prompt: it must be
+// TOLD. A prompt there would hang a HUD on a question nothing can see, which is the shape of
+// defect this repository has a rule about, so it is refused with the reason instead.
+//
+// One candidate is not a choice and is taken: a machine with a single recordable window has
+// already answered. Everything else prints the list and asks, because a list of one is the only
+// case where taking the first is not the latch this slice removed.
+func chooseTheWindow(d orchestrator.Deps, named string, unattended bool) (
+	orchestrator.Pickable, error) {
+
+	if named != "" {
+		return d.TheWindow(named)
+	}
+	list := d.Pickable()
+	switch {
+	case len(list) == 0:
+		return orchestrator.Pickable{}, fmt.Errorf(
+			"no window could be found to record. Open the application you want "+
+				"to demonstrate in, or record everything with %s",
+			"--whole-desktop")
+	case len(list) == 1:
+		return list[0], nil
+	case unattended:
+		return orchestrator.Pickable{}, fmt.Errorf(
+			"say which window to record with --window: there are %d, and an "+
+				"unattended recording cannot be asked", len(list))
+	}
+	fmt.Println("Which window should Marco record?")
+	for i, p := range list {
+		fmt.Printf("  %d. %s\n", i+1, p.Label())
+	}
+	fmt.Print("Number (or part of a name): ")
+	line, _ := bufio.NewReader(os.Stdin).ReadString('\n')
+	answer := strings.TrimSpace(line)
+	if answer == "" {
+		// ENTER IS THE FIRST ONE, which is the foreground: `Pickable` puts the
+		// window the person was just in at the top, and that is the likeliest
+		// answer rather than a guess at an arbitrary one.
+		return list[0], nil
+	}
+	return d.TheWindow(answer)
+}
+
 func runAssistantLearn(args []string) {
 	// --auto: non-interactive learn (record → simplify → save scoped to the
 	// foreground app), so a front-end like the overlay can drive learning with no
 	// prompts and no console window.
-	auto, narrate, recent := false, false, false
+	auto, narrate, recent, desktop := false, false, false, false
+	window := ""
 	var rest []string
-	for _, a := range args {
+	for i, a := range args {
+		switch {
+		case a == "--window" && i+1 < len(args):
+			// WHICH WINDOW, NAMED. A position in the list this prints, a
+			// window handle, or text matched against the application and the
+			// caption. The overlay passes the handle of the window the person
+			// was in when they summoned the HUD; a person at a terminal
+			// usually passes a number from the list.
+			window = args[i+1]
+			continue
+		case window != "" && i > 0 && args[i-1] == "--window":
+			continue
+		}
 		switch a {
 		case "--auto":
 			auto = true
+		case "--whole-desktop":
+			// THE EXPLICIT WAY TO RECORD EVERYTHING, which is what every
+			// recording was before Roadmap 36 and what a demonstration that
+			// genuinely spans applications needs. A flag rather than a
+			// setting, because it is a statement about ONE recording — the
+			// same reason `recorder.Mode` is told and not read from the
+			// environment. See orchestrator.Watching.
+			desktop = true
 		case "--narrate", "--voice": // narrate from typed stdin lines OR the mic
 			narrate = true
 		case "--recent":
@@ -555,11 +644,34 @@ func runAssistantLearn(args []string) {
 		name = strings.TrimSpace(line)
 	}
 	if name == "" {
-		fmt.Fprintln(os.Stderr, `usage: marco learn "<name>"`)
+		fmt.Fprintln(os.Stderr, `usage: marco learn "<name>" [--whole-desktop]`)
 		os.Exit(2)
 	}
+	// AND WHICH WINDOWS THIS RECORDING IS OF, SAID BEFORE IT STARTS.
+	//
+	// Printed rather than left implicit, because the default changed: somebody whose
+	// routine is four steps when they demonstrated six is owed the reason before they
+	// demonstrate, not only in review afterwards.
+	d := newDeps()
+	watch, said := howMuchToRecord(desktop)
+	d.Watch = watch
+	// ── AND WHICH WINDOW, CHOSEN BEFORE ANYTHING IS RECORDED ──
+	//
+	// Not inferred: see orchestrator.Pickable. A recording that was asked to be of one
+	// window and does not know which is refused by `Begin`, so this is where the person
+	// answers — from `--window`, or from the list below.
+	if watch == orchestrator.OneWindow {
+		chosen, err := chooseTheWindow(d, window, auto)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(2)
+		}
+		d.Window = chosen.Target()
+		said += " " + fmt.Sprintf("Recording %s.", chosen.Label())
+	}
+	fmt.Println(said)
 	if auto {
-		if err := newDeps().LearnAuto(name); err != nil {
+		if err := d.LearnAuto(name); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}
@@ -572,7 +684,7 @@ func runAssistantLearn(args []string) {
 		}
 		return
 	}
-	if err := newDeps().Learn(name); err != nil {
+	if err := d.Learn(name); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}

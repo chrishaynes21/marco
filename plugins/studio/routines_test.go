@@ -445,7 +445,7 @@ func TestARoutineWillNotRunWhileSomethingIsBeingRecorded(t *testing.T) {
 	a.raising = func(string) string { return "" }
 	// A SECOND RECORDING IN FLIGHT, through the production path.
 	a.recording = func() recorder.Recorder { return &heldRecorder{} }
-	if why := a.StartRecording("something else"); why != "" {
+	if why := a.StartRecording("something else", ""); why != "" {
 		t.Fatalf("starting a recording: %s", why)
 	}
 	why := playing(t, a, "ark graphics")
@@ -1018,7 +1018,7 @@ func aSecondRoutineCalled(t *testing.T, a *Acts, name, app, scope string) {
 				App: app, PID: gamePID + 1, T: at(105)},
 		}}
 	}
-	if why := a.StartRecording(name); why != "" {
+	if why := a.StartRecording(name, ""); why != "" {
 		t.Fatal(why)
 	}
 	if why := a.StopRecording(); why != "" {

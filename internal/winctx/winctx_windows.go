@@ -102,6 +102,21 @@ func ForegroundOrigin() (left, top int, ok bool) {
 // sampled yet. A person who brings a window forward and clicks inside it faster than the sample
 // interval is attributed to the app they LEFT. `ok` is false when there is no foreground window
 // or the owner cannot be read, which is a real answer and is never guessed at.
+// ForegroundWindow is the foreground window HANDLE, and nothing else about it.
+//
+// ONE window-data read, which is why it is separate from `ForegroundProcess` above: the
+// recorder's admission gate asks this on EVERY key and every click edge to decide whether the
+// event happened in the window being recorded, and the owning process is not part of that
+// question (see recorder.Target: membership is the handle). Halving the syscalls on the
+// low-level hook thread is the whole reason it exists.
+//
+// 0 when there is no foreground window, which the gate reads as UNKNOWN and therefore as not a
+// member.
+func ForegroundWindow() uintptr {
+	hwnd, _, _ := procGetForegroundWindow.Call()
+	return hwnd
+}
+
 func ForegroundProcess() (hwnd uintptr, pid uint32, ok bool) {
 	hwnd, _, _ = procGetForegroundWindow.Call()
 	if hwnd == 0 {

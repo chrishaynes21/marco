@@ -184,7 +184,15 @@ type winRecorder struct {
 	// does about one recording. `Start` publishes it to `plainCoordinates`, which is where
 	// the hook callbacks can reach it — see the capture state below.
 	mode Mode
+	// watch is which windows this recording admits input from and target is WHICH
+	// window, both from the caller that started it. Published by `Start` the same way and
+	// for the same reason. See Confined.
+	watch  Watching
+	target Target
 }
+
+// Only states what the recording `Start` begins next admits. See recorder.Confined.
+func (r *winRecorder) Only(w Watching, t Target) { r.watch, r.target = w, t }
 
 // Capture states what this recorder captures, overriding what the process was launched with.
 //
@@ -199,6 +207,226 @@ func (r *winRecorder) Capture(m Mode) { r.mode = m }
 // the recorder's own `mode`, so what a CALLER stated is what the hooks read — and read on every
 // click rather than once at process start, which is the whole defect this closes.
 var plainCoordinates atomic.Bool
+
+// ── WHICH WINDOW THIS RECORDING IS OF ────────────────────────────────────────
+//
+// Atomics for the same reason `plainCoordinates` is one: the hook callbacks are C callbacks
+// and can reach nothing but package state. All of it written by `Start`, before the hooks go
+// on, from what the caller stated.
+//
+// # The target is GIVEN, and was once inferred
+//
+// The first version LATCHED it: the first foreground window that was neither the surface the
+// recording was started from nor its process became the target. That is not a window somebody
+// CHOSE — it is whichever window came forward first, so a terminal, a notification toast or
+// an updater taking focus in the second after Record was pressed became the thing being
+// recorded, and the demonstration that followed was admitted from nowhere. A person cannot
+// correct a choice they were never shown. So the window is selected BEFORE capture, by the
+// person, and arrives here as two numbers.
+var (
+	// confined is "this recording admits one window only".
+	confined atomic.Bool
+	// targetHWnd and targetPID are the chosen window. BOTH decide membership: a handle
+	// Windows has handed back out is a different window, and a recording that asked only
+	// about the handle would carry on admitting input from it.
+	targetHWnd atomic.Uintptr
+	targetPID  atomic.Uint32
+	// targetApp is the chosen window's application name, resolved ONCE at Start and off
+	// the hook thread, because reading it opens a process handle.
+	//
+	// It is what an admitted event is tagged with, which is the other half of a defect:
+	// a key used to carry `foreground()`, the app-switch poller's last SAMPLE, so a key
+	// pressed within the poll interval of a switch was labelled with the application the
+	// person had left. The chosen window's name cannot be wrong about the chosen window.
+	targetApp atomic.Value
+	// gone is set once the chosen window has stopped existing, so the admission gate
+	// stops asking about a handle Windows may already have given to somebody else.
+	gone atomic.Bool
+)
+
+// alreadyHeld is every key and mouse button that is PHYSICALLY DOWN right now.
+//
+// # Why a recording has to ask
+//
+// Because a recording begins in the middle of somebody's day. Ctrl held when Record is pressed
+// is a press this recording will never see, and the release — if it comes at all — arrives with
+// nothing to pair it with. `Boundary` tracked only what it watched go down, so it started empty
+// and believed nothing was held: a ctrl+click performed in the chosen window was admitted and
+// written down as an ordinary `click`, which is a different demonstration. It is the same defect
+// as entering the window with Ctrl down, one step earlier, and the boundary could not see it
+// because the press happened before there was a boundary.
+//
+// So the physical state is read ONCE, at Start, and seeded as held-from-outside: the rule that
+// already refuses an admitted action while something is held from outside then covers this too,
+// and a key released without ever being pressed is dropped instead of recorded.
+//
+// # The whole keyboard, and why that is affordable
+//
+// `GetAsyncKeyState` is one read per virtual key and this asks about 254 of them, which is a
+// burst of cheap reads ONCE, off the hook thread, before the hooks are installed. The
+// alternative — a short list of modifiers — is the mistake this slice already corrected in
+// `Boundary`: Q held across a boundary is a crossing, and Q held before Start is the same fact
+// earlier. The high bit is "down now"; the low bit is "pressed since last asked", which is a
+// different question and would report a key somebody finished pressing as one that is stuck.
+//
+// A variable, so a test can state a desktop where something is held. Production never replaces
+// it.
+// imageOfProcess is a process's executable name. A variable so a test can state one without a
+// process to read; production never replaces it.
+var imageOfProcess = winctx.ProcessImage
+
+var alreadyHeld = func() []string {
+	var held []string
+	for vk := 1; vk <= 254; vk++ {
+		// The mouse buttons are VK 1,2,4 and are named as the boundary names them,
+		// because a button held across the start is the same fact as a key.
+		//
+		// THE HIGH BIT IS "DOWN NOW". The low bit is "pressed since last asked",
+		// which is a different question and the wrong one: it would report a key
+		// somebody finished pressing a moment ago as one that is stuck, and refuse
+		// the recording for it.
+		//
+		// WHICH BIT THIS IS CANNOT BE EXERCISED HEADLESSLY and the mutation that
+		// swaps it SURVIVES: establishing it needs a key physically held while the
+		// scan runs, which is the same class of gap as physical capture and is
+		// recorded as one rather than contrived against. `plugins/e2e`
+		// `isHeldDown` reads the same bit for the same reason with the same note,
+		// and the desktop harness there does hold keys down.
+		state, _, _ := procGetAsyncKeyState.Call(uintptr(vk))
+		if state&0x8000 == 0 {
+			continue
+		}
+		switch vk {
+		case 1:
+			held = append(held, "the left button")
+		case 2:
+			held = append(held, "the right button")
+		case 4:
+			held = append(held, "the middle button")
+		default:
+			if n := vkToName(uint16(vk)); n != "" {
+				held = append(held, n)
+			}
+		}
+	}
+	return held
+}
+
+// chosenApp is the chosen window's application name, and "" when there is no chosen window or
+// its image could not be read.
+//
+// SEPARATE FROM `appOfTarget` BECAUSE THE FALLBACK IS NOT ALWAYS RIGHT. Tagging an admitted
+// event with a stale sample is a wrong label on an event that did happen in the window; writing
+// an application switch from one is a step for an application nobody demonstrated in. So the
+// poller asks THIS, which has no fallback: an established identity or none.
+func chosenApp() string {
+	if !confined.Load() {
+		return ""
+	}
+	v, _ := targetApp.Load().(string)
+	return v
+}
+
+// appOfTarget is the chosen window's application name, or the poller's sample when there is no
+// chosen window (an unconfined recording, which is every recording there was).
+func appOfTarget() string {
+	if v := chosenApp(); v != "" {
+		return v
+	}
+	return foreground()
+}
+
+// bound is the crossing state of the recording in flight, or nil when nothing is confined.
+//
+// NOT an atomic, because unlike everything above it is MUTATED by what it is asked: a press
+// changes what is held, and the decision and the mutation are one step. It lives under `recMu`,
+// which `observe` takes anyway to append — so the boundary costs the hook thread no lock it was
+// not already taking.
+var bound *Boundary
+
+// whose is ONE reading of who owns this instant: the foreground window and the process that
+// owns it, taken together.
+//
+// # One reading, because two readings are two instants
+//
+// A click used to ask `clickAttribution` for the window it landed in, and the admission gate
+// asked the foreground AGAIN for itself. Between those two calls the foreground can change —
+// that is what a click on another window DOES — so one event could be attributed to one window
+// and admitted on the strength of another. A key was worse: it was tagged with `foreground()`,
+// the app-switch poller's last sample, and admitted on a third reading. So there is ONE snapshot
+// per event and everything about that event is decided from it.
+//
+// Both are window-data reads, which is the class of call that is safe on the low-level hook
+// thread: no process handle is opened and no image path is queried. The application NAME is not
+// read here for exactly that reason — see `appOfTarget`, which answers it from the chosen
+// window instead of from a sample.
+//
+// `ok` false means the foreground or its owner could not be read. That is UNKNOWN, and unknown
+// is never membership.
+type whose struct {
+	hwnd uintptr
+	pid  uint32
+	ok   bool
+}
+
+// attributionNow is that one reading.
+//
+// A variable so a test can drive the production gate against a known desktop — the pattern
+// `clickAttribution` set in this file, and for the same reason: a rule about WHICH WINDOW cannot
+// be exercised against the one window a test process has. Production never replaces it, and the
+// hooks call it once per event.
+var attributionNow = func() whose {
+	hwnd, pid, ok := winctx.ForegroundProcess()
+	return whose{hwnd: hwnd, pid: pid, ok: ok}
+}
+
+// admits answers whether one reading of the desktop belongs to the chosen window.
+//
+// THE HANDLE AND THE OWNER, both, out of the one snapshot: the handle because two windows of one
+// application are two different windows, and the owner because Windows hands a handle back out
+// when a window closes. Either one alone admits input from a window nobody chose.
+func (w whose) admits() bool {
+	if !confined.Load() {
+		return true
+	}
+	// THE UNREADABLE ARM IS UNFALSIFIABLE AND STAYS ANYWAY.
+	//
+	// `Start` only sets `confined` when the target has both halves, so the comparison
+	// below already refuses a reading with a zero in it: 0 cannot equal a handle or an
+	// owner that exists. A mutation deleting `!w.ok || w.hwnd == 0 || w.pid == 0` changes
+	// no behaviour reachable from production, and the gate run for it is recorded as
+	// unfalsifiable rather than as a kill.
+	//
+	// It stays because it is the honest expression of "unknown is not membership" at the
+	// point where the answer is read, and because the two guards protect different things
+	// if either ever moves: this one is about the READING, and the comparison is about the
+	// TARGET.
+	if gone.Load() || !w.ok || w.hwnd == 0 || w.pid == 0 {
+		return false
+	}
+	return w.hwnd == targetHWnd.Load() && w.pid == targetPID.Load()
+}
+
+// targetLost reports whether the chosen window has stopped being itself, and latches that
+// answer so it is asked of the operating system once.
+//
+// Called from the app-switch poller and never from a hook: it opens no process handle, but it
+// is two window reads for a question that only changes when a window closes, and the poller is
+// already off the hook thread.
+func targetLost() bool {
+	if !confined.Load() || gone.Load() {
+		return gone.Load()
+	}
+	h, p := targetHWnd.Load(), targetPID.Load()
+	if h == 0 {
+		return false
+	}
+	if winctx.WindowAlive(h, p) {
+		return false
+	}
+	gone.Store(true)
+	return true
+}
 
 // anchoring reports whether this recording captures a picture of what was pressed.
 //
@@ -284,6 +512,14 @@ func (r *winRecorder) Start() error {
 	// WHAT THIS RECORDING CAPTURES, FROM THE CALLER THAT STARTED IT. Published before
 	// the hooks go on, because after them the first press can already have been seen.
 	plainCoordinates.Store(r.mode == Coordinates)
+	// AND WHICH WINDOW, from the same caller and for the same reason. The surface that
+	// started this is in front right now, which is what makes it the one window the
+	// target can never be — see latchedTarget.
+	confined.Store(r.watch == OneWindow && r.target.Chosen())
+	targetHWnd.Store(r.target.HWnd)
+	targetPID.Store(r.target.PID)
+	gone.Store(false)
+
 	// AND NOTHING IS LEFT ARMED FROM A RECORDING BEFORE THIS ONE. The arm is a one-shot
 	// consumed by the next click, so an unconsumed one outlives the recording it was
 	// tapped in — which would put a picture in the first click of a recording that asked
@@ -380,6 +616,15 @@ func (r *winRecorder) Start() error {
 			case <-r.done:
 				return
 			case <-t.C:
+				// THE CHOSEN WINDOW'S OWN DEATH, asked here because it is two
+				// window reads for a question that changes once, and the hook
+				// thread must not spend them on every keystroke. The recording
+				// ENDS: `waitForStop` returns on this marker, the draft is kept
+				// for review, and a gesture left unfinished by the closing has
+				// already made it unsaveable.
+				if targetLost() && r.recordTargetGone(time.Now()) {
+					return
+				}
 				last = r.sampled(winctx.Active(), last, time.Now())
 			}
 		}
@@ -541,6 +786,27 @@ func (r *winRecorder) Stop() []RecordedEvent {
 	return out
 }
 
+// Paused answers the live capture state. See recorder.Pausable.
+//
+// UNDER `recMu`, which is the lock the boundary is mutated by: a surface that read the two
+// halves of this separately could draw "paused" with the time it came back, and a poll that
+// landed mid-event could read a boundary halfway through being moved.
+func (r *winRecorder) Paused() (bool, time.Duration) {
+	recMu.Lock()
+	defer recMu.Unlock()
+	if bound == nil || !r.mineUnderLock() {
+		return false, 0
+	}
+	outside, since := bound.Outside()
+	if !outside || since.IsZero() {
+		// OUTSIDE WITH NO INSTANT is the state before the person has ever arrived:
+		// they have chosen a window and not gone to it yet, which is not a pause in a
+		// recording and must not be shown as one.
+		return false, 0
+	}
+	return true, time.Since(since)
+}
+
 func (r *winRecorder) Events() <-chan RecordedEvent {
 	recMu.Lock()
 	defer recMu.Unlock()
@@ -552,17 +818,98 @@ func record(ev RecordedEvent) { recordIndexed(ev) }
 
 // recordIndexed is record that also returns the event's index in recBuf, so the
 // capture worker can later fill in a click's Image in place.
+//
+// It is the UNCONFINED path and the markers' path: an event given to it is recorded and
+// published, which is what every event did before there was a chosen window. Input from the
+// hooks goes through `observe`.
 func recordIndexed(ev RecordedEvent) int {
 	recMu.Lock()
-	idx := len(recBuf)
-	recBuf = append(recBuf, ev)
+	idx := appendUnderLock(ev)
 	pub := recPub
 	recMu.Unlock()
-	if pub != nil {
-		select {
-		case pub <- ev:
-		default:
-		}
+	publish(pub, ev)
+	return idx
+}
+
+// appendUnderLock appends to the buffer and returns the index. `recMu` MUST BE HELD.
+func appendUnderLock(ev RecordedEvent) int {
+	idx := len(recBuf)
+	recBuf = append(recBuf, ev)
+	return idx
+}
+
+// publish forwards an event to the live channel, never blocking: a consumer that is not
+// reading loses events rather than stalling a hook callback.
+func publish(pub chan RecordedEvent, ev RecordedEvent) {
+	if pub == nil {
+		return
+	}
+	select {
+	case pub <- ev:
+	default:
+	}
+}
+
+// observe decides what becomes of one event the hooks saw, and does it.
+//
+// THE DECISION AND THE WRITES ARE ONE STEP, under `recMu`. The boundary is mutable state that
+// every event changes, so asking it outside the lock and writing inside would be two instants
+// with another hook callback's answer possible in between — the shape of defect this file
+// already carries two long comments about. `inside` is read BEFORE the lock, because it is a
+// syscall and `recMu` is held by workers doing screen work.
+//
+// Returns the event's index in the buffer, or -1 when it was not recorded — which is what stops
+// a dropped click from queueing a screen capture of somebody else's window.
+func observe(ev RecordedEvent, inside bool) int {
+	recMu.Lock()
+	b := bound
+	if b == nil {
+		idx := appendUnderLock(ev)
+		pub := recPub
+		recMu.Unlock()
+		publish(pub, ev)
+		return idx
+	}
+	was := b.Crossing()
+	markers := make([]RecordedEvent, 0, 2)
+	if k, changed := b.Arrived(inside, ev.T); changed {
+		markers = append(markers, RecordedEvent{Kind: k, T: ev.T})
+	}
+	var adm Admission
+	switch ev.Kind {
+	case EvKey:
+		adm = b.Pressed(ev.KeyName, ev.Down, inside, stopKey.Has(ev.KeyName))
+	case EvClick:
+		adm = b.Pressed("the "+ev.Button+" button", ev.Down, inside, false)
+	case EvMove:
+		adm = b.Moved(inside)
+	default:
+		adm = b.Admits(inside)
+	}
+	// THE CROSSING IS AN EVENT, not state read back afterwards. The buffer is what
+	// `Stop` returns and the only thing a draft is made from, so a reason carried
+	// anywhere else would be a second answer that could outlive its recording — and
+	// a surface watching the channel learns at the instant it happened.
+	if now := b.Crossing(); now != was {
+		markers = append(markers, RecordedEvent{Kind: EvCrossed, KeyName: now, T: ev.T})
+	}
+	idx := -1
+	for _, m := range markers {
+		appendUnderLock(m)
+	}
+	if adm == Admit {
+		idx = appendUnderLock(ev)
+	}
+	pub := recPub
+	recMu.Unlock()
+	for _, m := range markers {
+		publish(pub, m)
+	}
+	// AND OFF-TARGET INPUT REACHES THE CHANNEL ONLY AS A STOP. See recorder.StopOnly:
+	// a consumer of this channel is as entitled not to hold somebody's message as the
+	// buffer is, and the whole of what a stop needs is the stop keys themselves.
+	if adm != Drop {
+		publish(pub, ev)
 	}
 	return idx
 }
@@ -597,8 +944,20 @@ func keyboardProc(nCode int, wParam, lParam uintptr) uintptr {
 					}
 					return 1 // suppress — never reaches the app
 				}
-				record(RecordedEvent{Kind: EvKey, VK: vk, KeyName: name,
-					Down: down, T: time.Now(), App: foreground()})
+				// WHOSE KEY IS THIS? One reading, taken before the lock
+				// because it is a window read and `recMu` is held by
+				// workers doing screen work, and used for BOTH the
+				// admission and the tag. The key hook made no such read
+				// before this, which is the cost of the rule and is
+				// recorded as such.
+				//
+				// `appOfTarget` and not `foreground()`: the poller's sample
+				// labelled a key with the application the person had just
+				// LEFT whenever the press landed inside the poll interval.
+				w := attributionNow()
+				observe(RecordedEvent{Kind: EvKey, VK: vk, KeyName: name,
+					Down: down, T: time.Now(), App: appOfTarget()},
+					w.admits())
 			}
 		}
 	}
@@ -618,20 +977,24 @@ func mouseProc(nCode int, wParam, lParam uintptr) uintptr {
 				now := time.Now().UnixNano()
 				if now-lastMoveNanos.Load() >= int64(moveThrottle) {
 					lastMoveNanos.Store(now)
-					record(RecordedEvent{Kind: EvMove, X: x, Y: y, T: time.Now()})
+					// THE THROTTLE FIRST, and the window read only for a
+					// sample that would be recorded: the gate is a syscall
+					// and a move arrives on every pixel of travel.
+					observe(RecordedEvent{Kind: EvMove, X: x, Y: y,
+						T: time.Now()}, attributionNow().admits())
 				}
 			case wmLButtonDown:
 				recordClickDown("left", x, y)
 			case wmLButtonUp:
-				record(newClick("left", false, x, y))
+				recordClickUp("left", x, y)
 			case wmRButtonDown:
 				recordClickDown("right", x, y)
 			case wmRButtonUp:
-				record(newClick("right", false, x, y))
+				recordClickUp("right", x, y)
 			case wmMButtonDown:
 				recordClickDown("middle", x, y)
 			case wmMButtonUp:
-				record(newClick("middle", false, x, y))
+				recordClickUp("middle", x, y)
 			}
 		}
 	}
@@ -645,7 +1008,18 @@ func mouseProc(nCode int, wParam, lParam uintptr) uintptr {
 // this click (tap-then-click, any button). An armed click ends the anchor and disarms. A
 // full capture queue just drops the template; the click itself is already recorded.
 func recordClickDown(button string, x, y int) {
-	idx := recordIndexed(newClick(button, true, x, y))
+	// ONE READING FOR THE ADMISSION AND THE EVENT. `newClick` used to take its own, so
+	// the gate and the event could describe two different windows; see `whose`.
+	w := attributionNow()
+	idx := observe(newClick(button, true, x, y, w), w.admits())
+	// A PRESS THAT WAS NOT RECORDED TAKES NO PICTURE OF WHAT IT LANDED ON. The index is
+	// -1, and a capture queued against it would write a screenshot of a window nobody
+	// chose onto whatever event is at index -1 — which is to say, it would panic or, worse
+	// for this rule, land somewhere. The picture is the clearest case of the thing the
+	// whole gate is about: off-target PIXELS are off-target content.
+	if idx < 0 {
+		return
+	}
 	// ── A STATED COORDINATE MODE TAKES THE ARM WITH IT, AND NOTHING ELSE CHANGES ──
 	//
 	// The arm is the one path that captures a picture of a click the global switch would
@@ -670,19 +1044,10 @@ func recordClickDown(button string, x, y int) {
 	}
 }
 
-// clickAttribution answers WHOSE a click is: the foreground window at this instant, the process
-// owning it, and the app the poller last sampled.
-//
-// It hands back the HANDLE as well as the process because `clickShape` below needs the same
-// window this answered about. Asking `GetForegroundWindow` twice on one click would be two reads
-// of a thing that can change between them — and the second answer would then describe a window
-// the first one did not attribute.
-//
-// A variable so a test can drive the production builder with a known desktop. Nothing else
-// replaces it, and the hook calls it on every click edge.
-var clickAttribution = func() (hwnd uintptr, pid uint32, app string) {
-	hwnd, pid, _ = winctx.ForegroundProcess()
-	return hwnd, pid, foreground()
+// recordClickUp is the release half, and takes its own one reading for the same reason.
+func recordClickUp(button string, x, y int) {
+	w := attributionNow()
+	observe(newClick(button, false, x, y, w), w.admits())
 }
 
 // clickShape answers WHAT THAT WINDOW WAS LIKE: its origin, its outer size and its DPI.
@@ -711,10 +1076,10 @@ var clickShape = winctx.WindowShape
 //
 // GetForegroundWindow, GetWindowRect and GetWindowThreadProcessId are all window-data reads:
 // cheap, and safe to call on the hook thread. None of them opens a process handle.
-func newClick(button string, down bool, x, y int) RecordedEvent {
-	hwnd, pid, app := clickAttribution()
+func newClick(button string, down bool, x, y int, w whose) RecordedEvent {
+	hwnd, pid := w.hwnd, w.pid
 	ev := RecordedEvent{Kind: EvClick, Button: button, Down: down, X: x, Y: y,
-		T: time.Now(), App: app, PID: pid, HWnd: uintptr(hwnd)}
+		T: time.Now(), App: appOfTarget(), PID: pid, HWnd: uintptr(hwnd)}
 	// THE WINDOW AS IT WAS AT THIS EDGE — where it is, how big it is on the outside, and
 	// what DPI it is drawn at, from the window the attribution above already identified.
 	// At the edge itself, because the edge is the only moment it can be read: anything
@@ -878,6 +1243,35 @@ func (r *winRecorder) beginRecording() {
 	r.session = recSession.Add(1)
 	recBuf = nil
 	recPub = make(chan RecordedEvent, 1024)
+	// THE CROSSING STATE BELONGS TO THIS RECORDING, raised under the lock that empties
+	// the buffer it describes — see recSession. A boundary left over from a shutdown that
+	// could not complete would start this recording with somebody else's key held down.
+	// AND THE CHOSEN WINDOW'S NAME, READ ONCE AND HERE.
+	//
+	// Here rather than in `Start` for two reasons. It opens a process handle, which is
+	// the work that makes Windows drop the hooks, so it cannot be asked on the hook
+	// thread and an admitted event has to be tagged with SOMETHING. And this is where
+	// everything about whose recording this is gets raised, under the one lock that
+	// writes it — a second place for "which recording is this" is a second place for it to
+	// drift. Once, because the answer cannot change: a target whose owner changes is a
+	// target that is GONE. See appOfTarget for what used to be read instead.
+	targetApp.Store(imageOfProcess(r.target.PID))
+	bound = nil
+	if r.watch == OneWindow {
+		bound = NewBoundary()
+		// WHAT WAS ALREADY HELD WHEN THIS BEGAN, seeded as held-from-outside so
+		// the rule that refuses an admitted action while something is held from
+		// outside covers the keys this recording never saw go down. See
+		// alreadyHeld.
+		bound.HeldBefore(alreadyHeld())
+		// AND THE RECORDING OPENS OUTSIDE THE WINDOW, said in the buffer rather
+		// than implied. The person is in the Record window and has not gone
+		// anywhere yet, so the interval from here to their arrival is time away —
+		// and `orchestrator.inWindowClock` takes it out of the clock by the one
+		// rule it applies to every other absence, instead of a second rule about
+		// the beginning.
+		recBuf = append(recBuf, RecordedEvent{Kind: EvLeft, T: time.Now()})
+	}
 	recMu.Unlock()
 }
 
@@ -921,10 +1315,106 @@ func anAppSwitchToRecord(app, last string) bool { return app != "" && app != las
 // blocked — and a sample remembered as recorded when it was dropped would silence the next real
 // switch to that application.
 func (r *winRecorder) sampled(app, last string, at time.Time) string {
+	// ── THE BOUNDARY MOVES WHEN THE FOREGROUND DOES, NOT WHEN THE NEXT KEY ARRIVES ──
+	//
+	// This is the second door onto the boundary and it was missing. Markers were made by
+	// `observe`, which only runs when the hooks see something, so somebody who left the
+	// window, read a page and came back WITHOUT TOUCHING ANYTHING produced no EvLeft and
+	// no EvEntered at all — and the absence then had no pair of markers around it, so
+	// `inWindowClock` had nothing to take out of the clock and the routine waited the
+	// whole interval on every run. Exactly the defect the clock exists to prevent,
+	// arriving through the one path that generates no input.
+	//
+	// So the poller reports the transition it is already sampling for. `Arrived` answers
+	// only on a CHANGE, so the two doors cannot double-count: whichever notices first
+	// moves the boundary and the other sees no change.
+	inside := attributionNow().admits()
+	if confined.Load() {
+		r.noteBoundary(inside, at)
+	}
+	// AND A SWITCH TO SOMEWHERE ELSE IS NOT THIS RECORDING'S. The poller writes straight
+	// to the buffer, so without this an Activate for the application somebody went to
+	// while they were away would be in the demonstration — and `simplify` turns an
+	// EvAppSwitch into exactly that. `last` is left alone, so the switch BACK is still
+	// recorded, and the decision is made from the SAME reading as the boundary above.
+	if confined.Load() && !inside {
+		return last
+	}
+	// ── AND THE APPLICATION RECORDED IS THE CHOSEN WINDOW'S, NOT THE SAMPLE ──
+	//
+	// The gate above closes the half of the race where the foreground is STILL elsewhere
+	// when the snapshot is taken. This is the other half: the sample came back naming
+	// Chrome, the person clicked back to the game, and by the time `attributionNow` reads
+	// the desktop the foreground IS the game — so the reading admits, and the string
+	// written beside it is still `chrome`. `simplify` turns that EvAppSwitch into an
+	// Activate, so the routine begins by raising a browser nobody demonstrated in, and
+	// `Keep` files it under that application.
+	//
+	// So membership and the recorded name come out of the same fact: the window that was
+	// CHOSEN. Which also means a confined recording holds exactly one application switch,
+	// written on the first sample that is admitted — every later one finds `last` already
+	// equal to it. And a target whose image could not be read records NONE, because
+	// `anAppSwitchToRecord` refuses "": unknown is not an application either.
+	if confined.Load() {
+		app = chosenApp()
+	}
 	if anAppSwitchToRecord(app, last) && r.recordAppSwitch(app, at) {
 		return app
 	}
 	return last
+}
+
+// noteBoundary moves the boundary from a foreground sample and records whatever marker that
+// produces, under the one lock that writes.
+//
+// THE SAME FENCE AS `recordAppSwitch`, and for the same reason: a poller abandoned by a shutdown
+// that could not complete must not move a LATER recording's boundary, or leave an EvLeft in
+// somebody else's demonstration that nothing will ever pair with.
+func (r *winRecorder) noteBoundary(inside bool, at time.Time) {
+	recMu.Lock()
+	if bound == nil || !r.mineUnderLock() {
+		recMu.Unlock()
+		return
+	}
+	was := bound.Crossing()
+	k, changed := bound.Arrived(inside, at)
+	var markers []RecordedEvent
+	if changed {
+		markers = append(markers, RecordedEvent{Kind: k, T: at})
+	}
+	// A LEAVING CAN CROSS: `Arrived` is where a key still held when the window is left
+	// becomes unrepresentable, and that reason has to reach the buffer from this door too.
+	if now := bound.Crossing(); now != was {
+		markers = append(markers, RecordedEvent{Kind: EvCrossed, KeyName: now, T: at})
+	}
+	for _, m := range markers {
+		appendUnderLock(m)
+	}
+	pub := recPub
+	recMu.Unlock()
+	for _, m := range markers {
+		publish(pub, m)
+	}
+}
+
+// recordTargetGone publishes the end of a recording whose window has stopped existing, and
+// reports whether it did.
+//
+// The same one-step fence as `recordAppSwitch`: a poller abandoned by a shutdown that could not
+// complete must not end a LATER recording on behalf of a window that closed during an earlier
+// one.
+func (r *winRecorder) recordTargetGone(at time.Time) bool {
+	ev := RecordedEvent{Kind: EvTargetGone, T: at}
+	recMu.Lock()
+	if !r.mineUnderLock() {
+		recMu.Unlock()
+		return false
+	}
+	appendUnderLock(ev)
+	pub := recPub
+	recMu.Unlock()
+	publish(pub, ev)
+	return true
 }
 
 // recordAppSwitch publishes a foreground sample as this recording's app switch, and reports

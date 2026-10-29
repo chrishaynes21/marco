@@ -852,6 +852,16 @@ func untrackRun(cmd *exec.Cmd) bool {
 // runLearnInteractive runs `marco learn <name>` interactively (the recorder owns
 // F12, so no Esc-cancel); its save/scope/simplify prompts are answered in the HUD.
 func runLearnInteractive(h *model, name string) error {
+	// AND WHICH WINDOW, WHICH THIS SURFACE KNOWS WITHOUT ASKING.
+	//
+	// The HUD does not take the foreground â it reads the keyboard through the global
+	// hook â so the window in front as somebody types is the one they mean. A recording
+	// is of one window now and the window is given rather than inferred; see
+	// windowInFront. With no answer the child is told nothing and refuses for itself,
+	// which is better than a recording confined to a window nobody chose.
+	if w := windowInFront(); w != "" {
+		return streamChild(h, false, "learn", "--window", w, name).err
+	}
 	return streamChild(h, false, "learn", name).err
 }
 

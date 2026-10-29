@@ -43,7 +43,7 @@ func aRecordingCalled(t *testing.T, name string, x, y int) *Acts {
 				App: "arkascended", PID: gamePID, T: at(105)},
 		}}
 	}
-	if why := a.StartRecording(name); why != "" {
+	if why := a.StartRecording(name, ""); why != "" {
 		t.Fatal(why)
 	}
 	if why := a.StopRecording(); why != "" {

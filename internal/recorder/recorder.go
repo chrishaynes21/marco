@@ -21,7 +21,31 @@ const (
 	EvClick
 	EvMove
 	EvAppSwitch // foreground application changed; KeyName carries the new app name
+	// -- CAPTURE STATE, WHICH IS NOT INPUT AND NEVER REACHES A SAVED RECORDING --
+	//
+	// The four below are markers: they carry a time and, for EvCrossed, a sentence, and
+	// no key, coordinate or window. They exist so the live channel can tell a surface
+	// what the capture is DOING, and so `Finish` can transform the clock and refuse a
+	// recording that crossed the boundary.
+	//
+	// `orchestrator.inWindowClock` consumes all four. `Draft.Events` contains NONE of
+	// them, which is deliberate and is the whole compatibility answer: a stored recording
+	// holds only the kinds it always held, with gaps that are already right, so there is
+	// nothing in it for an older reader to interpret differently.
+	EvLeft       // the chosen window stopped being the foreground; nothing is admitted now
+	EvEntered    // the chosen window became the foreground; admission resumes
+	EvCrossed    // a gesture crossed the boundary; KeyName carries why it cannot be saved
+	EvTargetGone // the chosen window closed or changed owner; the recording ends
 )
+
+// Marker reports whether k is capture state rather than something the person did.
+func (k EventKind) Marker() bool {
+	switch k {
+	case EvLeft, EvEntered, EvCrossed, EvTargetGone:
+		return true
+	}
+	return false
+}
 
 // RecordedEvent is one captured input event with a wall-clock timestamp.
 type RecordedEvent struct {

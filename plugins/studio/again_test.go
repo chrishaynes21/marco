@@ -47,7 +47,7 @@ func recordingAgain(t *testing.T, a *Acts, id, observed string) *heldRecorder {
 	owner, ownerApp := uint32(os.Getpid()), winctx.Self()
 	held := &heldRecorder{events: aDemonstrationIn(observed, owner, ownerApp)}
 	a.recording = func() recorder.Recorder { return held }
-	if why := a.RecordAgain(id); why != "" {
+	if why := a.RecordAgain(id, ""); why != "" {
 		t.Fatalf("RecordAgain refused: %s", why)
 	}
 	if why := a.StopRecording(); why != "" {
@@ -269,7 +269,7 @@ func TestRecordAgainRefusesARoutineThatIsGone(t *testing.T) {
 	if err := os.Remove(r.Path); err != nil {
 		t.Fatal(err)
 	}
-	why := a.RecordAgain(r.ID)
+	why := a.RecordAgain(r.ID, "")
 	if why == "" {
 		t.Fatal("it started a second recording of a routine that is not there")
 	}
@@ -286,7 +286,7 @@ func TestRecordAgainRefusesARoutineThatIsGone(t *testing.T) {
 	a.recording = func() recorder.Recorder {
 		return &heldRecorder{events: aDemonstrationIn("notepad", owner, ownerApp)}
 	}
-	if why := a.StartRecording("something else"); why != "" {
+	if why := a.StartRecording("something else", ""); why != "" {
 		t.Errorf("a refused Record again left the window unable to record "+
 			"anything else: %s", why)
 	}
@@ -317,7 +317,7 @@ func TestRecordAgainRefusesWhileSomethingElseIsHappening(t *testing.T) {
 	a.mu.Lock()
 	a.busy = true
 	a.mu.Unlock()
-	if why := a.RecordAgain(r.ID); why == "" {
+	if why := a.RecordAgain(r.ID, ""); why == "" {
 		t.Error("it started a recording while a run was in flight")
 	}
 	a.mu.Lock()
@@ -326,7 +326,7 @@ func TestRecordAgainRefusesWhileSomethingElseIsHappening(t *testing.T) {
 
 	// AND NOT WHILE SOMETHING IS BEING RECORDED EITHER.
 	recordingAgain(t, a, r.ID, "arkascended")
-	if why := a.RecordAgain(r.ID); why == "" {
+	if why := a.RecordAgain(r.ID, ""); why == "" {
 		t.Error("it started a second recording over a draft waiting to be dealt with")
 	}
 	if why := a.CancelRecording(); why != "" {
@@ -391,7 +391,7 @@ func TestRecordAgainKeepsTheRoutineItMatchedWhileTheLibraryChanges(t *testing.T)
 			return &heldRecorder{
 				events: aDemonstrationIn("arkascended", owner, ownerApp)}
 		}
-		if why := a.RecordAgain(want.ID); why != "" {
+		if why := a.RecordAgain(want.ID, ""); why != "" {
 			t.Fatalf("pass %d: RecordAgain refused a routine that is in the "+
 				"library: %s", pass, why)
 		}
@@ -427,7 +427,7 @@ func aLibraryOfThreeRoutines(t *testing.T) (*Acts, []Routine) {
 			return &heldRecorder{
 				events: aDemonstrationIn("arkascended", owner, ownerApp)}
 		}
-		if why := a.StartRecording(name); why != "" {
+		if why := a.StartRecording(name, ""); why != "" {
 			t.Fatalf("recording %q refused: %s", name, why)
 		}
 		if why := a.StopRecording(); why != "" {

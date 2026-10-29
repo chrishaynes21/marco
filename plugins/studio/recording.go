@@ -52,6 +52,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -73,6 +74,14 @@ const studioCaptures = orchestrator.Coordinates
 // capture is one recorder-first recording: in flight, or a draft waiting to be looked at.
 type capture struct {
 	name string
+	// window is the chosen window as somebody reading the card would name it, and shot
+	// is the capture in flight, which is what can be ASKED whether it is paused.
+	//
+	// The page redraws on a poll and does not read the event channel, so it cannot see
+	// the boundary markers the terminal prints from: it asks instead. See
+	// orchestrator.Capture.Paused.
+	window string
+	shot   *orchestrator.Capture
 	// mode is what the recorder was told to capture when this one started.
 	//
 	// Kept beside the draft rather than read back off it, because the page asks about a
@@ -155,6 +164,25 @@ type Recording struct {
 	// StoppedBy is how the capture ended — the button, or the key — because both stay
 	// live and a person is owed the difference when the one they did not press won.
 	StoppedBy string `json:"stopped_by,omitempty"`
+	// Away says the person left the window being recorded, how often and for how long.
+	//
+	// It is on the review card because the draft is SHORTER than the demonstration they
+	// gave and nothing else here explains why — and because the clock was changed: the
+	// gap where the absence was is a quarter of a second now, which is right for the
+	// routine and is not what happened. See orchestrator.Draft.AwaySentence.
+	Away string `json:"away,omitempty"`
+	// Window is the window this recording is of, named as the person chose it.
+	Window string `json:"window,omitempty"`
+	// Paused says the person is outside that window RIGHT NOW, and for how long.
+	//
+	// # Why this is not optional
+	//
+	// Because a confined recording goes silent the moment somebody leaves the window, and
+	// silence looks exactly like a recording that is still going. Somebody who alt-tabs
+	// to check something and carries on demonstrating gets a routine missing half its
+	// steps, with nothing having told them — and the review sentence afterwards is no
+	// substitute, because by then the demonstration they have to give again is over.
+	Paused string `json:"paused,omitempty"`
 	// Pressable is how many steps send input, which is what makes a draft worth saving.
 	Pressable int `json:"pressable,omitempty"`
 	// Steps is the draft in plain words, one line each, in order.
@@ -203,13 +231,49 @@ type Recording struct {
 	Unsupported string `json:"unsupported,omitempty"`
 }
 
-// StartRecording begins a recorder-first capture under `name`.
+// nameOr is `s`, or `fallback` when there is nothing to call it.
+func nameOr(s, fallback string) string {
+	if strings.TrimSpace(s) == "" {
+		return fallback
+	}
+	return s
+}
+
+// AWindow is one window the page offers, and `ID` is what comes back when somebody picks it.
+type AWindow struct {
+	ID    string `json:"id"`
+	Label string `json:"label"`
+}
+
+// Windows lists the windows a recording could be of, for the control on the record card.
+//
+// # Why the page has to ask at all
+//
+// Because a recording is of ONE window and the window has to be chosen before capture starts.
+// The first version inferred it — the first foreground window that was not Studio's became the
+// target — and that is whatever came forward first, so an updater or a notification toast
+// became the thing being recorded while the person demonstrated into a window nothing was
+// watching. A choice somebody was never shown is not one they can correct.
+//
+// Asked fresh every time the card is drawn: a list of windows is the one thing that cannot be
+// cached, because the person is about to open the application they mean to demonstrate in.
+func (a *Acts) Windows() []AWindow {
+	d := orchestrator.Deps{OwnerPID: uint32(os.Getpid())}
+	var out []AWindow
+	for _, p := range d.Pickable() {
+		out = append(out, AWindow{ID: strconv.FormatUint(uint64(p.HWnd), 10),
+			Label: p.Label()})
+	}
+	return out
+}
+
+// StartRecording begins a recorder-first capture under `name`, of the window `window`.
 //
 // Returns "" when the recorder is running, or the sentence to show the person. Nothing is
 // brought forward and nothing counts down: the person switches to whatever they are
 // demonstrating when they like, and that switch is recorded as the step that performs it.
-func (a *Acts) StartRecording(name string) string {
-	return a.beginRecording(name, nil)
+func (a *Acts) StartRecording(name, window string) string {
+	return a.beginRecording(name, window, nil)
 }
 
 // beginRecording is StartRecording, and `RecordAgain` through the same door.
@@ -219,7 +283,7 @@ func (a *Acts) StartRecording(name string) string {
 // recording while a run was in flight — which is a runner pressing things into a draft as the
 // person's own. `again` is nil for an ordinary recording and is what makes this one a
 // re-recording of something saved; see again.go.
-func (a *Acts) beginRecording(name string, again *reRecording) string {
+func (a *Acts) beginRecording(name, window string, again *reRecording) string {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return "say what to call it first — the name is what you will look for later"
@@ -304,6 +368,26 @@ func (a *Acts) beginRecording(name string, again *reRecording) string {
 	c.mode = d.Mode
 	a.mu.Unlock()
 
+	// ── AND WHICH WINDOW, CHOSEN BEFORE THE RECORDER STARTS ──
+	//
+	// Refused here, so the sentence reaches the button that asked rather than a window
+	// that said "recording" and took nothing. `Begin` refuses a confined recording with
+	// no window of its own accord; this is the same refusal one step earlier, with the
+	// list the page offered in hand so it can say what went wrong.
+	if window != "" {
+		chosen, err := d.TheWindow(window)
+		if err != nil {
+			a.mu.Lock()
+			a.capture = nil
+			a.mu.Unlock()
+			return err.Error()
+		}
+		d.Window = chosen.Target()
+		a.mu.Lock()
+		c.window = chosen.Label()
+		a.mu.Unlock()
+	}
+
 	// THE RECORDER IS STARTED HERE, SYNCHRONOUSLY, so a refusal reaches the button that
 	// asked for it. Started in a goroutine it would reach the person at Stop instead —
 	// a window that said "recording", took their whole demonstration, and then told
@@ -324,6 +408,9 @@ func (a *Acts) beginRecording(name string, again *reRecording) string {
 	// alternative was a new note kind and a reader to match, and no record at all
 	// while that was built. The sentence on the closing note says which path it was.
 	a.trial.recording(name, "", 0)
+	a.mu.Lock()
+	c.shot = shot
+	a.mu.Unlock()
 	go func() {
 		dr := shot.Finish()
 		a.mu.Lock()
@@ -466,6 +553,24 @@ func (a *Acts) Recording() Recording {
 	case <-c.done:
 	default:
 		out.Active = true
+		// ── WHAT THE CAPTURE IS DOING RIGHT NOW ──
+		//
+		// The window it is of, and whether it is admitting anything. Asked here
+		// because the page redraws on this poll and cannot see the boundary
+		// markers — `waitForStop` prints those, which suits the terminal and the
+		// HUD that streams it. See orchestrator.Capture.Paused.
+		a.mu.Lock()
+		shot, window := c.shot, c.window
+		a.mu.Unlock()
+		out.Window = window
+		if shot != nil {
+			if paused, since := shot.Paused(); paused {
+				out.Paused = fmt.Sprintf("Paused: you have left %s. "+
+					"Nothing you do elsewhere is being recorded. "+
+					"(%s)", nameOr(window, "the window"),
+					since.Round(time.Second))
+			}
+		}
 		return out
 	}
 	a.mu.Lock()
@@ -485,6 +590,7 @@ func (a *Acts) Recording() Recording {
 	// againElsewhere for why a mismatch is worth a sentence: the save would succeed,
 	// and it would write a second routine rather than the new version somebody meant.
 	out.AgainElsewhere = againElsewhere(c.again, dr.App)
+	out.Away = dr.AwaySentence()
 	out.Pressable = dr.Pressable()
 	out.Steps = inWords(dr.Steps)
 	// AND A GESTURE THAT CANNOT BE WRITTEN DOWN IS SAID HERE, BESIDE THE STEPS.

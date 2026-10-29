@@ -17,6 +17,7 @@ var (
 	procTranslateMessage    = user32.NewProc("TranslateMessage")
 	procDispatchMessageW    = user32.NewProc("DispatchMessageW")
 	procSleep               = kernel32.NewProc("Sleep")
+	procGetAsyncKeyState    = user32.NewProc("GetAsyncKeyState")
 )
 
 const (

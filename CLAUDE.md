@@ -80,6 +80,32 @@ and generated routes are checked against Core's vocabulary.
   the second site kept the bug. **This is a correctness rule, not a measured latency win**: it
   was found while chasing a desktop hitch whose root cause was never established, and no
   clean measurement has yet attributed any perceived input latency to it.
+- **A recording is of ONE WINDOW, THE WINDOW IS CHOSEN, and the gate is at the instant of the
+  event.** The window is GIVEN (`Deps.Window`, a handle AND its owner) and `Begin` REFUSES a
+  confined recording that was not told which one. Don't infer it: the first version latched the
+  first foreground window that was not Marco's, which is whatever came forward first — a
+  terminal, a toast, an updater — so the demonstration was admitted from a window nobody picked.
+  Membership is decided from ONE reading per event (`whose`) carrying both halves, because a
+  second reading is a second instant and the foreground changes between them exactly when
+  somebody clicks elsewhere — and the application WRITTEN DOWN comes from the chosen window too
+  (`chosenApp`), or a foreground sample taken while somebody was away is recorded as an
+  `Activate` once they come back and the routine is filed under their browser. What was already held at Start is scanned and seeded
+  (`alreadyHeld`), or a ctrl+click records as a click. The POLLER moves the boundary too, or an
+  absence with no input in it keeps its full playback delay. And the pause is SHOWN while it
+  happens on both surfaces — silence looks exactly like a recording that is still going.
+  `Deps.Watch` states the scope before the hooks go on and its zero value is `OneWindow`, so
+  Studio, `Learn` and `LearnAuto` all record only the window the person goes to;
+  `orchestrator.WholeDesktop` is the explicit opt-out. Don't turn this into a filter at `Finish`:
+  input decided against afterwards is input already in the buffer, in `Draft.Events`, published
+  to every consumer of the live channel, and written to disk beside the routine — which is the
+  same class of leak as the rule below. The live channel is gated WITH the buffer; the single
+  exception is a key in the stop chord, because `StopKey.Triggered` reads nothing else and the
+  stop must work from anywhere. And the time spent away comes out of the TIMESTAMPS, never a
+  marker beside them: a marker is a kind an older build ignores while keeping the raw gap, so a
+  regenerated routine would silently acquire a half-minute pause. `Draft.Events` therefore
+  carries no marker at all. `marco learn "<name>" --whole-desktop` is how a person asks for the
+  old behaviour, and the scope is printed before recording starts; Studio has no control for it
+  yet. See [[ADR-268-record-only-the-chosen-window]].
 - **Secrets never land in a route or a recording.** Passwords resolve via
   `do OS's Secret …` at run time from the credential store. Don't text-substitute a
   secret value into route source.

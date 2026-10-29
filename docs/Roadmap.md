@@ -1496,7 +1496,9 @@ whole of what makes guidance different from a script.
 - constraint: [[ADR-048-learn-teach-and-do-are-three-different-sentences]]
 - constraint: [[ADR-086-one-acquisition-one-word-one-request]]
 
-## 36. Record only the chosen window — OPEN, on the alpha list
+## 36. Record only the chosen window — DONE
+
+**Landed.** A recording admits input from one window, chosen before the capture, and that is the default for Studio, `Learn` and `LearnAuto`; the whole desktop is retained explicitly. The gate is at the instant of the event and covers the live channel as well as the buffer; a gesture crossing the boundary is unrepresentable rather than trimmed, in both directions; and the time spent away comes out of the TIMESTAMPS rather than being marked, so no older reader can reinterpret it. See [[ADR-268-record-only-the-chosen-window]] and [[Demonstrations]]. The record of what it was for stands below.
 
 **What it would tell us:** whether a person can demonstrate a routine without having to stop using
 their computer. Today they cannot, and nothing says so.
@@ -1519,6 +1521,11 @@ timing: a routine's recorded gaps are the only waiting it has when there is no a
 (see [[ADR-254-what-a-recording-captures-is-stated]]), so twenty seconds spent in another
 application is twenty seconds of pause that either belongs in the routine or does not, and
 somebody has to decide which. That decision is the work, not the filtering.
+
+**And it was decided:** the time away is removed and 250ms is left where it was, which is a
+timing policy and not a claim that anything is ready. The time spent INSIDE the window is
+preserved exactly, because a person who paused for ten seconds in the middle of a demonstration
+meant to.
 
 ## 37. Three gates that no longer gate -- OPEN, found by the gate
 

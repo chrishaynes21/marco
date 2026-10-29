@@ -44,6 +44,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/chaynes-simpleclouds/marco/internal/codegen"
 	"github.com/chaynes-simpleclouds/marco/internal/macroir"
@@ -110,6 +111,15 @@ type Draft struct {
 	// `simplify.modifierTrouble` for what qualifies and why it is a refusal and not a
 	// best guess.
 	Unrepresentable string
+	// Away and Absences are how long the person was out of the chosen window while
+	// recording, and how many times they left.
+	//
+	// On the draft because review happens before the save and this is part of what was
+	// recorded: a routine that is four steps when somebody demonstrated six is explained
+	// by "you were out of the window twice", and nothing else in front of them says so.
+	// The time itself is already out of the clock — see inWindowClock.
+	Away     time.Duration
+	Absences int
 	// Mode is what the recording was TOLD to capture, or Unstated when nothing was.
 	//
 	// It travels on the draft because review happens before the save: a person deciding
@@ -168,6 +178,29 @@ func (d Deps) Begin(name string) (*Capture, error) {
 	if s, ok := d.Rec.(recorder.Stated); ok {
 		s.Capture(mode.capture())
 	}
+	// ── AND WHICH WINDOW, STATED HERE TOO AND FOR THE SAME REASON ──
+	//
+	// `d.Watch` is zero for every caller that says nothing, and zero is `OneWindow`:
+	// this is where the default changed. A demonstration is of one application, and the
+	// message somebody answered in the middle of it is not part of what they were
+	// showing — so it is not recorded, rather than recorded and then dropped. A caller
+	// demonstrating across applications asks for `WholeDesktop` and gets exactly what
+	// every recording was before this.
+	// AND IT REFUSES RATHER THAN GUESSING. A recording told to be of one window and not
+	// told WHICH would otherwise be a recording of the desktop: the first version latched
+	// the window instead, taking whatever came forward first, so a terminal or a
+	// notification toast became the thing being recorded and the person could not correct
+	// a choice they were never shown. Refused here, before the hooks, because after them
+	// somebody is already demonstrating. See Deps.Pickable.
+	if c, ok := d.Rec.(recorder.Confined); ok {
+		// THE REFUSAL BELONGS WITH THE THING THAT WOULD CONFINE. A recorder that
+		// cannot be told which window records what it always recorded and needs no
+		// choice; one that CAN is about to be told, and must be told something.
+		if why := d.WhyNoWindow(); why != "" {
+			return nil, fmt.Errorf("%s", why)
+		}
+		c.Only(d.Watch.watching(), d.Window)
+	}
 	if err := d.Rec.Start(); err != nil {
 		return nil, fmt.Errorf("can't record on this platform: %w", err)
 	}
@@ -176,6 +209,31 @@ func (d Deps) Begin(name string) (*Capture, error) {
 
 // Name is what this capture will be called, after the argument names have been taken off it.
 func (c *Capture) Name() string { return c.name }
+
+// Paused is whether the capture is currently admitting nothing because the person has left the
+// window, and how long they have been away.
+//
+// For a surface that is LOOKED AT rather than read: Studio does not consume the event channel,
+// so it cannot see the markers `waitForStop` prints from. It asks this instead, on the same poll
+// that already draws the recording card. The recorder answers from the boundary under the lock
+// that writes it, so the answer is never half of one.
+func (c *Capture) Paused() (bool, time.Duration) {
+	if p, ok := c.d.Rec.(recorder.Pausable); ok {
+		return p.Paused()
+	}
+	return false, 0
+}
+
+// sayWhileRecording is who hears the live capture state, or nil when nobody is listening.
+//
+// `d.Out` and not a new field, because the thing that wants it is the surface that is already
+// being written to: the terminal prints it, and the overlay's HUD streams this child's stdout.
+func (d Deps) sayWhileRecording() func(string) {
+	if d.Out == nil {
+		return nil
+	}
+	return func(s string) { fmt.Fprintln(d.Out, s) }
+}
 
 // Record captures a demonstration and returns it UNSAVED.
 //
@@ -199,8 +257,14 @@ func (d Deps) Record(name string) (*Draft, error) {
 // that refusal belongs there, where somebody is deciding whether to keep it.
 func (c *Capture) Finish() *Draft {
 	d, name, argNames, stop := c.d, c.name, c.argNames, c.stop
-	byButton := waitForStop(d.Rec, &stop, d.StopWhen)
-	events := stripTrailingStop(d.Rec.Stop(), stop)
+	byButton := waitForStop(d.Rec, &stop, d.StopWhen, d.sayWhileRecording())
+	// ── WHAT THE CAPTURE DID, BEFORE ANYTHING IS MADE OF WHAT IT GOT ──
+	//
+	// First, because every pass below reads timestamps: the clock has to be the in-window
+	// clock before `simplify` measures a gap in it. It also consumes the markers, so
+	// nothing downstream — and nothing on disk — sees a kind it does not know.
+	cap := inWindowClock(d.Rec.Stop(), ResumeSettle)
+	events := stripTrailingStop(cap.Events, stop)
 	// ── THE OWNER'S WINDOW, UNDER WHICHEVER OF THE TWO RULES THIS DEPS ASKED FOR ──
 	//
 	// Everywhere for a surface that is glanced at, which is what the window needs and why
@@ -231,7 +295,14 @@ func (c *Capture) Finish() *Draft {
 		app = d.activeApp()
 	}
 	how := "the stop key"
-	if byButton {
+	switch {
+	case cap.Gone:
+		// THE WINDOW ITSELF ENDED IT. The draft is kept and review opens, because
+		// the person is entitled to see what was recorded before the window went —
+		// and if the closing left a gesture unfinished, the crossing below refuses
+		// the save and says so.
+		how = "the window closing"
+	case byButton:
 		how = "the Stop button"
 	}
 	mlog.Info("draft: recorded", "route", name, "events", len(events),
@@ -239,7 +310,12 @@ func (c *Capture) Finish() *Draft {
 	return &Draft{
 		Name: name, Args: argNames, Steps: steps, Events: events,
 		App: app, StoppedBy: how,
-		Unrepresentable: reasonOf(refused),
+		Away: cap.Away, Absences: cap.Absences,
+		// A CROSSING COMES FIRST, because it is the more fundamental refusal: a
+		// gesture whose other half happened somewhere else is not a recording with
+		// a problem in it, it is a recording of something that was not done here.
+		// `simplify`'s own refusals are about what IS in the buffer.
+		Unrepresentable: firstReason(cap.Crossing, reasonOf(refused)),
 		// THE MODE THIS CAPTURE WAS STARTED UNDER, carried from the capture and
 		// not asked of the environment again. `Begin` is where it was stated and
 		// where the recorder was told; a second reading here could disagree with
@@ -248,12 +324,77 @@ func (c *Capture) Finish() *Draft {
 	}
 }
 
+// AwaySentence is what review tells the person about the time they spent out of the window, or
+// "" when they did not leave it.
+//
+// # Why it has to be said at all
+//
+// Because the draft in front of them is SHORTER than the demonstration they gave, and nothing
+// else on the page explains why. They clicked four things; two of them were in another window,
+// so two steps are missing and the routine is right. Without the sentence the only available
+// reading is that the recorder missed something.
+//
+// And because the clock was changed. The gap where the absence was is a quarter of a second now,
+// which is the correct thing for the routine to do and is not what happened — so it is said,
+// rather than left for somebody to find by timing a replay.
+func (dr *Draft) AwaySentence() string {
+	if dr == nil || dr.Absences == 0 {
+		return ""
+	}
+	times := "once"
+	if dr.Absences > 1 {
+		times = fmt.Sprintf("%d times", dr.Absences)
+	}
+	return fmt.Sprintf("You left the window %s, for %s in all. Nothing from out there was "+
+		"recorded, and the waiting is not in the routine.", times,
+		dr.Away.Round(time.Second))
+}
+
 // Save writes a draft as legal Marco, under the scope it is given.
 //
 // The scope is STATED rather than inferred, which is the other half of separating Save from
 // Stop: a window asks where a routine should work and then says so, where the terminal prompts
 // for it and the HUD guessed. `app` is the application the scope is about — the draft's own
 // observed app unless the caller names another — and is ignored by `ScopeEverywhere`.
+// ── WHICH WINDOWS A RECORDING IS OF ──────────────────────────────────────────
+
+// Watching is which windows a recording admits input from, as a CALLER says it.
+//
+// Two vocabularies on purpose, and the conversion is HERE, in one function — the same shape as
+// `RecordedAs` and `recorder.Mode` one page down, and for the same reason. `recorder.Watching`
+// is a recorder being told what to listen to, so its zero value is what it listened to before
+// anybody told it anything: the desktop. This one is a PRODUCT DECISION about what a
+// demonstration is, so its zero value is the decision — one window — and a caller that wants
+// the old behaviour says so.
+type Watching int
+
+const (
+	// OneWindow records only the window the person goes to. The default, and the whole of
+	// Roadmap 36: what happens while somebody answers a message in the middle of a
+	// demonstration is not part of the demonstration.
+	OneWindow Watching = iota
+	// WholeDesktop records everything, which is what every recording was before this.
+	// RETAINED EXPLICITLY, for a demonstration that genuinely spans applications, and
+	// reachable by a person: `marco learn "<name>" --whole-desktop`. Studio has no
+	// control for it yet, which is a gap and is recorded as one.
+	WholeDesktop
+)
+
+func (w Watching) watching() recorder.Watching {
+	if w == WholeDesktop {
+		return recorder.WholeDesktop
+	}
+	return recorder.OneWindow
+}
+
+// String renders the scope for the sentence a surface says before recording starts.
+func (w Watching) String() string {
+	if w == WholeDesktop {
+		return "the whole desktop"
+	}
+	return "one window"
+}
+
 // Target is the route a draft WOULD be saved as, without saving anything.
 //
 // Exported because a caller that has to ask "is there already a routine there?" must ask about

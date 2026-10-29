@@ -114,7 +114,7 @@ func aStudioRecording(t *testing.T, name string) (*Acts, string) {
 	held := &heldRecorder{events: anUnshieldedGlanceAtStudio(owner, ownerApp)}
 	a.recording = func() recorder.Recorder { return held }
 
-	if why := a.StartRecording(name); why != "" {
+	if why := a.StartRecording(name, ""); why != "" {
 		t.Fatalf("StartRecording refused: %s", why)
 	}
 	if !held.started {
@@ -250,7 +250,7 @@ func TestCancelDiscardsTheDraft(t *testing.T) {
 		return &heldRecorder{events: anUnshieldedGlanceAtStudio(
 			uint32(os.Getpid()), winctx.Self())}
 	}
-	if why := a.StartRecording("ark graphics again"); why != "" {
+	if why := a.StartRecording("ark graphics again", ""); why != "" {
 		t.Errorf("a second recording was refused after a cancelled one: %s", why)
 	}
 	_ = a.StopRecording()
@@ -346,7 +346,7 @@ func TestTheWindowRecordsAgainAfterSaving(t *testing.T) {
 		return &heldRecorder{events: anUnshieldedGlanceAtStudio(
 			uint32(os.Getpid()), winctx.Self())}
 	}
-	if why := a.StartRecording("ark audio"); why != "" {
+	if why := a.StartRecording("ark audio", ""); why != "" {
 		t.Fatalf("a second recording was refused after the first was SAVED, so "+
 			"this Studio records once per launch: %s", why)
 	}
@@ -414,7 +414,7 @@ func TestReviewSaysWhatThePressMeasured(t *testing.T) {
 				Y: 913, App: ownerApp, PID: owner, T: at(3205)},
 		}}
 	}
-	if why := a.StartRecording("ark graphics"); why != "" {
+	if why := a.StartRecording("ark graphics", ""); why != "" {
 		t.Fatal(why)
 	}
 	if why := a.StopRecording(); why != "" {
@@ -469,7 +469,7 @@ func TestReviewExplainsAMeasurementThatFailed(t *testing.T) {
 				App: "arkascended", PID: gamePID, T: at(105)},
 		}}
 	}
-	if why := a.StartRecording("ark graphics"); why != "" {
+	if why := a.StartRecording("ark graphics", ""); why != "" {
 		t.Fatal(why)
 	}
 	if why := a.StopRecording(); why != "" {
@@ -553,7 +553,7 @@ func TestReviewIsQuietWhenEverythingWasMeasured(t *testing.T) {
 				App: "arkascended", PID: gamePID, T: at(105)},
 		}}
 	}
-	if why := a.StartRecording("ark graphics"); why != "" {
+	if why := a.StartRecording("ark graphics", ""); why != "" {
 		t.Fatal(why)
 	}
 	if why := a.StopRecording(); why != "" {
@@ -611,7 +611,7 @@ func TestARecordingWithNothingInItIsNotOffered(t *testing.T) {
 				Y: 913, App: ownerApp, PID: owner, T: at(205)},
 		}}
 	}
-	if why := a.StartRecording("a change of mind"); why != "" {
+	if why := a.StartRecording("a change of mind", ""); why != "" {
 		t.Fatal(why)
 	}
 	if why := a.StopRecording(); why != "" {
@@ -654,10 +654,10 @@ func TestARecordingAndARunExcludeEachOther(t *testing.T) {
 		return &heldRecorder{events: anUnshieldedGlanceAtStudio(
 			uint32(os.Getpid()), winctx.Self())}
 	}
-	if why := a.StartRecording("ark graphics"); why != "" {
+	if why := a.StartRecording("ark graphics", ""); why != "" {
 		t.Fatal(why)
 	}
-	if why := a.StartRecording("ark graphics two"); why == "" {
+	if why := a.StartRecording("ark graphics two", ""); why == "" {
 		t.Error("two captures were started at once")
 	}
 	// A RUN IS REFUSED WHILE THE HOOKS WATCH. Through `Play`, the production entrance:
@@ -679,7 +679,7 @@ func TestARecordingAndARunExcludeEachOther(t *testing.T) {
 		"recording") {
 		t.Errorf("a run is still refused as recording after Stop: %q", why)
 	}
-	if why := a.StartRecording("something else"); why == "" {
+	if why := a.StartRecording("something else", ""); why == "" {
 		t.Error("a second recording was started over a draft nobody had saved " +
 			"or cancelled")
 	}
@@ -763,6 +763,49 @@ func TestAScaleThisComputerCannotReportIsNotRepairable(t *testing.T) {
 	}
 }
 
+// AND REVIEW SAYS THE WINDOW WAS LEFT.
+//
+// The card is what somebody looks at before deciding whether to keep a recording, and a draft
+// with fewer steps than they performed needs the reason beside it — otherwise the only reading
+// available is that the recorder missed something. See orchestrator.Draft.AwaySentence.
+func TestReviewSaysTheWindowWasLeft(t *testing.T) {
+	t.Setenv("MARCO_CV", "off")
+	t.Setenv("MARCO_ROUTES", t.TempDir())
+	a := newActs(t.TempDir())
+	a.recording = func() recorder.Recorder {
+		return &heldRecorder{events: []recorder.RecordedEvent{
+			{Kind: recorder.EvAppSwitch, KeyName: "arkascended", T: at(0)},
+			{Kind: recorder.EvClick, Button: "left", Down: true, X: 842, Y: 274,
+				App: "arkascended", PID: gamePID, T: at(100)},
+			{Kind: recorder.EvClick, Button: "left", Down: false, X: 842,
+				Y: 274, App: "arkascended", PID: gamePID, T: at(105)},
+			// AND HALF A MINUTE SOMEWHERE ELSE.
+			{Kind: recorder.EvLeft, T: at(200)},
+			{Kind: recorder.EvEntered, T: at(30200)},
+			{Kind: recorder.EvClick, Button: "left", Down: true, X: 900, Y: 300,
+				App: "arkascended", PID: gamePID, T: at(30300)},
+			{Kind: recorder.EvClick, Button: "left", Down: false, X: 900,
+				Y: 300, App: "arkascended", PID: gamePID, T: at(30305)},
+		}}
+	}
+	if why := a.StartRecording("ark graphics", ""); why != "" {
+		t.Fatal(why)
+	}
+	if why := a.StopRecording(); why != "" {
+		t.Fatal(why)
+	}
+	r := a.Recording()
+	if !strings.Contains(r.Away, "left the window") {
+		t.Errorf("the review card says %q about the absence", r.Away)
+	}
+	// AND THE STEPS ON BOTH SIDES ARE THERE, so this is a recording with a gap in it
+	// rather than one that stopped when the person walked away.
+	if r.Pressable < 2 {
+		t.Errorf("the draft has %d pressable steps, so the clicks on either side "+
+			"of the absence did not both survive", r.Pressable)
+	}
+}
+
 // reviewOf records one fully measured press with `lose` applied to it, stops, and returns what
 // review says.
 func reviewOf(t *testing.T, lose func(*recorder.RecordedEvent)) Recording {
@@ -786,7 +829,7 @@ func reviewOf(t *testing.T, lose func(*recorder.RecordedEvent)) Recording {
 				Y: 274, App: "arkascended", PID: gamePID, T: at(105)},
 		}}
 	}
-	if why := a.StartRecording("ark graphics"); why != "" {
+	if why := a.StartRecording("ark graphics", ""); why != "" {
 		t.Fatal(why)
 	}
 	if why := a.StopRecording(); why != "" {
@@ -962,7 +1005,7 @@ func recorded(t *testing.T, lose func(*recorder.RecordedEvent)) *Acts {
 				Y: 274, App: "arkascended", PID: gamePID, T: at(105)},
 		}}
 	}
-	if why := a.StartRecording("ark graphics"); why != "" {
+	if why := a.StartRecording("ark graphics", ""); why != "" {
 		t.Fatal(why)
 	}
 	if why := a.StopRecording(); why != "" {
@@ -1152,7 +1195,7 @@ func TestAVisitToStudioLeavesARecordingThatStillSaves(t *testing.T) {
 	a.recording = func() recorder.Recorder {
 		return &heldRecorder{events: aVisitToStudioWithCrossedEdges(owner, ownerApp)}
 	}
-	if why := a.StartRecording("ark graphics"); why != "" {
+	if why := a.StartRecording("ark graphics", ""); why != "" {
 		t.Fatal(why)
 	}
 	if why := a.StopRecording(); why != "" {

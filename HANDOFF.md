@@ -11690,3 +11690,97 @@ A third thing fell out of writing the table: a `run` answer carrying no identity
 all** to the person, because the reply was only logged for non-run kinds. It says so now.
 
 See [[ADR-267-director-owns-route-resolution]].
+
+### Roadmap 36 — record only the chosen window
+
+A demonstration was of the whole desktop. Every press anywhere entered it, so a message answered
+halfway through was in the routine — its letters as keystrokes, the coordinates of the window it
+was typed in, a picture of whatever was clicked — and the half-minute somebody spent looking
+something up became a half-minute wait the routine performed on every run. The only thing ever
+removed was Marco's own window, by process, so that a glance at Studio did not become a drag.
+
+Now `Deps.Watch` states the scope before the hooks go on, its zero value is one window, and
+Studio, `Learn` and `LearnAuto` take that default. `WholeDesktop` is retained for a demonstration
+that spans applications.
+
+**The gate is at the instant of the event, and it covers the channel.** Deciding at `Finish` that
+those steps are not wanted leaves them recorded; the live channel was the half of that the first
+version got wrong, on the reasoning that it exists for the stop gesture and a consumer can filter.
+A consumer holds whatever is published. What a stop actually needs is the stop keys —
+`StopKey.Triggered` reads nothing but an `EvKey`'s name and ignores every key outside the chord
+— so that is the whole of what an off-target event may say. The capture-state markers are
+published, so a surface can show what the capture is doing instead of showing off-target input.
+
+**Which window, and the two things that are not it.** Membership is the FOREGROUND, not the
+rectangle, so a drag out of the window and back is one gesture rather than three. Identity is the
+HANDLE, not the process, because two windows of one application satisfy every comparison of
+process id, geometry and program name; the process sits beside it so a handle Windows has reused
+reads as the target being gone. The window is LATCHED on the first foreground that is neither the
+surface Record was pressed in nor its process — because at that moment the window in front
+of the person is Marco's, which is what `withoutOwner` has always assumed.
+
+**A crossing is unrepresentable, in both directions.** Every key and button, not only modifiers.
+And entering with Ctrl already down, which the first draft of the rule missed: the press is
+excluded, so a ctrl+click records as a click — a correct admission decision producing a wrong
+demonstration. One rule covers both: an admitted press or release while anything is held from
+outside is a crossing. It is also what bounds the activation click — the forgotten press is
+forgotten only when its release arrives.
+
+**And the clock, which is where the compatibility question was.** Time inside is preserved
+exactly; time away leaves 250ms. The first proposal marked the absence and let readers interpret
+it, which is what an older build would do by IGNORING the marker and keeping the raw gap — a
+regenerated routine acquiring a half-minute pause is changed behaviour, not degradation. So the
+absence comes out of the timestamps, `Draft.Events` carries no marker at all, and a stored
+recording holds only the kinds it always held with gaps that are already right. There is nothing
+in it to reinterpret and therefore no version for an older build to refuse.
+
+**40 of 40 mutations killed**, and the last three only after the cases they named existed. The key
+hook's own call site: the clicks are reached through `recordClickDown` but the keys go through
+`keyboardProc`, a C callback, so the test builds the structure Windows passes and calls it. The
+handle check: my first latch test used the same process for the Record window and its owner, so
+the owner check covered for it — the case that needs the handle is `marco learn` in a terminal,
+where the console belongs to the terminal host and there is no owning process to name. And an
+activating release that cleared everything held beside it, which every other case in the file
+passed.
+
+Two of my own test scenarios were refused by the rule while I was writing them, both for holding
+a key across the boundary they were only trying to describe. The code was right both times.
+
+**And then four corrections, each of which was a fact about what EXISTS standing in for a fact
+about what HAPPENED.** The target was latched rather than chosen, so "a window that is not
+Marco's" stood in for "the window somebody meant" — and whichever window came forward first is
+whatever Windows does next. Admission asked the foreground a second time, so "the foreground
+now" stood in for "the window this event happened in". The held state started empty, so "nothing
+went down since I started watching" stood in for "nothing is held". And the markers came only
+from input, so "no event has arrived" stood in for "nothing has changed". The pause being
+invisible is the same shape from the person's side: silence stood in for recording.
+
+The window is chosen now, by a person, out of a list; membership is one reading carrying the
+handle and the owner; the keyboard is scanned once at Start and seeded; the poller reports the
+transition it was already sampling for; and the pause is on both surfaces while it is happening.
+
+**And two things the slice needed that were not on the list.** `marco learn --whole-desktop`,
+because "retained explicitly" with no way to reach it is a capability nothing can ask for —
+and the scope is printed before recording starts either way, since the default changed.
+`Draft.AwaySentence` on both review surfaces, because `Away` and `Absences` were on the draft and
+read by nothing: a draft shorter than the demonstration somebody gave, with a clock that no longer
+matches what happened, reads as a recorder that missed something. Studio still has no control for
+the whole-desktop scope, which is written down as a gap rather than left to be discovered.
+
+See [[ADR-268-record-only-the-chosen-window]].
+
+**And a fifth correction, in the one place the fix for the second had not reached.** Admission was
+made one reading at a time, but the poller still wrote down the application its own sample had
+named. The gate on it covered the case where the person was still away — the snapshot refuses it
+— and not the case where they had come back: the reading agrees they are in the window, and the
+string beside it still names what they left. `simplify` makes that an `Activate` and `Keep` files
+the routine under it. A confined recording now takes the name from the same fact as the
+membership, so it holds exactly one application switch, its own, and none at all when the target's
+image could not be read.
+
+The same session made the two ambient tests deterministic rather than hard failures, which was the
+right third answer: `ForegroundForTest` joins `WindowsForTest`, because a fixture window list
+under a LIVE foreground reading orders by a handle no row has — the ordering rule did nothing
+and the test passed. **5 of 5 mutations killed**, one of them the Studio act returning no windows
+at all, which the early-return version of that test did not notice.
+

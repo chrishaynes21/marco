@@ -76,7 +76,7 @@ type reRecording struct {
 // deleted between the page drawing a card and somebody pressing the button on it, and a recording
 // started as a second version of something that is gone would be a window promising a replacement
 // it could not offer.
-func (a *Acts) RecordAgain(id string) string {
+func (a *Acts) RecordAgain(id, window string) string {
 	id = strings.TrimSpace(id)
 	if id == "" {
 		return "say which routine to record again"
@@ -111,7 +111,7 @@ func (a *Acts) RecordAgain(id string) string {
 		return "that routine does not say what it is called, so a new recording " +
 			"cannot be named after it. Record it under a name of your own."
 	}
-	return a.beginRecording(found.Name, &reRecording{
+	return a.beginRecording(found.Name, window, &reRecording{
 		id: found.ID, name: found.Name, app: found.App, scope: found.Scope,
 	})
 }

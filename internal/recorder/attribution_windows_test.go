@@ -26,11 +26,24 @@ import (
 // thing on the event, and a fixture that got the app tag right would not be posing the question.
 func onTheGameWithMarcoInFront(t *testing.T, owner uint32) {
 	t.Helper()
-	was := clickAttribution
-	t.Cleanup(func() { clickAttribution = was })
-	clickAttribution = func() (uintptr, uint32, string) {
-		return marcosWindow, owner, "arkascended"
+	was := attributionNow
+	t.Cleanup(func() { attributionNow = was })
+	attributionNow = func() whose {
+		return whose{hwnd: marcosWindow, pid: owner, ok: true}
 	}
+	// AND THE APP TAG, which is now a SEPARATE answer: an event carries the chosen
+	// window's name in a confined recording and the poller's sample otherwise, so the
+	// wrong-tag half of this fixture is stated where that answer comes from. See
+	// `appOfTarget` for why a sample was the wrong place to read it.
+	confined.Store(false)
+	foreApp.Store("arkascended")
+}
+
+// aClick is one click built the way the mouse hook builds it: one reading of the desktop, used
+// for the admission and for the event. The hook takes it once per edge; a test that took it
+// twice would be reproducing the defect `whose` removed.
+func aClick(button string, down bool, x, y int) RecordedEvent {
+	return newClick(button, down, x, y, attributionNow())
 }
 
 // marcosWindow and theGameWindow are two window handles. The numbers mean nothing; that the
@@ -66,8 +79,8 @@ func TestBothEdgesOfAClickCarryTheirOwner(t *testing.T) {
 	const owner uint32 = 9140
 	onTheGameWithMarcoInFront(t, owner)
 
-	down := newClick("left", true, 1511, 913)
-	up := newClick("left", false, 1511, 913)
+	down := aClick("left", true, 1511, 913)
+	up := aClick("left", false, 1511, 913)
 
 	if down.PID != owner {
 		t.Errorf("the press carries process %d, want %d", down.PID, owner)
@@ -88,7 +101,7 @@ func TestTheAppTagCanDisagreeWithTheProcess(t *testing.T) {
 	const owner uint32 = 9140
 	onTheGameWithMarcoInFront(t, owner)
 
-	down := newClick("left", true, 1511, 913)
+	down := aClick("left", true, 1511, 913)
 	if down.App != "arkascended" {
 		t.Fatalf("the fixture's poller sample did not reach the event (%q), so "+
 			"this proves nothing", down.App)
@@ -120,8 +133,8 @@ func TestBothEdgesOfAClickRecordWhereTheyLanded(t *testing.T) {
 	onTheGameWithMarcoInFront(t, 9140)
 	aWindowLike(t, marcosWindow, 120, 64, 1920, 1080, 144)
 
-	down := newClick("left", true, 1511, 913)
-	up := newClick("left", false, 1400, 700)
+	down := aClick("left", true, 1511, 913)
+	up := aClick("left", false, 1400, 700)
 
 	for _, e := range []struct {
 		what string
@@ -175,7 +188,7 @@ func TestOnlyThePressRecordsTheWindowsTitle(t *testing.T) {
 	onTheGameWithMarcoInFront(t, 9140)
 	aWindowLike(t, marcosWindow, 120, 64, 1920, 1080, 144)
 
-	if up := newClick("left", false, 1400, 700); up.Window != "" {
+	if up := aClick("left", false, 1400, 700); up.Window != "" {
 		t.Errorf("a release recorded the window title %q", up.Window)
 	}
 }
@@ -190,7 +203,7 @@ func TestAPressRecordsTheWindowItLandedIn(t *testing.T) {
 	onTheGameWithMarcoInFront(t, 9140)
 	aWindowLike(t, marcosWindow, 120, 64, 1920, 1080, 144)
 
-	down := newClick("left", true, 1511, 913)
+	down := aClick("left", true, 1511, 913)
 
 	if !down.WinRel {
 		t.Fatal("the press recorded no window-relative offset, so none of the rest " +
@@ -227,7 +240,7 @@ func TestThePressMeasuresTheWindowItAttributed(t *testing.T) {
 	onTheGameWithMarcoInFront(t, 9140)
 	asked := aWindowLike(t, marcosWindow, 120, 64, 1920, 1080, 144)
 
-	newClick("left", true, 1511, 913)
+	aClick("left", true, 1511, 913)
 
 	if len(*asked) != 1 {
 		t.Fatalf("the shape was read %d time(s) for one press: %v", len(*asked),
@@ -254,7 +267,7 @@ func TestAPressWithNoReadableWindowStillSaysWhichWindow(t *testing.T) {
 	onTheGameWithMarcoInFront(t, 9140)
 	aWindowLike(t, theGameWindow, 0, 0, 1920, 1080, 96) // not the attributed window
 
-	down := newClick("left", true, 1511, 913)
+	down := aClick("left", true, 1511, 913)
 
 	if down.RelTo != macroir.RelToWindow {
 		t.Errorf("the press does not say which window it was about (%q), so a "+
@@ -322,7 +335,7 @@ func TestAnIncompletelyMeasuredPressKeepsItsBasis(t *testing.T) {
 			onTheGameWithMarcoInFront(t, 9140)
 			aWindowLike(t, marcosWindow, c.left, c.top, c.w, c.h, c.dpi)
 
-			down := newClick("left", true, c.x, c.y)
+			down := aClick("left", true, c.x, c.y)
 
 			if down.RelTo != macroir.RelToWindow {
 				t.Errorf("the press stopped saying which window it was "+

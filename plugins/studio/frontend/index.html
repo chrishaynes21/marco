@@ -414,6 +414,16 @@
     <div class="banner" style="margin-top:8px" id="capEverywhere"></div>
     <div class="row" style="margin-top:10px"><label style="width:7em">call it</label>
       <input type="text" id="capName" placeholder="what you will ask Marco for"></div>
+    <!-- WHICH WINDOW, CHOSEN BEFORE RECORDING STARTS.
+         Not inferred. The first version took the first window to come forward after
+         Record, which is whatever Windows does next: an updater, a notification, the
+         terminal. The person then demonstrated into a window nothing was watching and
+         could not correct a choice they were never shown. See recording.go Windows. -->
+    <div class="row" style="margin-top:10px"><label style="width:7em">record</label>
+      <select id="capWindow" style="flex:1"></select>
+      <button onclick="loadWindows()">refresh</button></div>
+    <div class="muted" style="margin-top:6px">Only what you do in that window is
+      recorded. Open it first if it is not in the list.</div>
     <div class="row" style="margin-top:10px">
       <button class="go" id="capBtn" onclick="startCapture()">Record</button>
       <span class="muted" id="capNote"></span>
@@ -423,6 +433,13 @@
   <!-- WHILE IT WATCHES. Two buttons and no clock: it ends when you say so. -->
   <div class="card hide" id="capturing">
     <div id="capDoing" style="font-size:15px"></div>
+    <!-- PAUSED, AND VISIBLE WHILE IT IS HAPPENING.
+         A confined recording goes silent the moment somebody leaves the window, and
+         silence looks exactly like a recording that is still going: alt-tab to check
+         something, carry on demonstrating, and the routine is missing half its steps
+         with nothing having said so. The review sentence afterwards is no substitute,
+         because by then the demonstration they have to give again is over. -->
+    <div class="banner no hide" style="margin-top:8px" id="capPaused"></div>
     <!-- WHICH ROUTINE THIS IS A SECOND RECORDING OF, AND WHAT SAVE WILL DO.
          Said while the recording is running as well as at review, because the thing
          it heads off is an expectation: somebody who pressed Record again on a routine
@@ -1421,9 +1438,33 @@
  // nothing; Cancel drops the draft and there is nothing to delete; Save persists it under the
  // scope chosen right here. See recording.go.
 
+ // THE WINDOW LIST IS ASKED FOR FRESH, never cached: the person is about to open the
+ // application they mean to demonstrate in, so a list from a minute ago is the wrong one.
+ let windowsLoaded = false
+ function loadWindows(){
+   const sel = $('capWindow')
+   const had = sel.value
+   return acts.Windows().then(list => {
+     sel.innerHTML = ''
+     ;(list || []).forEach(w => {
+       const o = document.createElement('option')
+       o.value = w.id; o.textContent = w.label
+       sel.appendChild(o)
+     })
+     if (!list || !list.length) {
+       const o = document.createElement('option')
+       o.value = ''; o.textContent = 'no window found — open one and press refresh'
+       sel.appendChild(o)
+     }
+     // THE ONE THEY HAD PICKED, if it is still there: a refresh must not silently
+     // move the choice to whatever is at the top now.
+     if (had) { sel.value = had }
+   })
+ }
  function startCapture(){
    text($('capSaveNote'), '')
-   acts.StartRecording($('capName').value).then(why => { text($('capNote'), why || '') })
+   acts.StartRecording($('capName').value, $('capWindow').value)
+     .then(why => { text($('capNote'), why || '') })
  }
  function stopCapture(){
    // THE BUTTON STEPS ASIDE WHILE IT IS BEING SERVED. Stopping waits for the recorder to
@@ -1501,6 +1542,11 @@
      // somebody's library while the keyboard is being watched is work done on the
      // one thread that has to stay out of the way. See pollReady.
      captureActive = !!r.active
+     // AND THE WINDOW LIST IS FILLED THE FIRST TIME THE CARD IS AVAILABLE, so the
+     // choice is already in front of somebody rather than waiting on a button they
+     // have no reason to press. Once: refilling it under their cursor would move the
+     // selection while they were reading it.
+     if (!r.active && !r.review && !windowsLoaded) { windowsLoaded = true; loadWindows() }
      showing($('captureCard'), !r.active && !r.review)
      showing($('capturing'), !!r.active)
      showing($('capReview'), !!r.review)
@@ -1531,7 +1577,11 @@
      text($('capAgainElsewhere'), r.again_elsewhere || '')
      showing($('capAgainElsewhere'), !!r.again_elsewhere)
      if (r.active) {
-       text($('capDoing'), 'Recording ' + (r.name ? '“' + r.name + '”' : '') + '…')
+       text($('capDoing'), 'Recording ' + (r.name ? '“' + r.name + '”' : '')
+         + (r.window ? ' in ' + r.window : '') + '…')
+       // PAUSED, SAID WHILE IT IS HAPPENING. See capPaused.
+       text($('capPaused'), r.paused || '')
+       showing($('capPaused'), !!r.paused)
        // AND THE OTHER WAY OUT, NAMED. The button is not the only one and somebody
        // who never comes back to this window still has to be able to finish.
        text($('capKey'), r.stop_key ? 'or press ' + r.stop_key : '')

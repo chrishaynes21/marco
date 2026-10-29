@@ -74,7 +74,7 @@ func aReviewOfADrag(t *testing.T, edit func(e *recorder.RecordedEvent, down bool
 	owner, ownerApp := uint32(os.Getpid()), winctx.Self()
 	held := &heldRecorder{events: aDemonstratedDrag("arkascended", owner, ownerApp, edit)}
 	a.recording = func() recorder.Recorder { return held }
-	if why := a.StartRecording("ark graphics"); why != "" {
+	if why := a.StartRecording("ark graphics", ""); why != "" {
 		t.Fatalf("StartRecording refused: %s", why)
 	}
 	if why := a.StopRecording(); why != "" {

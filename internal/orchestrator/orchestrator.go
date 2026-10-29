@@ -100,6 +100,21 @@ type Deps struct {
 	// click. The process that owned the foreground window at the instant of the event does
 	// not have that problem, because it is read at the instant of the event.
 	OwnerPID uint32
+	// Watch is which windows this recording admits input from. The ZERO VALUE is one
+	// window, which is the stated default for Studio, Learn and LearnAuto.
+	//
+	// Stated by the caller rather than read from the environment, for the reason `Mode`
+	// is: a window that stays open would otherwise inherit whatever launched it, and two
+	// identical demonstrations would record different things with nothing in front of the
+	// person to say why. See Watching, and recorder.Watching for the other half.
+	Watch Watching
+	// Window is WHICH window a confined recording is of, chosen before capture.
+	//
+	// Required when `Watch` is `OneWindow`, which is the default: `Begin` REFUSES without
+	// it rather than recording the desktop, because a recording asked to be of one window
+	// that does not know which one is the one outcome this is all here to prevent. See
+	// Deps.Pickable for how a surface asks, and WhyNoWindow for the refusal.
+	Window recorder.Target
 	// AfterValidating runs inside the route's lock, after a replacement's version has
 	// been checked and before anything is written.
 	//
@@ -329,6 +344,11 @@ func (d Deps) Learn(name string) error {
 	}
 	if dr.App != "" {
 		fmt.Fprintf(d.Out, "(context: %s)\n", dr.App)
+	}
+	// AND WHY THE DRAFT IS SHORTER THAN THE DEMONSTRATION. Before the steps, because it
+	// is about the steps that are not there. See Draft.AwaySentence.
+	if said := dr.AwaySentence(); said != "" {
+		fmt.Fprintln(d.Out, said)
 	}
 	if err := d.preview("Recorded", dr); err != nil {
 		return err
@@ -1031,8 +1051,28 @@ func firstActivateApp(steps []macroir.Step) string {
 //
 // It returns which one ended it, because the two leave different tails behind: a gesture
 // leaves keypresses, and a button leaves a trip to another window and a click in it.
+// A LIVE INDICATOR, AND IT IS NOT OPTIONAL.
+//
+// A confined recording goes silent the moment somebody leaves the window, and silence looks
+// exactly like a recording that is still going. Somebody who alt-tabs to check something and
+// carries on demonstrating in the wrong place gets a routine missing half its steps and nothing
+// told them. The review sentence afterwards is not a substitute: by then the demonstration they
+// have to give again is already over.
+//
+// Said HERE because this function already reads every event, markers included, so there is one
+// consumer of the channel and no second reader to steal from it. `watching` is who hears it: the
+// terminal writes to its own output, and the overlay's HUD streams the same child's stdout, so
+// both say it from one place. Studio does not come through here -- see Capture.Paused.
+const (
+	saidLeft = "-- paused: you have left the window being recorded. Nothing you do " +
+		"elsewhere is recorded. --"
+	saidBack  = "-- recording again --"
+	saidGone  = "-- the window being recorded has closed, so the recording has ended --"
+	saidCross = "-- that gesture crossed out of the window, so this cannot be saved: "
+)
+
 func waitForStop(rec recorder.Recorder, stop *recorder.StopKey,
-	outside <-chan struct{}) (byButton bool) {
+	outside <-chan struct{}, watching func(string)) (byButton bool) {
 
 	ch := rec.Events()
 	if ch == nil {
@@ -1054,10 +1094,44 @@ func waitForStop(rec recorder.Recorder, stop *recorder.StopKey,
 			if stop.Triggered(ev) {
 				return false
 			}
+			// AND THE PERSON IS TOLD WHAT THE CAPTURE IS DOING, as it
+			// happens. See saidLeft.
+			if watching != nil {
+				switch ev.Kind {
+				case recorder.EvLeft:
+					watching(saidLeft)
+				case recorder.EvEntered:
+					watching(saidBack)
+				case recorder.EvTargetGone:
+					watching(saidGone)
+				case recorder.EvCrossed:
+					watching(saidCross + ev.KeyName)
+				}
+			}
+			// THE CHOSEN WINDOW CLOSED, which ends the recording: there is
+			// nothing left to record into, and the handle may already belong
+			// to somebody else's window. It is not a stop and not a button —
+			// `Finish` reads which it was from the marker in the buffer.
+			if ev.Kind == recorder.EvTargetGone {
+				return false
+			}
 		case <-outside:
 			return true
 		}
 	}
+}
+
+// firstReason is the first of the given reasons that is not empty.
+//
+// It exists so the ORDER is stated in one place and read where the refusal is assembled, rather
+// than being whichever `if` somebody wrote last.
+func firstReason(reasons ...string) string {
+	for _, r := range reasons {
+		if r != "" {
+			return r
+		}
+	}
+	return ""
 }
 
 // stripTrailingStop removes the stop-gesture keypresses (and any trailing moves)

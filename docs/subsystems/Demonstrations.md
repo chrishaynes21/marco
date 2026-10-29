@@ -507,25 +507,89 @@ the check buys is that a press aimed at a window that has moved is re-based onto
 aimed at a window that has CHANGED is refused, which is a different promise from "this routine can
 only affect that window".
 
-**What is NOT implemented — recording only the chosen window.** The recorder's hooks are
-low-level and global. Every press and key anywhere on the desktop enters the demonstration,
-attributed to whatever window was in the foreground at that instant, with an `EvAppSwitch` emitted
-whenever the foreground application changes — which is by design, and is how `Activate` comes to be
-in a routine at all. The only thing removed is the recorder's OWN window, by process
-(`orchestrator.withoutOwner`), and that exists so a glance at Studio mid-demonstration does not
-become a drag from the application to Marco and back.
+**A recording is of ONE WINDOW, and that is the default.** It was the whole desktop: the hooks
+are low-level and global, every press anywhere entered the demonstration, and the only thing
+removed was Marco's own window by process (`orchestrator.withoutOwner`). So a message answered
+halfway through was in the routine — its letters as keystrokes, the coordinates of the window
+it was typed in, and a picture of whatever was clicked — and the half-minute spent looking
+something up became a half-minute wait the routine performed on every run.
 
-So a person demonstrating is demonstrating **the whole desktop**. Answer a message halfway through
-and the reply is in the routine. The product relies on them not doing anything else, and says so
-nowhere.
+Now `Deps.Watch` states the scope before the hooks go on, its zero value is `OneWindow`, and
+Studio, `Learn` and `LearnAuto` all take that default. `WholeDesktop` is retained explicitly for
+a demonstration that genuinely spans applications.
 
-**Neither is the other, and the words invite the confusion.** ADR-251's window *check*, the
-harness's *"input that cannot be confined to the windows this run owns is not input this run may
-send"*, and a bound on what a recording may capture are three separate things; the first two are
-built and the third is not. A reader who found the first two could reasonably conclude the third
-was covered.
+**The gate is at the instant of the event.** Not a filter at `Finish`: a decision taken afterwards
+leaves the input recorded — in the buffer, in `Draft.Events`, published to whoever was
+listening, and on disk beside the routine. The live channel is gated with the buffer, because a
+consumer holds whatever is published; the one thing an off-target event may say is the stop
+gesture, because `StopKey.Triggered` reads nothing but an `EvKey`'s name and ignores every key
+outside the chord. The capture-state markers ARE published, so a surface can show what the
+capture is doing rather than showing off-target input.
 
-**Still open**, and tracked as such: see [[Roadmap]].
+**Membership is the foreground, identity is the handle AND the owner, out of one reading.** The
+foreground rather than the rectangle, so a drag out of the window and back is one gesture. The
+handle because two windows of one application satisfy every comparison of process id, geometry
+and program name; the owner beside it because Windows hands a handle back out, so the number
+alone is not an identity. BOTH, from ONE snapshot per event: a click used to ask for its window
+while the gate asked the foreground again, and a key was tagged with the app poller's sample and
+admitted on a third reading — two readings are two instants, and the foreground changes between
+them precisely when somebody clicks on another window.
+
+**And the window is CHOSEN before capture.** The first version latched it — the first foreground
+that was neither the starting surface nor its process — which is whatever came forward first, so
+a terminal or a notification toast became the thing being recorded. `Begin` refuses a confined
+recording that was not told which window; `Deps.Pickable` is the list every surface asks out of,
+and an ambiguous name is refused rather than resolved by position. `marco learn --window` with a
+prompt, a control in Studio, and the overlay passing the window the person was in — which it can
+answer because the HUD reads keys through its own hook and never takes the foreground.
+
+**What was already held when the recording began is read at the start**, every key and button,
+and seeded as held-from-outside: Ctrl down when Record is pressed is a press the recording never
+sees, and a ctrl+click was otherwise written down as an ordinary click.
+
+**A gesture that crosses the boundary is unrepresentable, not trimmed** — every key and button,
+and in both directions: a modifier held across the edge, and one already down on the way IN, which
+would otherwise record `ctrl+click` as `click`. The activation click is the one exception and it
+is bounded: the forgotten press is forgotten only when its release arrives, so an action performed
+while it is still held refuses the recording anyway.
+
+**And the application recorded is the chosen window's**, not the poller's sample. The gate on
+the poller refuses a sample taken while the person was away; the other half of the same race is a
+sample taken while they were away and admitted once they came back, which would put an `Activate`
+for somebody's browser at the front of the routine and file it under that application. `chosenApp`
+has no fallback for exactly that reason — an established identity or none — so a confined
+recording holds one application switch, its own.
+
+**And the boundary moves when the foreground does.** The markers were made only by `observe`,
+which runs when the hooks see something, so leaving the window and coming back without touching
+anything produced none at all and the routine waited the whole interval on every run. The
+app-switch poller reports the transition through the same fenced update.
+
+**And the pause is visible while it is happening**, which is not optional: a confined recording
+goes silent the moment somebody leaves, and silence looks exactly like a recording that is still
+going. `waitForStop` says the transitions — the terminal prints them and the HUD streams the same
+child — and Studio asks `Capture.Paused` on the poll that draws its card.
+
+**The absence comes out of the clock, not out of a marker.** Time inside is preserved exactly;
+time away leaves a documented 250ms, which is a timing policy and not a readiness claim. It is
+done to the TIMESTAMPS because a marker in a stored recording is a kind an older build would
+ignore while keeping the raw gap — changed behaviour dressed as degradation. `Draft.Events`
+carries no marker at all, so a stored recording holds only the kinds it always held with gaps that
+are already right, and there is nothing in it for any reader to reinterpret.
+
+**Retained means reachable.** `marco learn "<name>" --whole-desktop` asks for the old
+behaviour, and either way the scope is printed before the recording starts. Studio has no control
+for it yet, which is a gap rather than a decision. Both review surfaces DO say what happened:
+`Draft.AwaySentence` is on the terminal's preview and on Studio's card, because a draft shorter
+than the demonstration somebody gave reads as a recorder that missed something.
+
+See [[ADR-268-record-only-the-chosen-window]].
+
+**The three are still three different things.** ADR-251's window *check*, the harness's *"input
+that cannot be confined to the windows this run owns is not input this run may send"*, and this
+bound on what a recording may capture. All three are built now, and they remain separate
+promises: the check is about a press at play time, the harness is about what a run may send, and
+this is about what a demonstration contains.
 
 ## A recording that could not be stopped, and the two workers that outlive it
 
