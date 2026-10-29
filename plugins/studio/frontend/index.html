@@ -53,7 +53,18 @@
    --ok:#5cbf7a; --warn:#e3a73c; --no:#f0695f;
    --ok-bg:#16241b; --warn-bg:#251e10; --no-bg:#2a1618; --spot-bg:#1d1930;
 
-   --display:"Constantia","Cambria",Georgia,"Segoe UI Variable Display",serif;
+   /* ONE FAMILY FOR EVERY WORD A PERSON READS. `--display` was a serif stack
+      (Constantia, Cambria, Georgia) against a sans `--text`, so the headings and the
+      prose under them were set in two different voices on the same card. Display keeps
+      its own stack only so Windows can pick the display-optimised cut of the same
+      family; it is sans either way, and the hierarchy is carried by weight, size and
+      letter-spacing, which is where it was already carried.
+
+      `--mach` stays monospace, and that is a different axis rather than an exception:
+      it marks the lines that are a MACHINE FACT -- a path, a build id, a protocol
+      version -- and it is applied by the `.mach` class and to `pre`, never to a
+      heading. */
+   --display:"Segoe UI Variable Display","Segoe UI",system-ui,-apple-system,sans-serif;
    --text:"Segoe UI Variable Text","Segoe UI",system-ui,-apple-system,sans-serif;
    --mach:"Cascadia Mono","Cascadia Code",Consolas,ui-monospace,monospace;
    --r:7px;
@@ -240,6 +251,12 @@
 
 <nav id="rail">
   <div class="brand">Marco Studio</div>
+  <!-- THE JOURNEY FIRST. `Routines` is where somebody asks for a routine, records one,
+       and plays one — the four states of the main journey. `Scenes` keeps the
+       demonstrate-and-watch tools, which used to be on the same screen as the routine
+       recorder and gave the view two complete ways to start recording. See
+       [[Studio-UI-audit-2026-10-29]]. -->
+  <button class="railbtn" id="rail-routines" onclick="show('routines')">Routines</button>
   <button class="railbtn" id="rail-acts" onclick="show('acts')">Acts</button>
   <button class="railbtn" id="rail-scenes" onclick="show('scenes')">Scenes</button>
   <button class="railbtn" id="rail-history" onclick="show('history')">Run history</button>
@@ -353,8 +370,41 @@
 </section>
 
 <!-- ────────────────────────── SCENES ────────────────────────── -->
-<section id="view-scenes" class="hide">
-  <h1>Scenes</h1>
+<section id="view-routines" class="hide">
+  <h1>Routines</h1>
+
+  <!-- THE QUESTION FIRST.
+       This is the one control that answers what somebody came here to do, and it used
+       to be the FOURTEENTH control in this view: inside the `Your routines` card, below
+       a paragraph about the card. Measured, with the rest of this view, in
+       [[Studio-UI-audit-2026-10-29]].
+
+       It asks Director and nothing else: the resolution, the scope policy, the library
+       and the candidate labels are Director's, and this window asks rather than
+       deciding. Moving the box did not move that. See plugins/studio/resolve.go. -->
+  <div class="card" id="askCard">
+    <div class="row">
+      <input id="askBox" type="text" placeholder="say what you want, in your own words"
+        aria-label="Say what you want" style="flex:1;min-width:220px">
+      <!-- THE TARGET APPLICATION, STATED AND NOT INFERRED.
+           An in-place routine works only while its application is in front, so it is
+           offered only when that application is the target. Studio owns the foreground
+           whenever somebody types in here, so reading the foreground would answer
+           "Studio" - and treating "it has a window" as eligibility would erase the
+           difference between the two application scopes. -->
+      <label class="muted" for="askTarget">in</label>
+      <select id="askTarget" aria-label="Target application"></select>
+      <button id="askBtn" class="secondary">Find it</button>
+    </div>
+    <!-- IT SELECTS. It does not run: the thing that runs one is the Play button below,
+         pressed by a person, with the guards it already had. See suggest.go. -->
+    <div class="muted" style="margin-top:6px" id="askSaid"></div>
+    <!-- AND WHO ANSWERED, WHICH IS NOT DECORATION.
+         Two of the three arms need no model at all, so this window could work, look
+         right, and never once reach the resolver somebody installed. It says which
+         answered and what part the configured resolver had. -->
+    <div class="muted mach" style="margin-top:4px;font-size:11.5px" id="askWho"></div>
+  </div>
 
   <!-- WHETHER THIS WINDOW CAN DO EITHER OF THE THINGS IT IS FOR, BEFORE SOMEBODY TRIES.
        Above Record and above Your routines, because every problem it names is one that
@@ -372,8 +422,6 @@
     <div id="readyProblems"></div>
   </div>
   <div class="muted mach" style="font-size:11.5px;margin-bottom:14px" id="readyMachine"></div>
-  <p class="sub">A Scene is one interaction — one click, and what should happen afterward.
-    An Act puts Scenes in order. These are the interactions Marco has watched you perform.</p>
 
   <!-- RECORD A ROUTINE: the recorder-first path, and the ordinary one.
        Press Record, go and do the thing, press Stop. Nothing is chosen up front and
@@ -381,14 +429,30 @@
        Marco's own window is left out of the recording wherever it appears — pressing Stop
        in here never becomes part of what you taught, and neither does looking at this page
        halfway through. See recording.go and ADR-249. -->
-  <h2>Record a routine</h2>
-  <div class="card" id="captureCard">
-    <div class="muted">Marco watches the keyboard and the mouse and writes down what you
-      did, in order, with the real pauses. It does not look at the screen, so it works
-      on menus nothing can recognise — and it replays exactly what you showed it.</div>
-    <div class="muted" style="margin-top:6px">Press <b>Record</b>, go and do it, then come
-      back and press <b>Stop recording</b>. Nothing is saved until you have looked at it
-      and pressed Save.</div>
+  <h2>Record</h2>
+
+  <!-- ONE WAY IN, AND THE FORM BEHIND IT.
+       There were two complete recording entry points on this view, each with its own name
+       field, application chooser, refresh button and Record button — and four controls on
+       the view said Record or Record it again. The other one is `Learn a Scene`, which now
+       has its own rail entry; this is the routine path and it is the ordinary one.
+
+       And the form is REVEALED rather than open on arrival. It used to sit under three
+       stacked paragraphs of 43, 36 and 21 words, so the first thing between somebody and
+       recording was a hundred words about recording. The explanation is still here, once,
+       for whoever wants it. See [[Studio-UI-audit-2026-10-29]]. -->
+  <div class="row" id="recordStart">
+    <button class="go" id="recordRevealBtn" onclick="revealRecord()"
+      >Record something new</button>
+    <details style="flex:1;min-width:0">
+      <summary>how recording works</summary>
+      <div class="muted" style="margin-top:6px">Marco watches the keyboard and the mouse and
+        writes down what you did, in order, with the real pauses. It does not look at the
+        screen, so it works on menus nothing can recognise, and it replays what you showed
+        it. Nothing is saved until you have looked at it and pressed Save.</div>
+    </details>
+  </div>
+  <div class="card hide" id="captureCard">
     <!-- WHAT IT WILL CAPTURE, SAID BEFORE IT DOES.
          From the backend rather than written here, because it is the backend that tells
          the recorder: a page with the sentence typed into it would go on promising
@@ -422,10 +486,14 @@
     <div class="row" style="margin-top:10px"><label style="width:7em">record</label>
       <select id="capWindow" style="flex:1"></select>
       <button onclick="loadWindows()">refresh</button></div>
-    <div class="muted" style="margin-top:6px">Only what you do in that window is
-      recorded. Open it first if it is not in the list.</div>
+    <!-- THE ACTIONABLE HALF ONLY. This said "Only what you do in that window is recorded"
+         as well, which is what `capEverywhere` says four lines above it, from the backend.
+         Two paragraphs used to sit between them and hid the repetition; with those gone the
+         rendered page said it twice in one card. -->
+    <div class="muted" style="margin-top:6px">Open it first if it is not in the list.</div>
     <div class="row" style="margin-top:10px">
       <button class="go" id="capBtn" onclick="startCapture()">Record</button>
+      <button onclick="hideRecord()">Cancel</button>
       <span class="muted" id="capNote"></span>
     </div>
   </div>
@@ -538,8 +606,6 @@
        See routines.go. -->
   <h2>Your routines</h2>
   <div class="card" id="routinesCard">
-    <div class="muted">Everything you have recorded. Choose one and press Play — Marco
-      brings its application forward and performs it, pressing for real.</div>
     <!-- WHICH LIBRARY, SAID OUT LOUD. Routines are in one place now, found the same way by
          every part of Marco from any directory — and this line is how somebody checks that
          the window and the command are looking at the same shelf. -->
@@ -549,38 +615,58 @@
          an old one can be sitting next to this window unread. Nothing is lost and nothing
          is moved; the honest failure of changing the rule is silence, so it says its name. -->
     <div class="banner hide" style="margin-top:8px" id="libElsewhere"></div>
-    <!-- SAY WHAT YOU WANT, AND STUDIO SELECTS THE ROUTINE IT THINKS YOU MEANT.
-         IT SELECTS. It does not run: the thing that runs one is the Play button below,
-         pressed by a person, with the guards it already had. See suggest.go. -->
-    <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-      <input id="askBox" type="text" placeholder="say what you want, in your own words"
-        aria-label="Say what you want" style="flex:1;min-width:220px">
-      <!-- THE TARGET APPLICATION, STATED AND NOT INFERRED.
-           An in-place routine works only while its application is in front, so it is
-           offered only when that application is the target. Studio owns the foreground
-           whenever somebody types in here, so reading the foreground would answer
-           "Studio" - and treating "it has a window" as eligibility would erase the
-           difference between the two application scopes. -->
-      <label class="muted" for="askTarget">in</label>
-      <select id="askTarget" aria-label="Target application"></select>
-      <button id="askBtn" class="secondary">Find it</button>
-    </div>
-    <div class="muted" style="margin-top:6px" id="askSaid"></div>
-    <!-- AND WHO ANSWERED, WHICH IS NOT DECORATION.
-         Two of the three arms need no model at all, so this window could work, look
-         right, and never once reach the resolver somebody installed. It says which
-         answered and what part the configured resolver had. -->
-    <div class="muted mach" style="margin-top:4px;font-size:11.5px" id="askWho"></div>
     <div id="routineList" style="margin-top:12px"></div>
     <div class="muted hide" id="routineNone">Nothing has been recorded yet. Record one
       above and it appears here.</div>
     <div class="hide" id="routineChosen">
+      <!-- WHAT IS SELECTED, BEFORE ANYTHING ABOUT IT.
+           The list above marks the chosen card, and that was already true. What was not
+           is this panel saying which routine it is about: it opened with three lines of
+           provenance, and the name and application were only up in the list. See
+           [[Studio-UI-audit-2026-10-29]]. -->
+      <h3 id="routineIdentity" style="margin-top:16px"></h3>
+      <div class="muted" id="routineIdentityWhere"></div>
+
       <!-- WHETHER ITS PRESSES ARE CHECKED, BEFORE PLAY RATHER THAN AFTER.
            Three states and one of them is a promise: a guarded routine stops at the first
            press it cannot check, a legacy one presses where it was recorded having checked
            nothing, and an incomplete one refuses. Reading it here is what saves somebody a
            minute of watching refusals. See ADR-251. -->
-      <div class="muted" style="margin-top:12px" id="routineChecks"></div>
+      <div class="muted" style="margin-top:8px" id="routineChecks"></div>
+      <!-- AND THE REASON IT CANNOT RUN, when there is one. OUTSIDE every collapsed detail
+           on purpose: a refusal nobody can see is a Play button that does nothing for a
+           reason somebody has to go looking for. -->
+      <div class="banner bad hide" style="margin-top:8px" id="routineWhy"></div>
+
+      <!-- PLAY, DIRECTLY UNDER WHAT IS SELECTED, AND ALONE.
+           It was the EIGHTH control in this panel: below two rebuild buttons, two source
+           panes that were `<details open>`, a Replace, a Cancel and a Record it again. The
+           maintenance actions are in the collapsed detail further down.
+
+           And the label is just `Play`. It used to be `Play - press for real`, with the
+           same warning repeated in the card's own paragraph above the list. The warning is
+           worth making; it is worth making ONCE, next to the button it is about. -->
+      <div class="row" style="margin-top:12px">
+        <button class="go" id="routinePlayBtn" onclick="playRoutine()">Play</button>
+        <span class="muted" id="routineNote"></span>
+      </div>
+      <!-- SAID ONCE, AND ONLY WHEN IT APPLIES. The warning used to be in the button's own
+           label AND in the card's paragraph above the list. It belongs next to the button,
+           and it belongs nowhere at all when the button cannot be pressed: the refusal
+           above is what that person needs to read. -->
+      <div class="muted hide" style="margin-top:6px" id="routinePlayMeans">Play brings the
+        application forward and presses for real.</div>
+      <details style="margin-top:10px">
+        <summary>What it will do, as Marco saved it</summary>
+        <pre id="routineSource"></pre>
+      </details>
+
+      <!-- MAINTENANCE, COLLAPSED. Provenance, the two rebuild choices and re-recording:
+           all of them things somebody comes here to do deliberately, none of them things
+           between a person and Play. The review card they open is NOT in here -- its
+           caution, its refusal and its replacement consent have to be readable. -->
+      <details style="margin-top:12px" id="routineMaintain">
+        <summary>Rebuild and re-record</summary>
       <!-- AND HOW IT WAS RECORDED, WHEN THE FILE SAYS SO.
            Hidden rather than filled in when it does not. Every routine saved before
            Studio could state a mode says nothing, and what those captured depended on
@@ -624,6 +710,12 @@
           onclick="reviewRebuilt('simplify-typing')">Simplify typing pauses</button>
         <span class="muted" id="routineReviewNote"></span>
       </div>
+      <div class="row" style="margin-top:10px">
+        <button id="routineAgainBtn" onclick="recordRoutineAgain()">Record it again</button>
+        <span class="muted" id="routineAgainNote"></span>
+      </div>
+      </details>
+
       <div class="card hide" id="routineReview" style="margin-top:10px">
         <h3>Nothing has been written yet</h3>
         <!-- WHICH CHOICE MADE THIS, and what that choice changes. Both from the backend:
@@ -632,13 +724,17 @@
         <div class="banner hide" id="routineReviewCaution"></div>
         <div class="banner bad hide" id="routineReviewRefused"></div>
         <div class="muted" id="routineReviewSays"></div>
+        <!-- THE TWO SOURCES, CLOSED. They were `<details open>`, so two listings of Marco
+             were expanded on a screen whose job is to start a run. The sentences above
+             them -- which choice made this, its caution, its refusal -- say what the
+             difference IS; the panes are for somebody who wants to read it. -->
         <div class="row" style="margin-top:8px">
-          <details open style="flex:1;min-width:0">
+          <details style="flex:1;min-width:0">
             <summary>The routine as it is saved now
               (<span id="routineReviewWasGen"></span>)</summary>
             <pre id="routineReviewWas"></pre>
           </details>
-          <details open style="flex:1;min-width:0">
+          <details style="flex:1;min-width:0">
             <summary>Rebuilt from its own recording
               (<span id="routineReviewNowGen"></span>)</summary>
             <pre id="routineReviewNow"></pre>
@@ -661,22 +757,21 @@
            offers Replace by name, exactly as it does for any other recording; the
            button only saves somebody retyping a name and remembering an application.
            See again.go. -->
-      <div class="row" style="margin-top:10px">
-        <button id="routineAgainBtn" onclick="recordRoutineAgain()">Record it again</button>
-        <span class="muted" id="routineAgainNote"></span>
-      </div>
-      <div class="banner bad hide" style="margin-top:8px" id="routineWhy"></div>
-      <div class="row" style="margin-top:12px">
-        <button class="go" id="routinePlayBtn" onclick="playRoutine()">Play — press for
-          real</button>
-        <span class="muted" id="routineNote"></span>
-      </div>
-      <details style="margin-top:8px">
-        <summary>What it will do, as Marco saved it</summary>
-        <pre id="routineSource"></pre>
-      </details>
     </div>
   </div>
+
+</section>
+
+<!-- ─────────────────────── SCENES: the demonstrate-and-watch tools ───────────────────────
+     A SEPARATE PLACE, AND THE VOCABULARY DOES NOT MOVE. A Scene is still one interaction and
+     an Act still puts Scenes in order; what changed is that these three tools are no longer
+     sitting under the routine journey, where they put a second complete recording entry point
+     on the same screen as the first. The Scene/Act definition is also given once now -- it was
+     written twice, in different words, on the same page. See [[Studio-UI-audit-2026-10-29]]. -->
+<section id="view-scenes" class="hide">
+  <h1>Scenes</h1>
+  <p class="sub">A Scene is one interaction — one click, and what should happen afterward. An
+    Act puts Scenes in order.</p>
 
   <h2>Learn a Scene</h2>
   <div class="card" id="learnCard">
@@ -937,7 +1032,10 @@
  // the scope policy, the library and the candidate labels are Director's, and this
  // window asks rather than deciding. See plugins/studio/resolve.go.
  let backend = null
- let view = 'acts'
+ // WHERE SOMEBODY LANDS. `Routines` is the journey -- ask for one, record one, play one
+ // -- and the window used to open on the Act library instead, which is the surface a
+ // person reaches for second. Named as a behaviour change rather than a layout one.
+ let view = 'routines'
  // THE ACTS THIS PAGE IS SHOWING, kept so that pressing Play can say which version of an Act
  // was on screen when it was pressed. See play().
  let listed = []
@@ -975,6 +1073,9 @@
  let shownRunSteps = ''
  let shownDemos = ''
  let shownCapture = ''
+ // WHETHER THE RECORD FORM IS OPEN. Page state only: `Record something new` reveals the
+ // name-and-window form, and nothing in the backend is told or asked. See pollCapture.
+ let recordOpen = false
  const shots = new Map()
 
  // WAIT FOR THE BINDINGS rather than assuming them. Wails injects window.go asynchronously,
@@ -986,7 +1087,7 @@
  ready(() => {
    acts = window.go.main.Acts
    backend = window.go.main.Backend
-   paintLive(); show('acts'); loadActs(); loadDemos(); loadHistory(); loadApps()
+   paintLive(); show('routines'); loadActs(); loadDemos(); loadHistory(); loadApps()
    loadLibrary()
    poll(); pollLearning(); pollCapture(); pollRepairs(); pollRoutines()
    pollAskTargets()
@@ -1020,6 +1121,25 @@
 
  // ── WHERE YOU ARE ──────────────────────────────────────────────────────────
 
+ // ONE WAY IN TO RECORDING, revealing the form it used to keep open above three
+ // paragraphs. `shownCapture` is cleared so the next poll repaints rather than deciding
+ // nothing changed; the window list is loaded because the form is only useful with it.
+ function revealRecord(){
+   recordOpen = true
+   shownCapture = ''
+   loadWindows()
+   showing($('recordStart'), false)
+   showing($('captureCard'), true)
+   $('capName').focus()
+ }
+
+ function hideRecord(){
+   recordOpen = false
+   shownCapture = ''
+   showing($('captureCard'), false)
+   showing($('recordStart'), true)
+ }
+
  function show(which){
    view = which
    onRun = false
@@ -1034,7 +1154,7 @@
    if (which === 'history') { loadHistory() }
  }
  function paintViews(){
-   for (const v of ['acts', 'scenes', 'history']) {
+   for (const v of ['routines', 'acts', 'scenes', 'history']) {
      showing($('view-' + v), !onRun && view === v)
      $('rail-' + v).classList.toggle('on', view === v)
    }
@@ -1547,9 +1667,19 @@
      // have no reason to press. Once: refilling it under their cursor would move the
      // selection while they were reading it.
      if (!r.active && !r.review && !windowsLoaded) { windowsLoaded = true; loadWindows() }
-     showing($('captureCard'), !r.active && !r.review)
+     // THE FORM IS REVEALED, AND THE BUTTON THAT REVEALS IT TAKES ITS PLACE.
+     //
+     // Three states where there used to be two: the one way in, the form, and the
+     // recording. `recordOpen` is page state and nothing else -- the backend is not
+     // asked and does not care, which is why this is the only line it touches.
+     const idle = !r.active && !r.review
+     showing($('recordStart'), idle && !recordOpen)
+     showing($('captureCard'), idle && recordOpen)
      showing($('capturing'), !!r.active)
      showing($('capReview'), !!r.review)
+     // AND IT CLOSES ITSELF ONCE THE RECORDING IT ASKED FOR HAS STARTED, so that
+     // finishing one and coming back does not land on a half-filled form.
+     if (!idle) { recordOpen = false }
      // WHAT A RECORDING CAPTURES, ON EVERY POLL AND IN BOTH PLACES.
      //
      // Outside the signature check below on purpose: that check exists to stop the
@@ -1898,11 +2028,7 @@
      }
      // WHERE IT WORKS AND WHEN IT WAS KEPT. Both, because a person who has just
      // recorded the same thing twice tells them apart by the clock and nothing else.
-     const where = r.app
-       ? (r.scope === 'app-anywhere'
-            ? 'brings ' + esc(r.app) + ' forward'
-            : 'only while ' + esc(r.app) + ' is in front')
-       : 'anywhere, switching nothing'
+     const where = esc(whereItWorks(r))
      card.innerHTML = '<h3>' + esc(r.name) + '</h3>' +
        '<div class="muted">' + where +
        (r.saved_at ? '  ·  saved ' + esc(r.saved_at) : '') + '</div>' +
@@ -2038,10 +2164,26 @@
    })
  }
 
+ // WHERE A ROUTINE WORKS, IN ONE PLACE.
+ //
+ // The list card and the selected panel both say it, and they have to say it the SAME way:
+ // two phrasings of one scope is how somebody comes to believe they are looking at two
+ // different routines. Plain text; the caller escapes.
+ function whereItWorks(r){
+   if (!r.app) { return 'anywhere, switching nothing' }
+   return r.scope === 'app-anywhere'
+     ? 'brings ' + r.app + ' forward'
+     : 'only while ' + r.app + ' is in front'
+ }
+
  function renderRoutine(){
    const r = routineWith(chosenRoutine)
    showing($('routineChosen'), !!r)
    if (!r) { return }
+   // WHAT IS SELECTED, SAID IN THIS PANEL TOO. The list marks the chosen card; this
+   // panel used to open with provenance and never name the routine it was about.
+   text($('routineIdentity'), r.name || '')
+   text($('routineIdentityWhere'), whereItWorks(r))
    text($('routineChecks'), r.checks || '')
    // WHAT IT WAS RECORDED AS, OR NOTHING AT ALL. See the element's comment: absent is
    // rendered as absent, and `recorded as` names it as a statement the file makes rather
@@ -2050,6 +2192,7 @@
    showing($('routineCaptures'), !!r.captures)
    showing($('routineWhy'), !r.runnable)
    text($('routineWhy'), r.why || '')
+   showing($('routinePlayMeans'), !!r.runnable)
    text($('routineSource'), r.source || '')
    // WHICH GENERATION WROTE IT, AND WHAT IT WAS WRITTEN WITHOUT.
    //
@@ -2105,10 +2248,12 @@
    text($('routineAgainNote'), '')
    acts.RecordAgain(r.id).then(why => {
      text($('routineAgainNote'), why || '')
-     // AND THE VIEW GOES WHERE THE RECORDING IS. The Record card and its two
-     // buttons are under Scenes; a person left looking at a routine's card while
-     // the hooks were watching would have no Stop button in front of them.
-     if (!why) { show('scenes') }
+     // AND THE VIEW GOES WHERE THE RECORDING IS. The recording card and its Stop
+     // button are under Routines; a person left looking at a routine's card while
+     // the hooks were watching would have no Stop button in front of them. (They
+     // are already on Routines when they press this, and `show` is idempotent --
+     // what it does here is close the maintenance detail's context by repainting.)
+     if (!why) { show('routines') }
    })
  }
 

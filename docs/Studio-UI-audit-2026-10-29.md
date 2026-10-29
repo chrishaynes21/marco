@@ -107,35 +107,46 @@ become one collapsed detail. *Learn a Scene* and *Build an Act* leave this scree
 ```
   (*) Recording   "mute discord"
       in  Discord - #general                      <- the chosen window, named
-      14 presses
 
-      ( Stop recording )   ( Cancel )             or press F9
+      ( Stop recording )   ( Cancel )             <- and the CONFIGURED stop key
 
       > what Marco is watching
 ```
 
-The window is named while it matters. Paused becomes one line in the same block —
-`(||) Paused - you are in Chrome` — rather than a banner plus a muted line. The 21-word
-instruction goes: Stop says it.
+The window is named while it matters. Paused becomes one line in the same block rather than a
+banner plus a muted line, and it reads **"Paused — outside the selected window"** unless the
+backend actually supplies the other application's identity; the page does not name an
+application it was not told.
+
+The stop key is whatever `Recording.stop_key` says — the page already renders it (`capKey`), and
+an earlier draft of this sketch wrote `F9`, which is a key this repository does not choose.
+
+No press count: nothing supplies one today, and this is a layout slice, not a reason to add
+backend instrumentation. The 21-word instruction goes — Stop says it.
 
 ### 3. Review and keep
 
 ```
-  "mute discord"   6 steps, 4.2s, in Discord
+  "mute discord"   6 steps, in Discord
 
    1  click      (100, 200)
    2  press      ctrl+shift+m
    3  wait       250ms
    ...
 
-  it works  [ only in Discord            v ]
+  it works  [ only in Discord            v ]      <- ONLY where it is offered today
   (!) two presses could not be represented
 
   ( Save )   ( Cancel )        > the Marco it will save
 ```
 
-The demonstrated steps come first, because they are what is being approved. Scope sits beside
-them. Warnings sit under them rather than above. The source goes behind a detail.
+The demonstrated steps come first, because they are what is being approved. Warnings sit under
+them rather than above, and stay outside every collapsed detail. The source goes behind one.
+
+**The scope chooser keeps exactly the enforcement it has.** `#capScopeRow` is revealed
+conditionally today, and this sketch does not widen that: a guarded recording must not acquire a
+scope dropdown because a drawing showed one. Step count only — no duration, because nothing
+supplies one.
 
 ### 4. Run and understand
 
@@ -206,3 +217,56 @@ backend call:
 Every backend contract: `Acts.*`, `Recording.*`, the resolve call behind *Find it*, the scope
 policy, the consent-to-a-version rule, and the one-Play-click grant. No new Studio surface, no
 new execution path, and nothing here reads or writes the route store differently.
+
+## What landed in the first slice
+
+States **1** and **4**, with B1–B4 approved and one further behaviour change named below.
+
+| | |
+| --- | --- |
+| The request box | first control in the view, in its own card, with the target application beside it. Was the fourteenth. |
+| Recording | one way in — **Record something new** — revealing the name-and-window form. The three paragraphs are one collapsed detail. |
+| Scene tools | *Learn a Scene*, *Build an Act* and *What you have shown Marco* are their own rail entry, **Scenes**, which states the Scene/Act definition once. |
+| The selected routine | names itself, then whether its presses are checked, then the refusal reason when there is one, then **Play**, alone. |
+| Maintenance | the two rebuild choices, *Record it again* and the provenance lines are one collapsed detail, below Play. |
+| Source panes | closed. There are now no `<details open>` on the page. |
+| Fonts | one family. `--display` was a serif stack against a sans `--text`, so a heading and the prose under it were two voices on one card. `--mach` stays monospace, which is a different axis: it marks a machine fact and is never applied to a heading. |
+
+**B5, named separately, because it was not in the approved four:** the window lands on
+**Routines** rather than on the Act library. The journey is the front door or it is not one.
+
+### What the render showed that reading did not
+
+Both found by looking at the headless screenshots, which is the argument for taking them:
+
+- **The window-scope sentence was said twice in one card.** `capEverywhere` says it from the
+  backend; a static line four rows below said it again. Two paragraphs used to sit between them
+  and hid the repetition. The static line keeps only its actionable half.
+- **"Play presses for real" was shown under a Play that could not be pressed.** It is hidden
+  when the routine is not runnable: the refusal above it is what that person needs.
+
+### Held by
+
+- `plugins/studio` `TestTheJourneyPutsTheQuestionFirstAndPlayUnderWhatIsSelected` — the order,
+  which is the claim. A test that only asserted each control exists would have passed before the
+  change as well as after it.
+- `plugins/studio` `TestNoBlockingMessageIsInsideACollapsedDetail` — refusal reasons, the
+  readiness panel, what a recording takes in, and the replacement consent, none of them inside a
+  `<details>`.
+- `plugins/studio` `TestTheRoutineJourneyHasOneWayIntoRecording` — one entry point, a form that
+  starts hidden, and the Scene card living under Scenes rather than here.
+- `plugins/studio` `TestNoSourceListingIsExpandedOnArrival` — no `<details open>` anywhere.
+
+Five of five mutations killed, including moving the request box back below the record card and
+putting the refusal reason inside the collapsed detail. The first run of these tests failed
+against a correct page, because they read the page's own comments — which quote markup — as
+markup; they strip comments now, and that is written beside the helper.
+
+**The backend contract is unchanged, measured rather than asserted:** 39 methods reachable from
+the page before this slice, 39 after, none added and none removed.
+
+### Still as it was
+
+States **2** and **3** — recording and review — are the next slice. The Scenes view keeps its
+own text problem (a 49-word paragraph about where pictures are kept); it was not in this slice
+and is not fixed by it.
