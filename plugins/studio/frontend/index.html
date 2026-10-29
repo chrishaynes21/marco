@@ -474,7 +474,13 @@
   <div class="card hide" id="readyCard">
     <div id="readyProblems"></div>
   </div>
-  <div class="muted mach" style="font-size:11.5px;margin-bottom:14px" id="readyMachine"></div>
+  <!-- WHICH BUILD THIS IS — a value, so it is mono — AND WHAT THIS CHECK DID NOT
+       ESTABLISH, which is a SENTENCE and is not.
+       One element carried both, in the monospace face, which is the rule the visual pass
+       set broken by the one line that is on screen under every page: mono marks a value,
+       never a sentence. See drawReady. -->
+  <div class="muted mach" style="font-size:11.5px" id="readyMachine"></div>
+  <div class="muted" style="font-size:11.5px;margin-bottom:14px" id="readyLimits"></div>
 
   <!-- RECORD A ROUTINE: the recorder-first path, and the ordinary one.
        Press Record, go and do the thing, press Stop. Nothing is chosen up front and
@@ -2071,16 +2077,25 @@
    // it; and nothing here has looked at a screen, started an application or sent a
    // press. A readiness panel that implied otherwise would be a false claim in the one
    // place somebody trusts before they start.
-   // WHAT THIS INSTALLATION IS MADE OF, when it is one.
+   // WHICH BUILD THIS IS, AND WHAT IT IS MADE OF WHEN IT IS AN INSTALLATION.
    //
-   // `build` is THIS window's revision and a bundle is five binaries; the installation line
-   // is each of their revisions and every file's hash, verified against disk. A tree has no
-   // manifest and says so instead, which is why this is a line of its own rather than a
-   // replacement for the one below. See whatThisInstallationIsMadeOf.
-   text($('readyMachine'), 'studio ' + (r.build || '?') + '  ·  marco ' + (r.marco || '?') +
-     '  ·  director ' + (r.director || '?') + '  ·  library ' + (r.library || '?') +
-     (r.installation ? '\n' + r.installation : '') +
-     '\n' + (r.limits || ''))
+   // `build` is THIS window's revision; the installation line is each binary's revision and
+   // every file's hash, verified against disk, and a tree says so in four words instead.
+   // See whatThisInstallationIsMadeOf.
+   //
+   // AND NOT THE TWO BINARIES OR THE LIBRARY, which this window says where they matter. The
+   // line carried four absolute paths under every page: `marco` and `director` are the
+   // spawn's, and a spawn that would find the wrong one — or one on PATH — is a PROBLEM in
+   // the card above, with what it stops and what to do, rather than a path to compare by
+   // eye. The library is the first line of the routine list, beside the routines it holds.
+   // Three facts, said once each, in the place each one is about.
+   text($('readyMachine'), 'studio ' + (r.build || '?') +
+     (r.installation ? '  ·  ' + r.installation : ''))
+   // AND WHAT THIS CHECK DID NOT ESTABLISH, ALWAYS, AND IN THE READING FACE.
+   //
+   // Always, because a panel that dropped the caveat when everything passed would read as
+   // a promise exactly when somebody believes one. In sans, because it is a sentence.
+   text($('readyLimits'), r.limits || '')
  }
 
  // ── SAY WHAT YOU WANT ────────────────────────────────────────────────────────

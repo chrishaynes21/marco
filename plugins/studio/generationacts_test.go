@@ -558,8 +558,15 @@ func TestAnInstalledMarcoSaysWhatItIsMadeOf(t *testing.T) {
 		t.Errorf("a build with no manifest beside it is reported as a problem: %+v",
 			problems)
 	}
-	if !strings.Contains(made, "built in a tree") {
-		t.Errorf("a build with no manifest says %q", made)
+	// THE MEANING, NOT THE OLD SENTENCE: it is a tree, and there is no manifest. The
+	// copy pass shortened "not an installed Marco: these binaries were built in a
+	// tree, so there is no manifest of what they are" to four words saying the same
+	// two things, because this line sits under every page of the window.
+	for _, says := range []string{"tree", "manifest"} {
+		if !strings.Contains(made, says) {
+			t.Errorf("a build with no manifest says %q, which does not "+
+				"mention %q", made, says)
+		}
 	}
 
 	// AND AN INSTALLATION SAYS WHAT IT IS. Written beside the test binary, which is
@@ -658,7 +665,7 @@ func TestAnInstalledMarcoSaysWhatItIsMadeOf(t *testing.T) {
 	}
 }
 
-// A SECOND LIBRARY IS NAMED, AND NOTHING IS MOVED.
+// A SECOND LIBRARY IS NAMED ONCE, AND NOTHING IS MOVED.
 //
 // ADR-252 promised this — "the window names any library-shaped directory beside its launch
 // location that holds routines and says what to do about it; nothing is adopted or moved" — and
@@ -670,8 +677,14 @@ func TestAnInstalledMarcoSaysWhatItIsMadeOf(t *testing.T) {
 // routines under `%LOCALAPPDATA%\Marco\routes` — and with installation and data separated, that
 // is a library nothing reads any more.
 //
+// ONCE. It was then named TWICE: a red problem card above Record and a banner over the routine
+// list, 100 words between them for one fact. The readiness panel is for what is WRONG, and two
+// libraries is not wrong — so the banner keeps the promise and the panel says nothing. This
+// tests the case the deleted one tested, a library beside the EXECUTABLE, through the surviving
+// path; `TestALibraryLeftBesideTheLaunchDirectoryIsNamed` is the other place it looks.
+//
 // See [[ADR-263-the-alpha-is-the-studio-stack-and-it-says-what-it-is]].
-func TestASecondLibraryIsNamedAndNothingIsMoved(t *testing.T) {
+func TestASecondLibraryIsNamedOnceAndNothingIsMoved(t *testing.T) {
 	exe, err := os.Executable()
 	if err != nil {
 		t.Skip("this platform cannot say where the test binary is")
@@ -693,25 +706,40 @@ func TestASecondLibraryIsNamedAndNothingIsMoved(t *testing.T) {
 	t.Cleanup(func() { _ = os.Remove(at) })
 
 	// AND THE LIBRARY IN USE IS SOMEWHERE ELSE, which is the whole case.
+	//
+	// Through the ENVIRONMENT rather than by setting the field: `marcopaths.libraryIn`
+	// excludes the library in use by asking `Routes()`, so a test that assigned
+	// `a.routesDir` directly would have the window and the path rule disagreeing about
+	// which library is in use — a disagreement production cannot have, since `newActs`
+	// takes the field from `Routes()`.
+	t.Setenv("MARCO_ROUTES", t.TempDir())
 	a := newActs(t.TempDir())
-	a.routesDir = t.TempDir()
+	// AND NOWHERE ELSE TO FIND ONE. `Library` looks beside the working directory as
+	// well as beside the executable, and the working directory of this test is the
+	// package — three levels under which sits this repository's own `routes`, when the
+	// person running it has one. That would answer instead of the fixture, so the test
+	// would read a different count on the author's machine than in a clean checkout.
+	t.Chdir(t.TempDir())
 
-	problems := a.whatOtherLibraryIsHere()
-	if len(problems) != 1 {
-		t.Fatalf("a second library holding a routine is reported as %d problem(s): "+
-			"%+v", len(problems), problems)
+	l := a.Library()
+	if l.Elsewhere == "" || l.Says == "" {
+		t.Fatalf("a second library holding a routine is not named: %+v", l)
 	}
-	for _, says := range []string{"another library", a.routesDir} {
-		if !strings.Contains(problems[0].Says, says) {
-			t.Errorf("the problem says %q and does not mention %q",
-				problems[0].Says, says)
+	// WHAT IT HAS TO CARRY: that the routines are there, where, that nothing moved,
+	// and the one setting that would use them. A notice naming two libraries without
+	// saying how to choose would leave somebody stuck.
+	for _, says := range []string{"1 routine", "Nothing has been moved", "MARCO_ROUTES"} {
+		if !strings.Contains(l.Says, says) {
+			t.Errorf("it says %q and does not mention %q", l.Says, says)
 		}
 	}
-	// AND IT SAYS NOTHING WILL BE MOVED, and what the one setting is. A notice that
-	// named two libraries without saying how to choose would leave somebody stuck.
-	for _, says := range []string{"nothing has been moved", "MARCO_HOME"} {
-		if !strings.Contains(problems[0].Do, says) {
-			t.Errorf("the advice is %q and does not say %q", problems[0].Do, says)
+	// AND IT IS SAID ONCE. The readiness panel is for what is wrong; two libraries is
+	// not wrong, and it used to say so there as well, in a second sentence of its own.
+	for _, p := range a.Ready().Problems {
+		if strings.Contains(strings.ToLower(p.Says+" "+p.Do), "library") &&
+			strings.Contains(p.Says+p.Do, l.Elsewhere) {
+			t.Errorf("the other library is reported in the readiness panel as "+
+				"well as over the routine list: %+v", p)
 		}
 	}
 	// AND THE OTHER LIBRARY IS STILL THERE, UNTOUCHED, which is the claim that matters.
@@ -720,8 +748,8 @@ func TestASecondLibraryIsNamedAndNothingIsMoved(t *testing.T) {
 	}
 	// AND WHEN THE LIBRARY IN USE IS THAT ONE, THERE IS NOTHING TO SAY. Without this
 	// the notice fires at everybody who has one library in the ordinary place.
-	a.routesDir = filepath.Join(filepath.Dir(exe), "..", "routes")
-	if problems := a.whatOtherLibraryIsHere(); len(problems) != 0 {
-		t.Errorf("the library in use is reported as another library: %+v", problems)
+	t.Setenv("MARCO_ROUTES", filepath.Join(filepath.Dir(exe), "..", "routes"))
+	if l := newActs(t.TempDir()).Library(); l.Elsewhere != "" {
+		t.Errorf("the library in use is reported as another library: %+v", l)
 	}
 }

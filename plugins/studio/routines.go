@@ -785,11 +785,14 @@ func (a *Acts) Library() Library {
 	}
 	if dir, n := marcopaths.Elsewhere(here, beside); n > 0 {
 		out.Elsewhere = dir
-		out.Says = fmt.Sprintf("%d routine(s) are in %s, which is not the library "+
-			"above. Routines used to be kept beside whichever directory a binary "+
-			"was started from, and that is a library from then — nothing has been "+
-			"lost and nothing has been moved. Copy them into the library, or set "+
-			"MARCO_ROUTES to that directory and start Marco again.", n, dir)
+		// THE COUNT, THE PLACE, AND THE ONE SETTING. This was 45 words, two of
+		// whose sentences explained that routines used to be kept beside whichever
+		// directory a binary was started from — this program's history, and not
+		// anything about the person's routines. What they need is that the
+		// routines exist, where, that nothing has moved, and how to use them.
+		out.Says = fmt.Sprintf("%d routine(s) are in %s, which is not this library. "+
+			"Nothing has been moved. To use those instead, set MARCO_ROUTES to "+
+			"that folder and start Marco again.", n, dir)
 	}
 	return out
 }

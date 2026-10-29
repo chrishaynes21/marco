@@ -44,7 +44,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/chaynes-simpleclouds/marco/internal/marcopaths"
 	"github.com/chaynes-simpleclouds/marco/internal/recorder"
 )
 
@@ -103,10 +102,14 @@ type Problem struct {
 // Spelled out because the honest half of this panel is the half that says what it does not know.
 // Installing the hooks takes the keyboard and the mouse of the whole desktop, so nothing here can
 // have tried it; and nothing here has looked at a screen, started an application or sent a press.
-const readinessLimits = "This is what Marco has checked on this machine just now. It does " +
-	"not say the input hooks will install, that the application you are recording is " +
-	"running, that a press will land where you pressed it, or that what you are " +
-	"automating will do what you want. Nothing here looks at a screen."
+//
+// SHORT, BECAUSE IT IS ON SCREEN ALWAYS. This was 50 words of standing text under a line nobody
+// came to the window to read, and a caveat nobody finishes is a caveat that is not made. What it
+// has to carry is that nothing here looked at a screen, and the two concrete things it therefore
+// cannot promise — the hooks, and where a press lands. `TestAWindowWithNothingWrongStillSaysWhat
+// ItDidNotCheck` holds all three words.
+const readinessLimits = "Checked just now, without looking at a screen: this cannot say the " +
+	"input hooks will install, or that a press will land where you put it."
 
 // Ready is what this window can establish about its ability to record and to play.
 //
@@ -137,9 +140,21 @@ func (a *Acts) Ready() Readiness {
 		Limits:       readinessLimits,
 	}
 	out.Problems = append(out.Problems, madeProblems...)
-	// AND IS THERE A SECOND LIBRARY. See whatOtherLibraryIsHere: the installer used to
-	// put one here, and nothing may move it.
-	out.Problems = append(out.Problems, a.whatOtherLibraryIsHere()...)
+	// AND A SECOND LIBRARY IS NOT REPORTED HERE, because `Library` reports it where it
+	// means something.
+	//
+	// It was reported in BOTH, in two sentences of its own, so a person with an older
+	// library beside their tree read the same fact twice on one screen — 55 words in a red
+	// problem card above Record, and 45 more in the banner over the routine list. The
+	// promise of [[ADR-263-the-alpha-is-the-studio-stack-and-it-says-what-it-is]] is that
+	// the window NAMES the other library and moves nothing; it is kept by the banner, which
+	// sits directly above the list somebody is looking at when they wonder where their
+	// routines went. This panel is for what is WRONG, and two libraries is not wrong.
+	//
+	// `Acts.Library` also looks in both places this did and one more — beside the
+	// executable AND beside the working directory — so nothing is lost with the duplicate.
+	// Held by TestALibraryLeftBesideTheLaunchDirectoryIsNamed and
+	// TestASecondLibraryIsNamedOnceAndNothingIsMoved.
 	// ── WHICH BINARY IS THIS ──
 	//
 	// "unknown" is what `buildid` answers when the toolchain left no VCS stamp, which is
@@ -353,8 +368,7 @@ func whatThisInstallationIsMadeOf() (string, []Problem) {
 	at := filepath.Join(filepath.Dir(exe), "manifest.json")
 	raw, err := os.ReadFile(at)
 	if err != nil {
-		return "not an installed Marco: these binaries were built in a tree, so there " +
-			"is no manifest of what they are", nil
+		return "a tree build, with no manifest of what these binaries are", nil
 	}
 	// AND A BYTE-ORDER MARK IS NOT A BROKEN MANIFEST.
 	//
@@ -425,50 +439,15 @@ func hashOf(path string) (string, error) {
 	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
-// whatOtherLibraryIsHere names a library that is NOT the one in use, when there is one.
-//
-// # What this closes, and why it was already promised
+// A SECOND LIBRARY WAS NAMED HERE, AND IS NAMED BY `Acts.Library` INSTEAD.
 //
 // [[ADR-252-a-library-is-a-place-and-a-routine-is-played-where-it-was-made]] says the window
 // "names any library-shaped directory beside its launch location that holds routines and says
 // what to do about it; nothing is adopted or moved, because choosing between two libraries is
-// the person's". `marcopaths.Elsewhere` was written for exactly that and **nothing ever called
-// it** — a complete mechanism with no caller, which is this repository's own recorded failure
-// mode and the reason every new call site gets a mutation run.
+// the person's". That promise is kept, by the banner over the routine list — which is where it
+// means something, and which looks beside the working directory as well as beside the
+// executable.
 //
-// It matters now because the alpha's installer created the case. Until this slice the launcher
-// set `MARCO_ROUTES` to its own installation directory, so every overlay-era bundle kept its
-// routines under `%LOCALAPPDATA%\Marco\routes`. Installation and data are separate now and the
-// library resolves where it always should — `$MARCO_HOME`, else `%APPDATA%\marco` — which means a
-// person upgrading from a bundled install has routines in a directory nothing reads any more.
-//
-// NOTHING IS MOVED OR MERGED. Two libraries is a thing to be told about, with both paths and the
-// one setting that chooses between them; which one somebody wants is not a question an upgrade
-// may answer on their behalf, and merging them would be an installer editing a library.
-//
-// # Where it looks
-//
-// Beside Studio's own executable, which is `…\Marco\bin` in an installation and `plugins\studio`
-// or the repo root in a tree. `Elsewhere` climbs three levels, which reaches `…\Marco\routes`
-// from `bin\` and the top of a source tree from a binary inside it — the two cases that exist.
-//
-// See [[ADR-263-the-alpha-is-the-studio-stack-and-it-says-what-it-is]].
-func (a *Acts) whatOtherLibraryIsHere() []Problem {
-	exe, err := os.Executable()
-	if err != nil {
-		return nil
-	}
-	found, n := marcopaths.Elsewhere(filepath.Dir(exe))
-	if n == 0 || marcopaths.SameStore(found, a.routesDir) {
-		return nil
-	}
-	return []Problem{{
-		Says: fmt.Sprintf("there is another library beside this Marco with %d "+
-			"routine(s) in it, and it is not the one in use: %s. The one in "+
-			"use is %s", n, found, a.routesDir),
-		Do: "nothing has been moved, and nothing will be. If those are the routines " +
-			"you want, set MARCO_HOME to the folder that contains them and open " +
-			"Marco again; if they are an older install's, leave them or delete " +
-			"the folder yourself",
-	}}
-}
+// What was here looked beside the executable only and said the same fact over again in a red
+// problem card above Record. Two statements of one fact on one screen is the thing this window
+// has now been corrected for twice; see `Acts.Library` and `Routines.Checks`.

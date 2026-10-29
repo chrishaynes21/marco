@@ -372,10 +372,16 @@ not.
   arranged with a directory where a file has to go, which fails on any platform and needs no
   running process, and it lands after the first component — the only case that could ever have
   produced a mixture.
-- `plugins/studio` `TestASecondLibraryIsNamedAndNothingIsMoved` — a library beside the binary that
-  is not the one in use, named with both paths and the one setting that chooses, the other
+- `plugins/studio` `TestASecondLibraryIsNamedOnceAndNothingIsMoved` — a library beside the binary
+  that is not the one in use, named with both paths and the one setting that chooses, the other
   library's routine still there afterwards, and nothing said when the library in use IS that one.
   `marcopaths.Elsewhere` had no caller at all before this.
+  **ONCE**: it was then named TWICE, by `Acts.Library` over the routine list and again by a
+  readiness problem above Record — 100 words for one fact, on the screen of anybody with an
+  older library beside their tree. The readiness panel is for what is WRONG, and two libraries is
+  not wrong, so the notice lives with the routines it is about and the test fails if the panel
+  says it too. `Acts.Library` looks beside the working directory as well as beside the executable,
+  so nothing is lost with the duplicate.
 - `internal/recorder` `TestAWorkerHeldAcrossATimeoutCannotReachALaterRecording` — a shutdown that
   gives up, a later recording REFUSED with what to do about it, and an abandoned recording's late
   publish dropped even so. The refusal protects a real process; the fence makes the workers

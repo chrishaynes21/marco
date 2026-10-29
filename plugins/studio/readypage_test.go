@@ -51,13 +51,21 @@ window.go = {main: {
 setTimeout(() => {
   const card = document.getElementById('readyCard')
   const mach = document.getElementById('readyMachine')
+  // THE LIBRARY IS READ OFF THE ROUTINE LIST, not off the machine line.
+  //
+  // It was on both, which is why it moved: the line under every page carried the
+  // library and both spawned binaries as four absolute paths. The claim is unchanged —
+  // the window says which library it reads — and this is where it says it.
+  const lib = document.getElementById('libWhere')
   document.title = 'cardshown=' + (card.classList.contains('hide') ? 0 : 1) +
     ' problems=' + card.querySelectorAll('div.no').length +
     ' blocks=' + (card.textContent.includes('This stops playing a routine') ? 1 : 0) +
     ' todo=' + (card.textContent.includes('build.cmd') ? 1 : 0) +
     ' build=' + (mach.textContent.includes('studio abc1234') ? 1 : 0) +
-    ' library=' + (mach.textContent.includes('C:/x/routes') ? 1 : 0) +
-    ' limits=' + (mach.textContent.includes('does not say the input hooks') ? 1 : 0)
+    ' library=' + (lib.textContent.includes('C:/x/routes') ? 1 : 0) +
+    ' machinepaths=' + (mach.textContent.includes('C:/m/') ? 1 : 0) +
+    ' limits=' + (document.getElementById('readyLimits').textContent.includes('a press will land') ? 1 : 0) +
+    ' limitsmono=' + (document.getElementById('readyLimits').classList.contains('mach') ? 1 : 0)
 }, 4500)
 `
 }
@@ -65,8 +73,8 @@ setTimeout(() => {
 // aCleanMachine is what the panel is handed when there is nothing wrong.
 const aCleanMachine = `{build: 'abc1234', marco: 'C:/m/marco.exe',
   director: 'C:/m/director.exe', library: 'C:/x/routes', problems: [],
-  limits: 'This is what Marco has checked. It does not say the input hooks will ' +
-          'install, that a press will land, or that anything looks at a screen.'}`
+  limits: 'Checked just now, without looking at a screen: this cannot say the ' +
+          'input hooks will install, or that a press will land where you put it.'}`
 
 // aMachineWithAProblem has the quiet one: a sibling missing, with the spawn still succeeding.
 const aMachineWithAProblem = `{build: 'abc1234', marco: 'marco.exe',
@@ -74,8 +82,8 @@ const aMachineWithAProblem = `{build: 'abc1234', marco: 'marco.exe',
   problems: [{says: 'there is no marco.exe beside this window',
               blocks: 'playing a routine',
               do: 'run plugins\\\\studio\\\\build.cmd with this window CLOSED'}],
-  limits: 'This is what Marco has checked. It does not say the input hooks will ' +
-          'install, that a press will land, or that anything looks at a screen.'}`
+  limits: 'Checked just now, without looking at a screen: this cannot say the ' +
+          'input hooks will install, or that a press will land where you put it.'}`
 
 // NOTHING WRONG: NO CARD, AND THE CAVEAT IS STILL THERE.
 //
@@ -90,12 +98,27 @@ func TestACleanMachineShowsNoProblemCardAndStillSaysWhatItDidNotCheck(t *testing
 		t.Errorf("the page drew %d problems from an empty list: %q",
 			n("problems"), title)
 	}
-	if n("build") != 1 || n("library") != 1 {
-		t.Errorf("the machine line does not name this build and its library: %q", title)
+	if n("build") != 1 {
+		t.Errorf("the machine line does not name this build: %q", title)
+	}
+	if n("library") != 1 {
+		t.Errorf("the window does not say which library it reads, anywhere: %q", title)
+	}
+	// AND IT DOES NOT CARRY THE SPAWN'S PATHS. Two absolute paths under every page,
+	// for a comparison nobody can make by eye — and a spawn that would find the wrong
+	// binary is a PROBLEM in the card above, with what it stops and what to do.
+	if n("machinepaths") != 0 {
+		t.Errorf("the machine line is naming the binaries it would spawn: %q", title)
 	}
 	if n("limits") != 1 {
 		t.Errorf("with nothing wrong, the page stopped saying what it had not "+
 			"established: %q", title)
+	}
+	// AND IT IS A SENTENCE, SET AS ONE. Mono marks a value — a revision, a path, a
+	// coordinate — and never a sentence; this one shared an element with the build
+	// line, so the only standing prose in the window was in the machine face.
+	if n("limitsmono") != 0 {
+		t.Errorf("the caveat is set in the monospace face: %q", title)
 	}
 }
 
