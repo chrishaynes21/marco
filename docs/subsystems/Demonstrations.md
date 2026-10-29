@@ -74,6 +74,10 @@ that control, though a saved play still cannot say it (`cannot_say_pointer`, fol
 - [[Programs]] — unchanged by any of this
 - [[Coordinate-MVP-assessment-2026-10-24]] — what of the coordinate-first Studio path is built,
   what remains, and the estimates for chords, typed text and holds. Assessment, not a commitment.
+- [[Studio-UI-audit-2026-10-29]] — the four states of Studio's main journey measured and
+  redrawn: 1,436 visible words in 207 messages, 39 controls on one view, two Record entry
+  points, and Play as the eighth control after selection. Audit and proposed layout, with the
+  behaviour changes named apart from the layout ones. No code changed by it.
 
 ## Decisions
 
