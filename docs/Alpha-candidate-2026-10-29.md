@@ -11,7 +11,15 @@ source_paths:
   - cmd/director
 ---
 
-# Alpha candidate — `feat/demonstrated-acts` at `1dcef6f`
+# Alpha candidate — `feat/demonstrated-acts` at `2770d46`
+
+> **Clean-checkout verification: PASSED for `2770d46`**, on 2026-10-29 at 18:21Z. A fresh
+> `--no-hardlinks` clone, checked out detached, holding only what git has — no untracked file,
+> nothing ignored — then `go build ./...` and `go run ./cmd/gate` inside it:
+> *passed, 0 failures, 0 findings, 30 tolerated skips, in 5m8s*, with go1.26.2.
+> It did NOT pack, install, run the desktop-tagged tests or any desktop scenario.
+> Full record in `cmd/cleanroom`'s own output; the stage is
+> [[ADR-270-packaging-is-gated-on-a-clean-checkout]].
 
 What a person can do with this tree, end to end: name a command in plain words, demonstrate it
 once in a window they chose, be asked whether to keep it, and press Play. The demonstration is
@@ -30,6 +38,9 @@ architectural note; `docs/Director.md` and the ADRs remain the truth about desig
 | `435b789` | gate: a screen-free stage, and the tests that need the screen behind a tag | Stage 1 is usable while somebody is using their computer. Fourteen Director run-logic tests state their own desktop; three that need live perception are behind `-tags desktop` and REPORTED rather than silently absent. |
 | `67e20a0` | runtime: the install decision must not take the frame's lock twice | A status listener installed on a frame that had already finished self-deadlocked on a non-reentrant mutex, hanging the run. |
 | `1dcef6f` | repo: a pattern meant for one artifact swallowed 420 lines of source | **The repository as committed did not build.** `.gitignore` carried `coverage.*`, which matched `cmd/perceptionreplay/coverage.go` as readily as a `.out` file, so that package existed on one machine and in no clone. |
+| `9833e37` | gate: packing is gated on a clean checkout of the commit | Adding that file fixed the known omission and established nothing about anybody else building the commit. `cmd/cleanroom` clones it, refuses unless the checkout holds only what git has, builds it, runs the screen-free gate there, and names the commit in the result; packing refuses unless that record says PASSED and names the commit about to be packed. |
+| `eca0515` | repo: the line ending a clone gets is decided here, not by the machine | **A fresh clone got different bytes.** `* text=auto` with no `eol=` left every unlisted extension to `core.autocrlf`, so the golden corpus came out CRLF and 108 of `internal/driver`'s cases failed with a `got` and a `want` that printed identically. |
+| `2770d46` | tests: stop reading one machine, and run what this repository makes | **The suite could not run anywhere else.** Two governance gates walked the owner's route library; five families of test skipped on artifacts only this machine had. Default tests use repository-controlled inputs now; selected integration tests fail on a missing prerequisite instead of skipping. |
 
 Held by, in the same order:
 
@@ -66,8 +77,25 @@ two lines below where `coverage.*` was later added. A comment cannot fail, which
 repository's own argument for `internal/wiringcheck`; the rule now lives there.
 
 **What this means for bisecting.** `24b618f`, `435b789` and `67e20a0` do not build from a clone,
-because the fix is after them. From `1dcef6f` onward a clone builds. Three throwaway worktrees
-established each of those facts.
+because the fix is after them. From `1dcef6f` onward a clone builds. `1dcef6f` and `9833e37`
+build but do not pass the suite from a clone, because the line endings are fixed in `eca0515`;
+`eca0515` passes everything except the five dependency families, which are fixed in `2770d46`.
+**`2770d46` is the first commit in this history that a clone can build AND gate.** Each of those
+facts came from a throwaway clone or worktree, not from reading the diffs.
+
+### The stage found three things, in three runs
+
+Worth keeping in this order, because each was invisible to the one before it.
+
+| Run | Commit | Result | What it was |
+| --- | --- | --- | --- |
+| 1 | `9833e37` | 110 failures, 9 findings | 108 line endings, plus the five dependency families |
+| 2 | `eca0515` | 2 failures, 9 findings | the five dependency families alone |
+| 3 | `2770d46` | **passed** | — |
+
+None of the three was visible to `go build ./...`, the suite, `cmd/gate`, `docscheck` or
+`wiringcheck` in the working tree, because all of them read the directory the defects were hidden
+in.
 
 ## The arc behind them
 
@@ -95,7 +123,7 @@ Every row was run against this tree on 2026-10-29.
 | Check | Command | Result |
 | --- | --- | --- |
 | The working tree builds | `go build ./...` | builds |
-| **The repository AS COMMITTED builds** | the same, in a throwaway `git worktree` of `HEAD` | builds — the root module and every plugin module except `plugins/voice`. This is the check that found `1dcef6f`, and the only one that can: the working tree is not evidence about a clone. |
+| **The repository AS COMMITTED builds AND gates itself** | `go run ./cmd/cleanroom` | **PASSED for `2770d46`** — a fresh clone holding only what git has, then `go build ./...` and `go run ./cmd/gate` inside it: 0 failures, 0 findings, 30 tolerated skips, 5m8s. This is the only check that can say so; the working tree is not evidence about a clone, and three times today the two disagreed. |
 | Formatting | `gofmt -l internal cmd plugins` | clean |
 | Engine suite | `go test ./...` | green, 73 packages |
 | The gate's screen-free stage | `go run ./cmd/gate` | passed — 0 failures, 0 findings, 30 tolerated skips, 4m39s |
@@ -183,5 +211,12 @@ broken tree cannot be established from an unbroken one.
   NOT RUN with the command that runs them, which is the point of moving them.
 - Not that every claim in this page was true when it was first written. The build rows said
   "builds" on the strength of the working tree, and were corrected after a worktree said
-  otherwise. The reason the page now distinguishes the two is that the distinction cost a
-  defect.
+  otherwise. The reason the page now distinguishes the two is that the distinction cost three
+  defects.
+- Not that a clean checkout passing means the bundle is reproducible. It means the COMMITTED
+  SOURCE builds and gates itself. Packing, installing, the desktop-tagged tests and every desktop
+  scenario are stages 3 to 6 and are still held; the clean-checkout result says in its own output
+  that it did not run them.
+- Not that `plugins/voice` builds anywhere. It needs the Vosk C headers, which are not vendored,
+  and it fails identically in the working tree and in a clone. The clean-checkout run does not
+  build it, because `cmd/gate` does not.
