@@ -63,7 +63,30 @@ func main() {
 	fmt.Println("stand-in suites passed, for", *root)
 }
 `)
-	// AND A STAND-IN FOR THE PACKED BUNDLE, which answers the one thing stage 3 asks of
+	// AND A STAND-IN FOR THE STAGE THAT GATES PACKING ON A CLEAN CHECKOUT.
+	//
+	// The real one clones the repository and builds it, which is minutes; what every case
+	// below needs is a program that answers the way the script reads it -- an exit code AND a
+	// result naming the commit. The cases that are about its failures overwrite this.
+	write("cmd/cleanroom/main.go", `package main
+
+import (
+	"flag"
+	"fmt"
+	"os"
+)
+
+func main() {
+	flag.String("root", "", "")
+	commit := flag.String("commit", "", "")
+	result := flag.String("result", "", "")
+	flag.Parse()
+	fmt.Println("stand-in clean checkout passed for", *commit)
+	os.WriteFile(*result, []byte("marco clean checkout\ncommit: "+*commit+
+		"\nverdict: PASSED\n"), 0o644)
+}
+`)
+	// AND A STAND-IN FOR THE PACKED BUNDLE, which answers the one thing stage 4 asks of
 	// it: that it installs without reporting a PROBLEM.
 	write("cmd/bundle/main.go", `package main
 
@@ -140,14 +163,60 @@ func main() {
 	return root
 }
 
-// theGate runs the copied script in a stand-in tree and answers with what it said and its code.
+// committed makes the stand-in tree a git checkout with everything in it committed.
+//
+// # Why this is here and not in the tree builder
+//
+// Stage 2 builds the COMMITTED source and refuses a tree with uncommitted changes, because
+// cleanroom builds the commit while pack.ps1 packs the working tree -- so a change on disk and
+// not in git would be packed having been checked nowhere. Every case below writes its own
+// `pack.ps1` AFTER the tree is built, so a tree committed in the builder is a dirty tree by the
+// time the script runs, and every case would fail at stage 2 for a reason none of them is about.
+//
+// Committing here, from the one place that runs the script, means a case that writes something
+// new is covered without knowing this exists.
+func committed(t *testing.T, root string) string {
+	t.Helper()
+	git := func(args ...string) string {
+		t.Helper()
+		cmd := exec.Command("git", append([]string{"-C", root}, args...)...)
+		cmd.Env = append(os.Environ(), "GIT_CONFIG_NOSYSTEM=1")
+		out, err := cmd.CombinedOutput()
+		if err != nil && args[0] != "commit" {
+			t.Fatalf("git %s in the stand-in tree: %v\n%s",
+				strings.Join(args, " "), err, out)
+		}
+		return strings.TrimSpace(string(out))
+	}
+	if _, err := os.Stat(filepath.Join(root, ".git")); err != nil {
+		git("init", "--quiet")
+		git("config", "user.email", "gate@example.invalid")
+		git("config", "user.name", "the gate's own test")
+		git("config", "commit.gpgsign", "false")
+	}
+	git("add", "-A")
+	// `commit` is the one command allowed to fail: with nothing staged it exits 1, which on a
+	// second call for the same tree is the correct outcome and not a problem.
+	git("commit", "--quiet", "-m", "the stand-in tree as this case left it")
+	return git("rev-parse", "HEAD")
+}
+
+// theGate commits the stand-in tree and runs the copied script in it.
 func theGate(t *testing.T, root string, args ...string) (string, int) {
+	t.Helper()
+	committed(t, root)
+	return theGateOnATreeAsItStands(t, root, args...)
+}
+
+// theGateOnATreeAsItStands runs the script WITHOUT committing first, for the one case that is
+// about a tree whose changes are only on disk.
+func theGateOnATreeAsItStands(t *testing.T, root string, args ...string) (string, int) {
 	t.Helper()
 	all := append([]string{"-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
 		filepath.Join(root, "gate.ps1")}, args...)
 	cmd := exec.Command("powershell", all...)
 	cmd.Dir = root
-	// WITH ITS TEMP UNDER THE TEST'S OWN, because stage 3 installs into
+	// WITH ITS TEMP UNDER THE TEST'S OWN, because stage 4 installs into
 	// $env:TEMP\marco-gate-<when> and a test that litters the owner's temp directory is
 	// the very thing this gate is about. Caught by looking: five of them.
 	//
@@ -174,7 +243,7 @@ func theGate(t *testing.T, root string, args ...string) (string, int) {
 // Which it did not. `pack.ps1` sets its own `Stop` preference and reports a bad bundle by
 // throwing -- a missing director.exe, a Studio built without the Wails tags -- and
 // $LASTEXITCODE still holds the zero that the last `go build` or `go version` left. An exit-code
-// check saw a successful packing, and stage 3 installed and gated the bundle that was already
+// check saw a successful packing, and stage 4 installed and gated the bundle that was already
 // on disk, which could be from any build at all.
 func TestAPackerThatThrowsStopsTheGateBeforeAnythingIsInstalled(t *testing.T) {
 	root := aTreeShapedLikeThisOne(t)
@@ -261,7 +330,7 @@ func TestANarrowedRunSaysWhatItDidNotAsk(t *testing.T) {
 	// mutation that recorded the narrowing and never reported it survived the looser
 	// assertion, which is the whole defect this is about.
 	for _, says := range []string{
-		"not asked: whether this tree packs a bundle that installs cleanly",
+		"not asked: whether a clean checkout of this commit builds, and whether this tree packs a bundle that installs cleanly",
 		"not asked: every scenario whose name does not match 'play'",
 	} {
 		if !strings.Contains(said, says) {
@@ -297,7 +366,7 @@ func TestADesktopTestThatFailsStopsTheGate(t *testing.T) {
 	if code == 0 {
 		t.Fatalf("a failing desktop test left the gate reporting success:\n%s", said)
 	}
-	if !strings.Contains(said, "4/5  the tests that need the screen") {
+	if !strings.Contains(said, "5/6  the tests that need the screen") {
 		t.Errorf("the run never reached the stage that failed:\n%s", said)
 	}
 	// AND THE STAGE IS NAMED, so a reader of the last lines knows which one went rather
@@ -307,7 +376,7 @@ func TestADesktopTestThatFailsStopsTheGate(t *testing.T) {
 	}
 	// AND THE HARNESS NEVER RAN: a stage that failed must stop the run BEFORE the one
 	// that takes the screen and presses things.
-	if strings.Contains(said, "5/5  the complete desktop harness") {
+	if strings.Contains(said, "6/6  the complete desktop harness") {
 		t.Errorf("the gate went on to press things after a stage failed:\n%s", said)
 	}
 }
@@ -337,8 +406,9 @@ func TestASuitesOnlyRunDoesNotClaimTheGate(t *testing.T) {
 	// name — which is the whole claim this file makes, that a partial run says what it
 	// did not ask.
 	for _, piece := range []string{
-		"not asked:", "the bundle", "its installation",
-		"the tests that need the screen", "every desktop scenario",
+		"not asked:", "a clean checkout of this commit", "the bundle",
+		"its installation", "the tests that need the screen",
+		"every desktop scenario",
 	} {
 		if !strings.Contains(said, piece) {
 			t.Errorf("the verdict of a -SuitesOnly run does not mention %q, so "+
@@ -357,7 +427,7 @@ func TestASuitesOnlyRunDoesNotClaimTheGate(t *testing.T) {
 // would pass every assertion above while never claiming anything again.
 func TestAWholeRunClaimsTheGate(t *testing.T) {
 	root := aTreeShapedLikeThisOne(t)
-	// A PACKER THAT ACTUALLY PRODUCES A BUNDLE, which stage 3 then installs and asks what
+	// A PACKER THAT ACTUALLY PRODUCES A BUNDLE, which stage 4 then installs and asks what
 	// it is made of.
 	if err := os.WriteFile(filepath.Join(root, "pack.ps1"), []byte(
 		"$ErrorActionPreference = \"Stop\"\r\n"+
@@ -385,12 +455,23 @@ func TestAWholeRunClaimsTheGate(t *testing.T) {
 	// evidence it had gone was its absence from output nobody read. Naming them here
 	// means a stage that stops running fails by name, and a stage added later has one
 	// line to add.
+	// AND THE PASSING STAGE IS IN THE VERDICT TABLE, not only in a header on the way past.
+	//
+	// The headers below are `Write-Host` lines, which a stage prints before it does anything;
+	// the table is what it recorded. Deleting the `Stage "clean checkout" 0 ...` line left
+	// every other assertion in this file passing, because the refusal cases all match the
+	// header text too.
+	if !strings.Contains(said, "passed  clean checkout") {
+		t.Errorf("a whole run did not record the clean checkout as a stage that "+
+			"passed, so the verdict does not say it happened:\n%s", said)
+	}
 	for _, stage := range []string{
-		"1/5  the suites",
-		"2/5  packing the bundle",
-		"3/5  installing it",
-		"4/5  the tests that need the screen",
-		"5/5  the complete desktop harness",
+		"1/6  the suites",
+		"2/6  a clean checkout of this commit",
+		"3/6  packing the bundle",
+		"4/6  installing it",
+		"5/6  the tests that need the screen",
+		"6/6  the complete desktop harness",
 	} {
 		if !strings.Contains(said, stage) {
 			t.Errorf("a whole run never reached stage %q:\n%s", stage, said)
@@ -406,5 +487,169 @@ func TestAWholeRunClaimsTheGate(t *testing.T) {
 	// that a reader of a pass most needs.
 	if !strings.Contains(said, "NOT EXERCISED") {
 		t.Errorf("a green run did not say what it does not cover:\n%s", said)
+	}
+}
+
+// AND PACKING IS REFUSED UNLESS A CLEAN CHECKOUT OF THIS COMMIT HAS BEEN BUILT.
+//
+// # Why the stage exists
+//
+// Stage 1 reads the working tree, and the working tree is not what anybody else gets.
+// `go build ./...` and the whole suite passed in this repository for the entire life of
+// cmd/perceptionreplay/coverage.go, 420 lines of production source that was never committed,
+// because `.gitignore` carried `coverage.*` and that matches a .go file as readily as a .out file.
+// `git status` does not list an ignored file, so no amount of running the suite could have said
+// so: the check and the thing it checks shared a blind spot.
+//
+// # What each case is about
+//
+// The three ways the stage can be satisfied by something that is not evidence. Asked separately
+// because the script asks separately, and because a mutation that dropped any one of the three
+// passed the other two: the exit code, the record existing, and the record being about THIS
+// commit.
+func TestPackingIsRefusedUnlessACleanCheckoutBuiltThisCommit(t *testing.T) {
+	for _, c := range []struct {
+		why       string
+		cleanroom string
+		says      string
+	}{
+		{
+			why: "the commit does not build from the committed source",
+			cleanroom: `package main
+
+import (
+	"flag"
+	"fmt"
+	"os"
+)
+
+func main() {
+	flag.String("root", "", "")
+	flag.String("commit", "", "")
+	flag.String("result", "", "")
+	flag.Parse()
+	fmt.Println("undefined: newWalker")
+	os.Exit(1)
+}
+`,
+			says: "does not build from the committed source alone",
+		},
+		{
+			// THE STALE RECORD. A clean checkout of yesterday's commit says nothing
+			// about today's, and this is the arm a reader is most likely to assume is
+			// covered by the exit code -- it is not: the program succeeded.
+			why: "a passing record names another commit",
+			cleanroom: `package main
+
+import (
+	"flag"
+	"fmt"
+	"os"
+)
+
+func main() {
+	flag.String("root", "", "")
+	flag.String("commit", "", "")
+	result := flag.String("result", "", "")
+	flag.Parse()
+	fmt.Println("stand-in clean checkout passed for somebody else's commit")
+	os.WriteFile(*result, []byte("marco clean checkout\ncommit: "+
+		"0123456789abcdef0123456789abcdef01234567\nverdict: PASSED\n"), 0o644)
+}
+`,
+			says: "and this run would pack",
+		},
+		{
+			// A ZERO EXIT AND NOTHING WRITTEN. The shape pack.ps1 already has a
+			// paragraph about, one stage earlier: a program that reports success and
+			// produces nothing leaves whatever was there before it standing in for
+			// what this run did.
+			why: "a run that reported success and recorded nothing",
+			cleanroom: `package main
+
+import (
+	"flag"
+	"fmt"
+)
+
+func main() {
+	flag.String("root", "", "")
+	flag.String("commit", "", "")
+	flag.String("result", "", "")
+	flag.Parse()
+	fmt.Println("stand-in clean checkout says nothing at all")
+}
+`,
+			says: "wrote no result naming a commit",
+		},
+	} {
+		t.Run(c.why, func(t *testing.T) {
+			root := aTreeShapedLikeThisOne(t)
+			if err := os.WriteFile(filepath.Join(root, "cmd", "cleanroom", "main.go"),
+				[]byte(c.cleanroom), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			said, code := theGate(t, root)
+
+			if code == 0 {
+				t.Fatalf("%s left the gate reporting success:\n%s", c.why, said)
+			}
+			if !strings.Contains(said, "2/6  a clean checkout of this commit") {
+				t.Errorf("the run never reached the stage:\n%s", said)
+			}
+			if !strings.Contains(said, c.says) {
+				t.Errorf("the gate does not say %q, so a reader cannot tell what "+
+					"was wrong:\n%s", c.says, said)
+			}
+			// AND THE STAGE IS NAMED IN THE VERDICT, not only printed on its way past.
+			if !strings.Contains(said, "clean checkout") {
+				t.Errorf("the verdict does not name the stage that failed:\n%s", said)
+			}
+			// AND NOTHING WAS PACKED. The whole point of the stage is where it sits:
+			// a bundle built from a commit nobody can build is a bundle only this
+			// machine could have made.
+			if strings.Contains(said, "3/6  packing the bundle") {
+				t.Errorf("the gate went on to pack after the clean checkout "+
+					"failed:\n%s", said)
+			}
+			if strings.Contains(said, "6/6  the complete desktop harness") {
+				t.Errorf("the gate went on to press things after a stage "+
+					"failed:\n%s", said)
+			}
+		})
+	}
+}
+
+// AND AN UNCOMMITTED CHANGE STOPS THE GATE, because the two halves would be about different trees.
+//
+// cleanroom builds the COMMIT and pack.ps1 packs the WORKING TREE. With a change on disk and not
+// in git, the stage would pass on a commit that does not contain it and the bundle would then be
+// packed with it in -- checked nowhere. That is the same shape of gap as the ignored file this
+// stage exists for, one step along, and it is the one case here that must NOT commit first.
+func TestAnUncommittedChangeStopsTheGateBeforeAnythingIsPacked(t *testing.T) {
+	root := aTreeShapedLikeThisOne(t)
+	committed(t, root)
+	if err := os.WriteFile(filepath.Join(root, "cmd", "gate", "late.go"),
+		[]byte("package main\n\nvar aChangeNobodyCommitted = true\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	said, code := theGateOnATreeAsItStands(t, root)
+
+	if code == 0 {
+		t.Fatalf("a tree with an uncommitted change left the gate reporting success:\n%s",
+			said)
+	}
+	for _, says := range []string{
+		"uncommitted change",
+		"not what a clean checkout can build",
+		"late.go",
+	} {
+		if !strings.Contains(said, says) {
+			t.Errorf("the gate does not say %q:\n%s", says, said)
+		}
+	}
+	if strings.Contains(said, "3/6  packing the bundle") {
+		t.Errorf("the gate packed a working tree that no clean checkout had built:\n%s",
+			said)
 	}
 }

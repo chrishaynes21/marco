@@ -134,8 +134,9 @@ go -C plugins/overlay build -o overlay.exe .
 plugins/studio/build.cmd                 # Studio: NEVER a plain `go build` — see below
 plugins/vision/build.cmd                 # Windows: the ONNX backend (needs gcc)
 .\overlay.cmd                          # Windows: launches the overlay stack
-.\gate.ps1                             # the release gate: suites, bundle, install, EVERY scenario
+.\gate.ps1                             # the release gate: suites, a clean checkout, bundle, install, EVERY scenario
 go run ./cmd/gate                      # its first stage alone, which needs no screen
+go run ./cmd/cleanroom                 # its second: builds the COMMITTED source in a clean clone
 ```
 - **`director.exe` must sit beside `marco.exe`.** `marco` finds it by looking next to its own
   executable (`$DIRECTOR_BIN` overrides), and it is not optional: it is what starts the Director
@@ -187,13 +188,31 @@ go run ./cmd/gate                      # its first stage alone, which needs no s
   out, so what is remembered is the pid AND when that pid started, every link of the ancestry is
   checked against that, and `gate.End` compares the start time on the HANDLE IT KILLS — it takes a
   `gate.Identity`, so the old kill-by-number cannot be written any more.
-- **`gate.ps1` is the whole gate**: the suites, then the bundle packed from this tree, then that
-  bundle installed from an isolated directory, then EVERY registered desktop scenario against the
-  installed binaries. Packing is asked three ways, because `pack.ps1` reports a bad bundle by
+- **`gate.ps1` is the whole gate**: the suites, then a CLEAN CHECKOUT of this commit, then the
+  bundle packed from this tree, then that bundle installed from an isolated directory, then the
+  tests that need the screen, then EVERY registered desktop scenario against the installed
+  binaries. Packing is asked three ways, because `pack.ps1` reports a bad bundle by
   THROWING and `$LASTEXITCODE` then holds a stale zero: catch, exit code, and the bundle itself
   must be one this run produced. And `-SuitesOnly`, `-Installed` and `-Only` each end with what
   the run DID NOT ASK, rather than with the sentence a whole run gets. See
   [[ADR-264-the-gate-answers-for-what-did-not-run]].
+- **A GREEN WORKING TREE IS NOT EVIDENCE ABOUT A CLONE, so packing is gated on `cmd/cleanroom`.**
+  Every instrument here reads the directory in front of you — `go build ./...`, the suite,
+  `cmd/gate`, `docscheck`, `wiringcheck` — and for the whole life of
+  `cmd/perceptionreplay/coverage.go` that directory held 420 lines of production source no clone
+  had, because `.gitignore` carried `coverage.*` and that matches a `.go` file as readily as a
+  `.out` file. NOTHING COULD HAVE SAID SO: `git status` does not list an ignored file, so the
+  check and the thing it checks shared one blind spot, and it surfaced only when a commit was
+  checked out into an empty worktree. So stage 2 clones the commit, REFUSES unless
+  `git status --porcelain --ignored` in the checkout is empty, builds it and runs the screen-free
+  gate there, and writes a result NAMING THE COMMIT — and packing refuses unless that record
+  says PASSED *and* names the commit about to be packed, because an exit code is not a record and
+  a record of yesterday's commit is not a record of this one. The working tree must be clean too:
+  cleanroom builds the COMMIT while `pack.ps1` packs the WORKING TREE, so an uncommitted change
+  would be packed having been checked nowhere. `internal/wiringcheck`
+  `TestNoIgnorePatternHidesASourceFile` kills the specific pattern accident and cannot establish
+  that every file the build needs was ever added; only a clone can. See
+  [[ADR-270-packaging-is-gated-on-a-clean-checkout]].
 - **A `.ps1` in this tree must be ASCII, or carry a BOM.** Windows PowerShell 5.1 reads a
   BOM-less file as ANSI, so a box-drawing character or an em dash in a script written as plain
   UTF-8 becomes a parse error with a mangled caret — which is what the first `gate.ps1` did,

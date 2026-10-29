@@ -11872,3 +11872,39 @@ that fires on a state nobody should change is a gate somebody turns off.
 The candidate as a whole — commit ids, what has been verified and with what, what has NOT been
 run, and what the green does not claim — is written up in
 [[Alpha-candidate-2026-10-29]].
+
+## And packing is gated on a clean checkout
+
+Adding the missing file fixed the known omission. It did not establish that anybody else can
+build this commit, and the reason is the same one that hid the file: every instrument here reads
+the directory in front of the person running it. `go build ./...` compiles what is on disk. The
+suite reads what is on disk. `cmd/gate` is told which tree it is for and reads that one. So does
+`docscheck`, and so does `wiringcheck`. All correct, and none of them a claim about the
+repository.
+
+So `cmd/cleanroom` is stage 2 of six, before packing. It clones the commit with
+`--no-hardlinks`, checks it out detached, and REFUSES unless `git status --porcelain --ignored` in
+the checkout reports nothing — the premise checked rather than assumed, because a checkout with
+an ignored file in it is a second working tree and the program would then be measuring the same
+blind spot from a new directory. It names what it takes from the machine rather than from the
+commit, says which generated artifacts this stage needs (none: `cmd/gate` builds the binaries it
+gates), builds the root module, runs the screen-free gate inside the checkout, and writes a
+result naming the commit.
+
+`gate.ps1` refuses to pack unless that record says PASSED **and** names the commit it is about to
+pack. Three arms, asked separately, because a mutation dropping any one of them passed the other
+two: a program that failed, a program that succeeded and wrote nothing, and a passing record of
+SOME OTHER COMMIT. The middle one is the shape `pack.ps1` already has a paragraph about one stage
+along — a packer that reports success and produces nothing leaves whatever was there before
+standing in for what this run made — and the third is the one a reader is most likely to assume
+the exit code covers. It does not: the program succeeded.
+
+And the working tree has to be clean, or the two halves are about different trees: cleanroom
+builds the COMMIT and `pack.ps1` packs the WORKING TREE, so an uncommitted change would be packed
+having been checked nowhere. The same shape of gap as the ignored file, one step along.
+
+Eight of eight mutations killed, including the stage recording nothing in the verdict table —
+which survived at first, because every refusal case matched the stage's printed header too.
+
+See [[ADR-270-packaging-is-gated-on-a-clean-checkout]]. The result of the run against the
+candidate is in [[Alpha-candidate-2026-10-29]].

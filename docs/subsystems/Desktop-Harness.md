@@ -527,20 +527,33 @@ that answered are the ones that commit builds. See [[ADR-263-the-alpha-is-the-st
 that takes somebody’s screen:
 
 1. **the suites**, with what declined and what outlived them (`cmd/gate`)
-2. **the bundle**, packed from this tree (`pack.ps1`)
-3. **the bundle installed** from an isolated directory, reporting what it is made of
-4. **every registered scenario** against those installed binaries
+2. **a clean checkout of this commit**, built and gated from the committed source (`cmd/cleanroom`)
+3. **the bundle**, packed from this tree (`pack.ps1`)
+4. **the bundle installed** from an isolated directory, reporting what it is made of
+5. **the tests whose preconditions are facts about the screen** (`-tags desktop`)
+6. **every registered scenario** against those installed binaries
 
 Each stage is worth something only if the one before it passed, so each one has to establish
 that the one before it HAPPENED. A harness run against binaries whose own suite is failing tells
 you about the harness, and a bundle validated from the tree it was built in cannot tell you
 whether an installation works.
 
-**And stage 4 is only about this tree if stage 2 produced the bundle.** `pack.ps1` reports a bad
+**And stage 1 is not evidence about a clone, which is why stage 2 exists.** Every instrument in
+this repository reads the directory in front of the person running it, and for the whole life of
+`cmd/perceptionreplay/coverage.go` that directory held 420 lines of production source no clone
+had — `.gitignore` carried `coverage.*`, and that matches a `.go` file as readily as a `.out`
+file. `git status` does not list an ignored file, so nothing could have said so: the check and
+the thing it checks shared one blind spot. Stage 2 clones the commit, refuses unless
+`git status --porcelain --ignored` in the checkout is empty, builds it and runs stage 1 there,
+and writes a result NAMING THE COMMIT. Packing refuses unless that record says PASSED and names
+the commit about to be packed — an exit code is not a record, and a record of another commit is
+not a record of this one. See [[ADR-270-packaging-is-gated-on-a-clean-checkout]].
+
+**And stage 6 is only about this tree if stage 3 produced the bundle.** `pack.ps1` reports a bad
 bundle by `throw`ing, and `$LASTEXITCODE` then holds the zero that the last native command which
 SUCCEEDED left behind — so an exit-code check saw a successful packing, and this harness ran
 against whatever `dist\Marco.exe` was already on disk, which could be from any build at all. The
-installed-bundle result is the whole provenance claim of stages 3 and 4, and it would have been
+installed-bundle result is the whole provenance claim of stages 4 and 6, and it would have been
 about a bundle nobody could name. Packing is now asked three ways: the exception is caught, the
 exit code is checked, and the bundle must be one this run produced.
 
