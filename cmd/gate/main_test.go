@@ -181,8 +181,25 @@ func TestASurvivingChildIsFoundDescribedAndEnded(t *testing.T) {
 	if len(r.findings) != 1 {
 		t.Fatalf("findings are %+v, want the surviving child", r.findings)
 	}
-	if !strings.Contains(r.findings[0], "1 process(es) running") {
-		t.Errorf("the finding does not say what was left running: %s", r.findings[0])
+	// THE CHILD THIS TEST STARTED, AND NOT A COUNT OF WHAT THE MACHINE IS RUNNING.
+	//
+	// This asserted `1 process(es) running`, which assumes nothing else on the machine
+	// runs powershell. The watched set is EVERY `powershell.exe`, because that is what
+	// makes the sweep realistic — so the assertion was a fact about somebody's desktop.
+	//
+	// It failed under `gate.ps1` with the owner's SteelSeries software holding one open.
+	// The sweep was RIGHT: it found two, described both, ended the one below this
+	// process, and left the stranger with the reason — its parent was still running, so
+	// ownership could not be established, and ownership here is positive only. The count
+	// was the only thing wrong, which is the same shape as the five families `2770d46`
+	// fixed and as the `sh` the suite needed: a test reading one machine.
+	if !strings.Contains(r.findings[0], "process(es) running") {
+		t.Errorf("the finding does not say anything was left running: %s", r.findings[0])
+	}
+	if !strings.Contains(r.findings[0], fmt.Sprintf("(%d)", child.Process.Pid)) {
+		t.Errorf("the finding does not name the child this test started (%d), so it "+
+			"is not a finding about the sweep this test drove: %s",
+			child.Process.Pid, r.findings[0])
 	}
 	// WRITTEN DOWN, where the finding says it is.
 	said, err := os.ReadFile(filepath.Join(r.dir, "survivors-a-test.txt"))

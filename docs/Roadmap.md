@@ -1582,6 +1582,21 @@ and nothing in `cmd/director` reaches `Rescope`, `Rescoped` or `Registry.DeleteS
 narrows the interaction; it does not rule one out, and the failure has not been attributed to
 anything.
 
+**SECOND OCCURRENCE, 2026-10-30, `gate.ps1` run `20261029-214243`.** The same test, the same
+assertion, the same words:
+
+> `actgrant_test.go:754: the run could not establish its screen and never said so:
+> [starting ended]`
+
+This one was a SOLO run — nothing else was started against the machine, which is the mistake
+that voided an earlier result and was not repeated. It was the full packaged gate, from its own
+entry point, and it stopped at stage 1, so **this item now blocks packaged acceptance** rather
+than sitting beside it.
+
+Roughly two failures in five solo runs of the screen-free stage. The states the run reported are
+`starting` then `ended`: it finished without the state that says it could not establish a screen,
+which is what the assertion is about. No cause is established and none is guessed at here.
+
 **One more observation, 2026-10-30, and it is not a cause.** A clean-checkout run of `8550723`
 overlapped a second suite started while it was running, and two tests failed during it:
 `internal/stopsignal` `TestAnUnreadableGenerationDoesNotRefuseToStartAPlay` (*the generation file
