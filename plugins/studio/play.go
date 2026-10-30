@@ -348,3 +348,16 @@ func (a *Acts) lift(h uintptr, pid uint32) (leading, checked bool) {
 	}
 	return raiseWindow(h, pid)
 }
+
+// liftTraced is `lift` with the reading it made, for an investigation rather than a decision.
+//
+// A test's stand-in has nothing to observe and says so, which keeps the seam honest: the trace is
+// what the DESKTOP saw, and a fixture that invented one would be evidence about nothing.
+func (a *Acts) liftTraced(h uintptr, pid uint32) (bool, raiseTrace, bool) {
+	if a.lifting != nil {
+		leading, checked := a.lifting(h, pid)
+		return leading, raiseTrace{Asked: h, AskedPID: pid,
+			Why: "a test stood in for the desktop"}, checked
+	}
+	return raiseWindowTraced(h, pid)
+}

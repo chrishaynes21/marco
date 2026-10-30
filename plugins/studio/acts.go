@@ -119,7 +119,8 @@ type Acts struct {
 	// Nothing in it is on disk and nothing in it has to survive the window. A review a
 	// person left open and never acted on is dropped when Studio closes, which is the
 	// right answer: it was a comparison, not a pending change.
-	reviews map[string]orchestrator.Prepared
+	evidence string
+	reviews  map[string]orchestrator.Prepared
 	// reviewOrder is the order they arrived, so the oldest goes when there are too many.
 	reviewOrder []string
 	// moves is each prepared MOVE between two scopes, held for the same reasons and
@@ -222,6 +223,30 @@ type marcoChecks struct{}
 func (marcoChecks) Check(src string) error { return driver.CheckSource(src) }
 
 // newActs resolves the stores this Studio reads.
+// evidence is the file a harness asked this window to write what it observed into, or empty.
+//
+// THE SAME CHANNEL THE PAGE'S OWN PROOF USES (`Backend.note`), for the same reason: a windowed
+// process has no stderr anybody reads, so what it saw has to be written down where whoever asked
+// can find it. Set only by `-evidence`, which is how `plugins/e2e` starts Studio; empty for a
+// person's window, and nothing is written then.
+func (a *Acts) observing(path string) { a.evidence = path }
+
+// observed appends one reading to that file. A diagnostic, never a product record — the trial
+// journal is what a person reads afterwards, and this is what an investigation reads.
+func (a *Acts) observed(kind string, v any) {
+	if a.evidence == "" {
+		return
+	}
+	f, err := os.OpenFile(a.evidence, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	if raw, err := json.Marshal(v); err == nil {
+		fmt.Fprintf(f, "%-8s %s\n", kind, raw)
+	}
+}
+
 func newActs(home string) *Acts {
 	// THE LIBRARY, AND NOT A DIRECTORY BESIDE WHOEVER LAUNCHED THIS.
 	//

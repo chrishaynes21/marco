@@ -128,6 +128,9 @@ func main() {
 		phrase: *phrase, autoStart: *autostart, autoCancel: *autocancel}
 	// THE ACT SURFACE, which is what Studio is for. See acts.go.
 	surface := newActs(store)
+	// AND WHERE TO WRITE WHAT IT OBSERVES, when somebody asked. The same file the page's
+	// own proof writes to: a windowed process has no stderr anybody reads.
+	surface.observing(*evidence)
 	defer b.Close()
 	// AND THE ACT RUN, which outlived the window before this. See Acts.Close.
 	defer surface.Close()

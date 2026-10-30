@@ -14,3 +14,30 @@ package main
 // run's own foreground guard then answers it at the instant it matters.
 
 func raiseWindow(uintptr, uint32) (leading, checked bool) { return false, false }
+
+// raiseWindowTraced is the same answer with nothing observed, because there was nothing to ask.
+func raiseWindowTraced(h uintptr, pid uint32) (bool, raiseTrace, bool) {
+	return false, raiseTrace{Asked: h, AskedPID: pid,
+		Why: "this platform cannot say where the foreground is"}, false
+}
+
+// raiseTrace and raiseLook are the Windows file's shapes, so the one caller compiles here too.
+type raiseTrace struct {
+	Asked                 uintptr     `json:"asked_hwnd"`
+	AskedPID              uint32      `json:"asked_pid"`
+	LeadingBefore         uintptr     `json:"leading_before_hwnd"`
+	LeadingPIDBefore      uint32      `json:"leading_before_pid"`
+	Restored              bool        `json:"restored,omitempty"`
+	SetForegroundReturned bool        `json:"setforeground_returned"`
+	SetForegroundError    string      `json:"setforeground_error,omitempty"`
+	Looks                 []raiseLook `json:"looks"`
+	LeadingAfter          uintptr     `json:"leading_after_hwnd"`
+	LeadingPIDAfter       uint32      `json:"leading_after_pid"`
+	Why                   string      `json:"why,omitempty"`
+}
+
+type raiseLook struct {
+	At   int     `json:"look"`
+	Hwnd uintptr `json:"hwnd"`
+	PID  uint32  `json:"pid"`
+}

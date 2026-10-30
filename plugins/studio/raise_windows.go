@@ -78,29 +78,102 @@ const swRestore = 9
 // activation, and asking immediately gets the answer from before — which would refuse a raise
 // that was about to work. Half a second, in short steps, returning the moment it is true.
 func raiseWindow(h uintptr, pid uint32) (leading, checked bool) {
+	l, _, c := raiseWindowTraced(h, pid)
+	return l, c
+}
+
+// raiseWindowTraced is the same raise, saying what it saw at every step.
+//
+// # Why the trace exists
+//
+// Three desktop scenarios failed with "Windows would not bring %s to the front", and that
+// sentence is what this function concludes " — not what it observed. All it establishes is that the
+// target process was not leading after the bounded wait. It does NOT establish that the foreground
+// lock rejected the request, which is one of several things that sentence invites a reader to
+// assume: the call may have been accepted and the window may have handed on to something else, the
+// window may have been restored and not activated, the process may have had a second window
+// leading, or Studio may not have owned the foreground to give away in the first place.
+//
+// So this records the four facts a reader needs and nothing concludes for them: who was leading
+// before the ask (which is whether Studio had anything to hand on), the window and owner asked
+// for, what `SetForegroundWindow` ITSELF returned together with the error code behind it, and who
+// was leading at each look through the wait.
+//
+// It changes no behaviour. The waiting, the restore and the comparison are exactly as they were:
+// nothing is retried, nothing waits longer, and no key is synthesised to get around anything.
+func raiseWindowTraced(h uintptr, pid uint32) (leading bool, trace raiseTrace, checked bool) {
+	trace.Asked, trace.AskedPID = h, pid
 	if h == 0 {
-		return false, true
+		trace.Why = "no window was given"
+		return false, trace, true
 	}
+	trace.LeadingBefore, trace.LeadingPIDBefore = leadingNow()
 	if iconic, _, _ := procIsIconic.Call(h); iconic != 0 {
+		trace.Restored = true
 		procShowWindow.Call(h, uintptr(swRestore))
 	}
-	procSetForeground.Call(h)
+	// THE CALL'S OWN ANSWER, AND THE ERROR BEHIND IT. `SetForegroundWindow` returns
+	// non-zero when the request was accepted. A zero with no error code is the lock
+	// declining; a zero WITH one is something else, and the two have been read as the
+	// same thing.
+	ok, _, err := procSetForeground.Call(h)
+	trace.SetForegroundReturned = ok != 0
+	if err != nil {
+		trace.SetForegroundError = err.Error()
+	}
 	for i := 0; i < 10; i++ {
-		if leadingProcess() == pid {
-			return true, true
+		hwnd, owner := leadingNow()
+		trace.Looks = append(trace.Looks, raiseLook{At: i, Hwnd: hwnd, PID: owner})
+		if owner == pid {
+			trace.LeadingAfter, trace.LeadingPIDAfter = hwnd, owner
+			return true, trace, true
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
-	return leadingProcess() == pid, true
+	hwnd, owner := leadingNow()
+	trace.Looks = append(trace.Looks, raiseLook{At: 10, Hwnd: hwnd, PID: owner})
+	trace.LeadingAfter, trace.LeadingPIDAfter = hwnd, owner
+	return owner == pid, trace, true
 }
 
-// leadingProcess is the process owning the foreground window, or 0 when there is none.
-func leadingProcess() uint32 {
+// raiseTrace is what one attempt to hand the foreground on actually observed.
+//
+// Every field is a READING, and none of them is a conclusion. `Why` is set only where this
+// function declines before asking anything.
+type raiseTrace struct {
+	Asked    uintptr `json:"asked_hwnd"`
+	AskedPID uint32  `json:"asked_pid"`
+	// Who was leading before the ask " — which is whether the process doing the asking had
+	// the foreground to hand on at all.
+	LeadingBefore    uintptr `json:"leading_before_hwnd"`
+	LeadingPIDBefore uint32  `json:"leading_before_pid"`
+	// Whether the window had to be restored first.
+	Restored bool `json:"restored,omitempty"`
+	// What the call itself answered, and the error code behind it.
+	SetForegroundReturned bool   `json:"setforeground_returned"`
+	SetForegroundError    string `json:"setforeground_error,omitempty"`
+	// Every look through the existing wait, in order.
+	Looks []raiseLook `json:"looks"`
+	// Who was leading when the wait ended.
+	LeadingAfter    uintptr `json:"leading_after_hwnd"`
+	LeadingPIDAfter uint32  `json:"leading_after_pid"`
+	Why             string  `json:"why,omitempty"`
+}
+
+// raiseLook is one reading of the foreground during the wait.
+type raiseLook struct {
+	At   int     `json:"look"`
+	Hwnd uintptr `json:"hwnd"`
+	PID  uint32  `json:"pid"`
+}
+
+// leadingNow is the foreground window and its owner, or zeroes when there is none.
+func leadingNow() (uintptr, uint32) {
 	front, _, _ := procGetForeground.Call()
 	if front == 0 {
-		return 0
+		return 0, 0
 	}
 	var pid uint32
 	procWindowThreadPID.Call(front, uintptr(unsafe.Pointer(&pid)))
-	return pid
+	return front, pid
 }

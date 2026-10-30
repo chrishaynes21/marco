@@ -539,7 +539,18 @@ func (a *Acts) doCommand(r Routine, into orchestrator.Pickable) (bin string, arg
 // not see, because the window was never brought forward. `checked` keeps it honest: a platform
 // that cannot tell where the foreground is says nothing and the run starts.
 func (a *Acts) liftChosen(into orchestrator.Pickable) string {
-	leading, checked := a.lift(into.HWnd, into.PID)
+	leading, trace, checked := a.liftTraced(into.HWnd, into.PID)
+	// WHAT IT SAW, WRITTEN DOWN BEFORE ANYTHING IS CONCLUDED FROM IT.
+	//
+	// The sentence below says Windows would not bring the window to the front. That is a
+	// CONCLUSION, and three desktop scenarios failed on it while the only thing
+	// established was that the target process was not leading after the wait. Who was
+	// leading before the ask, what the call itself returned, and who held the foreground
+	// at each look are four different facts, and none of them was recorded.
+	//
+	// Written for every outcome and not only the refusal: a trace that exists only when
+	// something went wrong cannot say what a working one looks like.
+	a.observed("raise", trace)
 	if checked && !leading {
 		return fmt.Sprintf("Windows would not bring %s to the front, and Marco will "+
 			"not press anything it cannot see — click that window yourself, then "+
