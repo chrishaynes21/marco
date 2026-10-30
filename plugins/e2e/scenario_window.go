@@ -37,13 +37,15 @@ func readinessNoticesAMissingSibling(w *world) result {
 		return ending(started, err)
 	}
 	defer s.close()
-	// THE SCENES SURFACE, PROVED BY A CONTROL RATHER THAN BY THE CARD.
+	// THE RECORDING SURFACE, PROVED BY A CONTROL RATHER THAN BY THE CARD.
 	//
 	// `readyCard` is a div with no role, so it is correctly absent from the accessibility
 	// tree even when it is on screen — only its TEXT is there, as text. What the panel says
 	// is asserted below with `says`; what is waited for here has to be something the tree
 	// actually holds.
-	if err := s.surface("scenes", "capBtn"); err != nil {
+	// AND IT IS `routines`, NOT `scenes`: `capBtn` moved when Studio gave the
+	// demonstrate-and-watch tools their own place. See stage.go.
+	if err := s.surface("routines", "capBtn"); err != nil {
 		return fail(started, err.Error())
 	}
 	// NOTHING WRONG, FIRST, AND THE RIGHT PHRASE TO LOOK FOR.

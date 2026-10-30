@@ -85,7 +85,18 @@ func setUpWatching(w *world, watch []string,
 		return nil, err
 	}
 	st.s = s
-	if err := s.surface("scenes", "capBtn"); err != nil {
+	// THE SURFACE THAT HOLDS THE RECORDING CARD, WHICH IS `routines` NOW.
+	//
+	// This asked for `scenes` and waited for `capBtn`, then chose a routine card —
+	// which only worked while the recording card and the routine list were ONE
+	// surface. Studio split the three demonstrate-and-watch tools into their own
+	// place, so `rail-scenes` now shows `learnName/learnApp/learnBtn` and `capBtn`
+	// lives under `rail-routines` with the cards.
+	//
+	// Every registered scenario failed on it, in stage 6 of 6, twenty minutes into a
+	// run and only with the screen. `TestEveryHarnessSurfaceHoldsTheControlItWaitsFor`
+	// asks the same question of the page without one.
+	if err := s.surface("routines", "capBtn"); err != nil {
 		st.down()
 		return nil, err
 	}

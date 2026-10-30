@@ -77,6 +77,17 @@ func BenchmarkMeasureAMenu(b *testing.B) {
 // claim being defended is "two orders of magnitude", not a particular millisecond count. If
 // this ever fails, the slow-discovery/fast-tracking split is not worth building and the note
 // in ADR-152 is wrong.
+//
+// # What the measurement below does and does NOT establish
+//
+// It asserts on the FASTEST of twenty passes, so what it establishes is an ATTAINABLE cost: on
+// this machine, with these pixels, the read CAN be done in that time. That is the right question
+// for the architectural claim — whether there is anything worth splitting — and it is NOT a
+// sustained latency bound. It says nothing about the cost under load, about a p95, or about what
+// a tracking loop would see while something else is running: the mean is logged beside it for
+// exactly that reason, and the mean is not asserted on.
+//
+// Anybody who needs a sustained bound has to measure one, and this is not it.
 func TestReadingAMenusShadeIsCheapAgainstAnInference(t *testing.T) {
 	img := shadedFrame()
 	rects := menuRects()
@@ -97,7 +108,7 @@ func TestReadingAMenusShadeIsCheapAgainstAnInference(t *testing.T) {
 	//
 	// A MINIMUM CANNOT BE INFLATED BY LOAD, only by the operation being slow. Load can
 	// make every pass slower, so this is not immune — but it takes the fastest moment
-	// the machine offered, which is the closest thing to the cost being claimed. The mean
+	// the machine offered, which is the closest thing to the ATTAINABLE cost being claimed; it is not a sustained bound. The mean
 	// is still logged, because a mean that has drifted is worth seeing even when the
 	// claim holds.
 	const passes = 20
