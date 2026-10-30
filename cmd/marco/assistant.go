@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -16,6 +17,7 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/nlu"
 	"github.com/chaynes-simpleclouds/marco/internal/orchestrator"
 	"github.com/chaynes-simpleclouds/marco/internal/oshost"
+	"github.com/chaynes-simpleclouds/marco/internal/outcome"
 	"github.com/chaynes-simpleclouds/marco/internal/plays"
 	"github.com/chaynes-simpleclouds/marco/internal/recorder"
 	"github.com/chaynes-simpleclouds/marco/internal/resolver"
@@ -127,13 +129,26 @@ func runAssistantDo(args []string) {
 		fmt.Fprintln(os.Stderr, `usage: marco do "<name>" [--explain] [--window=<which>]`)
 		os.Exit(2)
 	}
-	d := newDeps()
+	os.Exit(doInTheChosenWindow(newDeps(), req, explain, window, os.Stdout, os.Stderr))
+}
+
+// doInTheChosenWindow is the entrance's body: give the run its window, or refuse it.
+//
+// Separated from the entrance for one property that could not otherwise be held: **a run told
+// which window to act in and unable to have it PERFORMS NOTHING.** With `os.Exit` inline there was
+// no way to drive this fork from a test at all, which is the same reason `doOrExplain` is a
+// function — and the defect it hides is worse here than there. See handOverTheWindow.
+//
+// Deleting the early return must fail TestARejectedHandoffRefusesAndPressesNothing.
+func doInTheChosenWindow(d orchestrator.Deps, req invoke.Request, explain bool, window string,
+	out, errs io.Writer) int {
 	// THE WINDOW FIRST, AND A REFUSAL HERE PERFORMS NOTHING.
 	//
-	// Before `doOrExplain`, because the thing it would otherwise do is press something:
-	// a run told to act in a window that has closed must not fall back to whatever is in
-	// front, and the sentence costs the person nothing if it arrives before the first
-	// press rather than after it.
+	// Before `doOrExplain`, because the thing it would otherwise do is press something: a
+	// run told to act in a window it cannot have must not fall back to whatever is in
+	// front. That fallback is not hypothetical — the two scopes with no `Activate`,
+	// context and global, are exactly where unguarded presses live, so a routine that
+	// types would type into the person's editor or their chat window.
 	if window != "" {
 		if why := handOverTheWindow(d, window); why != "" {
 			// AND IT IS A REFUSAL, ANNOUNCED. Not a bare exit code with a
@@ -143,12 +158,12 @@ func runAssistantDo(args []string) {
 			// what this did when it was first written, and what the end-to-end
 			// test of it found. REFUSED is the word: the run was asked for, it
 			// was understood, and it did not happen.
-			fmt.Fprintln(os.Stderr, why)
-			announce(OutcomeRefused)
-			os.Exit(OutcomeRefused.Exit())
+			fmt.Fprintln(errs, why)
+			outcome.Announce(out, OutcomeRefused)
+			return OutcomeRefused.Exit()
 		}
 	}
-	os.Exit(doOrExplain(d, req, explain))
+	return doOrExplain(d, req, explain)
 }
 
 // handOverTheWindow gives the run the window it is to act in, or says why it cannot have one.

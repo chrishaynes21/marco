@@ -352,8 +352,13 @@ looks for another window of the same program. Nothing durable carries a handle.
 
 It is an INITIAL HANDOFF and the surface says so: the window gets the foreground at the start of
 the run, and a window that comes forward afterwards gets what is typed next — a guarded
-routine's presses are checked and stop, an unguarded one's are not. `marco do` without
-`--window` is unchanged. See [[ADR-272-the-window-a-run-acts-in-is-chosen-and-carried]].
+routine's presses are checked and stop, an unguarded one's are not.
+
+And a handoff Windows REFUSES stops the run. It used to be recorded and then returned as
+success, which is sound for a guarded press — its own boundary refuses — and wrong for an
+unguarded one, where nothing else stands between a routine that types and whatever stayed in
+front. `marco do` without `--window` is unchanged. See
+[[ADR-272-the-window-a-run-acts-in-is-chosen-and-carried]].
 
 ## Related
 

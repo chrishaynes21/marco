@@ -330,22 +330,84 @@ func Bind(name string) (hwnd uintptr, err error) {
 // The waiting is `Bind`'s, for `Bind`'s reasons: `SetForegroundWindow` returns before the window
 // is frontmost, and a full-screen transition relayouts everything inside a window whose
 // activation has already been accepted.
+//
+// # It REPORTS whether the window actually came forward
+//
+// `SetForegroundWindow`'s own answer is that the request was accepted, which is not the same
+// claim: the foreground lock refuses it outright to a process that does not already own the
+// foreground, and the measured consequence of believing it was a run that waited thirty seconds
+// for a window nobody had brought forward. The caller needs the real answer because an unguarded
+// press has nothing else to protect it — there is no later check that the window is in front, so
+// a run whose handoff was refused would type into whatever stayed there.
+//
+// THE COMPARISON IS THE OWNING PROCESS, not the handle. An application brought forward does not
+// necessarily leave THAT window in front: a game can activate a child window, a launcher can hand
+// over to the window it was waiting for. What a person means by "it came forward" is that their
+// application is in front, and the guarded boundary asks the stricter question for itself.
 func Raise(hwnd uintptr) error {
 	if hwnd == 0 {
 		return fmt.Errorf("raise: no window")
 	}
+	want := ownerOf(hwnd)
+	if want == 0 {
+		return fmt.Errorf("raise: the window would not say which process owns it")
+	}
 	if cur, _, _ := procGetForegroundWindow.Call(); cur != 0 && cur != hwnd {
 		prevForeground = cur
 	}
-	forceForeground(hwnd)
-	for range 15 {
-		if fg, _, _ := procGetForegroundWindow.Call(); fg == hwnd {
-			break
+	forceTo(hwnd)
+	// HALF A SECOND, IN SHORT STEPS, returning the moment it is true. The foreground
+	// change is not synchronous with the call: a full-screen game has to process the
+	// activation, and asking immediately gets the answer from before — which would
+	// refuse a raise that was about to work.
+	for range 10 {
+		if leadingNow() == want {
+			waitWindowStable(hwnd)
+			return nil
 		}
-		time.Sleep(10 * time.Millisecond)
+		waitABit()
 	}
-	waitWindowStable(hwnd)
-	return nil
+	if leadingNow() == want {
+		waitWindowStable(hwnd)
+		return nil
+	}
+	return fmt.Errorf("Windows would not bring that window to the front (only the "+
+		"window you last clicked may hand the foreground on), and process %d is "+
+		"still leading", leadingNow())
+}
+
+// forceTo, leadingNow, ownerOf and waitABit are the ask, the answer, the question it is about,
+// and the pause between tries.
+//
+// VARIABLES SO THE ANSWER CAN BE EXERCISED WITHOUT A DESKTOP. What `Raise` decides is whether the
+// window came forward, and the case that matters — Windows REFUSING the handoff — cannot be
+// arranged on purpose: the foreground lock grants it to the process that owns the foreground, and
+// a test process either owns it or does not depending on what somebody is doing at the time. The
+// same reason `oshost` keeps `windowFacts` and `imageOf` behind variables, and nothing else
+// replaces these. See raise_windows_test.go.
+var (
+	forceTo    = forceForeground
+	leadingNow = leadingProcess
+	ownerOf    = windowOwner
+	waitABit   = func() { time.Sleep(50 * time.Millisecond) }
+)
+
+// windowOwner is the process that owns one window, or 0.
+func windowOwner(hwnd uintptr) uint32 {
+	var pid uint32
+	procGetWindowThreadPID.Call(hwnd, uintptr(unsafe.Pointer(&pid)))
+	return pid
+}
+
+// leadingProcess is the process owning the foreground window, or 0 when there is none.
+func leadingProcess() uint32 {
+	front, _, _ := procGetForegroundWindow.Call()
+	if front == 0 {
+		return 0
+	}
+	var pid uint32
+	procGetWindowThreadPID.Call(front, uintptr(unsafe.Pointer(&pid)))
+	return pid
 }
 
 // ActivateTitle brings the window whose TITLE contains a phrase to the front.

@@ -17,6 +17,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"testing"
 	"time"
 
 	"github.com/chaynes-simpleclouds/marco/internal/macroir"
@@ -2119,10 +2120,24 @@ func (h *Host) bindAt(hwnd uintptr, app string) {
 // to replace.
 //
 // It also RAISES it, because the surface that chose it may not be the thing that can: a person
-// typing `marco do --window=...` at a terminal has chosen a window and raised nothing. A raise
-// that does not work is kept beside the refusals rather than failing here, exactly as `activate`
-// keeps one: the guarded boundary asks whether the window is in front at the instant of the
-// press, and that is the answer that decides.
+// typing `marco do --window=...` at a terminal has chosen a window and raised nothing.
+//
+// # AND A RAISE THAT DID NOT WORK IS A REFUSAL, NOT A NOTE
+//
+// This recorded the failure in `Unperformed` and returned SUCCESS, on the reasoning `activate`
+// uses: the guarded boundary asks whether the window is in front at the instant of the press, and
+// that is the answer that decides. THAT REASONING DOES NOT HOLD HERE, and the case it misses is
+// the one this whole hand-over exists for.
+//
+// It holds for a GUARDED press, which refuses when the window it was recorded in is not in front.
+// It does not hold for an UNGUARDED one, and the two scopes with no `Activate` — context and
+// global — are exactly where unguarded presses live. A routine that types would have typed into
+// whatever stayed in front: the person's editor, their chat window, the terminal. The account
+// would have said truthfully that the window could not be brought forward, beside a run that had
+// already typed somewhere else.
+//
+// So the error is RETURNED. The entrance announces `refused` and never enters the routine.
+// Keeping it in the account is still worth doing and cannot stand in for stopping.
 //
 // # What it does NOT set
 //
@@ -2170,8 +2185,12 @@ func (h *Host) GiveWindow(hwnd uintptr, pid uint32) (string, error) {
 	mlog.Debug("given: the window this run was told to act in",
 		"window", fmt.Sprintf("hwnd:%#x", hwnd), "pid", pid, "program", is)
 	if err := raiseWindow(hwnd); err != nil {
+		// IN THE ACCOUNT *AND* RETURNED. The account is what somebody reads
+		// afterwards; the return is what stops the run. See above.
 		h.didNotDo(fmt.Sprintf("the %s window chosen for this run could not be "+
 			"brought to the front: %v", is, err))
+		return is, fmt.Errorf("the %s window chosen for this run could not be "+
+			"brought to the front, and nothing was performed: %w", is, err)
 	}
 	return is, nil
 }
@@ -2715,3 +2734,30 @@ var (
 	bindWindow  = winctx.Bind
 	raiseWindow = winctx.Raise
 )
+
+// WindowForTest states the one window a hand-over sees, for a test in another package.
+//
+// Exported because the COMMAND PATH is what refuses, and that lives in `cmd/marco`: what
+// `handOverTheWindow` does with a rejected foreground handoff cannot be exercised from in here.
+// The same shape as `orchestrator.WindowsForTest` and `winprovider.DesktopForTest`, and for the
+// same reason: `testing.TB` rather than a bare setter, so the restore cannot be forgotten and a
+// package-level seam cannot be left pointing at a fixture for every later test in the binary.
+//
+// ALL THREE TOGETHER, never one. A stated window under a live `imageOf` names whatever program
+// owns a pid that does not exist, and a stated window under a live `raiseWindow` asks Windows to
+// foreground a handle that is not one — either of which is a test passing or failing on
+// something it is not about.
+func WindowForTest(t testing.TB, hwnd uintptr, pid uint32, program string, raise error) {
+	t.Helper()
+	wasFacts, wasImage, wasRaise := windowFacts, imageOf, raiseWindow
+	t.Cleanup(func() { windowFacts, imageOf, raiseWindow = wasFacts, wasImage, wasRaise })
+	windowFacts = func(h uintptr) winctx.WindowFacts {
+		if h != hwnd {
+			return winctx.WindowFacts{}
+		}
+		return winctx.WindowFacts{Alive: true, Front: raise == nil, PID: pid,
+			W: 1280, H: 800, Dpi: 96}
+	}
+	imageOf = func(uint32) string { return program }
+	raiseWindow = func(uintptr) error { return raise }
+}

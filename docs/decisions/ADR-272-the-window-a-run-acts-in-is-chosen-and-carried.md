@@ -2,7 +2,7 @@
 type: decision
 status: accepted
 date: 2026-10-29
-decision: "ACCEPTED — WHICH WINDOW A RUN ACTS IN IS CHOSEN BEFORE PLAY AND CARRIED TO THE RUN, AND IT IS NEVER DURABLE. Studio raised an application's window and the child bound one: two steps and two independent choices. `theWindowToRaise` preferred the biggest window that was up; `winctx.Bind` was given a program NAME and took the first visible window `EnumWindows` reached. With two Explorer windows, two copies of a game or two browser profiles those are different windows — and NOTHING DOWNSTREAM COULD TELL, because `oshost.confirmWindow` compares the program, the size, the scale and the owning process of the window that was BOUND, and two windows of one program agree on the first three while the fourth compares the bound window against itself. The press landed in a window nobody chose, having passed every check there is. A routine naming no application had nothing raised at all, so its run began with Studio in front and an unguarded press went into Marco's own window. So the window is CHOSEN, out of the same list `marco learn` chooses a recording's window from (`orchestrator.Pickable`, which excludes this process and its owning surface, so Studio is never a candidate): one candidate is selected automatically and SHOWN beside Play, several is a visible choice, and none means Play is unavailable with a reason that says what to start. Studio then raises THAT HANDLE and hands the child `--window=<handle>:<owner>` — one term with BOTH HALVES, because a handle is not an identity: Windows hands the number back out, and a program name does not separate two copies of one program. The child VERIFIES what it was given — a window that is still there, still that process's, and still the program the route asks to activate — binds it, and NEVER looks for another window of the same program, which is the fallback that was the defect. It is a RUN's term and never a route's: nothing durable carries a handle, because an identity that stops existing when a window closes would be inherited by the next run. And the choice is an INITIAL HANDOFF, said plainly and not overclaimed: the window receives the foreground at the start of the run, Marco does not own the desktop, and a window that comes forward afterwards gets what is typed next — a guarded routine's presses are checked against the window they were recorded in and STOP, an unguarded routine's are not, and the sentence beside Play says which. `marco do` without `--window` is unchanged, which is the whole of the legacy CLI path. The refusal is ANNOUNCED through the outcome protocol rather than exited: the first version printed a sentence on stderr and exited 1, and Studio reported the run as having ended with a blank answer. 14 of 14 mutations killed."
+decision: "ACCEPTED — WHICH WINDOW A RUN ACTS IN IS CHOSEN BEFORE PLAY AND CARRIED TO THE RUN, AND IT IS NEVER DURABLE. Studio raised an application's window and the child bound one: two steps and two independent choices. `theWindowToRaise` preferred the biggest window that was up; `winctx.Bind` was given a program NAME and took the first visible window `EnumWindows` reached. With two Explorer windows, two copies of a game or two browser profiles those are different windows — and NOTHING DOWNSTREAM COULD TELL, because `oshost.confirmWindow` compares the program, the size, the scale and the owning process of the window that was BOUND, and two windows of one program agree on the first three while the fourth compares the bound window against itself. The press landed in a window nobody chose, having passed every check there is. A routine naming no application had nothing raised at all, so its run began with Studio in front and an unguarded press went into Marco's own window. So the window is CHOSEN, out of the same list `marco learn` chooses a recording's window from (`orchestrator.Pickable`, which excludes this process and its owning surface, so Studio is never a candidate): one candidate is selected automatically and SHOWN beside Play, several is a visible choice, and none means Play is unavailable with a reason that says what to start. Studio then raises THAT HANDLE and hands the child `--window=<handle>:<owner>` — one term with BOTH HALVES, because a handle is not an identity: Windows hands the number back out, and a program name does not separate two copies of one program. The child VERIFIES what it was given — a window that is still there, still that process's, and still the program the route asks to activate — binds it, and NEVER looks for another window of the same program, which is the fallback that was the defect. It is a RUN's term and never a route's: nothing durable carries a handle, because an identity that stops existing when a window closes would be inherited by the next run. And the choice is an INITIAL HANDOFF, said plainly and not overclaimed: the window receives the foreground at the start of the run, Marco does not own the desktop, and a window that comes forward afterwards gets what is typed next — a guarded routine's presses are checked against the window they were recorded in and STOP, an unguarded routine's are not, and the sentence beside Play says which. `marco do` without `--window` is unchanged, which is the whole of the legacy CLI path. The refusal is ANNOUNCED through the outcome protocol rather than exited: the first version printed a sentence on stderr and exited 1, and Studio reported the run as having ended with a blank answer. AND A REJECTED FOREGROUND HANDOFF IS A REFUSAL, NOT A NOTE: `GiveWindow` recorded a failed raise in `Unperformed` and returned success, on the reasoning `activate` uses -- the guarded boundary asks whether the window is in front at the instant of the press, and that is the answer that decides. That reasoning holds for a guarded press and NOT for an unguarded one, and the two scopes with no `Activate` are exactly where unguarded presses live, so a routine that types would have typed into whatever stayed in front while the account said truthfully that the window could not be brought forward. The error is returned, the entrance announces `refused` and the routine is never entered -- and `winctx.Raise` REPORTS whether the window came forward, by owning process rather than by handle, because `SetForegroundWindow` answers that the request was accepted and a raise that always reported success would put the defect straight back. 40 of 40 mutations killed."
 source_paths:
   - plugins/studio/target.go
   - plugins/studio/routines.go
@@ -112,6 +112,30 @@ under a written authorisation, and carrying a window through that means changing
 That is the same hole one surface over, it is NOT closed here, and it is recorded rather than
 implied: see [[Roadmap]].
 
+## A rejected handoff is a refusal, not a note
+
+`GiveWindow` verified the window, bound it, tried to bring it forward, and when that failed it
+recorded the failure in `Unperformed` and **returned success**. The reasoning was `activate`'s:
+the guarded boundary asks whether the window is in front at the instant of the press, and that is
+the answer that decides.
+
+**It holds for a guarded press and not for an unguarded one.** The two scopes with no `Activate`
+— context and global — are exactly where unguarded presses live. A routine beginning with a
+key or a `Type`, played into a window Windows would not foreground, typed into whatever stayed
+there: the person's editor, their chat window, the terminal. The account afterwards said
+truthfully that the window could not be brought forward, beside a run that had already typed
+somewhere else.
+
+So the error is **returned**. The entrance announces `refused` and never enters the routine.
+Keeping the failure in the account is still worth doing and cannot stand in for stopping.
+
+**And `winctx.Raise` reports whether the window came forward.** It did not: it asked, waited, and
+returned `nil` whatever happened, which made the refusal above unreachable in production.
+`SetForegroundWindow` answers that the REQUEST was accepted; the real answer is read from the
+foreground afterwards, compared by **owning process** rather than by handle — an application
+brought forward does not necessarily leave that window in front, and the guarded boundary asks
+the stricter question for itself.
+
 ## And a refusal is announced, not exited
 
 The first version of the CLI hand-over printed a sentence on stderr and exited 1. Studio read no
@@ -162,6 +186,29 @@ two instants cannot be arranged on a real desktop on purpose.
 
 `cmd/marco` — `TestTheEntranceNeverPutsAFlagInThePhrase` carries `--window` now, so the flag
 cannot fall into the phrase and be performed as a name.
+
+`cmd/marco`, the COMMAND PATH, which is where a rejected handoff is stopped — the host reports
+and the entrance decides, so none of this can be exercised from inside `internal/oshost`:
+
+- `TestARejectedHandoffRefusesAndPressesNothing` — a valid handle and owner, a foreground handoff
+  Windows refuses, and a routine whose FIRST step types. **Zero input actions asked of the
+  machine** (`Host.InputActions`, which counts what a run asked for including a press its own
+  guard refused), `[result] refused` on the wire line, the refused exit code, the routine's own
+  text absent from the account, and the failure still recorded in `Unperformed` — which is worth
+  keeping and is not what stops the run.
+- `TestAnAcceptedHandoffRunsTheRoutine` — the control. Without it the rule is satisfied by
+  refusing every run, which is a worse product than the defect. The routine LOGS rather than
+  types, because `marco do` performs real input and a test that typed on whoever's desktop ran it
+  is a test nobody may run.
+- `TestAHandoverOfAWindowThatIsNotThereRefusesAndPressesNothing` and
+  `TestWithoutAChosenWindowTheCommandIsUnchanged` — the other refusal and the legacy shape.
+
+`internal/winctx` — `TestARaiseSaysWhetherTheWindowCameForward` (with its control),
+`TestARaiseWaitsForAForegroundThatArrivesLate` (refusing a raise that was about to work is the
+other way to get this wrong), `TestARaiseIsAboutTheProgramAndNotTheHandle` and
+`TestARaiseOfAWindowWithNoOwnerIsRefused`. The readings are behind variables because whether
+Windows grants a foreground handoff depends on which process owns the foreground at that instant,
+which depends on what the person at the machine is doing.
 
 ## Related
 
