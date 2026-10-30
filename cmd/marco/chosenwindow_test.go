@@ -119,7 +119,7 @@ func TestARejectedHandoffRefusesAndPressesNothing(t *testing.T) {
 	// not negotiable: it refuses `SetForegroundWindow` to a process that does not
 	// already own the foreground, which is the ordinary state of a child nobody is
 	// looking at.
-	oshost.WindowForTest(t, theWindowChosen, itsOwner, "notepad.exe",
+	oshost.WindowForTest(t, theWindowChosen, itsOwner, "notepad.exe", false,
 		os.ErrPermission)
 
 	code, said, h := aRunInTheChosenWindow(t, aTypingRoutine,
@@ -159,7 +159,7 @@ func TestARejectedHandoffRefusesAndPressesNothing(t *testing.T) {
 // a test that typed on whoever's desktop ran it is a test nobody may run — so what this shows is
 // that the hand-over succeeded, the routine was entered, and the run reached its own answer.
 func TestAnAcceptedHandoffRunsTheRoutine(t *testing.T) {
-	oshost.WindowForTest(t, theWindowChosen, itsOwner, "notepad.exe", nil)
+	oshost.WindowForTest(t, theWindowChosen, itsOwner, "notepad.exe", true, nil)
 
 	code, said, h := aRunInTheChosenWindow(t,
 		"// marco learn \"types something\"\n\nthe App is a script.\n\n"+
@@ -190,7 +190,7 @@ func TestAnAcceptedHandoffRunsTheRoutine(t *testing.T) {
 // test covers across two processes and this one covers in the function that decides.
 func TestAHandoverOfAWindowThatIsNotThereRefusesAndPressesNothing(t *testing.T) {
 	// THE DESKTOP KNOWS ONE WINDOW AND IT IS NOT THE ONE HANDED OVER.
-	oshost.WindowForTest(t, theWindowChosen, itsOwner, "notepad.exe", nil)
+	oshost.WindowForTest(t, theWindowChosen, itsOwner, "notepad.exe", true, nil)
 
 	code, said, h := aRunInTheChosenWindow(t, aTypingRoutine,
 		orchestrator.Pickable{HWnd: 0x9999, PID: itsOwner}.Term())
@@ -207,6 +207,81 @@ func TestAHandoverOfAWindowThatIsNotThereRefusesAndPressesNothing(t *testing.T) 
 	}
 	if strings.Contains(said, "hello there") {
 		t.Errorf("the routine ran:\n%s", said)
+	}
+}
+
+// AND A SIBLING WINDOW IN FRONT IS A REFUSAL, THOUGH EVERY PROCESS-LEVEL CHECK PASSES.
+//
+// THE DISCRIMINATING CASE, and the ambiguity this whole slice exists to remove. Two windows share
+// one process — two Explorer windows are one `explorer.exe`, and so are two windows of most
+// editors. A was chosen; B stays in front; `winctx.Raise` reports SUCCESS, because it waits for
+// the PROGRAM to lead and the program is leading through B.
+//
+// Nothing downstream would notice. An unguarded press goes to whatever is in front, and B is the
+// same program at the same size and the same scale as A — so the run would have typed into the
+// other window with every check it has passing. The guarded boundary asks `Front` of its own
+// handle and refuses; an unguarded press asks nothing, which is the whole reason the handoff has
+// to ask.
+//
+// Set up exactly as the finding describes: the selected handle is alive and still owned by the
+// selected PID, the lower-level raise reports success, and the selected window is NOT the one in
+// front.
+func TestASiblingWindowInFrontRefusesAndPressesNothing(t *testing.T) {
+	// A IS CHOSEN, OWNED BY THE PROCESS IT WAS CHOSEN FROM, AND NOT IN FRONT. The raise
+	// says yes: its question is about `notepad.exe`, and B is a notepad window.
+	oshost.WindowForTest(t, theWindowChosen, itsOwner, "notepad.exe", false, nil)
+
+	code, said, h := aRunInTheChosenWindow(t, aTypingRoutine,
+		orchestrator.Pickable{HWnd: theWindowChosen, PID: itsOwner}.Term())
+
+	if n := h.InputActions(); n != 0 {
+		t.Errorf("the run asked the machine for %d input action(s) while another "+
+			"window of the same program was in front — those keystrokes went "+
+			"into the window nobody chose", n)
+	}
+	if !strings.Contains(said, outcome.Line(outcome.Refused)) {
+		t.Errorf("the run did not announce %q:\n%s", outcome.Line(outcome.Refused),
+			said)
+	}
+	if code != outcome.Refused.Exit() {
+		t.Errorf("the command exited %d, want %d", code, outcome.Refused.Exit())
+	}
+	if strings.Contains(said, "hello there") {
+		t.Errorf("the routine ran:\n%s", said)
+	}
+	// AND THE ACCOUNT SAYS WHICH WINDOW, because "could not be brought to the front" is
+	// not what happened: the program came forward and the wrong window of it is in
+	// front, and the way out is to click the one they meant.
+	saidNot := strings.Join(h.Unperformed(), "\n")
+	if !strings.Contains(saidNot, "not the one in front") {
+		t.Errorf("the account does not say a sibling window is in front: %v",
+			h.Unperformed())
+	}
+}
+
+// AND THE EXACT-WINDOW CONTROL: THE CHOSEN WINDOW IN FRONT RUNS.
+//
+// The same program, the same owner, the same successful raise — and A itself in front. Without
+// this the rule above is satisfied by refusing every handoff, and the difference between the two
+// tests is exactly one term: WHICH window of the program ended up in front.
+func TestTheChosenWindowInFrontRunsTheRoutine(t *testing.T) {
+	oshost.WindowForTest(t, theWindowChosen, itsOwner, "notepad.exe", true, nil)
+
+	code, said, h := aRunInTheChosenWindow(t,
+		"// marco learn \"types something\"\n\nthe App is a script.\n\n"+
+			"log \"it was entered\".\n",
+		orchestrator.Pickable{HWnd: theWindowChosen, PID: itsOwner}.Term())
+
+	if code != 0 {
+		t.Errorf("a hand-over to the window that is in front exited %d:\n%s", code,
+			said)
+	}
+	if !strings.Contains(said, "it was entered") {
+		t.Errorf("the routine was not entered:\n%s", said)
+	}
+	if len(h.Unperformed()) != 0 {
+		t.Errorf("a hand-over to the right window recorded something as not done: "+
+			"%v", h.Unperformed())
 	}
 }
 

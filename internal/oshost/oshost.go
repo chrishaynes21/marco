@@ -2139,6 +2139,25 @@ func (h *Host) bindAt(hwnd uintptr, app string) {
 // So the error is RETURNED. The entrance announces `refused` and never enters the routine.
 // Keeping it in the account is still worth doing and cannot stand in for stopping.
 //
+// # AND THE WINDOW IN FRONT AFTERWARDS IS THE EXACT ONE, NOT ONE OF ITS PROGRAM'S
+//
+// `winctx.Raise` answers at the level of the APPLICATION: it waits until the process owning the
+// target window is leading, because an application brought forward does not necessarily leave
+// that window in front — a game activates a child window, a launcher hands over to the window
+// it was waiting for. That is the right answer for `Activate`, which was given a program name and
+// never chose between its windows.
+//
+// IT IS THE WRONG ANSWER HERE, and it is the very ambiguity this hand-over exists to remove. Two
+// Explorer windows are one process: selecting A while B stays in front satisfies a process-level
+// check exactly, so the run would proceed and an unguarded press would land in B. A guarded press
+// asks `Front` of its own handle and refuses; an unguarded one asks nothing, which is why the
+// check belongs here.
+//
+// So after the raise this asks the handle-level question, of the window that was CHOSEN: still a
+// window, still owned by the process it was chosen from, and in front. The same three terms
+// `confirmWindow` asks at the instant of a press, asked once at the handoff for the presses that
+// will never ask them.
+//
 // # What it does NOT set
 //
 // `activated`. That flag governs the LEGACY origin rule — a window-relative click with no
@@ -2192,7 +2211,46 @@ func (h *Host) GiveWindow(hwnd uintptr, pid uint32) (string, error) {
 		return is, fmt.Errorf("the %s window chosen for this run could not be "+
 			"brought to the front, and nothing was performed: %w", is, err)
 	}
+	// ── AND IT IS THE WINDOW THAT WAS CHOSEN THAT IS IN FRONT ──
+	//
+	// Read again, after the wait, because the raise's own answer is about the program.
+	// See the note above: two windows of one process satisfy that answer with either of
+	// them in front, and the one that was chosen is the only one the person picked.
+	if why := h.exactlyInFront(hwnd, pid, is); why != nil {
+		h.didNotDo(why.Error())
+		return is, fmt.Errorf("%w, and nothing was performed", why)
+	}
 	return is, nil
+}
+
+// exactlyInFront is the handle-level question, asked of the window a surface chose.
+//
+// THE SAME THREE TERMS `confirmWindow` ASKS, and deliberately so: a press checked against the
+// window it was recorded in asks whether that window is alive, owned by the process it was bound
+// from, and in front — at the instant of the press. An unguarded press asks none of them ever,
+// so for those this is the only time anybody asks, and asking something weaker here would leave
+// the unguarded cases with a check that passes for a sibling window.
+//
+// Returns nil when the window that was chosen is the one a press would reach.
+func (h *Host) exactlyInFront(hwnd uintptr, pid uint32, is string) error {
+	f := windowFacts(hwnd)
+	switch {
+	case !f.Alive:
+		return fmt.Errorf("the %s window chosen for this run closed while it was "+
+			"being brought to the front", is)
+	case f.PID != pid:
+		return fmt.Errorf("the %s window chosen for this run belonged to process "+
+			"%d and that handle now belongs to process %d", is, pid, f.PID)
+	case !f.Front:
+		// THE PROGRAM CAME FORWARD AND THE CHOSEN WINDOW DID NOT. With two
+		// windows of one process this is the ordinary shape of the defect, and
+		// nothing downstream would notice: an unguarded press goes to whatever is
+		// in front, and the other window is the same program at the same scale.
+		return fmt.Errorf("the %s window chosen for this run is not the one in "+
+			"front, another window of %s is, and a press would land in that "+
+			"one. Click the window you meant and play it again", is, is)
+	}
+	return nil
 }
 
 // givenWindow is the window this run was handed, or zero.
@@ -2747,7 +2805,12 @@ var (
 // owns a pid that does not exist, and a stated window under a live `raiseWindow` asks Windows to
 // foreground a handle that is not one — either of which is a test passing or failing on
 // something it is not about.
-func WindowForTest(t testing.TB, hwnd uintptr, pid uint32, program string, raise error) {
+// `front` is whether the CHOSEN window ends up in front, and it is a SEPARATE TERM from whether
+// the raise succeeded — which is the whole of the case that mattered: `winctx.Raise` answers
+// about the program, so with two windows of one process it reports success while the other one is
+// in front. A seam that derived one from the other could not describe that at all.
+func WindowForTest(t testing.TB, hwnd uintptr, pid uint32, program string, front bool,
+	raise error) {
 	t.Helper()
 	wasFacts, wasImage, wasRaise := windowFacts, imageOf, raiseWindow
 	t.Cleanup(func() { windowFacts, imageOf, raiseWindow = wasFacts, wasImage, wasRaise })
@@ -2755,7 +2818,7 @@ func WindowForTest(t testing.TB, hwnd uintptr, pid uint32, program string, raise
 		if h != hwnd {
 			return winctx.WindowFacts{}
 		}
-		return winctx.WindowFacts{Alive: true, Front: raise == nil, PID: pid,
+		return winctx.WindowFacts{Alive: true, Front: front, PID: pid,
 			W: 1280, H: 800, Dpi: 96}
 	}
 	imageOf = func(uint32) string { return program }

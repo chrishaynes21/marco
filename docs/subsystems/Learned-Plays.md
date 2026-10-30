@@ -354,10 +354,12 @@ It is an INITIAL HANDOFF and the surface says so: the window gets the foreground
 the run, and a window that comes forward afterwards gets what is typed next — a guarded
 routine's presses are checked and stop, an unguarded one's are not.
 
-And a handoff Windows REFUSES stops the run. It used to be recorded and then returned as
-success, which is sound for a guarded press — its own boundary refuses — and wrong for an
-unguarded one, where nothing else stands between a routine that types and whatever stayed in
-front. `marco do` without `--window` is unchanged. See
+And a handoff that does not put THAT window in front stops the run. Two things were wrong here
+and both only bite the unguarded cases, where nothing else stands between a routine that types
+and whatever stayed in front: a refused raise was recorded and then returned as success, and the
+raise's own answer is about the PROGRAM — two windows of one process satisfy it with either of
+them leading. So the chosen window is re-read after the raise and must be alive, still its
+process's, and in front. `marco do` without `--window` is unchanged. See
 [[ADR-272-the-window-a-run-acts-in-is-chosen-and-carried]].
 
 ## Related

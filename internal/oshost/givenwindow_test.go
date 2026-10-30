@@ -178,6 +178,157 @@ func TestAGivenWindowWhoseOwnerChangedIsRefused(t *testing.T) {
 	}
 }
 
+// AND A SIBLING WINDOW IN FRONT IS REFUSED, THOUGH THE RAISE REPORTED SUCCESS.
+//
+// `winctx.Raise` answers at the level of the APPLICATION: it waits for the process owning the
+// target to lead, because an application brought forward does not necessarily leave that window
+// in front. Right for `Activate`, which was given a program name; wrong here, where a window was
+// CHOSEN — and two windows of one program is the ambiguity this hand-over exists to remove.
+//
+// So the raise says yes and the chosen window is still not the one in front. An unguarded press
+// would land in the sibling with every check it has passing, because the sibling is the same
+// program at the same size and the same scale.
+func TestAGivenWindowThatIsNotTheOneInFrontIsRefused(t *testing.T) {
+	wasFacts, wasImage, wasRaise := windowFacts, imageOf, raiseWindow
+	t.Cleanup(func() { windowFacts, imageOf, raiseWindow = wasFacts, wasImage, wasRaise })
+	// THE CHOSEN WINDOW IS ALIVE, STILL ITS PROCESS'S, AND NOT IN FRONT.
+	windowFacts = func(h uintptr) winctx.WindowFacts {
+		if h != theChosenWindow {
+			return winctx.WindowFacts{}
+		}
+		return winctx.WindowFacts{Alive: true, Front: false, PID: 900,
+			W: 1280, H: 800, Dpi: 96}
+	}
+	imageOf = func(uint32) string { return "explorer.exe" }
+	// AND THE RAISE REPORTS SUCCESS, which is what it does when the program is leading
+	// through its other window.
+	raised := 0
+	raiseWindow = func(uintptr) error { raised++; return nil }
+
+	h := &Host{b: &recBackend{}}
+	_, err := h.GiveWindow(theChosenWindow, 900)
+	if err == nil {
+		t.Fatal("a run was handed a window that is not the one in front, so an " +
+			"unguarded press would land in the sibling window nobody chose")
+	}
+	if !strings.Contains(err.Error(), "not the one in front") {
+		t.Errorf("the refusal reads %q", err)
+	}
+	if raised == 0 {
+		t.Error("the window was never asked to come forward, so this test is not " +
+			"about what happens after it")
+	}
+	// AND THE CONTROL IS ONE TERM AWAY: the same window, in front, is accepted. The
+	// difference between a refusal and a run is WHICH window of the program ended up
+	// leading, which is the thing a process-level answer cannot see.
+	windowFacts = func(h uintptr) winctx.WindowFacts {
+		if h != theChosenWindow {
+			return winctx.WindowFacts{}
+		}
+		return winctx.WindowFacts{Alive: true, Front: true, PID: 900,
+			W: 1280, H: 800, Dpi: 96}
+	}
+	if _, err := (&Host{b: &recBackend{}}).GiveWindow(theChosenWindow, 900); err != nil {
+		t.Errorf("the chosen window, in front, was refused: %v", err)
+	}
+}
+
+// aDesktopThatChangesWhenRaised answers one way before the raise and another after it.
+//
+// THE GAP BETWEEN TWO INSTANTS, which is where every finding in this repository lives. The raise
+// waits up to half a second for a foreground change: a window can close in that time, its handle
+// can be handed to another process, and — in the ordinary case — it goes from not being in front
+// to being in front, which is the whole point of asking afterwards rather than before.
+func aDesktopThatChangesWhenRaised(t *testing.T, before, after winctx.WindowFacts) *int {
+	t.Helper()
+	wasFacts, wasImage, wasRaise := windowFacts, imageOf, raiseWindow
+	t.Cleanup(func() { windowFacts, imageOf, raiseWindow = wasFacts, wasImage, wasRaise })
+	raised := 0
+	windowFacts = func(h uintptr) winctx.WindowFacts {
+		if h != theChosenWindow {
+			return winctx.WindowFacts{}
+		}
+		if raised == 0 {
+			return before
+		}
+		return after
+	}
+	imageOf = func(uint32) string { return "explorer.exe" }
+	raiseWindow = func(uintptr) error { raised++; return nil }
+	return &raised
+}
+
+// upAndDown is a window that is alive and owned by 900, in front or not.
+func upAndDown(front bool) winctx.WindowFacts {
+	return winctx.WindowFacts{Alive: true, Front: front, PID: 900,
+		W: 1280, H: 800, Dpi: 96}
+}
+
+// THE WINDOW IS CHECKED AFTER THE RAISE, AND NOT BEFORE IT.
+//
+// The ordinary case, and the one that says where the check belongs: a window somebody chose is
+// usually NOT in front when they press Play — that is why anything is raised at all. A check
+// placed before the raise would refuse every honest handoff, which is the other way to get this
+// wrong, and the stated desktops in the tests above cannot tell the two placements apart because
+// they answer the same way twice.
+func TestTheWindowIsCheckedAfterTheRaiseAndNotBefore(t *testing.T) {
+	raised := aDesktopThatChangesWhenRaised(t, upAndDown(false), upAndDown(true))
+
+	h := &Host{b: &recBackend{}}
+	if _, err := h.GiveWindow(theChosenWindow, 900); err != nil {
+		t.Fatalf("a window that came forward BECAUSE of the raise was refused, so "+
+			"the question is being asked before the answer exists: %v", err)
+	}
+	if *raised != 1 {
+		t.Errorf("the window was asked to come forward %d time(s)", *raised)
+	}
+	if len(h.Unperformed()) != 0 {
+		t.Errorf("an accepted hand-over recorded something as not done: %v",
+			h.Unperformed())
+	}
+}
+
+// AND A WINDOW THAT CLOSES WHILE IT IS BEING BROUGHT FORWARD IS REFUSED.
+//
+// The raise waits, and half a second is long enough for somebody to close the window they had
+// just chosen. The first reading said it was there; the one that decides is the one after.
+func TestAWindowThatClosesWhileItIsBroughtForwardIsRefused(t *testing.T) {
+	aDesktopThatChangesWhenRaised(t, upAndDown(true), winctx.WindowFacts{})
+
+	h := &Host{b: &recBackend{}}
+	_, err := h.GiveWindow(theChosenWindow, 900)
+	if err == nil {
+		t.Fatal("a run was handed a window that closed while it was being brought " +
+			"to the front")
+	}
+	if !strings.Contains(err.Error(), "closed while") {
+		t.Errorf("the refusal reads %q", err)
+	}
+}
+
+// AND A HANDLE HANDED TO ANOTHER PROCESS WHILE IT IS BEING BROUGHT FORWARD IS REFUSED.
+//
+// The same gap, the other way: the window closed and Windows gave its number to something else
+// inside the wait. The program name cannot see this — the new owner can be another copy of the
+// same program — which is why the owner travels with the handle.
+func TestAHandleGivenAwayWhileItIsBroughtForwardIsRefused(t *testing.T) {
+	another := winctx.WindowFacts{Alive: true, Front: true, PID: 901,
+		W: 1280, H: 800, Dpi: 96}
+	aDesktopThatChangesWhenRaised(t, upAndDown(true), another)
+
+	h := &Host{b: &recBackend{}}
+	_, err := h.GiveWindow(theChosenWindow, 900)
+	if err == nil {
+		t.Fatal("a run was handed a handle that belongs to another process by the " +
+			"time it was brought forward")
+	}
+	for _, want := range []string{"900", "901"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("the refusal does not name process %s: %q", want, err)
+		}
+	}
+}
+
 // AND ACTIVATING A GIVEN WINDOW THAT BELONGS TO ANOTHER PROGRAM IS REFUSED.
 //
 // A route that says `Activate "notepad"` while the run was handed a browser window is a surface
