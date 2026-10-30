@@ -124,6 +124,12 @@ window.go = {main: {
           'not written down beside it, so it cannot be edited again until it has ' +
           'been rebuilt from its demonstration'})
     },
+    // THE PHRASES PANEL'S READ, which the page makes for every routine it
+    // draws. A stub without it is a page that throws mid-render -- and note
+    // that no backtick may appear in this comment: the harness around it is a
+    // Go raw string, and one closed ten of these files at once.
+    RoutineAnswers: (id) => Promise.resolve({id: id, phrases: [],
+      askable: true}),
     Routines: () => {
       const row = (id, slug) => ({id: id, name: slug, slug: slug, app: 'notepad',
         scope: 'app-anywhere', contract: 'legacy', runnable: true,

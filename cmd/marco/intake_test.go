@@ -1302,3 +1302,78 @@ func TestAnAnswerIsNotClaimedByAPlayOfTheSameName(t *testing.T) {
 		t.Errorf("a play was performed instead of the question being answered:\n%s", said)
 	}
 }
+
+// A PHRASE IS NOT CLAIMED BY THIS DOOR, AND THAT IS THE DECISION.
+//
+// The durable arm is EXACT on purpose, and a phrase is exact — so claiming one here looked right
+// and was not. Whether a phrase is UNAMBIGUOUS is a fact about the whole library, and this door
+// has nowhere to ask: the first version selected by scope priority, so a phrase two routines
+// answer to was performed here while Director, asked the same words against the same library,
+// asked which was meant. One phrase, two answers, and the one that acted could not ask.
+//
+// So the words go to Director, which owns resolution that needs a judgement
+// ([[ADR-267-director-owns-route-resolution]]) and can ask. What this costs is stated rather than
+// hidden: with Director unavailable, a phrase reaches nothing, where the routine's own name still
+// runs. See [[ADR-275-a-routine-may-answer-to-more-than-one-phrase]].
+func TestAPhraseIsHandedToDirectorRatherThanClaimedHere(t *testing.T) {
+	d := intakeWorld(t)
+	rt := routes.Route{Slug: "open-dad-s-settings"}
+	if err := d.Reg.SaveAliases(rt, []string{"tidy up the document"}); err != nil {
+		t.Fatal(err)
+	}
+	for _, said := range []string{"tidy up the document", "Tidy Up The Document",
+		"  tidy up the document  "} {
+		got := decideAs(t, d, invoke.SourceTyped, said)
+		if got.Kind == invoke.KindPlay {
+			t.Fatalf("%q was claimed here as %+v, and whether it is ambiguous is "+
+				"not a question this door can ask", said, got.Play)
+		}
+		if got.Kind != invoke.KindDirector {
+			t.Errorf("%q was decided as %q", said, got.Kind)
+		}
+	}
+	// AND THE ROUTINE'S OWN NAME IS UNTOUCHED, which is the half this must not cost: the
+	// exact arm answers it here, offline, as it always did.
+	if got := decideAs(t, d, invoke.SourceTyped, "open dad's settings"); got.Kind !=
+		invoke.KindPlay || got.Play.Slug != "open-dad-s-settings" {
+		t.Errorf("the routine's own name decided %q", got.Kind)
+	}
+}
+
+// AND A PHRASE TWO ROUTINES ANSWER TO SELECTS NOTHING HERE.
+//
+// The case the removed branch got wrong, as its own claim at the door: two routines, one phrase,
+// and nothing is performed on the strength of a priority order.
+func TestASharedPhraseSelectsNothingAtTheDoor(t *testing.T) {
+	d := intakeWorld(t)
+	for _, rt := range []routes.Route{
+		{App: "settings", Focus: true, Slug: "open-mouse-settings"},
+		{Slug: "open-dad-s-settings"},
+	} {
+		if err := d.Reg.SaveAliases(rt, []string{"the settings"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := decideAs(t, d, invoke.SourceTyped, "the settings"); got.Kind ==
+		invoke.KindPlay {
+		t.Errorf("a phrase two routines answer to performed %+v", got.Play)
+	}
+}
+
+// AND A PHRASE NEVER OUTRANKS A CONTROL WORD.
+//
+// The arms above the durable one are above it for reasons that have nothing to do with how a
+// routine was named. "Stop" said while something is running has to reach the thing that is
+// running even if a routine has been taught to answer to it — which somebody can do, because
+// nothing stops them.
+func TestAPhraseNeverOutranksAControlWord(t *testing.T) {
+	d := intakeWorld(t)
+	rt := routes.Route{Slug: "open-dad-s-settings"}
+	if err := d.Reg.SaveAliases(rt, []string{"stop"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := decideAs(t, d, invoke.SourceTyped, "stop"); got.Kind != invoke.KindControl {
+		t.Errorf("a routine taught to answer to \"stop\" claimed the word that has "+
+			"to reach a running play: %q", got.Kind)
+	}
+}

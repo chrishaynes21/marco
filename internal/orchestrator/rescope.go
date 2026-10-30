@@ -117,6 +117,17 @@ type Rescoping struct {
 	// and a move of one of those is the same operation for the same reason.
 	fromAccount  bool
 	accountSteps []byte
+	// fromAnswers is what the original answers to besides its own name, and
+	// fromAliasesAt a digest of the file holding them — "" when it has none.
+	//
+	// CARRIED, BECAUSE A MOVE IS A NEW IDENTITY AND THE PHRASES ARE BOUND TO ONE. Writing
+	// the source at the destination and leaving the phrases behind made a move silently
+	// take away every other way of reaching the routine — and then the cleanup deleted the
+	// file, so there was nothing left to recover them from. The digest is revalidated like
+	// the other three: a phrase taught between the review and the write would otherwise be
+	// dropped by a move carrying the list it read first.
+	fromAnswers   []string
+	fromAliasesAt string
 	// assets are the anchor images the rendering produced for the DESTINATION directory,
 	// held here rather than written, because preparation writes nothing.
 	assets map[string][]byte
@@ -250,6 +261,19 @@ func (d Deps) PrepareRescope(rt routes.Route, want Scope, app string) (Rescoping
 			"what it would do to it", m.Name)
 	}
 	m.fromStepsAt = at
+	// AND WHAT IT ANSWERS TO, read through the one reader that refuses an unoffered file:
+	// a move must not carry phrases that say they belong to something else.
+	answers, whyAnswers := d.AliasesOf(rt)
+	if whyAnswers != "" {
+		return Rescoping{}, fmt.Errorf("%q cannot be moved: %s", m.Name, whyAnswers)
+	}
+	aliasAt, aliasReadable := d.Reg.AliasesDigest(rt)
+	if !aliasReadable {
+		return Rescoping{}, fmt.Errorf("%q cannot be moved: the phrases stored "+
+			"beside it are there and could not be read, so a move cannot say "+
+			"what it would do to them", m.Name)
+	}
+	m.fromAnswers, m.fromAliasesAt = answers, aliasAt
 	if state.Usable() {
 		var steps []macroir.Step
 		if err := json.Unmarshal(stored.Steps, &steps); err != nil {
@@ -409,6 +433,7 @@ func (d Deps) Rescope(m Rescoping, consent Consent) (Rescoped, error) {
 	// ── AND THE WORLD IS STILL THE ONE THAT WAS REVIEWED, AT BOTH ENDS ──
 	fromSrc, fromRec := d.versionAt(m.From)
 	fromStepsAt, stepsReadable := d.Reg.StepsDigest(m.From)
+	fromAliasesAt, aliasesReadable := d.Reg.AliasesDigest(m.From)
 	switch {
 	case fromSrc == "":
 		return Rescoped{}, fmt.Errorf("%q is no longer at %s, so nothing was "+
@@ -424,6 +449,14 @@ func (d Deps) Rescope(m Rescoping, consent Consent) (Rescoped, error) {
 			"reviewed was prepared, so it is left as it is — review it again "+
 			"and what would be written will be rendered from the new recording",
 			m.Name)
+	case !aliasesReadable || fromAliasesAt != m.fromAliasesAt:
+		// WHAT IT ANSWERS TO MOVED WHILE SOMEBODY READ THIS. A move carries the
+		// list it read at preparation, so going ahead would write the older list
+		// at the destination and then delete the newer one with the original.
+		return Rescoped{}, fmt.Errorf("%q has been taught another phrase since the "+
+			"move you reviewed was prepared, so it is left where it is — "+
+			"review it again and the phrases it answers to now will go with "+
+			"it", m.Name)
 	case !stepsReadable || fromStepsAt != m.fromStepsAt:
 		// ITS STORED STEP LIST MOVED WHILE SOMEBODY READ THIS. The source digest
 		// would catch an edit too, and would say the wrong thing about it; this
@@ -533,6 +566,32 @@ func (d Deps) Rescope(m Rescoping, consent Consent) (Rescoped, error) {
 					err))}, nil
 		}
 	}
+	// AND WHAT IT ANSWERS TO, REBOUND TO WHERE IT NOW LIVES.
+	//
+	// `SaveAliases` sets the binding from the route it is given, so the phrases arrive
+	// belonging to the destination rather than to the identity they were written beside.
+	//
+	// AND THE DESTINATION'S OWN FILE IS DEALT WITH EITHER WAY, which is the half that is
+	// easy to miss: a routine with no phrases moved onto an identity where a phrase file
+	// is sitting — left by a deletion that could not sweep it, or by the routine this move
+	// is replacing — would otherwise find that file's binding matching again the moment
+	// its source existed, and answer to phrases nobody attached to it. So the file at the
+	// destination is made to match the original: written when there are phrases, removed
+	// when there are none.
+	if len(m.fromAnswers) > 0 {
+		if err := d.Reg.SaveAliases(m.To, m.fromAnswers); err != nil {
+			return Rescoped{To: m.To, Says: copiedSays(m.Name, m.TakenID,
+				fmt.Sprintf("the phrases it answers to could not be "+
+					"written beside it (%v), so the original has not "+
+					"been touched", err))}, nil
+		}
+	} else if err := d.Reg.DeleteAliases(m.To); err != nil {
+		return Rescoped{To: m.To, Says: copiedSays(m.Name, m.TakenID,
+			fmt.Sprintf("phrases already stored at %s could not be removed "+
+				"(%v), and this routine answers to none — so the original "+
+				"has not been touched, because what is there would answer "+
+				"for it", m.TakenID, err))}, nil
+	}
 	if d.afterDestination != nil {
 		d.afterDestination()
 	}
@@ -571,6 +630,21 @@ func (d Deps) Rescope(m Rescoping, consent Consent) (Rescoped, error) {
 		}
 	}
 
+	// AND THE PHRASES ARRIVED, BOUND TO THE DESTINATION.
+	//
+	// Part of reading the destination back, for the reason the account is: the original is
+	// about to be deleted and its phrase file goes with it, so this is the only other copy.
+	// Asked through `AliasesOf`, which is the same read a request will be answered by —
+	// so a file that arrived saying it belongs somewhere else is caught here rather than
+	// by somebody finding the routine no longer answers.
+	if landed, why := d.AliasesOf(m.To); why != "" ||
+		strings.Join(landed, "\x00") != strings.Join(m.fromAnswers, "\x00") {
+		return Rescoped{To: m.To, Says: copiedSays(m.Name, m.TakenID,
+			"the phrases beside "+m.TakenID+" are not the ones this move "+
+				"carried, so the original has not been touched — look at "+
+				"both before deleting either")}, nil
+	}
+
 	// ── AND THE ORIGINAL IS STILL THE VERSION THAT WAS REVIEWED ──
 	//
 	// NEVER DELETE A NEWER VERSION. Both locks have been held since the first
@@ -580,8 +654,10 @@ func (d Deps) Rescope(m Rescoping, consent Consent) (Rescoped, error) {
 	// nobody reviewed.
 	againSrc, againRec := d.versionAt(m.From)
 	againSteps, againReadable := d.Reg.StepsDigest(m.From)
+	againAliases, aliasesStillReadable := d.Reg.AliasesDigest(m.From)
 	if againSrc != m.fromSourceAt || againRec != m.fromRecordingAt ||
-		!againReadable || againSteps != m.fromStepsAt {
+		!againReadable || againSteps != m.fromStepsAt ||
+		!aliasesStillReadable || againAliases != m.fromAliasesAt {
 		return Rescoped{To: m.To, Says: copiedSays(m.Name, m.TakenID,
 			"the original changed while this was being written, so it has been "+
 				"left where it is")}, nil
@@ -689,7 +765,7 @@ func copiedSays(name, toID, why string) string {
 // nobody was shown.
 func (m Rescoping) sealed() Rescoping {
 	m.Token = routes.DigestOf(join(
-		m.fromSourceAt, m.fromRecordingAt, m.fromStepsAt,
+		m.fromSourceAt, m.fromRecordingAt, m.fromStepsAt, m.fromAliasesAt,
 		fmt.Sprint(m.fromAccount),
 		routes.DigestOf(m.Now), m.Refused,
 		// AND THE SOURCE IT SHOWED, which is a SEPARATE thing from the digest

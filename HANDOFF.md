@@ -12097,3 +12097,124 @@ the routine runs as edited and cannot be edited again until it is rebuilt.
 
 See [[ADR-273-a-routine-writes-down-what-it-does]], and
 [[Step-editing-proposal-2026-10-30]] for the trace and the alternatives that were rejected.
+
+## A routine's other names — the contract, not yet the thing
+
+Traced at `7a2372d` and written down as a contract to be ruled on before anything is built:
+[[Command-aliases-proposal-2026-10-30]].
+
+What the trace found is that the pieces are all there and none of them has ever been asked this
+question. A routine has exactly one name and it is the file; `routes.Slug` already folds case,
+punctuation and whitespace onto that one identity from every entrance; Director's resolver already
+answers an exact name offline with no model, and already turns a name more than one routine has
+into a question rather than a near miss. What is missing is a place to keep a second phrase, and a
+lookup that reaches it.
+
+So the proposal is a sidecar — `<slug>.aliases.json`, beside the demonstration, the provenance and
+the step account — and the three rules that make it safe: the slug always wins and only a miss
+reaches the phrases, the file is bound to the route's IDENTITY rather than to the source's bytes
+(renaming moves the identity; editing a step does not change what a routine is called), and a
+phrase several routines answer to selects nothing. Three decisions are flagged rather than taken,
+the largest being whether a colliding phrase is refused when somebody adds it or accepted and
+clarified afterwards.
+
+## And then the owner tried to record something
+
+The library was emptied at the owner's request and the very next recording — `enter freeplay`, in
+Trackmania — would not save. They pressed **Stop recording**, and the review said *tab was still
+held when the window was left, so the recording has half of a gesture in it.* Then they asked the
+question that found the defect: **how would I tab out to end the recording?**
+
+You could not. Alt-Tab holds Alt and Tab down while the switcher takes the foreground, so the
+boundary [[ADR-268-record-only-the-chosen-window]] installed was crossed by the very gesture that
+reaches the Stop button — and it refused on the spot. Every recording ended the obvious way was
+refused, and the only exit that worked was F12, named in six grey words beside the button. The same
+defect `TestAVisitToStudioLeavesARecordingThatStillSaves` closed for the MOUSE, one modality along:
+coming back by clicking has been excused since the activation-click exception, and coming back by
+keyboard was not.
+
+The rule was right and the instant was wrong. A key held as the window is left is either a gesture
+the demonstration depends on or the way out, and what separates them is what happens NEXT — which
+is the one thing a state machine stepped an event at a time does not have. So the boundary reports
+the key now and `inWindowClock` decides with the whole stream in front of it. Three bounds keep the
+trim safe, a stranded key the demonstration carried on past is promoted to a crossing, a refused
+recording is shown whole, and what was left out is NAMED on both review surfaces — leaving
+something out of somebody's demonstration silently is the discard this boundary exists to refuse.
+
+Confinement is untouched. See
+[[ADR-274-the-way-out-of-a-window-is-not-part-of-the-demonstration]]. **Not yet tried on a
+desktop**, and Studio has to be rebuilt and reopened before it can be: the fix is in the recorder
+Studio runs in its own process.
+
+## And a routine may answer to more than its own name
+
+A route IS its scope and its slug, so a person who thought of their routine two ways had one
+option: save it twice. Two files, two recordings, two step accounts, and two things to keep in step
+every time they changed their mind.
+
+Phrases now live beside the source, like everything else a routine keeps —
+`<slug>.aliases.json`, holding a version, the route IDENTITY, and the phrases as somebody typed
+them. It carries no digests, which is the deliberate difference from the step account next to it:
+that records a rendering basis and is bound to the bytes it rendered, where a phrase is a name for
+the identity. Editing a step, re-simplifying or rebuilding changes the source and changes nothing
+about what a routine is called, and a file bound to the source would have dropped somebody's
+phrases every time they fixed a wait. What it is bound to is the thing that MOVES, so a rename
+rewrites it — and a file whose binding names another identity is not believed, because the cost of
+believing an orphan is a phrase that runs a routine nobody attached it to.
+
+**The slug always wins and only a miss reaches the phrases.** That is the whole compatibility
+guarantee for a library people already depend on, and it is the same ordering, for the same
+reason, as the demonstration arm sitting after the play arm at the door. A phrase resolves through
+the same four-scope priority as a name, because a scope is about what a routine can do rather than
+how it was asked for — which a wrong test fixture proved by watching the door correctly refuse an
+in-place routine reached by phrase from somewhere else.
+
+In Director a phrase is another LABEL for the same candidate, so the deterministic arm answers it:
+exact, offline, no plugin, no model server. A shared phrase is claimed by nobody and becomes the
+question the shared-name clarification already asked. The add refuses a collision it can see,
+naming the routine the phrase already reaches, on BOTH normalizations — the door's and the
+resolver's disagree, and a phrase distinct at one and ambiguous at the other is a phrase whose
+meaning depends on which surface asked. It is a courtesy and not the guarantee: a rename or a
+routine saved later produces a collision no add could have seen.
+
+A removal names the PHRASE and never a position, so the hazard the step-editing slice needed a
+basis token for does not exist here rather than being guarded against.
+
+See [[ADR-275-a-routine-may-answer-to-more-than-one-phrase]] and
+[[Command-aliases-proposal-2026-10-30]]. **Not tried on a desktop**, and Studio must be rebuilt and
+reopened before it can be.
+
+### And four corrections before the alias slice closed
+
+All four came out of reading the source, and a green gate had said nothing about any of them.
+
+**The door resolved a phrase, and picked between namesakes.** The rule "the slug always wins"
+was implemented as an alias arm at the END of `Registry.Resolve`, which keeps a routine's own
+name safe and misses the other half: a phrase two routines answer to was selected by scope
+priority and performed, while Director — asked the same words against the same library — asked
+which was meant. *Exact* and *unambiguous* are different properties. The arm is gone; the door is
+exact-or-nothing again and Director owns the judgement, which costs a phrase its offline answer
+and says so.
+
+**A move lost the phrases.** §4 of the contract and the ADR both said a move writes them at the
+destination and verifies them before removing the original. `Rescope` copied the recording and the
+step account and did neither, and then the cleanup deleted the original's file — so a move took
+away every other way of reaching a routine with nothing left to recover them from. A rule stated
+in a table and absent from the code, written by the same hand that skipped the row.
+
+**A fresh routine inherited leftover phrases.** The binding is to an identity and an identity is a
+PLACE: a file left by a sweep that could not remove it matches again the moment anything is saved
+there. `Create` clears it — and the first attempt cleared it AFTER publishing the source, which a
+second review caught. The hazard beginning when the source appears is the argument for clearing
+FIRST: clearing afterwards opens the window and shuts it, and a resolver reading inside it offers
+somebody else's phrase. The removal's error was ignored too, so a readable file Windows would not
+release became the new routine's phrases. It now clears before the source, under the write lock
+both callers already hold, and refuses with the file named when the clear fails.
+
+**And a phrase could drag a canonical name into ambiguity.** Names and phrases were counted
+together inside Director, so the slug-wins rule held everywhere except the one place that chooses.
+
+One of the fixes also found something larger: the phrases panel's read was called BEFORE the block
+that decides which window Play presses in, and ten page harnesses lacked the binding — so five
+Play and target tests went red on a panel that has nothing to do with running anything. A
+secondary panel does not belong upstream of the one control that acts.

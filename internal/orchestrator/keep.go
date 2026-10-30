@@ -76,16 +76,10 @@ func WantedScope(scope string) (Scope, string) {
 // `global/<slug>`, `<app>/context/<slug>`, `<app>/focus/<slug>` — because a route IS its scope
 // and its slug, and a name is not unique. One derivation, so a collision's identity and the
 // identity a replacement is checked against cannot be two different strings.
-func RouteID(rt routes.Route) string {
-	if rt.App == "" {
-		return routes.GlobalDir + "/" + rt.Slug
-	}
-	scope := routes.ContextDir
-	if rt.Focus {
-		scope = routes.FocusDir
-	}
-	return rt.App + "/" + scope + "/" + rt.Slug
-}
+// ONE SPELLING OF IT, which is `routes.Route.ID`. The phrase file binds itself to a route's
+// identity, so a second way of writing that identity down is a second thing for a binding check
+// to disagree with — and this name is kept because every surface in this package calls it.
+func RouteID(rt routes.Route) string { return rt.ID() }
 
 // Collision is what is already saved where a recording would go.
 type Collision struct {
@@ -124,6 +118,12 @@ type Collision struct {
 	// re-simplification, and nothing here can tell them apart — so a field named for one
 	// of them would have put a guess in the sentence a person reads. See Says.
 	HasStoredSteps bool `json:"has_stored_steps,omitempty"`
+	// Answers is what the routine that is there also answers to, and those phrases are
+	// KEPT rather than lost — they are bound to the identity, not to the files.
+	//
+	// On the wire because the sentence names them and a surface may want to list them
+	// beside it. Empty when it answers only to its own name.
+	Answers []string `json:"answers,omitempty"`
 }
 
 // Consent is permission to replace ONE routine, as it was when somebody was shown it.
@@ -225,7 +225,30 @@ func (d Deps) Collision(dr *Draft, scope Scope, app string) Collision {
 		c.Says += " It also keeps a step list of its own, including any step edits " +
 			"made to it, and that goes with it."
 	}
+	// AND THE PHRASES IT ANSWERS TO, WHICH ARE A FOURTH THING AND SURVIVE.
+	//
+	// Said for the opposite reason to the step list: that is lost and this is KEPT. A
+	// replacement writes the source at an identity the phrases are bound to, so whatever
+	// somebody taught this routine to answer to goes on answering — for the new
+	// demonstration. Nobody is going to guess that from a sentence about files being
+	// replaced, and the two facts in one place is what makes the choice informed.
+	if s, st := d.Reg.Aliases(rt); st.Offered() {
+		c.Answers = s.Phrases
+		c.Says += fmt.Sprintf(" It also answers to %s, and it still will — those "+
+			"phrases belong to its place in the library, so they would reach "+
+			"whatever is saved here.", joinWords(quoted(s.Phrases)))
+	}
 	return c
+}
+
+// quoted puts each phrase in quotation marks, so a sentence naming two of them cannot be read as
+// naming one with a comma in it.
+func quoted(in []string) []string {
+	out := make([]string, 0, len(in))
+	for _, s := range in {
+		out = append(out, fmt.Sprintf("%q", s))
+	}
+	return out
 }
 
 // WhyNotThisScope says why this draft cannot be saved under this scope, or "" when it can.

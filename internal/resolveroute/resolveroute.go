@@ -57,6 +57,17 @@ type Candidate struct {
 	Name     string
 	Scope    string
 	Runnable bool
+	// Answers is what this routine also answers to, besides its own name.
+	//
+	// OFFERED AS MORE LABELS FOR THE SAME CANDIDATE, which is the whole of how a phrase
+	// is resolved here: `dispatch.Decide`'s first arm is an exact match over the offered
+	// labels, so an alias is answered offline, reported as `exact` and `not-asked`, with
+	// no plugin and no model server. A library whose routines all answer to several
+	// phrases still resolves with nothing running.
+	//
+	// They are not a second kind of candidate. A label is a way of naming ONE routine,
+	// and the identity that travels back is the routine's.
+	Answers []string
 }
 
 // Slug, App and Focus are the route's, read through the candidate so the policy below reads as
@@ -171,7 +182,7 @@ func (r Resolver) Resolve(ctx context.Context, request string, cs []Candidate,
 	}
 
 	eligible := Eligible(cs, where)
-	shared := sharedNames(eligible)
+	names, phrases := answerCounts(eligible)
 	labels, byLabel := labelled(eligible)
 	said.Offered = len(labels)
 	if len(labels) == 0 {
@@ -216,7 +227,7 @@ func (r Resolver) Resolve(ctx context.Context, request string, cs []Candidate,
 	// or a deterministic near miss on one of the qualified labels, which would name an
 	// arbitrary one of them, or an offer to RECORD a routine of a name three already
 	// answer to. The last two are the ambiguity answered rather than asked.
-	if said.Kind != dispatch.IntentRun && shared[nlu.Key(request)] > 1 {
+	if said.Kind != dispatch.IntentRun && askedAbout(nlu.Key(request), names, phrases) {
 		said.Kind, said.ID = dispatch.IntentClarify, ""
 		said.Name, said.Scope, said.App, said.Slug, said.Focus = "", "", "", "", false
 		said.Reply, said.Candidates = whichOnesAnswerTo(request, eligible)
@@ -253,16 +264,60 @@ func Eligible(cs []Candidate, where Context) []Candidate {
 	return out
 }
 
-// sharedNames counts how many eligible routines answer to each name.
+// answerCounts is how many eligible routines are CALLED each key, and how many ANSWER to it by
+// phrase — counted apart, because a name outranks a phrase.
 //
 // By the matcher's key rather than by the slug, for the same reason uniqueness is checked that
 // way: two slugs it cannot tell apart are ONE name as far as a request is concerned.
-func sharedNames(cs []Candidate) map[string]int {
-	out := map[string]int{}
+//
+// # Why apart, and what counting them together cost
+//
+// Together, one routine's phrase could drag another routine's OWN NAME into ambiguity. A routine
+// called `settings` and a second taught to answer to "settings" made the key shared, so the first
+// lost its own name in the labelling pass and a request for `settings` became a question — about
+// a routine that is actually called that. The product's own rule is that the slug wins; counting
+// a phrase as equal to a name broke it inside the resolver while `routes` kept it everywhere
+// else.
+//
+// Once each per routine, because a routine answering to two phrases that reduce to one key is
+// still one routine and must not look like two.
+func answerCounts(cs []Candidate) (names, phrases map[string]int) {
+	names, phrases = map[string]int{}, map[string]int{}
 	for _, c := range cs {
-		out[nlu.Key(c.Slug())]++
+		if k := nlu.Key(c.Slug()); k != "" {
+			names[k]++
+		}
+		seen := map[string]bool{}
+		for _, a := range c.Answers {
+			k := nlu.Key(a)
+			if k == "" || seen[k] {
+				continue
+			}
+			seen[k] = true
+			phrases[k]++
+		}
 	}
-	return out
+	return names, phrases
+}
+
+// askedAbout reports whether a request names more than one routine, under that precedence.
+//
+// A key more than one routine is CALLED is a question, whatever any phrase says. A key no routine
+// is called, that more than one answers to, is also a question. A key one routine is called is
+// NOT a question — the name wins, and whatever phrases also reduce to it are shadowed by it.
+//
+// THAT LAST CASE IS DEFENSIVE AND NO TEST CAN SEE IT REMOVED, which is worth saying rather than
+// leaving as an untested branch. A sole canonical name always claims its own label in `labelled`,
+// so an exact request for it is answered by the offline arm and this function is never reached —
+// the guard above it is `said.Kind != dispatch.IntentRun`. It is here because the precedence is a
+// rule and not an accident of which arm happened to answer first: a resolver that stopped matching
+// a canonical name exactly would otherwise start asking questions about routines that have the
+// name somebody typed.
+func askedAbout(key string, names, phrases map[string]int) bool {
+	if names[key] > 0 {
+		return names[key] > 1
+	}
+	return phrases[key] > 1
 }
 
 // whichOnesAnswerTo is the clarification for a name more than one routine has, and their
@@ -272,12 +327,40 @@ func sharedNames(cs []Candidate) map[string]int {
 // here: the difference between the three is the thing being asked about.
 func whichOnesAnswerTo(request string, cs []Candidate) (string, []string) {
 	key := nlu.Key(request)
+	// UNDER THE SAME PRECEDENCE THE COUNTING USES. When routines are CALLED this, they
+	// are the question and a phrase that also reduces to it is not part of it — listing
+	// the phrase holder beside two namesakes would offer somebody a third routine the
+	// name does not belong to.
+	byName := false
+	for _, c := range cs {
+		if nlu.Key(c.Slug()) == key {
+			byName = true
+			break
+		}
+	}
 	var says, ids []string
 	for _, c := range cs {
-		if nlu.Key(c.Slug()) != key {
+		// BY ITS OWN NAME OR BY A PHRASE IT ANSWERS TO, because from the person's
+		// side those are the same claim on the same words — and the sentence names
+		// WHICH, because "settings and settings" tells somebody nothing while
+		// "settings, and the one you taught to answer to settings" tells them where
+		// to look.
+		under := ""
+		if nlu.Key(c.Slug()) == key {
+			under = c.Name
+		} else if !byName {
+			for _, a := range c.Answers {
+				if nlu.Key(a) == key {
+					under = fmt.Sprintf("%s, which answers to %q",
+						c.Name, a)
+					break
+				}
+			}
+		}
+		if under == "" {
 			continue
 		}
-		says = append(says, fmt.Sprintf("%s (%s)", c.Name,
+		says = append(says, fmt.Sprintf("%s (%s)", under,
 			plays.ScopeOf(c.Route).Says(c.App())))
 		ids = append(ids, c.ID)
 	}
@@ -332,15 +415,43 @@ func labelled(cs []Candidate) ([]string, map[string]Candidate) {
 		labels = append(labels, label)
 		return true
 	}
-	shared := sharedNames(cs)
+	names, phrases := answerCounts(cs)
 	// PASS ONE: ITS OWN NAME, for everything that can have it AND is the only one asking.
+	//
+	// Counted on NAMES alone, so a phrase somebody taught another routine cannot take a
+	// routine's own name away from it. See answerCounts.
 	rest := []Candidate{}
 	for _, c := range cs {
-		if shared[nlu.Key(c.Slug())] > 1 || !take(c.Slug(), c) {
+		if names[nlu.Key(c.Slug())] > 1 || !take(c.Slug(), c) {
 			rest = append(rest, c)
 		}
 	}
-	// PASS TWO: a derived label for whoever is left.
+	// PASS TWO: THE PHRASES SOMEBODY CHOSE, before any label this package invents.
+	//
+	// A phrase a person taught a routine is what they are likely to type; `settings-in-ark`
+	// is what is left when two routines want one name. So a phrase claims its key first,
+	// and a derived label that wanted the same string takes the counter below.
+	//
+	// A SHARED PHRASE IS CLAIMED BY NOBODY, which is the same rule pass one applies to a
+	// shared slug and it is load-bearing for the same reason: handed to one of the
+	// routines that answers to it, a request for that phrase is an exact match on that
+	// label — answered offline, selecting whichever the listing happened to put first,
+	// with neither the resolver nor the person asked. `sharedNames` counts phrases, so a
+	// phrase two routines answer to, or one that is another routine's actual name, has no
+	// label at all and reaches the clarification below.
+	for _, c := range cs {
+		for _, a := range c.Answers {
+			k := nlu.Key(a)
+			// A NAME WINS, so a phrase reducing to one is not offered at all —
+			// including the routine's own name, which it would add nothing to.
+			// And a phrase two routines answer to is claimed by neither.
+			if names[k] > 0 || phrases[k] > 1 {
+				continue
+			}
+			take(a, c)
+		}
+	}
+	// PASS THREE: a derived label for whoever is left.
 	for _, c := range rest {
 		if take(scopedLabel(c), c) {
 			continue

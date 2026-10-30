@@ -119,12 +119,17 @@ func theLibrary(reg routes.Registry) []resolveroute.Candidate {
 			continue
 		}
 		id := orchestrator.RouteID(rt)
+		// AND WHAT ELSE IT ANSWERS TO, through the registry's own read so that an
+		// unreadable file or one left behind by a half-finished move offers
+		// nothing. See routes.AliasState.
+		answers, _ := d.AliasesOf(rt)
 		out = append(out, resolveroute.Candidate{
 			Route:    rt,
 			ID:       id,
 			Name:     orchestrator.NameIn(string(raw), rt.Slug),
 			Scope:    string(orchestrator.ScopeAlreadyOf(rt)),
 			Runnable: !cannot[id],
+			Answers:  answers,
 		})
 	}
 	return out

@@ -243,3 +243,40 @@ func sameFiles(was, now map[string]string) bool {
 	}
 	return true
 }
+
+// AND WHAT EACH ROUTINE ANSWERS TO TRAVELS WITH IT.
+//
+// The wiring between the phrase file and the resolver, which neither side can hold alone:
+// `internal/routes` stores the phrases and `internal/resolveroute` turns them into labels, and
+// between them is this function. Without it every phrase in the library is invisible to Director
+// while resolving perfectly at the door — one half of the product answering to a phrase and the
+// other half not.
+//
+// A file left behind by a half-finished move offers nothing, because the read is the registry's
+// own and an unoffered state yields no phrases.
+func TestTheLibraryOffersWhatEachRoutineAnswersTo(t *testing.T) {
+	reg := aLibraryHere(t)
+	mine := routes.Route{App: "arkascended", Focus: true, Slug: "ark-graphics"}
+	if err := reg.SaveAliases(mine, []string{"make it pretty"}); err != nil {
+		t.Fatal(err)
+	}
+	// AND ONE LEFT BEHIND BY A MOVE THAT DID NOT FINISH.
+	stale := routes.Route{Slug: "quit-everything"}
+	if err := os.WriteFile(reg.AliasesPath(stale), []byte(
+		`{"version":1,"route":"ark/focus/elsewhere","phrases":["shut it down"]}`),
+		0o644); err != nil {
+		t.Fatal(err)
+	}
+	byID := map[string]resolveroute.Candidate{}
+	for _, c := range theLibrary(reg) {
+		byID[c.ID] = c
+	}
+	got := byID["arkascended/focus/ark-graphics"]
+	if len(got.Answers) != 1 || got.Answers[0] != "make it pretty" {
+		t.Errorf("the routine is offered answering to %q", got.Answers)
+	}
+	if left := byID["global/quit-everything"]; len(left.Answers) != 0 {
+		t.Errorf("phrases belonging to another identity were offered: %q",
+			left.Answers)
+	}
+}

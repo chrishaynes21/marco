@@ -307,6 +307,7 @@ move. See [[ADR-082-a-plays-past-travels-with-the-file]].
 | **`marco routes`** | registered only | what may be OFFERED to a front end |
 | **`/api/routes`** | registered only | the step editor's picker; a staged play is not openable |
 | **`PrepareEditOf`/`SaveEdit`** | demonstrated, account `none` or `intact` | step editing over the IR, re-rendered and compiled; Studio's routine card is the surface, and an operation carries the basis of the list it was read off |
+| **`AddAlias`/`RemoveAlias`** | any saved routine, phrase file `none` or `intact` | what else it answers to, kept beside the source and bound to its identity rather than to its bytes; resolved by DIRECTOR and never by the intake door, because whether a phrase names one routine is a judgement about the whole library |
 | **Learn panel** | `life` / `life_word` / `life_says` | the same words the Plays list uses for the same file |
 
 The two groups are printed apart rather than mixed with a badge, because the difference is not a

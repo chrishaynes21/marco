@@ -75,6 +75,12 @@ window.go = {main: {
         why: 'ark has no window open on this screen, so there is nothing for this ' +
              'routine to press in. Start it and press Refresh.'})
     },
+    // THE PHRASES PANEL'S READ, which the page makes for every routine it
+    // draws. A stub without it is a page that throws mid-render -- and note
+    // that no backtick may appear in this comment: the harness around it is a
+    // Go raw string, and one closed ten of these files at once.
+    RoutineAnswers: (id) => Promise.resolve({id: id, phrases: [],
+      askable: true}),
     Routines: () => Promise.resolve([
       {id: 'notepad/focus/one', name: 'one window', slug: 'one', app: 'notepad',
        scope: 'app-anywhere', contract: 'guarded', runnable: true,

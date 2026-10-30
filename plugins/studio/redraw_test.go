@@ -121,6 +121,12 @@ window.go = {main: {
     PlaybackTarget: () => Promise.resolve({chosen: '4660:77',
       windows: [{id: '4660:77', label: 'a window',
         says: 'Play brings a window to the front and presses there.'}]}),
+    // THE PHRASES PANEL'S READ, which the page makes for every routine it
+    // draws. A stub without it is a page that throws mid-render -- and note
+    // that no backtick may appear in this comment: the harness around it is a
+    // Go raw string, and one closed ten of these files at once.
+    RoutineAnswers: (id) => Promise.resolve({id: id, phrases: [],
+      askable: true}),
     Routines: () => Promise.resolve([]),
     Library: () => Promise.resolve({dir: '/tmp/routes'}),
     Learning: () => Promise.resolve({name: 'trackmania video', application: 'trackmania',

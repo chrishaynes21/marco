@@ -886,6 +886,36 @@
            edited and cannot be edited again until it is rebuilt. See StepEditDone. -->
       <div class="banner hide" style="margin-top:8px" id="routineStepOutcome"></div>
 
+      <!-- AND WHAT ELSE IT ANSWERS TO.
+           A routine has one name and that name is the file, so the only way to reach one by
+           a second phrase used to be to save a second routine. These are phrases kept beside
+           it: one routine, one place in the library, several ways in.
+
+           A REMOVAL NAMES THE PHRASE and not its position, which is why there is no basis
+           token here -- a row number means nothing without the list it was read off, and a
+           phrase is its own identity. And a collision is NAMED rather than resolved: the
+           backend refuses a phrase another routine is already reached by and says which, as
+           the one thing a card about one routine must not decide for itself. See answers.go
+           and `orchestrator.AddAlias`. -->
+      <div id="routineAnswersBox" style="margin-top:12px">
+        <div class="muted">Also answers to</div>
+        <!-- THE PHRASES, each with the one thing that can be done to it. Empty and silent
+             for a routine that answers only to its own name, which is an ordinary routine
+             and not a problem worth a sentence. -->
+        <div id="routineAnswersList" class="steprows"></div>
+        <div class="row" style="margin-top:6px" id="routineAnswerAskRow">
+          <input id="routineAnswerPhrase" type="text" style="flex:1"
+            placeholder="another way to ask for it"
+            onkeydown="if (event.key === 'Enter') { addRoutineAnswer() }">
+          <button id="routineAnswerAddBtn" onclick="addRoutineAnswer()">Add</button>
+        </div>
+        <!-- AND WHY NONE OF IT IS OFFERED, WHEN IT IS NOT: a recording in progress, or a
+             phrase file left behind by a move that did not finish. Separate from `Said`
+             below, which is what an add or a remove came to. -->
+        <div class="muted hide" style="margin-top:6px" id="routineAnswersWhy"></div>
+        <div class="hide" style="margin-top:6px" id="routineAnswersSaid"></div>
+      </div>
+
       <!-- AND WHERE IT WORKS CAN BE CHANGED, WHICH IS A MOVE AND NOT AN EDIT.
            Where a routine works IS its folder -- `<app>/context`, `<app>/focus`, `global`
            are three places -- so changing it writes a routine at one identity and ends one
@@ -2603,6 +2633,81 @@
  // they never saw. See stepedit.go.
  let stepList = null, stepChanges = [], stepReview = null, stepSaid = null
 
+ // ── WHAT ELSE A ROUTINE ANSWERS TO ──────────────────────────────────────────
+ //
+ // `answers` is what the backend last said for the routine on screen, and it is the ONLY
+ // thing drawn: the list comes back read off disk from every add and remove, so the page
+ // never maintains its own copy of what a routine answers to. A page that edited a local
+ // array and redrew it would show a phrase the write had refused.
+ let answers = null
+
+ function routineAnswers(){
+   const r = routineWith(chosenRoutine)
+   if (!r) { answers = null; drawAnswers(); return }
+   acts.RoutineAnswers(r.id).then(v => { answers = v; drawAnswers() })
+ }
+
+ function addRoutineAnswer(){
+   const r = routineWith(chosenRoutine)
+   const said = $('routineAnswerPhrase').value
+   if (!r || !said.trim()) { return }
+   $('routineAnswerAddBtn').disabled = true
+   acts.AddRoutineAnswer(r.id, said).then(v => {
+     answers = v
+     // THE BOX IS CLEARED ONLY WHEN THE PHRASE LANDED. A refused phrase stays where
+     // the person typed it, because the next thing they will do is change it -- and a
+     // collision refusal names what to avoid, which is no use with the words gone.
+     if (v && !v.failed) { $('routineAnswerPhrase').value = '' }
+     drawAnswers()
+   })
+ }
+
+ function removeRoutineAnswer(phrase){
+   const r = routineWith(chosenRoutine)
+   if (!r) { return }
+   acts.RemoveRoutineAnswer(r.id, phrase).then(v => { answers = v; drawAnswers() })
+ }
+
+ function drawAnswers(){
+   const r = routineWith(chosenRoutine)
+   // IT BELONGS TO THE ROUTINE IT IS ABOUT, so choosing another card puts it away
+   // rather than showing one routine's phrases under another's name.
+   //
+   // A SECOND STATEMENT OF A RULE THE REDRAW HOOK ALREADY ENFORCES, and worth saying so:
+   // `renderRoutine` drops `answers` the moment the chosen routine changes, so no test can
+   // see this check removed. It is here because this function is also called straight from
+   // the add and remove handlers, and a drawing function that trusts its caller to have
+   // cleared the state is one defect away from drawing it under the wrong name.
+   const a = (answers && r && answers.id === r.id) ? answers : null
+   showing($('routineAnswersBox'), !!r)
+   const list = $('routineAnswersList')
+   list.innerHTML = ''
+   ;((a && a.phrases) || []).forEach(p => {
+     const row = document.createElement('div')
+     row.className = 'row'
+     const said = document.createElement('span')
+     said.style.flex = '1'
+     said.textContent = '“' + p + '”'
+     const drop = document.createElement('button')
+     drop.textContent = 'Remove'
+     // BY THE PHRASE, which is the whole reason this needs no basis: there is no
+     // position for a changed list to make mean something else.
+     drop.onclick = () => { removeRoutineAnswer(p) }
+     row.appendChild(said)
+     row.appendChild(drop)
+     list.appendChild(row)
+   })
+   const why = (a && a.why) || ''
+   text($('routineAnswersWhy'), why)
+   showing($('routineAnswersWhy'), !!why)
+   showing($('routineAnswerAskRow'), !!(a && a.askable))
+   const said = (a && a.said) || ''
+   text($('routineAnswersSaid'), said)
+   showing($('routineAnswersSaid'), !!said)
+   $('routineAnswersSaid').className = (a && a.failed) ? 'no' : 'muted'
+   $('routineAnswerAddBtn').disabled = false
+ }
+
  // THE STEPS, ASKED OF THE BACKEND. Whether a routine can be edited at all is
  // `PrepareEdit`'s own answer -- its source has to be what its step list renders to -- and a
  // page with a copy of that rule would offer what the backend then declines.
@@ -3253,6 +3358,22 @@
      loadTarget()
    } else {
      drawTarget()
+   }
+   // AND WHAT IT ANSWERS TO, ASKED FOR WHENEVER THE ROUTINE CHANGES AND NEVER KEPT
+   // ACROSS ONE: the phrases belong to a routine, so showing the last one's under this
+   // one's name would be offering somebody a Remove for a phrase on something else.
+   //
+   // LAST IN THIS FUNCTION, AND THAT IS NOT TIDINESS. It was first, and a window whose
+   // backend did not export this binding threw here -- which took out everything after
+   // it, including the block above that decides which window Play presses in. Five page
+   // tests went red on a panel that has nothing to do with running anything. A secondary
+   // panel does not belong upstream of the one control that acts.
+   if (!answers || answers.id !== r.id) {
+     answers = null
+     drawAnswers()
+     routineAnswers()
+   } else {
+     drawAnswers()
    }
  }
 

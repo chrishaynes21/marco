@@ -13,6 +13,7 @@ package routes
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -31,6 +32,16 @@ type Route struct {
 // Registry is a directory tree of routes.
 type Registry struct {
 	Dir string // e.g. "routes"
+	// beforeSource occupies the instant between a creation clearing a stale phrase file
+	// and the routine existing, and is nil everywhere but a test.
+	//
+	// IT EXISTS BECAUSE THE ORDER OF TWO WRITES IS THE RULE. Clearing the orphan before
+	// publishing the source means no instant has both; clearing afterwards means one
+	// does, and in that instant a resolver offers somebody else's phrase for a routine
+	// that has just appeared. Neither end state differs, so only something that can look
+	// BETWEEN them can tell the two apart — the same reason
+	// `orchestrator.Deps.afterDestination` exists for a move. See Create.
+	beforeSource func()
 }
 
 // Slug turns a command name into a filesystem slug: lowercase, runs of
@@ -190,6 +201,21 @@ func (r Registry) Rename(from, to Route) error {
 	//
 	// Deleting this must fail TestRenamingAnEditedRoutineCarriesItsAccount.
 	_ = os.Rename(filepath.Join(dir, from.Slug+stepsExt), filepath.Join(dir, to.Slug+stepsExt))
+	// AND THE PHRASES COME WITH IT, WITH THEIR BINDING REWRITTEN.
+	//
+	// The file alone is not enough: it is bound to the identity it was written beside, and
+	// renaming the routine changes that identity — so a file that was only MOVED reads as
+	// belonging somewhere else and its phrases silently stop answering. The move happens
+	// first regardless, so nothing is left under the old slug for the next routine saved
+	// there to inherit, and the rewrite follows.
+	//
+	// Deleting either half must fail TestRenamingARoutineCarriesThePhrasesItAnswersTo.
+	if os.Rename(filepath.Join(dir, from.Slug+aliasExt),
+		filepath.Join(dir, to.Slug+aliasExt)) == nil {
+		if s, st := r.Aliases(to); st == AliasesElsewhere && len(s.Phrases) > 0 {
+			_ = r.SaveAliases(to, s.Phrases)
+		}
+	}
 	if matches, _ := filepath.Glob(filepath.Join(dir, from.Slug+"-anchor-*.png")); len(matches) > 0 {
 		for _, m := range matches {
 			suffix := strings.TrimPrefix(filepath.Base(m), from.Slug)
@@ -225,6 +251,13 @@ func (r Registry) Delete(rt Route) error {
 	// describes a source that is gone — but the digest is the backstop and removal is the
 	// intent: a routine that has been deleted leaves nothing behind that describes it.
 	if err := os.Remove(filepath.Join(dir, rt.Slug+stepsExt)); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	// AND WHAT IT ANSWERED TO. The binding would refuse the inheritance on its own — a
+	// file naming an identity nothing is saved at is not believed — but the binding is the
+	// backstop and removal is the intent: a routine that has been deleted leaves nothing
+	// behind that answers for it.
+	if err := os.Remove(filepath.Join(dir, rt.Slug+aliasExt)); err != nil && !os.IsNotExist(err) {
 		return err
 	}
 	if matches, err := filepath.Glob(filepath.Join(dir, rt.Slug+"-anchor-*.png")); err == nil {
@@ -282,6 +315,9 @@ func (r Registry) DeleteLeftovers(rt Route) []string {
 	}
 	if err := os.Remove(filepath.Join(dir, rt.Slug+stepsExt)); err != nil && !os.IsNotExist(err) {
 		residue = append(residue, fmt.Sprintf("its step account (%v)", err))
+	}
+	if err := os.Remove(filepath.Join(dir, rt.Slug+aliasExt)); err != nil && !os.IsNotExist(err) {
+		residue = append(residue, fmt.Sprintf("the phrases it answered to (%v)", err))
 	}
 	if matches, err := filepath.Glob(filepath.Join(dir, rt.Slug+"-anchor-*.png")); err == nil {
 		for _, m := range matches {
@@ -411,6 +447,23 @@ func (r Registry) Resolve(app, name string) (Route, bool) {
 	if rt := (Route{Slug: slug}); r.Has(rt) {
 		return rt, true
 	}
+	// AND WHAT ELSE A ROUTINE ANSWERS TO IS NOT RESOLVED HERE.
+	//
+	// It was, by the same scope priority as a slug, and that was wrong in a way no test
+	// of this function could show: a phrase TWO routines answer to would be selected by
+	// priority and performed, while Director — asked the same words through the same
+	// library — asks which of them was meant. One phrase, two answers, and the one that
+	// acted was the one that could not ask a question.
+	//
+	// So ambiguity has one owner, which is the arrangement [[ADR-267-director-owns-route-
+	// resolution]] already describes: this door answers EXACTLY or not at all, and
+	// anything that needs a judgement is Director's. A phrase is exact, but whether a
+	// phrase is unambiguous is a fact about the whole library, and a door with nowhere to
+	// ask is the wrong place to settle it.
+	//
+	// `AnsweringTo` stays, and Director is its caller — through `resolveroute`, which
+	// offers a phrase as a label, answers it offline, and turns a shared one into a
+	// question. See [[ADR-275-a-routine-may-answer-to-more-than-one-phrase]].
 	return Route{}, false
 }
 
@@ -475,6 +528,90 @@ func (r Registry) Create(rt Route, source string) error {
 	}
 	if err := os.MkdirAll(r.locDir(rt), 0o755); err != nil {
 		return err
+	}
+	// ── AND NOTHING IS TOUCHED UNTIL IT IS KNOWN THAT NOTHING IS THERE ──
+	//
+	// `O_EXCL` below is what makes a creation exclusive, and it answers AFTER the clear
+	// beneath this would have run. So calling this at an identity where a routine already
+	// exists cleared THAT routine's legitimate phrases and then refused with "already
+	// exists": a refused save that had changed the library, which is the one thing a
+	// refusal may not do. `Keep` reaches here exactly when its own collision check said
+	// the place was free and something appeared since — the race `O_EXCL` exists for — so
+	// this is not a hypothetical path, it is the path.
+	//
+	// The source is therefore asked about FIRST, under the route's write lock both callers
+	// hold. An existing routine is `fs.ErrExist` with nothing written and nothing removed,
+	// and a source whose presence could not be determined is refused rather than guessed
+	// at — because guessing "absent" is what clears somebody's phrases.
+	//
+	// `O_EXCL` STAYS, and this is not a substitute for it. It removes the destructive
+	// clear for every writer that takes the lock, and the exclusive create remains the
+	// answer for one that does not — a text editor, a sync, another tool — which can still
+	// appear between these two steps and will be refused rather than overwritten. Held by
+	// TestARoutineThatAppearsDuringACreationIsNotOverwritten, which is the only way to
+	// reach that instant.
+	//
+	// AND ONLY A DEFINITE ABSENCE PROCEEDS. The two refusals below cover for each other —
+	// mutate either and the other still stops the clear — which is fail-closed and
+	// deliberate rather than an untested branch: the question this asks is not "does it
+	// exist" but "is it certainly not there", and everything else is a reason not to
+	// touch anything.
+	switch _, err := os.Stat(r.Path(rt)); {
+	case err == nil:
+		return fs.ErrExist
+	case !os.IsNotExist(err):
+		// DEFENSIVE, AND NO TEST REACHES IT — a stat failing with something other
+		// than "not there" needs a path this platform cannot answer about. Kept
+		// because the DIRECTION of the guess is the whole point: treating an
+		// unanswerable stat as absence is what clears somebody's phrases and then
+		// refuses, which is the defect this ordering exists to prevent.
+		return fmt.Errorf("routes: %s was not created: whether a routine is already "+
+			"saved there could not be determined (%v), so nothing has been "+
+			"touched", rt.ID(), err)
+	}
+
+	// ── A FRESH ROUTINE ANSWERS TO ITS OWN NAME AND NOTHING ELSE ──
+	//
+	// A phrase file is bound to a route's IDENTITY, and an identity is a place rather than
+	// a thing: delete a routine whose phrase file could not be swept — `DeleteLeftovers`
+	// reports that and is not allowed to fail a move over it — and the file sits there
+	// bound to a place with nothing in it, which `Aliases` reads as orphaned and offers
+	// nothing for. The moment a NEW routine exists at that place the binding matches again
+	// and the new routine answers to phrases somebody attached to a routine that is gone.
+	//
+	// BEFORE THE SOURCE, AND THE FIRST VERSION HAD IT AFTER. The reasoning for afterwards
+	// was that the hazard begins when the source appears, which is true and is the
+	// argument for clearing FIRST: while there is no source there is nothing to inherit,
+	// so a clear that happens first closes the window instead of opening and shutting it.
+	// Afterwards leaves an interval in which the routine exists and the orphan matches,
+	// and a resolver reading in that interval offers somebody else's phrase.
+	//
+	// AND A FAILED CLEAR REFUSES, where it used to be ignored. A readable file Windows
+	// will not let go of — something holding it open, a permission, a sync — would
+	// otherwise match the new identity and be reported `intact`, which is the single
+	// outcome this file exists to prevent. Avoiding a refusal cannot justify that: the
+	// refusal is one sentence naming the file, and the alternative is a routine quietly
+	// answering to a phrase nobody gave it.
+	//
+	// UNDER THE ROUTE'S WRITE LOCK, which both callers already hold — `orchestrator.Keep`
+	// around its version check and writes, and `Rescope` around both ends of a move — so
+	// nothing that takes the lock can put a phrase file back between the two steps. It is
+	// not taken again here: a second claim on the same lock from the same process is a
+	// different handle and would wait for one this process is holding.
+	//
+	// Deleting this must fail TestAFreshRoutineDoesNotInheritLeftoverPhrases, and moving
+	// it back below the source must fail TestNoInstantLetsAFreshIdentityAnswerToAnOrphan.
+	if err := r.DeleteAliases(rt); err != nil {
+		return fmt.Errorf("routes: %s was not created: phrases left at that identity "+
+			"by whatever used to be saved there could not be removed (%v), and a "+
+			"routine created beside them would answer to them — close whatever "+
+			"is holding %s, or remove it, and save again",
+			rt.ID(), err, rt.Slug+aliasExt)
+	}
+	// beforeSource occupies the instant between that clear and the routine existing. See
+	// the field.
+	if r.beforeSource != nil {
+		r.beforeSource()
 	}
 	f, err := os.OpenFile(r.Path(rt), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
 	if err != nil {

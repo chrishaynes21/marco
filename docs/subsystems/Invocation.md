@@ -151,6 +151,20 @@ which exists. The grammar (`ParseInvocation`, `SplitChain`) gets its turn afterw
 otherwise "turn the lights on then make coffee" is one request for Director rather than two offers
 to record a demonstration. `TestAPlayNamedWithTheGrammarIsStillReachable`.
 
+**AND A ROUTINE MAY ANSWER TO MORE THAN ITS OWN NAME — BUT NOT HERE.** Phrases kept beside the
+source (`<slug>.aliases.json`) are NOT consulted by this arm. A phrase is exact, which is why
+claiming one here looked right; what it is not is necessarily UNAMBIGUOUS, and that is a fact about
+the whole library. The first version selected by the same four-scope priority a slug walks, so a
+phrase two routines answered to was performed here while Director, asked the same words against the
+same library, asked which was meant — one phrase, two answers, and the one that acted could not
+ask. So the words fall through to Director, which owns the resolution that needs a judgement and
+can ask about it. The cost is real and stated: with Director unavailable a phrase reaches nothing,
+where a routine's own name still runs. Nothing about a phrase changes the arms above this one
+either — a routine taught to answer to "stop" does not claim the word that has to reach a running
+play. See [[ADR-275-a-routine-may-answer-to-more-than-one-phrase]],
+`TestAPhraseIsHandedToDirectorRatherThanClaimedHere` and
+`TestAPhraseNeverOutranksAControlWord`.
+
 **5 — a demonstration is the OTHER durable half, and it is not a Play.** A routine a person
 showed Marco by hand carries no verbs, lives in the demo store rather than the registry, and can
 only be carried out by the Director's supervised runner — grounded on a fresh look, authorised one
