@@ -1583,13 +1583,15 @@ narrows the interaction; it does not rule one out, and the failure has not been 
 anything.
 
 **One more observation, 2026-10-30, and it is not a cause.** A clean-checkout run of `8550723`
-was contaminated by a second suite started while it was running, and two tests failed under that
-load: `internal/stopsignal` `TestAnUnreadableGenerationDoesNotRefuseToStartAPlay` (*the
-generation file could not be replaced while something has it open*) and `cmd/director`
-`TestCancellationBlocksTheNextInteractionAndPreservesThePriorAccounting`. Both pass alone. That
-says shared state in and around `cmd/director` is a mechanism worth checking when somebody takes
-this item up; it says nothing about the failure above, which was observed during a solo run of a
-DIFFERENT test.
+overlapped a second suite started while it was running, and two tests failed during it:
+`internal/stopsignal` `TestAnUnreadableGenerationDoesNotRefuseToStartAPlay` (*the generation file
+could not be replaced while something has it open*) and `cmd/director`
+`TestCancellationBlocksTheNextInteractionAndPreservesThePriorAccounting`. That run is excluded
+from acceptance and its failures are kept here with no verdict: both pass alone, which says they
+pass alone and NOT that the overlap was their cause rather than their occasion.
+
+What it offers this item is a mechanism to check — shared state in and around `cmd/director` —
+and nothing about the failure above, which was a DIFFERENT test during a solo run.
 
 **What the work is:** establishing whether the sentence is missing because the screen genuinely
 could not be established and the run stayed silent — which is a product defect in the account a

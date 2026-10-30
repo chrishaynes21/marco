@@ -29,23 +29,31 @@ source_paths:
 > **The result for `2770d46` is superseded and not re-stated.** It was true of that commit and
 > says nothing about the sixteen after it, which is the whole reason this row names a commit.
 
-> **AND ONE RUN OF IT IS VOID, RECORDED HERE RATHER THAN DISCARDED.** The first attempt at
-> `8550723` reported *failed — 2 failures* inside the clone:
+> **AND ONE RUN OF IT IS EXCLUDED FROM ACCEPTANCE, ITS FAILURES RETAINED AS OBSERVATIONS.** The
+> first attempt at `8550723` reported *failed — 2 failures* inside the clone:
 > `internal/stopsignal` `TestAnUnreadableGenerationDoesNotRefuseToStartAPlay`
 > (*the generation file could not be replaced while something has it open*) and `cmd/director`
 > `TestCancellationBlocksTheNextInteractionAndPreservesThePriorAccounting` (*the second
 > interaction was put to the person 1 time(s) after the run was cancelled*).
 >
-> **The cause was the operator.** `go test -tags desktop ./cmd/director/` was started while that
-> gate was running, so two suites exercising `cmd/director` and the same `%LOCALAPPDATA%` state
-> ran at once. The verdict is therefore not evidence about the commit, in either direction: it is
-> void, the run above was made with nothing else touching the machine, and the voided one is
-> written down because a failure deleted from a transcript is a failure nobody can weigh later.
+> **What is established is the OVERLAP, and nothing more.** `go test -tags desktop ./cmd/director/`
+> was started while that gate was running, so two suites exercising `cmd/director` and the same
+> `%LOCALAPPDATA%` state ran at once. That makes the run unusable as acceptance evidence, so it is
+> excluded; the run above was made with nothing else touching the machine.
 >
-> It is **not** offered as the cause of [[Roadmap]] 38. That is an intermittent failure of a
-> DIFFERENT test, observed during a solo run, and nothing here establishes its cause. What this
-> adds to that item is one observation: two `cmd/director` tests fail under concurrent load, so
-> shared state in that package is a mechanism worth checking when somebody takes 38 up.
+> **ATTRIBUTION IS UNCERTAIN IN BOTH DIRECTIONS, and this page claims neither.** The overlap is not
+> evidence that the commit is at fault, and it is not evidence that those two failures are harmless
+> either: both tests passing alone says they pass alone, which is not the same as the overlap having
+> been their cause rather than their occasion. So the failures are KEPT, as observations, with no
+> verdict attached — a failure deleted from a transcript is one nobody can weigh later, and a
+> failure explained away is worse than one left open.
+>
+> It is **not** offered as the cause of [[Roadmap]] 38, which is an intermittent failure of a
+> DIFFERENT test observed during a solo run. What it adds there is one observation: shared state in
+> and around `cmd/director` is a mechanism worth checking when somebody takes 38 up.
+>
+> This supersedes the sentence in `f00a8e3`'s own commit message, which said the cause was the
+> operator. The overlap was; the failures are not established to have been.
 
 What a person can do with this tree, end to end: name a command in plain words, demonstrate it
 once in a window they chose, be asked whether to keep it, and press Play. The demonstration is
@@ -312,10 +320,10 @@ broken tree cannot be established from an unbroken one.
   that it did not run them.
 - Not that the three routine slices work on a desktop. They are verified by automation only, and
   the playback handoff in particular stands on two seams: a stated window and a stated foreground.
-- Not that the voided clean-checkout run was environmental rather than a defect. It was traced to
-  one cause — a second suite started by the operator while the gate was running — and the rerun
-  was made alone. What was NOT done is establishing that those two tests are otherwise sound
-  under load, which is why the observation is written into [[Roadmap]] 38 rather than closed.
+- Not that the excluded clean-checkout run was environmental rather than a defect. What was
+  established is that it overlapped another suite, which makes it unusable as acceptance evidence
+  and does NOT make its two failures harmless: they are retained as observations with no verdict.
+  Both tests passing alone says they pass alone.
 - Not that 83 killed mutations mean the slices are correct. Each gate asks whether THESE tests
   notice THESE breaks; five of the eighty-three were survivors first, and in every case the
   survivor was a finding about a test that looked like it was asking something it was not.
