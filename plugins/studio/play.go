@@ -270,11 +270,16 @@ func (a *Acts) bringForward(app string) string {
 	// foreground is says nothing and starts the run, exactly as before.
 	leading, checked := a.lift(c.Handle, c.ProcessID)
 	if checked && !leading {
-		return fmt.Sprintf("Windows would not bring %s to the front, and Marco "+
-			"will not press anything it cannot see — click %s's own window "+
-			"yourself, then press Play again. (Windows only lets the window "+
-			"you last clicked hand the foreground on, so pressing Play while "+
-			"a full-screen game is behind it can be refused.)", app, app)
+		// THE SAME CORRECTION AS THE ROUTINE PATH, and the same reason: this said
+		// Windows would not bring the window forward, which is a cause rather than
+		// an observation, and the readings taken next door show the call being
+		// accepted every time anybody measured it. See liftChosen in routines.go.
+		return fmt.Sprintf("Marco couldn't confirm the foreground handoff to %s "+
+			"within the wait. Nothing was started. Bring %s's own window "+
+			"forward yourself, then press Play again. (One possibility: "+
+			"Windows only lets the window you last clicked hand the "+
+			"foreground on, so pressing Play while a full-screen game is "+
+			"behind it can be refused.)", app, app)
 	}
 	return ""
 }

@@ -468,8 +468,14 @@ func TestAnApplicationWindowsWillNotBringForwardIsSaidBeforeAnythingStarts(t *te
 		starts          bool
 	}{
 		{"it came forward", true, true, "", true},
+		// BY MEANING AND NOT BY SENTENCE. This asserted "click ArkAscended.exe's
+		// own window", which the refusal used to say. The copy was corrected — it
+		// asserted that WINDOWS had refused, and the readings taken from a real
+		// desktop show the call being accepted every time — so what is held now is
+		// that it names the application and says nothing was started. See
+		// raisetrace_test.go.
 		{"it did not, and this machine can tell", false, true,
-			"click ArkAscended.exe's own window", false},
+			"ArkAscended.exe", false},
 		{"nobody here can tell where the foreground is", false, false, "", true},
 	} {
 		t.Run(c.name, func(t *testing.T) {
@@ -493,7 +499,14 @@ func TestAnApplicationWindowsWillNotBringForwardIsSaidBeforeAnythingStarts(t *te
 					t.Fatalf("Play was refused: %s", why)
 				}
 			} else if !strings.Contains(why, c.refusedContains) {
-				t.Fatalf("the refusal does not say what to do: %q", why)
+				t.Fatalf("the refusal does not name the application: %q", why)
+			} else if !strings.Contains(why, "Nothing was started") {
+				t.Fatalf("the refusal does not say that nothing was started, "+
+					"which is the half somebody acts on: %q", why)
+			} else if strings.Contains(why, "Windows would not bring") {
+				t.Fatalf("the refusal asserts that Windows refused, which the "+
+					"readings contradict wherever they have been taken: %q",
+					why)
 			}
 			if !c.starts {
 				if w := a.Watch(); w.Active {

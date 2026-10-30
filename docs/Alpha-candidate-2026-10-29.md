@@ -231,6 +231,69 @@ three, four of the kills were survivors first: a skip is green, a guard rule is 
 from an unbroken tree, a printed stage header is not evidence the stage ran, and a rule about a
 broken tree cannot be established from an unbroken one.
 
+## The packaged desktop gate, and one focused investigation
+
+**TWO RESULTS, RECORDED SEPARATELY.** They are about different things and neither supersedes the
+other.
+
+### The full run: 19 passed, 5 failed
+
+`gate.ps1` against `b6d391c`, 2026-10-29, after three stage-1 findings were fixed. **Stages 1 to
+5 passed** — the suites, a clean checkout of the commit inside the gate, the packed bundle, its
+isolated install, and the desktop-tagged tests. Stage 6 ran the registered scenarios for the
+first time in this history.
+
+| Failure | What it was |
+| --- | --- |
+| `window/readiness notices a missing sibling` | the scenario quoted copy the reduction rewrote. **Fixed** in `e565fe9`, by asserting the panel's meaning rather than its sentence. |
+| `generation/a reviewed rebuild replaces the routine` | the provenance line moved into a collapsed disclosure, and the content of a closed `<details>` is not in the accessibility tree. **Fixed** in `e565fe9`: the disclosure has an id and the scenario opens it. |
+| `window/moved window still gets the press` | a foreground handoff Studio could not confirm inside its wait. NOT FIXED, NOT EXPLAINED. |
+| `window/resized window is refused with nothing sent` | the same. |
+| `keys/a chord arrives as a chord` | the same. |
+
+The two scenario corrections are **awaiting confirmation**: they have not been run on a desktop
+since.
+
+### The focused investigation at `a5b7abf`: 4 passed, the failure not reproduced
+
+Authorised as a bounded set rather than another gate: the three failing scenarios once each, and
+one passing counterpart, against a bundle packed and installed from that commit. **All four
+passed.** The original handoff failure did not reproduce.
+
+What the traces establish, identically in all four:
+
+```
+asked_hwnd 19534846  asked_pid 37136
+leading_before_hwnd 30020882  leading_before_pid 21872
+setforeground_returned true   error "The operation completed successfully."
+looks [ {look 0, hwnd 0, pid 0}, {look 1, hwnd 19534846, pid 37136} ]
+leading_after 19534846 / 37136
+```
+
+- **The window doing the asking held the foreground.** `leading_before` is Studio's own window and
+  pid, confirmed against the run log.
+- **`SetForegroundWindow` was accepted every time**, with *The operation completed successfully*.
+- **The handoff passes through a state with no foreground at all** — look 0 reads `hwnd 0, pid 0`
+  — and the target leads 50ms later. The existing wait absorbs that in one step on a responsive
+  machine.
+
+**What they do NOT establish, and this is the narrowing that matters:** four isolated passes say
+the failure did not reproduce in those four attempts. They do NOT establish that the failing
+condition belongs exclusively to a full run. Run ordering, machine load and unrelated foreground
+activity all remain hypotheses, and none of them has been tested. Two of the four candidate
+explanations for a failed handoff are ruled out FOR THESE RUNS ONLY.
+
+**The one correction the trace supported** is in `a5b7abf`'s successor: the refusal said *Windows
+would not bring %s to the front* and explained the foreground lock, which asserts a cause the
+readings contradict wherever they have been taken. It now says what was observed — the handoff
+was not confirmed within the wait, nothing was started, bring the window forward and press Play
+again — with the lock offered as one possibility in the details and the readings in the trace.
+No timing changed, nothing retries, no wait is longer.
+
+Everything from both runs is preserved at `%LOCALAPPDATA%\marco-acceptance-20261030`: five gate
+logs, six gate diagnostics directories, the harness artifacts with screen dumps and fixture event
+streams, and the four focused runs with their traces.
+
 ## Remaining acceptance checks — NOT RUN
 
 | Check | Command | Why it has not run |

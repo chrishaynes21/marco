@@ -84,6 +84,50 @@ func TestTheRaiseTraceCarriesWhatAFailedHandoffNeedsExplaining(t *testing.T) {
 	}
 }
 
+// AND THE REFUSAL SAYS WHAT WAS OBSERVED, NOT WHICH MECHANISM CAUSED IT.
+//
+// It said "Windows would not bring %s to the front" and explained the foreground lock as the
+// reason. The readings contradicted that everywhere anybody measured: `SetForegroundWindow`
+// returned accepted, with *The operation completed successfully*, and the window doing the asking
+// held the foreground it was handing on. What is established is that the handoff was not
+// confirmed inside the wait — and a sentence naming a cause it cannot see sends whoever reads it
+// to the wrong place.
+//
+// Held in both directions: it states the observation, and it does NOT assert the mechanism. The
+// lock may still be mentioned as a possibility, which is where it belongs.
+func TestTheRefusalSaysWhatWasObservedAndNotWhyItHappened(t *testing.T) {
+	a := newActs(t.TempDir())
+	a.lifting = func(uintptr, uint32) (bool, bool) { return false, true }
+
+	why := a.liftChosen(orchestrator.Pickable{HWnd: 1, PID: 2, App: "fixture",
+		Title: "Marco Fixture"})
+	if why == "" {
+		t.Fatal("a handoff that was not confirmed was not refused")
+	}
+	// THE OBSERVATION, AND WHAT TO DO ABOUT IT.
+	for _, must := range []string{"couldn't confirm", "Nothing was started",
+		"press Play again"} {
+		if !strings.Contains(why, must) {
+			t.Errorf("the refusal does not say %q, so somebody reading it cannot "+
+				"tell what happened or what to do: %q", must, why)
+		}
+	}
+	// AND THE WINDOW IT WAS ABOUT.
+	if !strings.Contains(why, "Marco Fixture") {
+		t.Errorf("the refusal does not name the window: %q", why)
+	}
+	// AND IT ASSERTS NO CAUSE. The lock is a POSSIBILITY and is marked as one; a
+	// sentence that states it as the reason is the thing being corrected.
+	if strings.Contains(why, "Windows would not bring") {
+		t.Errorf("the refusal still asserts that Windows refused, which the readings "+
+			"contradict wherever they have been taken: %q", why)
+	}
+	if strings.Contains(why, "foreground on") && !strings.Contains(why, "One possibility") {
+		t.Errorf("the refusal explains the foreground lock without marking it as a "+
+			"possibility: %q", why)
+	}
+}
+
 // AND IT IS WRITTEN WHERE A WINDOWED PROCESS CAN BE READ, FOR EVERY OUTCOME.
 //
 // Studio has no stderr anybody sees, so the channel is the file a harness asked it to write into

@@ -552,11 +552,26 @@ func (a *Acts) liftChosen(into orchestrator.Pickable) string {
 	// something went wrong cannot say what a working one looks like.
 	a.observed("raise", trace)
 	if checked && !leading {
-		return fmt.Sprintf("Windows would not bring %s to the front, and Marco will "+
-			"not press anything it cannot see — click that window yourself, then "+
-			"press Play again. (Windows only lets the window you last clicked hand "+
-			"the foreground on, so pressing Play while a full-screen game is behind "+
-			"it can be refused.)", into.Label())
+		// WHAT WAS OBSERVED, NOT WHICH MECHANISM CAUSED IT.
+		//
+		// This said "Windows would not bring %s to the front" and explained the
+		// foreground lock. Both are claims about a cause, and the readings next
+		// door contradicted them in every case anybody measured: the call was
+		// ACCEPTED each time, with "The operation completed successfully", and
+		// Studio held the foreground it was handing on. The handoff simply was
+		// not confirmed inside the wait, and whether the lock, a window handing
+		// on elsewhere, or a slow transition did that is not something this
+		// function knows.
+		//
+		// So the sentence says the observation and what to do, the possibility
+		// goes in the details where it is offered rather than asserted, and the
+		// readings are in the trace above. See raiseWindowTraced.
+		return fmt.Sprintf("Marco couldn't confirm the foreground handoff to %s "+
+			"within the wait. Nothing was started. Bring that window "+
+			"forward yourself, then press Play again. (One possibility: "+
+			"Windows only lets the window you last clicked hand the "+
+			"foreground on, so pressing Play while a full-screen game is "+
+			"behind it can be refused.)", into.Label())
 	}
 	return ""
 }
