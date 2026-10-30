@@ -43,9 +43,11 @@ func readinessNoticesAMissingSibling(w *world) result {
 	// tree even when it is on screen — only its TEXT is there, as text. What the panel says
 	// is asserted below with `says`; what is waited for here has to be something the tree
 	// actually holds.
-	// AND IT IS `routines`, NOT `scenes`: `capBtn` moved when Studio gave the
-	// demonstrate-and-watch tools their own place. See stage.go.
-	if err := s.surface("routines", "capBtn"); err != nil {
+	// AND IT IS `routines` PROVED BY `askBtn`: `capBtn` moved when Studio gave the
+	// demonstrate-and-watch tools their own place, AND it is hidden until the recording
+	// form is revealed. This scenario reads the readiness panel and records nothing. See
+	// stage.go.
+	if err := s.surface("routines", routinesProof); err != nil {
 		return fail(started, err.Error())
 	}
 	// NOTHING WRONG, FIRST, AND THE RIGHT PHRASE TO LOOK FOR.

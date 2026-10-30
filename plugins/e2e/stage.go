@@ -85,18 +85,27 @@ func setUpWatching(w *world, watch []string,
 		return nil, err
 	}
 	st.s = s
-	// THE SURFACE THAT HOLDS THE RECORDING CARD, WHICH IS `routines` NOW.
+	// THE ROUTINES SURFACE, PROVED BY A CONTROL THAT IS ALWAYS ON IT.
 	//
-	// This asked for `scenes` and waited for `capBtn`, then chose a routine card —
-	// which only worked while the recording card and the routine list were ONE
-	// surface. Studio split the three demonstrate-and-watch tools into their own
-	// place, so `rail-scenes` now shows `learnName/learnApp/learnBtn` and `capBtn`
-	// lives under `rail-routines` with the cards.
+	// Twice wrong before this. It asked for `scenes` and waited for `capBtn`, then chose
+	// a routine card — which only worked while the recording card and the routine list
+	// were ONE surface, and Studio split the three demonstrate-and-watch tools into
+	// their own place. So `rail-scenes` shows `learnName/learnApp/learnBtn` and `capBtn`
+	// moved under `rail-routines` with the cards.
 	//
-	// Every registered scenario failed on it, in stage 6 of 6, twenty minutes into a
-	// run and only with the screen. `TestEveryHarnessSurfaceHoldsTheControlItWaitsFor`
-	// asks the same question of the page without one.
-	if err := s.surface("routines", "capBtn"); err != nil {
+	// AND THEN IT WAITED FOR A HIDDEN CONTROL. `capBtn` is inside `captureCard`, which
+	// carries `hide` until somebody presses `Record something new` — so the id is in the
+	// document and NOT in the accessibility tree, and waiting for it on arrival is
+	// waiting for something nobody has revealed. Containment was only half the question.
+	//
+	// `askBtn` is the ask box's button: on the routines surface, in no hidden container,
+	// and toggled by nothing. A proof of arrival has to be something that is there
+	// WHENEVER the surface is, which neither of the previous two was.
+	//
+	// Nothing in this harness records, so nothing here needs the form. A scenario that
+	// did would press `recordRevealBtn` first; the page's side of that is held by
+	// `plugins/studio` TestTheRecordingFormIsRevealedRatherThanWaitedFor.
+	if err := s.surface("routines", routinesProof); err != nil {
 		st.down()
 		return nil, err
 	}
@@ -121,6 +130,10 @@ func (st *stage) play() error {
 }
 
 // leaveRun presses Done and waits until the routines are on screen again.
+//
+// Proved by `askBtn` and not by `capBtn`, for the reason `newStage` gives: the recording form is
+// hidden until somebody reveals it, so a window that had gone back to the routines perfectly well
+// would never produce the control this used to wait for.
 func (st *stage) leaveRun() error {
 	// WAITED FOR, BECAUSE A FINISHED RECORD IS NOT A FINISHED WINDOW.
 	//
@@ -139,7 +152,7 @@ func (st *stage) leaveRun() error {
 	if err := st.s.press("backBtn"); err != nil {
 		return err
 	}
-	_, err := st.s.waitFor(10*time.Second, "capBtn", present)
+	_, err := st.s.waitFor(10*time.Second, routinesProof, present)
 	return err
 }
 

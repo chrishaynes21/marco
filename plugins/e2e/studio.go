@@ -188,6 +188,25 @@ func (s *studioRun) waitFor(bound time.Duration, id string, want func(element) b
 	return found, nil
 }
 
+// routinesProof is the control that proves the routines surface is up.
+//
+// ONE NAME, USED BY EVERY SITE THAT WAITS FOR THAT SURFACE, because this has now been wrong
+// twice in two different ways and both times at more than one site. First `rail-scenes` with
+// `capBtn`, which stopped being one surface when Studio gave the demonstrate-and-watch tools
+// their own place. Then `rail-routines` with `capBtn`, which is in the right section and HIDDEN:
+// `captureCard` carries `hide` until somebody presses `Record something new`, so the id is in
+// the document and not in the accessibility tree.
+//
+// `askBtn` is the ask box's button: on that surface, in no hidden container, toggled by nothing,
+// and still there after the recording form is revealed — which `recordRevealBtn` is not, since
+// pressing it hides it. A proof of ARRIVAL has to be there whenever the surface is.
+//
+// Held two ways, because neither is enough: `TestEveryHarnessSurfaceHoldsTheControlItWaitsFor`
+// asks the page whether it is in the right section and NOT hidden on arrival, without a browser;
+// `plugins/studio` TestTheRoutinesSurfaceIsProvedByAControlThatIsOnIt renders the real page,
+// presses the real controls in the order a scenario does, and asks what is on screen.
+const routinesProof = "askBtn"
+
 func enabled(e element) bool { return e.Enabled }
 func present(element) bool   { return true }
 
