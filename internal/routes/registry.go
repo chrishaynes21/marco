@@ -194,18 +194,18 @@ func (r Registry) Rename(from, to Route) error {
 // Delete removes a route, its stored demonstration, and any image-template files it
 // generated (no error if absent).
 //
-// # The order is wrong for a MOVE, and right for a deletion
+// # The order is wrong for a MOVE
 //
-// The demonstration and the images go FIRST, and the source last. For somebody deleting a
-// routine that is the harmless order — everything is going — and it has the property a deletion
-// wants: a failure partway leaves no routine whose dependencies are missing, because the source
-// is the last thing removed and a routine with its source still there is one that was never
-// deleted.
+// The demonstration and the images go FIRST, and the source last. That is the ordinary order
+// for somebody deleting a routine — everything is going — but it is not a safe one and nothing
+// here claims it is: if the last removal fails, the source is still on disk with its
+// dependencies already gone. Ordinary deletion has not been redesigned, and this is not a
+// licence to reuse the order anywhere else.
 //
 // It is exactly wrong for a move, which removes the original only AFTER the copy is verified and
-// must be able to say "original retained" truthfully: if the source removal fails here, the
-// recording and the images are already gone and what is retained is a routine that can no longer
-// be reviewed, rebuilt or moved — and, with anchors, may no longer run. A move uses
+// must be able to say "original retained" truthfully: through this order the recording and the
+// images are already gone when the source removal fails, and what is retained can no longer be
+// reviewed, rebuilt or moved — and, with anchors, may no longer run. A move uses
 // [Registry.DeleteSource] and [Registry.DeleteLeftovers] instead, in that order. See
 // [[ADR-271-a-rescope-is-a-reviewed-move-between-identities]].
 func (r Registry) Delete(rt Route) error {
@@ -235,7 +235,8 @@ func (r Registry) Delete(rt Route) error {
 // a routine is its `.marco`, so while that is there the routine is there. Everything beside it —
 // the demonstration, the anchor images — is a dependency of a routine that still exists, and
 // removing any of it before this has succeeded is how "original retained" becomes a half a
-// routine. See [Registry.Delete] for why the opposite order is right for a deletion.
+// routine. See [Registry.Delete] for the opposite order, and for what it leaves behind when
+// its own last removal fails.
 //
 // Absent is not a failure: the end state asked for is the end state.
 func (r Registry) DeleteSource(rt Route) error {
