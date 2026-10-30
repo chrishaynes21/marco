@@ -509,6 +509,25 @@ func (d Deps) write(dr *Draft, mode scopeMode, app string, rt routes.Route, over
 	if raw, mErr := json.Marshal(dr.Events); mErr == nil {
 		_ = d.Reg.SaveRecording(rt, raw)
 	}
+	// ── AND ANY STEP ACCOUNT AT THIS ROUTE GOES, BECAUSE IT DESCRIBES NEITHER FILE NOW ──
+	//
+	// This is the one way a DEMONSTRATION becomes a routine, so what lands here is a
+	// rendering of a recording and not of a stored step list. A routine recorded again has
+	// a new source and a new demonstration; a basis stored before that describes a
+	// demonstration that is gone, and keeping it would be keeping an account of a routine
+	// nobody has any more — whether it got there through a step edit or through a
+	// re-simplification, which this cannot tell and does not need to.
+	//
+	// Best-effort, and the reason it may be: an account that outlived its source is inert.
+	// Its digests no longer match, so nothing renders from it and editing refuses with a
+	// sentence — the digest is the backstop, and this is the intent. Reporting a failed
+	// SAVE because an inert file could not be swept would be the wrong answer about a
+	// routine that is correctly on disk. `Deps.Resave` writes one back deliberately after
+	// this, which is the one caller that renders from an account.
+	if err := d.Reg.DeleteSteps(rt); err != nil {
+		mlog.Error("draft: a step account could not be swept", "route", rt.Slug,
+			"err", err)
+	}
 	mlog.Info("draft: saved", "route", dr.Name, "app", app, "steps", len(dr.Steps),
 		"path", d.Reg.Path(rt))
 	return nil
@@ -766,6 +785,37 @@ func (d Deps) Resave(u Unrunnable) (routes.Route, error) {
 			"was made from, so it cannot be saved again — record it again",
 			u.Name)
 	}
+	// ── AND A REPAIR MAY NOT DISCARD AN ACCOUNT IT CANNOT READ ──
+	//
+	// This is the one writer in this package that consents to nothing: it decides on its
+	// own that the file in front of it refuses every press, and replaces it. That is right
+	// for a routine nobody can run — and it is exactly why it may not proceed past a step
+	// account it cannot make sense of. A routine being unrunnable is not evidence that
+	// somebody's edits are disposable.
+	//
+	// So: an account that still describes both files is RENDERED (the repair keeps what it
+	// holds, below). No account at all is the ordinary case and renders the demonstration.
+	// Anything else — a source and steps that no longer match, steps bound to another
+	// demonstration, a file this build cannot read — is refused, and the rebuild review is
+	// where somebody decides what to do about it, with both sources in front of them.
+	stored, state := d.Reg.Steps(u.Route)
+	switch state {
+	case routes.StepsIntact, routes.StepsNone:
+	case routes.StepsMismatched:
+		return routes.Route{}, fmt.Errorf("%q cannot be repaired automatically: its "+
+			"saved source and its stored steps no longer match, so a repair "+
+			"would have to choose between them — review a rebuild of it from "+
+			"its demonstration instead", u.Name)
+	case routes.StepsAdrift:
+		return routes.Route{}, fmt.Errorf("%q cannot be repaired automatically: its "+
+			"stored steps are bound to a different demonstration than the one "+
+			"beside it now — review a rebuild of it instead", u.Name)
+	default:
+		return routes.Route{}, fmt.Errorf("%q cannot be repaired automatically: the "+
+			"steps stored beside it cannot be read, and a file that cannot "+
+			"answer is not an absent one — review a rebuild of it instead",
+			u.Name)
+	}
 	var events []recorder.RecordedEvent
 	if err := json.Unmarshal(raw, &events); err != nil {
 		return routes.Route{}, fmt.Errorf("%q: its demonstration could not be "+
@@ -794,6 +844,27 @@ func (d Deps) Resave(u Unrunnable) (routes.Route, error) {
 	// AND AN UNKNOWN WORD STAYS UNSTATED rather than being echoed, which `ModeOf` is what
 	// does: a repair is not a place to start passing on a claim nothing verified.
 	dr := d.DraftOf(u.Name, events, u.Route.App, "a repair", ModeOf(string(src)))
+	// AND THE STEPS IT REPAIRS ARE THE ONES THE ROUTINE STATES, when it states any. The
+	// repair is a re-render under today's rules, and rendering the demonstration would
+	// undo whatever the stored basis holds on the way past — which is the whole of what the
+	// account is for.
+	fromAccount := false
+	if state.Usable() {
+		var steps []macroir.Step
+		if err := json.Unmarshal(stored.Steps, &steps); err != nil {
+			return routes.Route{}, fmt.Errorf("%q: its stored steps could not be "+
+				"read back, so it cannot be repaired from them: %w",
+				u.Name, err)
+		}
+		if len(steps) > 0 {
+			dr.Steps, fromAccount = steps, true
+			// A REFUSAL ABOUT A SIMPLIFICATION THAT NO LONGER APPLIES. The
+			// draft above carries whatever today's rules said about the
+			// RECORDING, and these steps were not rendered from it; they were
+			// rendered and compiled once already.
+			dr.Unrepresentable = ""
+		}
+	}
 	name := dr.Name
 	app := u.Route.App
 	if app == "" {
@@ -802,6 +873,43 @@ func (d Deps) Resave(u Unrunnable) (routes.Route, error) {
 	rt, err := d.Save(dr, ScopeAppAnywhere, app)
 	if err != nil {
 		return rt, err
+	}
+	// ── AND THE ACCOUNT IS WRITTEN BACK, LAST, BOUND TO WHAT THE REPAIR WROTE ──
+	//
+	// `write` sweeps any account at the route it saves, because every other caller of it
+	// is a demonstration becoming a routine. This one is not, so it puts the account back
+	// — after the source, because the digest it records is of the source it describes.
+	//
+	// A failure here leaves the routine repaired and no longer editable, which is the
+	// conservative half of that trade and is said rather than swallowed.
+	if fromAccount {
+		// BOTH DIGESTS ARE READ BACK FROM WHERE THE REPAIR PUT THEM, and neither is
+		// computed from what it was handed. The repair writes the demonstration again at
+		// the route it chose — `write` marshals `Draft.Events` — so an account bound to a
+		// digest of the bytes that went IN is bound to a digest of bytes nobody read
+		// out. Today those are identical; one representation change in `recorder` apart
+		// and the account would read `adrift` the instant it was written, with the
+		// routine repaired and no longer editable for a reason nobody could see.
+		newSrc, rerr := os.ReadFile(d.Reg.Path(rt))
+		newRec, haveRec := d.Reg.LoadRecording(rt)
+		switch {
+		case rerr != nil:
+			return rt, fmt.Errorf("%q was repaired but could not be read back, so "+
+				"its steps were not written down beside it: %w", name, rerr)
+		case !haveRec:
+			return rt, fmt.Errorf("%q was repaired but its demonstration is not "+
+				"beside it, so its steps were not written down either",
+				name)
+		}
+		if serr := d.Reg.SaveSteps(rt, routes.StoredSteps{
+			Source:        routes.DigestOf(string(newSrc)),
+			Demonstration: routes.DigestOf(string(newRec)),
+			Steps:         stored.Steps}); serr != nil {
+			return rt, fmt.Errorf("%q was repaired with your step edits but they "+
+				"were not written down beside it, so it cannot be edited "+
+				"again until it has been rebuilt from its demonstration: %w",
+				name, serr)
+		}
 	}
 	if rt != u.Route {
 		// THE OLD ONE GOES, AND ONLY NOW. Two routines of the same name, one of

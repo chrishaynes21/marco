@@ -155,3 +155,72 @@ func TestASaveThatCompilesIsWritten(t *testing.T) {
 		t.Errorf("what was written does not compile: %v", err)
 	}
 }
+
+// AND `marco edit` IS UNCHANGED BY STEP EDITING, WHICH IS A STATEMENT AND NOT AN OVERSIGHT.
+//
+// Step editing works over a routine's STEP LIST, written down beside it as the account of what
+// its source is the render of (`routes.Registry.SaveSteps`). This editor works over SOURCE LINES
+// and writes through `Registry.Save`, which touches the source and nothing else.
+//
+// So a save here leaves the account describing a file that has moved. What that costs, exactly:
+// the routine still runs — execution reads the `.marco` and nothing else — and step editing
+// refuses it afterwards, pointing at a rebuild review. Nothing is corrupted and nothing is
+// silently believed, because the account carries a digest of the source it describes and a
+// mismatch is not a state anything renders from.
+//
+// What it DOES cost is that the person's step edits are no longer the explanation of their file
+// and this editor does not tell them so. Pinned down here, where the behaviour lives, so it
+// cannot drift into something nobody decided. Routing this save through `Deps.Replace` is a
+// separate, smaller slice.
+//
+// See [[Step-editing-proposal-2026-10-30]].
+func TestTheLegacyEditorsSaveLeavesTheAccountMismatchedAndTheRoutineRunnable(t *testing.T) {
+	e := newTestEditor(t)
+	rt := routes.Route{App: "notepad", Slug: "opener"}
+	if err := e.reg.Save(rt, playSrc); err != nil {
+		t.Fatal(err)
+	}
+	// AN ACCOUNT BESIDE IT, describing the source as it stands.
+	if err := e.reg.SaveRecording(rt, []byte(`[{"kind":"key"}]`)); err != nil {
+		t.Fatal(err)
+	}
+	rec, _ := e.reg.LoadRecording(rt)
+	if err := e.reg.SaveSteps(rt, routes.StoredSteps{
+		Source:        routes.DigestOf(playSrc),
+		Demonstration: routes.DigestOf(string(rec)),
+		Steps:         []byte(`[{"kind":"key","key":"enter"}]`),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, st := e.reg.Steps(rt); st != routes.StepsIntact {
+		t.Fatalf("the fixture's account reads %q", st)
+	}
+
+	openForEdit(t, e, rt)
+	line := lineOf(t, playSrc, `do OS's Key with "enter".`)
+	w := postSave(t, e, saveReq{Texts: map[string]string{strconv.Itoa(line): "escape"}})
+	if w.Code != http.StatusOK {
+		t.Fatalf("POST /api/save = %d: %s", w.Code, w.Body)
+	}
+
+	// THE ROUTINE IS THE EDITED ONE, AND IT RUNS: the one compile gate passed it, which
+	// is what this editor has always been protected by.
+	got, err := os.ReadFile(e.reg.Path(rt))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(got), `do OS's Key with "escape".`) {
+		t.Errorf("the edit did not reach the file:\n%s", got)
+	}
+	if err := driver.CheckSource(string(got)); err != nil {
+		t.Errorf("what was written does not compile: %v", err)
+	}
+	// AND THE ACCOUNT IS MISMATCHED, NOT BELIEVED AND NOT GONE. Not removed by this save
+	// either: sweeping somebody's step list from a surface that knows nothing about it
+	// would be this editor deciding something it has not been told about.
+	if _, st := e.reg.Steps(rt); st != routes.StepsMismatched {
+		t.Errorf("after a line edit the account reads %q, so either it is still "+
+			"believed about a file that moved or it was swept by a surface that "+
+			"does not know what it is", st)
+	}
+}

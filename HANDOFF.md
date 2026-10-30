@@ -12017,3 +12017,58 @@ from one after it.
 
 The candidate, what has been verified and with what, and what a reader should not conclude from
 the green: [[Alpha-candidate-2026-10-29]].
+
+## A routine writes down what it does, and a step can be edited
+
+A step editor already existed and it edits SOURCE LINES. Two of the four things step editing needs
+were in `marco edit` — set a wait, remove a step, both keyed by line index — and its remove was
+already known to be broken for a generated routine, in the repository's own words: deleting a
+`do OS's Find …` row takes the header and leaves `when ok?` with no arm. The compile gate refuses
+and the file survives, which is the right answer and not the asked-for behaviour. That shape is
+every press in a current-generation routine, because the chained form makes each press its own
+capability called inside the previous one's success, with the single `this is ok!` and the trailing
+settle wait inside the LAST link.
+
+So an edit changes the STEP LIST and the source is re-rendered from it, through the one renderer
+every save and every review already use. Two operations: set a wait, remove a step. A gesture goes
+whole — the only one with two halves is a held key, and a half whose partner cannot be found is
+refused rather than guessed. Removing the last link of a chain renders a shorter chain; removing
+every step is refused with deletion named instead.
+
+**The part underneath was that Marco could not tell an edited routine from an unedited one.** A
+demonstrated routine gets no provenance sidecar, so there was no durable record of "the source as
+generated", and the only answer was to render the demonstration and compare — which says *somebody
+edited this* and *an older generator wrote this* in one voice. A rebuild therefore offered to
+replace an edited routine with the person's own change undone, under a sentence about generations.
+
+A routine now writes its step list down beside itself: four fields, two of them digests of the
+source it renders to and the demonstration it descends from, and **no editing history** — what a
+routine does now is necessary and a record of how it got there is not. It is read into one of six
+states and only `intact` licenses rendering, so a file that is old, half-written or unreadable
+cannot be believed about whatever is next to it; absence is "not found" and nothing else, because
+the first version answered absence to every read error and absence is the one answer that licenses
+rendering the demonstration instead. A mismatch is reported as the source and the stored steps no
+longer matching, never as a hand edit, because a failed account write leaves identical evidence.
+Nothing about running a routine reads it.
+
+**And the file records a basis, not an author.** A step edit writes one; so does a
+re-simplification, which has no edit in it at all. So nothing in it says "your step edits": a
+rebuild that would throw the stored steps away says what it will do to them instead.
+
+Every other operation decides about it, because a decision left for later is a conflict that ships:
+a move renders it, carries it, and verifies it at the destination before removing the original; a
+repair renders it and REFUSES when it cannot be read, because `Resave` is the one writer that
+consents to nothing and an unrunnable routine is not evidence that somebody's edits are disposable;
+a generation rebuild renders it; a re-simplification discards it, says so, and writes an account of
+what it rendered instead; recording the routine again removes it and the collision question says so
+first; renaming carries it; deleting takes it.
+
+`marco edit` is unchanged, and that is stated with a test rather than discovered: its save leaves
+the account mismatched, the routine still runs, and step editing then refuses it. There is no
+surface yet — the Studio controls are the next increment, so nothing a person can reach calls any
+of this. And nothing here establishes that an edited routine presses anything on a desktop: the
+execution tests run the real engine over a host that answers in memory, which settles order,
+duration and the stop-on-failure chain and settles nothing about a real press in a real window.
+
+See [[ADR-273-a-routine-writes-down-what-it-does]], and
+[[Step-editing-proposal-2026-10-30]] for the trace and the alternatives that were rejected.

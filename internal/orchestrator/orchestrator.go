@@ -122,6 +122,16 @@ type Deps struct {
 	// Studio's `afterReserve`: the interval is real, it is where the race lived, and there
 	// is no way to be inside it from outside. Nil in every production path.
 	AfterValidating func()
+	// CheckSource is the one compile gate, and nil means the real one.
+	//
+	// A SEAM AND NOT A CHOICE. `codegen` is trusted everywhere else here because its
+	// input came from a recorder; an EDITED step list is input nobody recorded, so the
+	// render is compiled before it can be offered. The default is production
+	// (`driver.CheckSource`), so a caller that wires nothing still gets the gate — the
+	// field exists so a test can stage a refusal without having to invent a step list
+	// that happens to produce illegal Marco, which would be a test about `codegen`
+	// rather than about the gate being asked.
+	CheckSource func(src string) error
 	// OwnerTailOnly takes the owner's window out ONLY off the tail of a recording the
 	// BUTTON ended, instead of wherever it appears.
 	//

@@ -177,6 +177,33 @@ it — into the standing a surface shows:
 `edited` is **not damage**. The person was invited to edit their play and did; it still runs, and
 Marco simply stops claiming it is the artifact Director verified.
 
+### And a DEMONSTRATED routine now has a second, separate account of itself
+
+`Life` reads `.origin.json`, which a demonstrated routine never gets — nothing writes
+`routes.KindTaught`, so one of those is `ready` whatever has been done to it. Its step edits are
+recorded somewhere else: `<slug>.steps.json`, the step list its saved source is the render of,
+carrying a digest of that source and a digest of the demonstration it descends from
+([[ADR-273-a-routine-writes-down-what-it-does]]).
+
+The two answer different questions and neither substitutes for the other. Provenance says **where a
+play came from**; the account says **what the saved source is the render of**, which is what makes
+a second edit possible and what stops a rebuild quietly undoing the first. `Registry.Steps` reads
+it into one of six states and only `intact` licenses rendering from it — and a digest that no
+longer matches is reported as the source and the stored steps no longer matching, never as
+somebody having edited anything, because a failed account write leaves exactly the same evidence.
+Absence is "not found" and nothing else: every other read error is `unreadable`, because the one
+answer that licenses rendering the demonstration instead must not be the answer to a question that
+could not be asked.
+
+**And the presence of one is not a claim that anybody edited the play.** A step edit writes a basis
+and so does a re-simplification, which has no edit in it at all; nothing on disk tells them apart,
+so no surface may say which. `Collision.HasStoredSteps` is named for the file rather than for one
+of its two authors, and the sentence somebody reads before replacing a play says that its step
+list goes with it.
+
+Nothing about RUNNING a routine reads it. A run reads the `.marco`; what an unusable account
+blocks is further editing, and that is said rather than discovered.
+
 `stuck` exists because `Registry.Register` refuses anything whose staged provenance is not
 verified. Offering a Register button beside such a play would be an offer Marco cannot keep, so
 `Life.Registerable()` gates the button in the control centre and the `(marco register "…")` hint in
@@ -279,6 +306,7 @@ move. See [[ADR-082-a-plays-past-travels-with-the-file]].
 | **`marco register "<name>"`** | — | it exists because `marco plays` names it |
 | **`marco routes`** | registered only | what may be OFFERED to a front end |
 | **`/api/routes`** | registered only | the step editor's picker; a staged play is not openable |
+| **`PrepareEdit`/`SaveEdit`** | demonstrated, account `none` or `intact` | step editing over the IR, re-rendered and compiled; no surface yet |
 | **Learn panel** | `life` / `life_word` / `life_says` | the same words the Plays list uses for the same file |
 
 The two groups are printed apart rather than mixed with a badge, because the difference is not a

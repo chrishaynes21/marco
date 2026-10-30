@@ -47,6 +47,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/chaynes-simpleclouds/marco/internal/macroir"
 	"github.com/chaynes-simpleclouds/marco/internal/mlog"
 	"github.com/chaynes-simpleclouds/marco/internal/recorder"
 	"github.com/chaynes-simpleclouds/marco/internal/routes"
@@ -118,10 +119,37 @@ type Prepared struct {
 	// real one, and "the right bytes in the wrong library" is a replacement nobody asked
 	// for. See `sealed`.
 	library string
-	// sourceAt and recordingAt are digests of the two files this was built from, as they
-	// were at the moment of preparation. A replacement re-reads both and refuses if
-	// either moved. See the note at the top of this file.
-	sourceAt, recordingAt string
+	// sourceAt, recordingAt and stepsAt are digests of the files this was built from, as
+	// they were at the moment of preparation. A replacement re-reads all of them and
+	// refuses if any moved. See the note at the top of this file.
+	//
+	// stepsAt is "" when the routine has no account, which is every routine nobody has
+	// edited — so a replacement of one of those compares "" against "" and is unaffected.
+	sourceAt, recordingAt, stepsAt string
+	// fromAccount is whether this version was rendered from the routine's own stored
+	// steps rather than from its demonstration, and accountSteps is that step list as it
+	// was written down.
+	//
+	// A REBUILD OF AN EDITED ROUTINE RENDERS WHAT THE ROUTINE SAYS IT DOES, so today's
+	// generator rules reach it without undoing the edit. The account is then rewritten
+	// bound to the new source, because the steps are the same and the file they describe
+	// is not.
+	fromAccount bool
+	// accountToWrite is the step list the replaced routine's account should hold,
+	// marshalled once at preparation, and nil when the replacement should leave no
+	// account beside the routine at all.
+	//
+	// THREE OUTCOMES AND ONE FIELD. A rebuild from the account rewrites the same steps
+	// bound to the new source. A RE-SIMPLIFICATION writes the steps it produced, because
+	// it renders under rules that are NOT the default — its source is not what the
+	// demonstration produces today and never will be, so an account of what was written
+	// is the only thing that can ever explain that file, and leaving none would make the
+	// routine permanently inexplicable. Anything else leaves nil, and a replacement then
+	// removes whatever was there, because it describes neither file any more.
+	//
+	// Marshalled HERE rather than at the write, so the bytes that will be written are
+	// fixed when the review is, and the token covers them.
+	accountToWrite []byte
 	// assets are the files the rendering produced — a routine's anchor images — held here
 	// rather than written, because preparation writes nothing.
 	assets map[string][]byte
@@ -137,7 +165,44 @@ func (p Prepared) Replaceable() bool { return p.Refused == "" && p.Now != "" }
 // rather than leaving somebody to compare two identical panes.
 func (p Prepared) Changes() bool { return p.Replaceable() && p.Now != p.Was }
 
-// Prepare renders a saved routine again from its own stored demonstration, for review.
+// DiscardsEdits reports whether replacing with this version throws away the step list stored
+// beside the routine — by writing a fresh one over it, or by removing it.
+//
+// A METHOD AND NOT A FIELD. It was a field: exported, mutable, and branched on by `Replace`, so a
+// caller could flip it and change which of three things a replacement did to a file the review
+// never showed them. It is computed now from the two things that decide it, both unexported and
+// both sealed into the token — so it cannot disagree with the review it came from.
+//
+// The name is about the step list and not about anybody's editing: see StepsWarning.
+func (p Prepared) DiscardsEdits() bool { return p.stepsAt != "" && !p.fromAccount }
+
+// StepsWarning is what a replacement that does not render the routine's own stored step list says
+// about that, and "" when there is nothing to say.
+//
+// TWO SENTENCES, BECAUSE THEY ARE TWO SITUATIONS. One replaces the stored basis with a fresh
+// rendering of the demonstration; the other removes a basis that no longer describes the routine
+// and puts nothing in its place.
+//
+// AND NEITHER CLAIMS SOMEBODY EDITED ANYTHING. A stored basis is written by a step edit AND by a
+// re-simplification, which has no edit in it at all, and nothing on disk tells those apart — so a
+// sentence about "your step edits" would be a guess in one of the two cases. What a person is owed
+// is what will happen to the file, and beside it the review already shows both sources in full,
+// which is better evidence of what would be lost than any summary. No count either: nothing
+// durable records editing history, and two changes to one wait are one difference to read.
+func (p Prepared) StepsWarning() string {
+	switch {
+	case !p.DiscardsEdits():
+		return ""
+	case len(p.accountToWrite) > 0:
+		return "This rebuild replaces the stored steps with a fresh simplification " +
+			"of the demonstration."
+	}
+	return "This rebuild removes the stored steps, which are no longer a description " +
+		"of this routine."
+}
+
+// Prepare renders a saved routine again from its own stored demonstration, or from its own stored
+// steps when it has them, for review.
 //
 // IT WRITES NOTHING. Not the source, not the assets, not the recording — a failure anywhere in
 // here leaves the library exactly as it was, which is why every exit is a returned error rather
@@ -188,6 +253,61 @@ func (d Deps) Prepare(rt routes.Route, kind Rebuild) (Prepared, error) {
 			"again is the way to get one written by today's rules", p.Name)
 	}
 	p.recordingAt = routes.DigestOf(string(rec))
+
+	// ── AND WHETHER THE ROUTINE HAS WRITTEN ITS OWN STEPS DOWN ──
+	//
+	// A routine with a stored basis has a source that is the render of THAT and not of its
+	// demonstration, so rendering the demonstration would write whatever the basis holds
+	// undone — under a sentence about generations, which is how this went wrong before there
+	// was anywhere to write a basis down.
+	//
+	// So a rebuild under today's rules renders the account when there is a usable one: the
+	// generator's new rules reach the routine and what the routine says it does survives.
+	// A re-simplification is the other choice and the other answer — it renders the
+	// demonstration, which is the whole point of asking for it, and it says so.
+	//
+	// The basis may have come from a step edit or from an earlier re-simplification, and
+	// nothing here can tell those apart. Neither does it need to: what is rendered is what
+	// the routine says it does.
+	stored, state := d.Reg.Steps(rt)
+	at, readable := d.Reg.StepsDigest(rt)
+	if !readable {
+		// THERE AND UNREADABLE IS NOT ABSENT. A review is of a set of files and
+		// this is one of them; one that cannot be read cannot be compared against
+		// at the write, and a review bound to "" would compare "" with "" and go
+		// ahead having never read it.
+		return Prepared{}, fmt.Errorf("%q cannot be rebuilt: the step list stored "+
+			"beside it is there and could not be read, so nothing here can "+
+			"say what a rebuild would do to it", p.Name)
+	}
+	p.stepsAt = at
+	scope := ScopeAlreadyOf(rt)
+	if state.Usable() && kind == RebuildCurrent {
+		var steps []macroir.Step
+		if err := json.Unmarshal(stored.Steps, &steps); err != nil {
+			return Prepared{}, fmt.Errorf("%q: its stored steps could not be read "+
+				"back, so no version can be rebuilt from them: %w", p.Name, err)
+		}
+		if len(steps) == 0 {
+			p.Refused = "its stored steps contain nothing that can be performed"
+			return p.sealed(), nil
+		}
+		base, args := routes.SplitArgs(p.Name)
+		now, assets, rerr := d.render(&Draft{Name: base, Args: args, Steps: steps,
+			Mode: ModeOf(src)}, scope.mode(), rt.App, rt)
+		if rerr != nil {
+			p.Refused = rerr.Error()
+			return p.sealed(), nil
+		}
+		p.fromAccount, p.accountToWrite = true, stored.Steps
+		p.Now, p.assets, p.NowGeneration = now, assets, GenerationOf(now)
+		return p.sealed(), nil
+	}
+	// AND A REBUILD THAT DOES NOT RENDER THEM REPLACES OR REMOVES THEM. True of a
+	// re-simplification, and true of a rebuild of a routine whose stored steps no longer
+	// describe it — which is exactly the routine the rebuild review exists for. Either
+	// way the stored steps stop being a basis for anything once this is written. See
+	// DiscardsEdits, which is derived rather than recorded.
 	var events []recorder.RecordedEvent
 	if err := json.Unmarshal(rec, &events); err != nil {
 		return Prepared{}, fmt.Errorf("%q: its demonstration could not be read back, "+
@@ -217,7 +337,6 @@ func (d Deps) Prepare(rt routes.Route, kind Rebuild) (Prepared, error) {
 	// AND THE SCOPE IT ALREADY HAS. `Save` chooses one; this one is not choosing. A
 	// routine that came back from a review living somewhere else, or bringing an
 	// application forward when it used not to, would be a replacement nobody reviewed.
-	scope := ScopeAlreadyOf(rt)
 	now, assets, err := d.render(dr, scope.mode(), rt.App, rt)
 	if err != nil {
 		// THE GENERATOR'S OWN WORDS. It refuses a recording whose press cannot be
@@ -227,6 +346,17 @@ func (d Deps) Prepare(rt routes.Route, kind Rebuild) (Prepared, error) {
 		return p.sealed(), nil
 	}
 	p.Now, p.assets, p.NowGeneration = now, assets, GenerationOf(now)
+	if kind == RebuildSimplifyTyping {
+		// SEE Prepared.accountToWrite: this rendering is the only thing that can
+		// ever explain the source it writes, so it stores its own basis.
+		raw, merr := json.Marshal(dr.Steps)
+		if merr != nil {
+			return Prepared{}, fmt.Errorf("%q: the steps a re-simplification "+
+				"would write could not be written down, so it is not "+
+				"offered: %w", p.Name, merr)
+		}
+		p.accountToWrite = raw
+	}
 	return p.sealed(), nil
 }
 
@@ -311,6 +441,18 @@ func (d Deps) Replace(p Prepared) error {
 			"was built, so it is left as it is — review it again and the "+
 			"comparison will be against the new recording", p.Name)
 	}
+	// AND ITS OWN STEPS ARE STILL THE ONES THIS WAS BUILT FROM, OR STILL ABSENT.
+	//
+	// The third file, and it needed saying for the same reason as the other two: an
+	// account that moved means somebody edited this routine while the review was open,
+	// and replacing anyway would undo that edit invisibly — every other check passes and
+	// the result looks exactly like an ordinary successful replacement.
+	if at, readable := d.Reg.StepsDigest(p.Route); !readable || at != p.stepsAt {
+		return fmt.Errorf("the step list stored beside %q has changed since the "+
+			"version you reviewed was built, so it is left as it is — review it "+
+			"again and the comparison will be against the routine as it now "+
+			"stands", p.Name)
+	}
 	// ── THE PICTURES ARE NOT ADDITIVE, WHICH THIS USED TO ASSUME ──
 	//
 	// A routine's anchor images are named after the routine — `<base>-anchor-1.png` and so
@@ -354,6 +496,35 @@ func (d Deps) Replace(p Prepared) error {
 	}
 	if err := d.Reg.Replace(p.Route, p.Now); err != nil {
 		return fmt.Errorf("%q is left as it is: %w", p.Name, err)
+	}
+	// ── AND THE ACCOUNT FOLLOWS THE SOURCE, OR GOES WITH THE EDITS IT DESCRIBED ──
+	//
+	// Last, and after the source, because the digest it records is of the source it
+	// describes. A failure here leaves the routine running the version somebody reviewed
+	// with an account that no longer matches it, which blocks further editing and is
+	// reported rather than discovered.
+	switch {
+	case len(p.accountToWrite) > 0:
+		// THE BASIS THIS VERSION WAS RENDERED FROM, fixed when the review was. A
+		// rebuild from the account rewrites the same steps bound to the new
+		// source; a re-simplification writes the ones it produced.
+		if err := d.Reg.SaveSteps(p.Route, routes.StoredSteps{
+			Source: routes.DigestOf(p.Now), Demonstration: p.recordingAt,
+			Steps: p.accountToWrite}); err != nil {
+			return fmt.Errorf("%q was rebuilt but its step list was not written "+
+				"down beside it, so it cannot be edited until it has been "+
+				"rebuilt again: %w", p.Name, err)
+		}
+	case p.stepsAt != "":
+		// A FILE THAT NO LONGER DESCRIBES ANYTHING IS SWEPT, not left to be
+		// caught by its own digest later. The review said these steps would go;
+		// leaving the file would make that sentence half true.
+		if err := d.Reg.DeleteSteps(p.Route); err != nil {
+			return fmt.Errorf("%q was rebuilt but the step list it replaced "+
+				"could not be removed from beside it (%v) — the routine is "+
+				"the rebuilt one, and that file describes nothing",
+				p.Name, err)
+		}
 	}
 	mlog.Info("review: replaced from its own recording", "route", p.Route.Slug,
 		"was", string(p.WasGeneration.Reading), "now", string(p.NowGeneration.Reading),
@@ -440,7 +611,7 @@ func (p Prepared) sealed() Prepared {
 	p.Token = routes.DigestOf(strings.Join([]string{
 		// WHAT THE REVIEW IS: the two files it was built from, what it would
 		// write, and why it would write nothing.
-		p.sourceAt, p.recordingAt, routes.DigestOf(p.Now), p.Refused,
+		p.sourceAt, p.recordingAt, p.stepsAt, routes.DigestOf(p.Now), p.Refused,
 		// AND WHERE IT WOULD GO: the route's whole identity, each part on its
 		// own so no two routes can run together into one string, and the
 		// library. `Focus` is in because it is the difference between a routine
@@ -451,6 +622,15 @@ func (p Prepared) sealed() Prepared {
 		// differing only in the choice that produced them are two different
 		// things to replace it with, and the person picked one of them.
 		string(p.Rebuild),
+		// AND THE BASIS THE REPLACEMENT WOULD WRITE, because `Replace`
+		// BRANCHES ON IT. These two decide whether a replacement rewrites the
+		// stored step list, replaces it with a fresh one, or removes it — and
+		// `DiscardsEdits` is derived from them rather than recorded beside
+		// them, so they are the only things that can make it disagree with the
+		// review it came from. A derived answer may stay out of a token; what it
+		// is derived FROM may not.
+		fmt.Sprint(p.fromAccount),
+		routes.DigestOf(string(p.accountToWrite)),
 	}, "\x00"))
 	return p
 }

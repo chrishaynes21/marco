@@ -112,6 +112,18 @@ type Collision struct {
 	// which is different from one that has appeared since.
 	Source    string `json:"source,omitempty"`
 	Recording string `json:"recording,omitempty"`
+	// HasStoredSteps is whether the routine that is there keeps its own step list — a
+	// stored rendering basis that still describes it.
+	//
+	// SAID BECAUSE IT IS A SEPARATE THING TO LOSE. Replacing a routine replaces its
+	// source and its demonstration, which the sentence has always covered; a routine
+	// with a stored basis also loses that, and it is not recoverable from either of the
+	// other two.
+	//
+	// NOT CALLED `Edited`, which it was. A basis is stored by a step edit AND by a
+	// re-simplification, and nothing here can tell them apart — so a field named for one
+	// of them would have put a guess in the sentence a person reads. See Says.
+	HasStoredSteps bool `json:"has_stored_steps,omitempty"`
 }
 
 // Consent is permission to replace ONE routine, as it was when somebody was shown it.
@@ -204,6 +216,15 @@ func (d Deps) Collision(dr *Draft, scope Scope, app string) Collision {
 		"Saving this one over it would replace its steps and the demonstration "+
 		"beside it, and neither can be got back. Give this one another name, or "+
 		"replace that routine on purpose.", c.Name, c.SavedAt)
+	// AND ITS OWN STEP LIST, WHICH IS A THIRD THING. The sentence above names the two
+	// files; a routine with a stored basis has a step list in neither of them, and saving
+	// over it is the one lifecycle operation where losing that is the right answer —
+	// somebody has demonstrated the thing again. Right, and still owed a sentence.
+	if _, st := d.Reg.Steps(rt); st.Usable() {
+		c.HasStoredSteps = true
+		c.Says += " It also keeps a step list of its own, including any step edits " +
+			"made to it, and that goes with it."
+	}
 	return c
 }
 

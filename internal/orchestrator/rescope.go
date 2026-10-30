@@ -52,6 +52,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/chaynes-simpleclouds/marco/internal/macroir"
 	"github.com/chaynes-simpleclouds/marco/internal/mlog"
 	"github.com/chaynes-simpleclouds/marco/internal/recorder"
 	"github.com/chaynes-simpleclouds/marco/internal/routes"
@@ -98,6 +99,24 @@ type Rescoping struct {
 	// re-read under the locks before anything is written.
 	fromSourceAt, fromRecordingAt string
 	toSourceAt, toRecordingAt     string
+	// fromStepsAt is a digest of the original's step account, and "" when it has none —
+	// re-read with the other two, because an edit landing while somebody reads this
+	// review is a routine that has changed.
+	fromStepsAt string
+	// fromAccount is whether the version to be written was rendered from the routine's
+	// own stored steps, and accountSteps is that step list.
+	//
+	// A MOVE CARRIES THE STORED BASIS. The difference between the scopes is in the
+	// generated source, so a move renders again — and rendering the DEMONSTRATION would
+	// hand somebody back a routine with whatever the basis holds undone, through a surface
+	// whose whole job is to show them what will be written. The account travels with it,
+	// rebound to the source the move wrote; the same demonstration is written beside it,
+	// so its other digest does not change.
+	//
+	// A step edit is the case this was built for; a re-simplification stores a basis too,
+	// and a move of one of those is the same operation for the same reason.
+	fromAccount  bool
+	accountSteps []byte
 	// assets are the anchor images the rendering produced for the DESTINATION directory,
 	// held here rather than written, because preparation writes nothing.
 	assets map[string][]byte
@@ -212,6 +231,39 @@ func (d Deps) PrepareRescope(rt routes.Route, want Scope, app string) (Rescoping
 	// had. See ModeOf.
 	dr := d.draftFor(RebuildCurrent, m.Name, events, rt.App, "a move", ModeOf(src))
 
+	// ── OR FROM WHAT THE ROUTINE SAYS IT DOES, WHEN IT HAS WRITTEN THAT DOWN ──
+	//
+	// An edited routine's source is the render of its ACCOUNT. Moving it is still a
+	// re-render — the scopes differ in the generated source — but of the step list the
+	// routine states, not of the demonstration, which has never contained the edit.
+	//
+	// The account is only believed while it still describes both files beside it. One that
+	// does not is not an account of this routine, so the move renders the demonstration
+	// exactly as it always did, and the review's two sources are where that is read.
+	stored, state := d.Reg.Steps(rt)
+	at, readable := d.Reg.StepsDigest(rt)
+	if !readable {
+		// THERE AND UNREADABLE IS NOT ABSENT: a move is bound to three files and
+		// this is one of them. See routes.Registry.StepsDigest.
+		return Rescoping{}, fmt.Errorf("%q cannot be moved: the step list stored "+
+			"beside it is there and could not be read, so a move cannot say "+
+			"what it would do to it", m.Name)
+	}
+	m.fromStepsAt = at
+	if state.Usable() {
+		var steps []macroir.Step
+		if err := json.Unmarshal(stored.Steps, &steps); err != nil {
+			return Rescoping{}, fmt.Errorf("%q: its stored steps could not be read "+
+				"back, so no version can be rendered from them: %w",
+				m.Name, err)
+		}
+		if len(steps) > 0 {
+			base, args := routes.SplitArgs(m.Name)
+			dr = &Draft{Name: base, Args: args, Steps: steps, Mode: ModeOf(src)}
+			m.fromAccount, m.accountSteps = true, stored.Steps
+		}
+	}
+
 	to, toApp, why := rescopeTarget(rt, want, app, dr)
 	if why != "" {
 		m.Refused = why
@@ -223,6 +275,13 @@ func (d Deps) PrepareRescope(rt routes.Route, want Scope, app string) (Rescoping
 	case dr == nil || len(dr.Steps) == 0:
 		m.Refused = "its demonstration contains nothing that can be performed"
 		return m.sealed(), nil
+	case m.fromAccount:
+		// ALREADY REPRESENTABLE, BY CONSTRUCTION. These steps were rendered and
+		// compiled once to become the file being moved; `Unrepresentable` is a
+		// property of simplifying a recording, and this list was not simplified
+		// here. The draft built above carries the refusal of the recording it was
+		// NOT rendered from, which would refuse a move for a reason that is not
+		// about what is being moved.
 	case dr.Unrepresentable != "":
 		m.Refused = fmt.Sprintf("a version rendered from its recording cannot be "+
 			"saved as it stands: %s", dr.Unrepresentable)
@@ -349,6 +408,7 @@ func (d Deps) Rescope(m Rescoping, consent Consent) (Rescoped, error) {
 
 	// ── AND THE WORLD IS STILL THE ONE THAT WAS REVIEWED, AT BOTH ENDS ──
 	fromSrc, fromRec := d.versionAt(m.From)
+	fromStepsAt, stepsReadable := d.Reg.StepsDigest(m.From)
 	switch {
 	case fromSrc == "":
 		return Rescoped{}, fmt.Errorf("%q is no longer at %s, so nothing was "+
@@ -364,6 +424,15 @@ func (d Deps) Rescope(m Rescoping, consent Consent) (Rescoped, error) {
 			"reviewed was prepared, so it is left as it is — review it again "+
 			"and what would be written will be rendered from the new recording",
 			m.Name)
+	case !stepsReadable || fromStepsAt != m.fromStepsAt:
+		// ITS STORED STEP LIST MOVED WHILE SOMEBODY READ THIS. The source digest
+		// would catch an edit too, and would say the wrong thing about it; this
+		// says what happened. An unreadable file counts as moved, because a move
+		// may not be made against a file nothing has read.
+		return Rescoped{}, fmt.Errorf("the step list stored beside %q has changed "+
+			"since the move you reviewed was prepared, so it is left as it "+
+			"is — review it again and what would be written will be rendered "+
+			"from its steps as they now stand", m.Name)
 	}
 	toSrc, toRec := d.versionAt(m.To)
 	switch {
@@ -448,6 +517,22 @@ func (d Deps) Rescope(m Rescoping, consent Consent) (Rescoped, error) {
 			fmt.Sprintf("its demonstration could not be written beside it (%v)",
 				err))}, nil
 	}
+	// AND ITS ACCOUNT, WHEN THE VERSION BEING WRITTEN IS THE RENDER OF ONE.
+	//
+	// Bound to the source this move just wrote and to the demonstration written beside
+	// it, which is the same one — so the moved routine arrives editable, and the edit it
+	// carries is still the explanation of its file. Last of the three, for the reason
+	// routes.SaveSteps gives: there is nothing to record until the source is on disk.
+	if m.fromAccount {
+		if err := d.Reg.SaveSteps(m.To, routes.StoredSteps{
+			Source: routes.DigestOf(m.Now), Demonstration: m.fromRecordingAt,
+			Steps: m.accountSteps}); err != nil {
+			return Rescoped{To: m.To, Says: copiedSays(m.Name, m.TakenID,
+				fmt.Sprintf("its steps could not be written down beside "+
+					"it (%v), so the original has not been touched",
+					err))}, nil
+		}
+	}
 	if d.afterDestination != nil {
 		d.afterDestination()
 	}
@@ -470,6 +555,21 @@ func (d Deps) Rescope(m Rescoping, consent Consent) (Rescoped, error) {
 			"the demonstration beside "+m.TakenID+" is not the one this move "+
 				"wrote, so the original has not been touched")}, nil
 	}
+	// AND THE ACCOUNT ARRIVED AND DESCRIBES WHAT IS THERE.
+	//
+	// Part of reading the destination back, not a step afterwards: the original is about
+	// to be deleted, and it is the only other copy of the step list. Asked through
+	// `Steps`, which re-reads the destination's source and demonstration and answers
+	// whether the account still describes them — so this is the same question a later
+	// edit will ask, rather than a weaker one taken here.
+	if m.fromAccount {
+		if _, st := d.Reg.Steps(m.To); !st.Usable() {
+			return Rescoped{To: m.To, Says: copiedSays(m.Name, m.TakenID,
+				"the steps beside "+m.TakenID+" are not an account of what "+
+					"this move wrote, so the original has not been "+
+					"touched — look at both before deleting either")}, nil
+		}
+	}
 
 	// ── AND THE ORIGINAL IS STILL THE VERSION THAT WAS REVIEWED ──
 	//
@@ -479,7 +579,9 @@ func (d Deps) Rescope(m Rescoping, consent Consent) (Rescoped, error) {
 	// hand edit in `marco edit`, a text editor, a sync. Deleting that is deleting work
 	// nobody reviewed.
 	againSrc, againRec := d.versionAt(m.From)
-	if againSrc != m.fromSourceAt || againRec != m.fromRecordingAt {
+	againSteps, againReadable := d.Reg.StepsDigest(m.From)
+	if againSrc != m.fromSourceAt || againRec != m.fromRecordingAt ||
+		!againReadable || againSteps != m.fromStepsAt {
 		return Rescoped{To: m.To, Says: copiedSays(m.Name, m.TakenID,
 			"the original changed while this was being written, so it has been "+
 				"left where it is")}, nil
@@ -587,7 +689,8 @@ func copiedSays(name, toID, why string) string {
 // nobody was shown.
 func (m Rescoping) sealed() Rescoping {
 	m.Token = routes.DigestOf(join(
-		m.fromSourceAt, m.fromRecordingAt,
+		m.fromSourceAt, m.fromRecordingAt, m.fromStepsAt,
+		fmt.Sprint(m.fromAccount),
 		routes.DigestOf(m.Now), m.Refused,
 		m.toSourceAt, m.toRecordingAt,
 		m.From.Slug, m.From.App, fmt.Sprint(m.From.Focus),

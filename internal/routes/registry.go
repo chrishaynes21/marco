@@ -182,6 +182,14 @@ func (r Registry) Rename(from, to Route) error {
 	//
 	// Deleting this must fail TestRenamingAPlayCarriesItsPast.
 	_ = os.Rename(filepath.Join(dir, from.Slug+originExt), filepath.Join(dir, to.Slug+originExt))
+	// AND SO DOES THE ACCOUNT, for exactly the argument above: its digests are over the
+	// source and the demonstration, and renaming changes the contents of neither, so it
+	// still describes the files at their new name. Left behind it would be the same two
+	// wrongs in the same order — an edited routine reading as one nobody explained, and an
+	// orphan under the old slug for the next routine saved there to inherit.
+	//
+	// Deleting this must fail TestRenamingAnEditedRoutineCarriesItsAccount.
+	_ = os.Rename(filepath.Join(dir, from.Slug+stepsExt), filepath.Join(dir, to.Slug+stepsExt))
 	if matches, _ := filepath.Glob(filepath.Join(dir, from.Slug+"-anchor-*.png")); len(matches) > 0 {
 		for _, m := range matches {
 			suffix := strings.TrimPrefix(filepath.Base(m), from.Slug)
@@ -191,8 +199,8 @@ func (r Registry) Rename(from, to Route) error {
 	return nil
 }
 
-// Delete removes a route, its stored demonstration, and any image-template files it
-// generated (no error if absent).
+// Delete removes a route, its stored demonstration, its step account, and any image-template
+// files it generated (no error if absent).
 //
 // # The order is wrong for a MOVE
 //
@@ -211,6 +219,12 @@ func (r Registry) Rename(from, to Route) error {
 func (r Registry) Delete(rt Route) error {
 	dir := r.locDir(rt)
 	if err := os.Remove(filepath.Join(dir, rt.Slug+recExt)); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	// AND THE ACCOUNT. Its digests would refuse the inheritance on their own — an orphan
+	// describes a source that is gone — but the digest is the backstop and removal is the
+	// intent: a routine that has been deleted leaves nothing behind that describes it.
+	if err := os.Remove(filepath.Join(dir, rt.Slug+stepsExt)); err != nil && !os.IsNotExist(err) {
 		return err
 	}
 	if matches, err := filepath.Glob(filepath.Join(dir, rt.Slug+"-anchor-*.png")); err == nil {
@@ -265,6 +279,9 @@ func (r Registry) DeleteLeftovers(rt Route) []string {
 	var residue []string
 	if err := os.Remove(filepath.Join(dir, rt.Slug+recExt)); err != nil && !os.IsNotExist(err) {
 		residue = append(residue, fmt.Sprintf("its demonstration (%v)", err))
+	}
+	if err := os.Remove(filepath.Join(dir, rt.Slug+stepsExt)); err != nil && !os.IsNotExist(err) {
+		residue = append(residue, fmt.Sprintf("its step account (%v)", err))
 	}
 	if matches, err := filepath.Glob(filepath.Join(dir, rt.Slug+"-anchor-*.png")); err == nil {
 		for _, m := range matches {
