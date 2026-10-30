@@ -46,6 +46,7 @@ package orchestrator
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -56,6 +57,18 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/recorder"
 	"github.com/chaynes-simpleclouds/marco/internal/routes"
 )
+
+// ErrStepsNotWritten is the answer when an edit's SOURCE landed and its account did not.
+//
+// A DISTINCT OUTCOME AND THEREFORE A DISTINCT ANSWER. The routine on disk is the edited one and it
+// runs exactly as the person asked, because execution reads only the `.marco`; what failed is the
+// explanation beside it, so further editing is blocked until the routine is rebuilt. A surface
+// that reported this as "nothing was written" would be telling somebody their edit did not happen,
+// and one that reported it as success would leave them to discover the refusal later.
+//
+// Wrapped, so the sentence naming the routine and the reason travels with it.
+var ErrStepsNotWritten = errors.New("the routine was saved with the edit and its steps were " +
+	"not written down beside it")
 
 // EditOp is one of the two things an edit can do. There are two on purpose; see the note above.
 type EditOp string
@@ -103,6 +116,26 @@ type EditReview struct {
 	// routine does now is necessary and a record of how it got there is not, and the
 	// source comparison below is better evidence of what an edit costs than any summary.
 	Edits []StepEdit
+	// Basis identifies the step list this review was built against — the list a surface
+	// displayed, and the positions every operation in `Edits` refers to.
+	//
+	// WHY A SURFACE NEEDS ONE. A panel lists the steps at one moment and sends row
+	// numbers at another, and between the two anything can write this routine: a hand
+	// edit, a re-recording, another edit of it from a second window. Applying row 5 to a
+	// freshly loaded list is applying somebody's intention to a routine they never saw,
+	// and the result is a perfectly good routine that does the wrong thing — which no
+	// check after the fact can catch, because by then the operations have already been
+	// applied to the wrong steps.
+	//
+	// It is DERIVED FROM THE THREE DIGESTS and nothing else, because the step list is a
+	// pure function of them: the account's steps when it is intact, the demonstration's
+	// rendering when there is none. So this moves when any of the three files moves, and
+	// does not move otherwise.
+	//
+	// Separate from `Token`, which identifies the whole review. This identifies only what
+	// the operations were counted against, which is the question a surface has to ask
+	// BEFORE it is allowed to state any.
+	Basis string
 	// Says is one line per operation, for the review to show.
 	//
 	// It names positions and durations and does NOT describe what a step IS — the surface
@@ -185,6 +218,23 @@ func clonedSteps(in []macroir.Step) []macroir.Step {
 	return out
 }
 
+// PairedWith is the position of the other half of a held key at `at`, or -1 when that step is
+// not half of one.
+//
+// FOR THE SURFACE TO SAY SO BEFORE ANYBODY PRESSES ANYTHING. A removal that quietly took two steps
+// would be a removal nobody agreed to, and the panel has to be able to name the partner on the row
+// beside the control. Computed by the same function the removal itself uses, so what the panel
+// says and what the operation does cannot disagree about which pair is which.
+//
+// -1 for a position that is not there, which is the honest answer and not a pair.
+func (e EditReview) PairedWith(at int) int {
+	if at < 0 || at >= len(e.steps) {
+		return -1
+	}
+	partner, _ := holdPartner(e.steps, at)
+	return partner
+}
+
 // PrepareEdit works out what a routine's step list is, applies the operations to it, and renders
 // the result. IT WRITES NOTHING.
 //
@@ -192,6 +242,20 @@ func clonedSteps(in []macroir.Step) []macroir.Step {
 // answered through the same path that would perform one, so a surface cannot be told yes by one
 // set of rules and refused by another.
 func (d Deps) PrepareEdit(rt routes.Route, edits []StepEdit) (EditReview, error) {
+	return d.PrepareEditOf(rt, "", edits)
+}
+
+// PrepareEditOf is PrepareEdit against a step list somebody has already been shown.
+//
+// `shown` is the `Basis` of the review that displayed the list these operations count against, and
+// it is REFUSED when the routine's step list is no longer that one. See EditReview.Basis for why
+// an index is meaningless without it.
+//
+// An empty `shown` states nothing and checks nothing, which is what the first call of a flow
+// passes: there is nothing to have been shown yet. A surface that offers operations must state one
+// on the second call, and that is a rule of the surface rather than of this function — there is no
+// way to tell, from here, whether a caller had a list on a screen.
+func (d Deps) PrepareEditOf(rt routes.Route, shown string, edits []StepEdit) (EditReview, error) {
 	if rt.Slug == "" {
 		return EditReview{}, fmt.Errorf("an edit needs the routine it is about")
 	}
@@ -234,6 +298,20 @@ func (d Deps) PrepareEdit(rt routes.Route, edits []StepEdit) (EditReview, error)
 			"the way to get a routine that can be", e.Name)
 	}
 	e.recordingAt = routes.DigestOf(string(rec))
+	e.Basis = routes.DigestOf(strings.Join([]string{e.sourceAt, e.recordingAt,
+		e.stepsAt}, "\x00"))
+	if shown != "" && shown != e.Basis {
+		// THE LIST THE OPERATIONS WERE COUNTED AGAINST IS NOT THIS ROUTINE'S LIST.
+		//
+		// Refused rather than applied, and refused BEFORE anything is rendered: the
+		// positions in `edits` mean something only against the list they were read
+		// off, and this routine has been written since. Nothing here can translate
+		// them, because a step inserted or removed by somebody else moves every
+		// position after it and nothing says which.
+		return EditReview{}, fmt.Errorf("%q has been written since its steps were "+
+			"listed, so the changes you asked for refer to steps it no longer "+
+			"has — look at it again and ask once more", e.Name)
+	}
 
 	// ── WHAT THE SAVED SOURCE IS THE RENDER OF ──
 	basis, why, err := d.basisFor(rt, src, rec)
@@ -595,9 +673,8 @@ func (d Deps) SaveEdit(e EditReview) error {
 		// swallowed, in the shape `SaveWithOrigin` already uses for exactly this:
 		// the edit happened, the routine runs, and the next edit will refuse
 		// because the file and the stored steps no longer match.
-		return fmt.Errorf("%q was saved with your edit but its steps were not "+
-			"written down beside it, so it cannot be edited again until it has "+
-			"been rebuilt from its demonstration: %w", e.Name, err)
+		return fmt.Errorf("%q: %w, so it cannot be edited again until it has been "+
+			"rebuilt from its demonstration (%v)", e.Name, ErrStepsNotWritten, err)
 	}
 	mlog.Info("edit: saved from its own step list", "route", e.Route.Slug,
 		"edits", len(e.Edits), "steps", len(e.steps),

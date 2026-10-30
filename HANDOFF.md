@@ -12080,5 +12080,20 @@ correct Marco either way, which is why nothing failed. `sealed` digests the fiel
 rebuild, a move and an edit alike: what was DISPLAYED and what currently EXISTS are two questions,
 and both have to match the preparation.
 
+**And then the surface, which added one rule to the contract.** A panel lists steps at one moment
+and states row numbers at another. Between the two another writer can insert or remove a step,
+which moves every position after it — so row 5 of a list nobody saw is somebody's intention applied
+to a different step, and nothing afterwards can catch it, because by then the operations have been
+applied. A listing is handed a BASIS, the surface sends it back with the operations, and a routine
+written since is refused before anything is rendered, with the list read again and nothing asked
+against it. A different window from the one the three digests cover, which is the routine moving
+between the review and the write.
+
+Studio's routine card offers the two operations and nothing that adds, reorders or edits a
+coordinate; a held key says on its own row that removing it removes its other half; Review shows
+both sources in full and the steps it would leave; Cancel writes nothing; Save sends the review's
+token alone. A source that landed without its step list is rendered as the problem it is, because
+the routine runs as edited and cannot be edited again until it is rebuilt.
+
 See [[ADR-273-a-routine-writes-down-what-it-does]], and
 [[Step-editing-proposal-2026-10-30]] for the trace and the alternatives that were rejected.

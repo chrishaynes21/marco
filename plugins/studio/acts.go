@@ -132,6 +132,12 @@ type Acts struct {
 	// is the one this recorded. See rescope.go.
 	moves     map[string]orchestrator.Rescoping
 	moveOrder []string
+	// edits is each prepared STEP EDIT, held for the same reasons and keyed the same
+	// way: the three digests that make a save a checked one — the source, the
+	// demonstration and the routine's own step list — are in here and never on the page,
+	// and so is the step list the operations were counted against. See stepedit.go.
+	edits     map[string]orchestrator.EditReview
+	editOrder []string
 	// kind is WHICH KIND of run the slot is holding — an Act's supervised performance or
 	// a saved routine's — and routine is the second one's account of itself, nil for the
 	// first. Both outlive the run, because the window still has to describe one that has

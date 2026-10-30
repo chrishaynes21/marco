@@ -174,6 +174,17 @@
  ol.steps b{color:var(--ink);font-weight:600}
  ol.steps .val{font:400 14px var(--mach);color:var(--dim);overflow-wrap:anywhere}
  ol.steps .whole{grid-column:2 / -1}
+ /* A STEP ROW WITH ITS CONTROLS IN IT. Compact and inside the table rather than beside it:
+    the thing being changed and the control that changes it are one row, so nothing has to
+    be matched up by counting. */
+ .steprows .sr{display:grid;grid-template-columns:28px 1fr auto;gap:8px;
+   align-items:center;padding:5px 0;border-bottom:1px solid var(--line)}
+ .steprows .sr:last-child{border-bottom:0}
+ .steprows .n{font:400 12px var(--mach);color:var(--dim);text-align:right}
+ .steprows .what{font:400 13px var(--mach);color:var(--ink);overflow-wrap:anywhere}
+ .steprows .pair{display:block;font:400 12px var(--sans);color:var(--warn)}
+ .steprows .gone .what{text-decoration:line-through;color:var(--dim)}
+ .steprows input[type=number]{width:6.5em}
 
  /* A LIVE STATE LOOKS LIVE, AND A HELD ONE LOOKS HELD. The whole reason the paused
     state exists is that silence looks exactly like a recording that is still
@@ -847,6 +858,27 @@
         <span class="muted">Shows a comparison. Nothing is written until you replace it.</span>
       </div>
 
+      <!-- AND A STEP CAN BE CHANGED, WHICH IS AN EDIT AND NOT A MOVE.
+           Two operations: change a wait, remove a step. The routine is RE-RENDERED from its
+           own step list rather than having lines cut out of it -- a step's boundary is in
+           the step list and only approximately in the file, and the one surface that edited
+           lines is on record breaking a press by deleting the row the page offered. The
+           whole contract is `orchestrator.PrepareEditOf` and `SaveEdit`.
+
+           THE POSITIONS REFER TO THE LIST THIS PANEL SHOWED. The backend mints a basis for
+           it, this sends it back with the changes, and a routine written since is a refusal
+           with the list reloaded -- because row 5 of a list nobody saw is somebody's
+           intention applied to the wrong step. See stepedit.go. -->
+      <div class="row" style="margin-top:10px" id="routineStepsRow">
+        <button id="routineStepsBtn" onclick="stepEditing()">Edit its steps</button>
+        <span class="muted">Change a wait, or remove a step. Nothing is written until you
+          review it.</span>
+      </div>
+      <!-- AND WHAT A SAVE DID, WHICH HAS THREE ANSWERS. Saved is a banner; a source that
+           landed without its step list is a PROBLEM card, because the routine runs as
+           edited and cannot be edited again until it is rebuilt. See StepEditDone. -->
+      <div class="banner hide" style="margin-top:8px" id="routineStepOutcome"></div>
+
       <!-- AND WHERE IT WORKS CAN BE CHANGED, WHICH IS A MOVE AND NOT AN EDIT.
            Where a routine works IS its folder -- `<app>/context`, `<app>/focus`, `global`
            are three places -- so changing it writes a routine at one identity and ends one
@@ -871,6 +903,54 @@
            at the old place, which is two things to be told. See MoveDone. -->
       <div class="banner hide" style="margin-top:8px" id="routineMoveOutcome"></div>
       <div class="banner hide" style="margin-top:6px" id="routineMoveLeft"></div>
+
+      <!-- THE STEPS, WITH WHAT CAN BE DONE TO EACH.
+           Every step is listed, in order, because the positions the changes name mean
+           something only against the whole list. A wait offers a duration; everything else
+           offers removal. A held key says on its own row that removing it removes its other
+           half -- before the press rather than in the review afterwards, since that is a
+           removal of two steps and somebody is owed the second one. -->
+      <div class="card hide" id="routineSteps" style="margin-top:10px">
+        <h3>Its steps, as Marco performs them</h3>
+        <div class="muted" id="routineStepsNote"></div>
+        <div id="routineStepRows" class="steprows" style="margin-top:8px"></div>
+        <div class="muted hide" style="margin-top:8px" id="routineStepAsked"></div>
+        <div class="row" style="margin-top:10px">
+          <button id="routineStepReviewBtn"
+            onclick="reviewStepEdit()">Review these changes</button>
+          <button id="routineStepClearBtn" onclick="clearStepChanges()">Start again</button>
+          <span class="muted" id="routineStepsWhy"></span>
+        </div>
+      </div>
+
+      <!-- THE EDIT ITSELF: WHAT IT DOES, BOTH SOURCES, AND THE STEPS IT LEAVES.
+           NOT in a collapsed detail, for the reason the rebuild review is not: its refusal
+           has to be readable. The two panes are the whole of each file, because a list of
+           changed lines is an interpretation and the file is the thing that runs. -->
+      <div class="card hide" id="routineStepEdit" style="margin-top:10px">
+        <h3>Nothing has been written yet</h3>
+        <div class="muted" id="routineStepEditDoing"></div>
+        <div class="banner bad hide" style="margin-top:6px" id="routineStepEditRefused"></div>
+        <div class="row" style="margin-top:8px">
+          <details style="flex:1;min-width:0">
+            <summary>The routine as it is saved now</summary>
+            <pre id="routineStepEditWas"></pre>
+          </details>
+          <details style="flex:1;min-width:0">
+            <summary>What saving would write</summary>
+            <pre id="routineStepEditNow"></pre>
+          </details>
+        </div>
+        <details style="margin-top:8px">
+          <summary>The steps it would leave</summary>
+          <div id="routineStepEditRows" class="steprows" style="margin-top:6px"></div>
+        </details>
+        <div class="row" style="margin-top:10px">
+          <button class="go" id="routineStepSaveBtn" onclick="saveStepEdit()">Save it</button>
+          <button id="routineStepCancelBtn" onclick="cancelStepEdit()">Cancel</button>
+          <span class="muted" id="routineStepEditNote"></span>
+        </div>
+      </div>
 
       <div class="card hide" id="routineWhere" style="margin-top:10px">
         <h3>Where it works, and where it could</h3>
@@ -2502,6 +2582,263 @@
      'here either way.'
  }
 
+ // ── CHANGING A STEP, WHICH IS AN EDIT OF THE STEP LIST AND NOT OF THE TEXT ───
+ //
+ // `stepList` is the list this panel was handed and the basis it came with, `stepChanges`
+ // what has been asked against THAT list, `stepReview` the one prepared edit the window is
+ // showing, and `stepSaid` what the last save did.
+ //
+ // NONE OF THEM CARRIES AUTHORITY. The edit is saved with a TOKEN the backend minted, and
+ // the changes are applied to the list the basis identifies -- so a routine written between
+ // the listing and the review is a refusal, not somebody's row numbers applied to steps
+ // they never saw. See stepedit.go.
+ let stepList = null, stepChanges = [], stepReview = null, stepSaid = null
+
+ // THE STEPS, ASKED OF THE BACKEND. Whether a routine can be edited at all is
+ // `PrepareEdit`'s own answer -- its source has to be what its step list renders to -- and a
+ // page with a copy of that rule would offer what the backend then declines.
+ function stepEditing(){
+   const r = routineWith(chosenRoutine)
+   if (!r) { return }
+   $('routineStepsBtn').disabled = true
+   text($('routineStepsWhy'), '')
+   acts.StepEditing(r.id).then(v => {
+     $('routineStepsBtn').disabled = false
+     stepChanges = []
+     stepReview = null
+     showing($('routineStepEdit'), false)
+     if (!v || v.why || !v.editable) {
+       // NO PANEL, AND THE REASON WHERE THE BUTTON IS. A routine whose source is
+       // not the render of its own step list goes to the rebuild review, and the
+       // backend's sentence says so.
+       stepList = null
+       showing($('routineSteps'), false)
+       text($('routineStepOutcome'), (v && v.why) || 'its steps cannot be edited')
+       $('routineStepOutcome').classList.add('bad')
+       showing($('routineStepOutcome'), true)
+       return
+     }
+     stepList = v
+     showing($('routineStepOutcome'), false)
+     drawStepRows()
+   })
+ }
+
+ function drawStepRows(){
+   const r = routineWith(chosenRoutine)
+   const have = !!(stepList && r && stepList.id === r.id)
+   showing($('routineSteps'), have)
+   if (!have) { return }
+   text($('routineStepsNote'), 'Change a wait, or remove a step. The routine is written ' +
+     'again from this list, so removing a press removes the whole of it \u2014 and the waits ' +
+     'around it stay as they are until you change them too.')
+   const box = $('routineStepRows')
+   box.innerHTML = ''
+   stepList.rows.forEach(row => {
+     const asked = changeAt(row.at)
+     const div = document.createElement('div')
+     div.className = 'sr' + (asked && asked.op === 'remove' ? ' gone' : '')
+     const n = document.createElement('span')
+     n.className = 'n'
+     n.textContent = (row.at + 1) + '.'
+     const what = document.createElement('span')
+     what.className = 'what'
+     what.textContent = row.says
+     if (row.pairs) {
+       // THE OTHER HALF, ON THE ROW, BEFORE ANYTHING IS PRESSED.
+       const pair = document.createElement('span')
+       pair.className = 'pair'
+       pair.textContent = row.pair_says
+       what.appendChild(pair)
+     }
+     const controls = document.createElement('span')
+     controls.className = 'row'
+     if (row.wait) {
+       const ms = document.createElement('input')
+       ms.type = 'number'
+       ms.id = 'routineStepMs-' + row.at
+       ms.min = '0'
+       ms.value = String(asked && asked.op === 'wait' ? asked.to : row.ms)
+       const set = document.createElement('button')
+       set.id = 'routineStepSet-' + row.at
+       set.textContent = 'Set'
+       set.onclick = () => askStepChange({op: 'wait', at: row.at,
+         to: Math.max(0, parseInt(ms.value, 10) || 0)})
+       controls.append(ms, set)
+     }
+     const cut = document.createElement('button')
+     cut.id = 'routineStepCut-' + row.at
+     cut.textContent = asked && asked.op === 'remove' ? 'Keep it' : 'Remove'
+     cut.onclick = () => asked && asked.op === 'remove'
+       ? dropStepChange(row.at)
+       : askStepChange({op: 'remove', at: row.at})
+     controls.appendChild(cut)
+     div.append(n, what, controls)
+     box.appendChild(div)
+   })
+   drawStepAsked()
+ }
+
+ function changeAt(at){ return stepChanges.find(c => c.at === at) || null }
+
+ // ONE OPERATION PER STEP, which is the backend's rule as well: a step asked to be both
+ // changed and removed is refused there, and offering it here would be offering a press that
+ // comes back as an error.
+ function askStepChange(c){
+   dropStepChange(c.at)
+   stepChanges.push(c)
+   drawStepRows()
+ }
+
+ function dropStepChange(at){
+   stepChanges = stepChanges.filter(c => c.at !== at)
+   drawStepRows()
+ }
+
+ function clearStepChanges(){
+   stepChanges = []
+   stepReview = null
+   showing($('routineStepEdit'), false)
+   text($('routineStepsWhy'), '')
+   drawStepRows()
+ }
+
+ // WHAT HAS BEEN ASKED, IN ORDER, so the thing about to be reviewed is readable before the
+ // review exists.
+ function drawStepAsked(){
+   const box = $('routineStepAsked')
+   showing(box, stepChanges.length > 0)
+   $('routineStepReviewBtn').disabled = stepChanges.length === 0
+   if (!stepChanges.length) { return }
+   text(box, 'Asked: ' + stepChanges.map(c => c.op === 'wait'
+     ? 'step ' + (c.at + 1) + ' waits ' + c.to + 'ms'
+     : 'step ' + (c.at + 1) + ' is removed').join('; ') +
+     '. Nothing is written until you review and save it.')
+ }
+
+ // PREPARING AN EDIT WRITES NOTHING, and it is the only way to reach `SaveStepEdit`.
+ //
+ // THE BASIS GOES WITH IT. Without it the backend has no way to know the row numbers were
+ // read off this list, and a routine written since would have them applied to another.
+ function reviewStepEdit(){
+   const r = routineWith(chosenRoutine)
+   if (!r || !stepList) { return }
+   text($('routineStepsWhy'), '')
+   acts.ReviewStepEdit(r.id, stepList.basis, stepChanges).then(v => {
+     if (!v || v.why) {
+       // REFUSED, AND THE LIST READ AGAIN. The usual reason is that the routine
+       // has been written since these rows were listed, and the only honest
+       // answer is the new list with nothing asked against it.
+       stepReview = null
+       showing($('routineStepEdit'), false)
+       text($('routineStepsWhy'), (v && v.why) || 'the edit could not be prepared')
+       stepEditingAgain()
+       return
+     }
+     stepReview = v
+     drawStepEdit()
+   })
+ }
+
+ // THE LIST AGAIN, KEEPING THE SENTENCE THAT SAYS WHY. `stepEditing` clears it, so the
+ // refusal and the reload cannot both be the same call.
+ function stepEditingAgain(){
+   const why = $('routineStepsWhy').textContent
+   const r = routineWith(chosenRoutine)
+   if (!r) { return }
+   acts.StepEditing(r.id).then(v => {
+     stepChanges = []
+     if (!v || v.why || !v.editable) {
+       stepList = null
+       showing($('routineSteps'), false)
+       return
+     }
+     stepList = v
+     drawStepRows()
+     text($('routineStepsWhy'), why)
+   })
+ }
+
+ function drawStepEdit(){
+   const v = stepReview
+   showing($('routineStepEdit'), !!v)
+   if (!v) { return }
+   text($('routineStepEditDoing'), (v.doing || []).join('; ') || 'nothing was asked')
+   text($('routineStepEditRefused'), v.refused || '')
+   showing($('routineStepEditRefused'), !!v.refused)
+   text($('routineStepEditWas'), v.was || '')
+   text($('routineStepEditNow'), v.now || '')
+   const box = $('routineStepEditRows')
+   box.innerHTML = ''
+   ;(v.rows || []).forEach(row => {
+     const div = document.createElement('div')
+     div.className = 'sr'
+     const n = document.createElement('span')
+     n.className = 'n'
+     n.textContent = (row.at + 1) + '.'
+     const what = document.createElement('span')
+     what.className = 'what'
+     what.textContent = row.says
+     div.append(n, what, document.createElement('span'))
+     box.appendChild(div)
+   })
+   text($('routineStepEditNote'), '')
+   $('routineStepSaveBtn').disabled = !v.savable
+ }
+
+ // CANCEL WRITES NOTHING, BECAUSE NOTHING WAS WRITTEN. It lets go of the review the window
+ // holds, so a second press of a button somebody already dismissed cannot save with it.
+ function cancelStepEdit(){
+   const v = stepReview
+   stepReview = null
+   showing($('routineStepEdit'), false)
+   if (v && v.token) { acts.CancelStepEdit(v.token) }
+ }
+
+ function saveStepEdit(){
+   const v = stepReview
+   if (!v || !v.token) {
+     text($('routineStepEditNote'), 'there is nothing to save')
+     return
+   }
+   $('routineStepSaveBtn').disabled = true
+   acts.SaveStepEdit(v.token).then(done => {
+     if (!done || done.why) {
+       // THE REFUSAL STAYS ON THE SCREEN WITH THE REVIEW, which names what moved
+       // -- and the way forward is to look again, which needs the panel still
+       // there to press the button beside.
+       text($('routineStepEditNote'), (done && done.why) || 'nothing was written')
+       $('routineStepSaveBtn').disabled = !v.savable
+       return
+     }
+     stepReview = null
+     stepList = null
+     stepChanges = []
+     showing($('routineStepEdit'), false)
+     showing($('routineSteps'), false)
+     stepSaid = {id: v.id, says: done.says || '', partial: !!done.partial}
+     reloadRoutines(v.id)
+   })
+ }
+
+ // THE OUTCOME, RENDERED AS THE ONE IT WAS. Saved is an ordinary banner; a source that
+ // landed without its step list is a PROBLEM card, because the routine runs as edited and
+ // the next edit of it will refuse until it has been rebuilt.
+ //
+ // It belongs to the routine it is about, so choosing another card puts it away rather than
+ // leaving a sentence about one routine under another's name.
+ function drawStepOutcome(r){
+   const said = (stepSaid && r && stepSaid.id === r.id) ? stepSaid : null
+   const out = $('routineStepOutcome')
+   if (!said) {
+     showing(out, false)
+     return
+   }
+   text(out, said.says)
+   out.classList.toggle('bad', !!said.partial)
+   showing(out, true)
+ }
+
  // ── CHANGING WHERE A ROUTINE WORKS, WHICH IS A MOVE BETWEEN TWO IDENTITIES ───
  //
  // `choices` is the three availability answers for the chosen routine, `moving` the one
@@ -2886,6 +3223,16 @@
    if (choices && choices.id !== r.id) { choices = null }
    drawChoices()
    drawMoveOutcome(r)
+   // AND THE SAME FOR A PREPARED EDIT AND THE STEP LIST BESIDE IT. The positions in that
+   // list belong to one routine, and offering them under another's name is offering
+   // changes to steps that are not there.
+   if (stepReview && stepReview.id !== r.id) { cancelStepEdit() }
+   if (stepList && stepList.id !== r.id) {
+     stepList = null
+     stepChanges = []
+     showing($('routineSteps'), false)
+   }
+   drawStepOutcome(r)
    // AND THE WINDOW LIST IS ASKED FOR AGAIN WHENEVER THE ROUTINE CHANGES. It is the one
    // thing that cannot be kept: the candidates depend on the routine's application, and
    // the person is about to open the window they mean to press in.

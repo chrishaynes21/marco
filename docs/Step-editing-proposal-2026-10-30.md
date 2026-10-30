@@ -350,6 +350,16 @@ routine that does nothing is not a smaller routine; deleting one is an operation
 exists and already sweeps what sits beside it (`Registry.Delete`), and offering an edit that
 quietly amounts to a delete would be offering it without any of that.
 
+**R11b. An operation refers to the step list it was read off.** ADDED FOR THE SURFACE SLICE, and
+it is a window the three digests do not cover: they catch the routine moving between the REVIEW and
+the write, and this is the gap between a panel LISTING the steps and somebody stating a row number
+against them. Another writer inserting or removing a step moves every position after it, and
+nothing afterwards can catch it, because by then the operations have been applied to the wrong
+steps. So a listing is handed a `Basis` — the three digests, and nothing else, because the step
+list is a pure function of them — the surface sends it back with the operations, and a routine
+written since is refused before anything is rendered. Studio refuses an operation that states no
+basis at all, which is a rule of the surface because only the surface knows a list was on a screen.
+
 **R11a. And the token binds the source the review SHOWED, not only a digest of the file it read.**
 Found while reading the slice back and corrected across all three review types, because it is one
 contract: `Was` is exported and mutable, and a digest taken at preparation is a stored value, so
@@ -512,16 +522,11 @@ already has (`authority_test.go:40`), which records `Act's Action with Input` pe
   not changed by this slice**: it stays an Advanced source editor over its own line model, writing
   through `Registry.Save`. Routing it through `Replace` is a separate, smaller slice.
 
-### The surface (`plugins/studio`), which follows the backend
+### The surface (`plugins/studio`)
 
-**Not written, and named here as not written.** They belong to increment 2 and nothing holds them
-today:
-
-- that the panel offers the two operations and nothing else, and offers nothing at all for a
-  routine R2 excludes, with the reason on the card;
-- that the page sends the review's token and nothing it could author itself;
-- a rendered-page test that presses the real controls and reads the reveal in the same tick —
-  `surfacepage_test.go`'s rule, because containment is not visibility and the 400ms poll repaints.
+Built in the second increment, in two halves: `stepeditacts_test.go` against a real library and
+`stepeditpage_test.go` rendered against a stub. Named in full in
+[[ADR-273-a-routine-writes-down-what-it-does]].
 
 **And the gate**: a mutation run over every new call site, twice — once on the first
 implementation and again after the corrections. See
@@ -575,14 +580,12 @@ routine and only one of them keeps the explanation.
 
 ## 10. The increments
 
-1. **The backend**: the account and its six-state read, the edit/review/save contract, R11's token
-   and revalidation, and every row of §6's lifecycle — with the contract, execution and lifecycle
-   tests above, each through the production path rather than a stand-in. No Studio controls, and
-   nothing a person can reach yet. What that increment must hold: a second edit, a changed wait,
-   whole-gesture removal, a shorter chain, failure propagation, a review whose world moved under
-   it, a partial write — and the demonstration byte-identical throughout.
-2. **The surface**: `plugins/studio/edit.go` and its page, mirroring Rescope, with the three
-   surface tests.
+1. **The backend** — BUILT. The account and its six-state read, the edit/review/save contract,
+   R11's token and revalidation, and every row of §6's lifecycle, each through the production path
+   rather than a stand-in.
+2. **The surface** — BUILT. `plugins/studio/stepedit.go` and its panel, mirroring Rescope, plus
+   R11b's basis, which the surface slice added to the contract.
 
-Increment 1 is demonstrable without a screen: the tests in §7 run the real engine over the real
-generator through a recording host, and the lifecycle rows are all file operations.
+Neither needed a screen: the tests run the real engine over the real generator through a recording
+host, the lifecycle rows are all file operations, and the page is rendered headless against a stub.
+What neither establishes is that an edited routine presses anything on a desktop.

@@ -306,7 +306,7 @@ move. See [[ADR-082-a-plays-past-travels-with-the-file]].
 | **`marco register "<name>"`** | — | it exists because `marco plays` names it |
 | **`marco routes`** | registered only | what may be OFFERED to a front end |
 | **`/api/routes`** | registered only | the step editor's picker; a staged play is not openable |
-| **`PrepareEdit`/`SaveEdit`** | demonstrated, account `none` or `intact` | step editing over the IR, re-rendered and compiled; no surface yet |
+| **`PrepareEditOf`/`SaveEdit`** | demonstrated, account `none` or `intact` | step editing over the IR, re-rendered and compiled; Studio's routine card is the surface, and an operation carries the basis of the list it was read off |
 | **Learn panel** | `life` / `life_word` / `life_says` | the same words the Plays list uses for the same file |
 
 The two groups are printed apart rather than mixed with a badge, because the difference is not a

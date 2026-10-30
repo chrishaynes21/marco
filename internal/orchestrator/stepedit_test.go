@@ -359,6 +359,95 @@ func TestAnUnreadableAccountIsSaidAndNotTreatedAsAbsent(t *testing.T) {
 	}
 }
 
+// AN OPERATION REFERS TO THE STEP LIST IT WAS READ OFF, AND NOTHING ELSE.
+//
+// A DIFFERENT WINDOW FROM THE ONE THE THREE DIGESTS COVER. Those catch the routine moving between
+// the REVIEW and the write (`TestAnEditIsRefusedWhenTheWorldMovedWhileItWasOpen`). This is the
+// window before that: a surface lists the steps at one moment and states positions at another,
+// and between the two another writer can insert or remove a step, which moves every position
+// after it.
+//
+// Nothing can be checked afterwards, because by then the operations have been applied to the wrong
+// steps and the result is a perfectly good routine that does the wrong thing. So the basis is
+// stated with the operations and refused before anything is rendered.
+func TestOperationsReferToTheStepListTheyWereReadOff(t *testing.T) {
+	d, rt := aThreePressRoutine(t)
+	listed, err := d.PrepareEdit(rt, nil)
+	if err != nil {
+		t.Fatalf("listing the steps: %v", err)
+	}
+	if listed.Basis == "" {
+		t.Fatal("the listing came with no basis")
+	}
+	// A REMOVAL, because it is legal at every position: an operation that happens to be
+	// illegal at the new position would refuse for a reason that has nothing to do with
+	// the basis, and would say nothing about the hazard.
+	asked := []StepEdit{{Op: EditRemove, At: 4}}
+	shown := listed.Steps()[4]
+	if shown.Kind != macroir.StepClick || shown.X != 900 {
+		t.Fatalf("step 5 of the displayed list is %+v, so this test is about the "+
+			"wrong step", shown)
+	}
+
+	// ── ANOTHER WRITER, BEFORE ANYBODY ASKED FOR A PREVIEW ──
+	//
+	// The same routine demonstrated again with a press at the front, so every position
+	// in the list that was handed over has moved.
+	ev := []recorder.RecordedEvent{{Kind: recorder.EvAppSwitch,
+		KeyName: "arkascended", T: at(0)}}
+	ev = append(ev, aGuardedClickAt(100, 700, 200)...)
+	ev = append(ev, aThreePressDemonstration()[1:]...)
+	dr := d.DraftOf("open graphics", ev, "arkascended", "a second recording", Coordinates)
+	if _, err := d.Save(dr, ScopeAppAnywhere, "arkascended"); err != nil {
+		t.Fatalf("the second recording could not be saved: %v", err)
+	}
+
+	again, err := d.PrepareEditOf(rt, listed.Basis, asked)
+	if err == nil {
+		t.Fatalf("the operations were applied to a list nobody was shown:\n%s", again.Now)
+	}
+	if !strings.Contains(err.Error(), "has been written since its steps were listed") {
+		t.Errorf("the refusal does not say what happened: %v", err)
+	}
+	if again.Now != "" {
+		t.Error("something was rendered before the basis was checked")
+	}
+
+	// AND THE SAME OPERATIONS AGAINST THE LIST AS IT NOW STANDS ARE FINE, which makes
+	// this a refusal about the basis rather than about the operations.
+	now, err := d.PrepareEdit(rt, nil)
+	if err != nil {
+		t.Fatalf("listing again: %v", err)
+	}
+	if now.Basis == listed.Basis {
+		t.Fatal("the basis did not move, so this test asks nothing")
+	}
+	if _, err := d.PrepareEditOf(rt, now.Basis, asked); err != nil {
+		t.Errorf("the operations were refused against the list they were read off: %v",
+			err)
+	}
+
+	// AND WITHOUT A BASIS THEY GO THROUGH AND TAKE THE WRONG STEP, which is the hazard
+	// stated rather than asserted: a caller that says nothing about what it was shown is
+	// applying row numbers to whatever the routine happens to be now.
+	blind, err := d.PrepareEdit(rt, asked)
+	if err != nil {
+		t.Fatalf("the unchecked call refused, so this test says nothing about what "+
+			"the basis is for: %v", err)
+	}
+	kept := false
+	for _, st := range blind.Steps() {
+		if st.Kind == macroir.StepClick && st.X == shown.X {
+			kept = true
+		}
+	}
+	if !kept {
+		t.Error("the unchecked call happened to remove the step that was at that " +
+			"position in the displayed list, so this fixture no longer shows what " +
+			"a moved list costs")
+	}
+}
+
 // ── WHAT A REMOVAL MEANS ─────────────────────────────────────────────────────
 
 // A GESTURE GOES WHOLE OR NOT AT ALL, AND A HELD KEY IS THE ONE WITH TWO HALVES.
