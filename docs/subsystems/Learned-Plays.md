@@ -325,8 +325,15 @@ the one reviewed.
 A move that wrote the destination and could not remove the original says **"Copied; original
 retained"** and never "Moved": two routines exist, and a person told otherwise goes looking for
 one of them. A hand edit is not carried across — the rendering comes from the recording — so the
-file as it stands is one side of the review and what would be written is the other. See
-[[ADR-271-a-rescope-is-a-reviewed-move-between-identities]].
+file as it stands is one side of the review and what would be written is the other.
+
+Studio offers it on the chosen routine: all three availability choices, with the reason
+beside any that cannot be taken — a chooser showing only what is possible answers *why can
+this not work from anywhere?* by removing the row that would have said — then a review of both
+identities and both sources, and a Move that takes the review's TOKEN and one boolean. The
+window keeps the digests; the page agrees to the sentence it was shown and cannot assemble a
+consent of its own. Moved, `Copied; original retained` and leftover litter are three separate
+renderings. See [[ADR-271-a-rescope-is-a-reviewed-move-between-identities]].
 
 ## Related
 

@@ -122,6 +122,15 @@ type Acts struct {
 	reviews map[string]orchestrator.Prepared
 	// reviewOrder is the order they arrived, so the oldest goes when there are too many.
 	reviewOrder []string
+	// moves is each prepared MOVE between two scopes, held for the same reasons and
+	// keyed the same way: a page that handed the rendered source back could hand back
+	// something else, and the four digests that make a move a checked one — the
+	// original's source and demonstration, and whatever was at the destination — are in
+	// here and never on the page. It is also where the CONSENT comes from: the page says
+	// only whether to replace what it was shown, and the version that consent is bound to
+	// is the one this recorded. See rescope.go.
+	moves     map[string]orchestrator.Rescoping
+	moveOrder []string
 	// kind is WHICH KIND of run the slot is holding — an Act's supervised performance or
 	// a saved routine's — and routine is the second one's account of itself, nil for the
 	// first. Both outlive the run, because the window still has to describe one that has

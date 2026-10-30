@@ -821,6 +821,91 @@
           onclick="reviewRebuilt('current')">Review today's rules</button>
         <span class="muted">Shows a comparison. Nothing is written until you replace it.</span>
       </div>
+
+      <!-- AND WHERE IT WORKS CAN BE CHANGED, WHICH IS A MOVE AND NOT AN EDIT.
+           Where a routine works IS its folder -- `<app>/context`, `<app>/focus`, `global`
+           are three places -- so changing it writes a routine at one identity and ends one
+           at another. The whole contract is `orchestrator.PrepareRescope` and `Rescope`;
+           what is here is the four steps, three of which write nothing.
+
+           THE ENTRANCE IS VISIBLE, which is the lesson of Simplify: a complete flow with
+           consent and refusals sat inside the `Rebuild and re-record` detail below and
+           nobody found it. The choices themselves need a backend call -- whether a scope
+           is possible for THIS routine is `WhyNotThisScope`, not something a page can work
+           out -- so the button is what asks for them. See rescope.go. -->
+      <div class="row" style="margin-top:10px" id="routineWhereRow">
+        <button id="routineWhereBtn" onclick="scopeChoices()">Change where it works</button>
+        <span class="muted">Shows all three choices, and why any of them is
+          unavailable. Nothing is written until you move it.</span>
+      </div>
+      <!-- WHAT A MOVE DID, AND MOVED IS NOT COPIED.
+           A destination written with the original gone is a move; one written with the
+           original still there is TWO routines, and it is rendered as a problem card
+           because that is what it is -- somebody told `Moved` would go looking for one of
+           them. Residue is its own line: the move happened AND something is still lying
+           at the old place, which is two things to be told. See MoveDone. -->
+      <div class="banner hide" style="margin-top:8px" id="routineMoveOutcome"></div>
+      <div class="banner hide" style="margin-top:6px" id="routineMoveLeft"></div>
+
+      <div class="card hide" id="routineWhere" style="margin-top:10px">
+        <h3>Where it works, and where it could</h3>
+        <div class="muted" id="routineWhereNote"></div>
+        <!-- AN APPLICATION, ASKED FOR ONLY BY A ROUTINE THAT IS ABOUT NONE.
+             A routine saved to work anywhere has no application, and two of the three
+             choices need one: the backend tries its demonstration first and refuses with
+             a sentence saying to name one when that says nothing. A move does not get to
+             change which application a routine is about on the way past, so for every
+             other routine this row is absent rather than ignored. -->
+        <div class="row hide" style="margin-top:8px" id="routineWhereAppRow">
+          <label style="width:7em">in</label>
+          <input type="text" id="routineWhereApp"
+            placeholder="the application it should work in">
+          <button id="routineWhereAgainBtn" onclick="scopeChoices()">Ask again</button>
+        </div>
+        <div id="routineWhereChoices"></div>
+      </div>
+
+      <!-- THE MOVE ITSELF: BOTH SOURCES, WHAT IS IN THE WAY, AND ONE BUTTON.
+           NOT in a collapsed detail, for the reason the rebuild review is not: its
+           caution, its refusal and the consent it needs have to be readable.
+
+           The two panes are the whole of each file. A move RE-RENDERS from the
+           demonstration, so for a routine somebody edited by hand the left-hand pane is
+           their own text and approving this is approving the loss of it -- in front of
+           them rather than discovered afterwards. -->
+      <div class="card hide" id="routineMove" style="margin-top:10px">
+        <h3>Nothing has been written yet</h3>
+        <div class="muted" id="routineMoveMeans"></div>
+        <div class="banner bad hide" style="margin-top:6px" id="routineMoveRefused"></div>
+        <!-- SOMETHING IS ALREADY THERE, AND AGREEING TO MOVE THIS IS NOT AGREEING TO LOSE
+             THAT. Its own yes, and the version it is bound to is the one the backend
+             recorded when it prepared this review -- the page sends a boolean, never a
+             digest. Unticked, the destination is created exclusively, so a routine that
+             appears in the meantime is a refusal rather than something written over. -->
+        <div class="banner hide" style="margin-top:6px" id="routineMoveTaken"></div>
+        <label class="hide" style="margin-top:6px;display:block" id="routineMoveConsentRow">
+          <input type="checkbox" id="routineMoveConsent" onchange="paintMoveButtons()">
+          <span id="routineMoveConsentSays"></span></label>
+        <div class="muted" style="margin-top:6px" id="routineMoveSays"></div>
+        <div class="row" style="margin-top:8px">
+          <details style="flex:1;min-width:0">
+            <summary>The routine as it is saved now
+              (<span id="routineMoveFrom"></span>)</summary>
+            <pre id="routineMoveWas"></pre>
+          </details>
+          <details style="flex:1;min-width:0">
+            <summary>What a move would write
+              (<span id="routineMoveTo"></span>)</summary>
+            <pre id="routineMoveNow"></pre>
+          </details>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <button class="go" id="routineMoveBtn" onclick="moveRoutine()">Move it</button>
+          <button id="routineMoveCancelBtn" onclick="cancelMove()">Cancel</button>
+          <span class="muted" id="routineMoveNote"></span>
+        </div>
+      </div>
+
       <details style="margin-top:10px">
         <summary>What it will do, as Marco saved it</summary>
         <pre id="routineSource"></pre>
@@ -2386,6 +2471,227 @@
      'here either way.'
  }
 
+ // ── CHANGING WHERE A ROUTINE WORKS, WHICH IS A MOVE BETWEEN TWO IDENTITIES ───
+ //
+ // `choices` is the three availability answers for the chosen routine, `moving` the one
+ // prepared move the window is showing, and `moveSaid` what the last one did.
+ //
+ // NONE OF THE THREE CARRIES AUTHORITY. The move is performed with a TOKEN the backend
+ // minted and against the four digests it recorded -- the original's source and
+ // demonstration, and whatever was at the destination -- so what lands on disk is what was
+ // rendered here. The page's only contribution beyond the token is whether to replace an
+ // occupied destination, which is agreement with a sentence it was shown rather than a
+ // version it authored. See rescope.go.
+ let choices = null, moving = null, moveSaid = null
+
+ // ALL THREE CHOICES, ASKED OF THE BACKEND. Whether a scope is possible for this routine
+ // is `WhyNotThisScope` and `rescopeTarget`, and a page with its own copy of either would
+ // offer what the backend then declines.
+ function scopeChoices(){
+   const r = routineWith(chosenRoutine)
+   if (!r) { return }
+   $('routineWhereBtn').disabled = true
+   text($('routineWhereNote'), 'asking — nothing is written')
+   acts.ScopeChoices(r.id, $('routineWhereApp').value || '').then(cs => {
+     $('routineWhereBtn').disabled = false
+     choices = {id: r.id, rows: cs || []}
+     drawChoices()
+   })
+ }
+
+ function drawChoices(){
+   const r = routineWith(chosenRoutine)
+   const have = !!(choices && r && choices.id === r.id)
+   showing($('routineWhere'), have)
+   if (!have) { return }
+   showing($('routineWhereAppRow'), !r.app)
+   text($('routineWhereNote'), 'Where a routine works is where its file lives, so this ' +
+     'is a move between two places rather than an edit. Nothing is written until you ' +
+     'review one and move it.')
+   const box = $('routineWhereChoices')
+   box.innerHTML = ''
+   choices.rows.forEach(c => {
+     const row = document.createElement('div')
+     row.className = 'row'
+     row.style.marginTop = '8px'
+     const says = document.createElement('span')
+     says.className = 'muted'
+     if (c.current) {
+       // THE ONE IT HAS, AS A STATE AND NOT AS A CHOICE. Selecting it is nothing to
+       // do, and the backend refuses it rather than taking one lock twice and
+       // removing what it had just written.
+       const pill = document.createElement('span')
+       pill.className = 'pill ok'
+       pill.textContent = 'Now'
+       row.appendChild(pill)
+       says.textContent = c.where + '; ' + c.asked
+     } else if (c.available) {
+       const b = document.createElement('button')
+       // ADDRESSABLE BY THE SCOPE IT IS FOR, so a person and a test both reach the
+       // choice they mean rather than whichever button came first.
+       b.id = 'routineMoveTo-' + c.scope
+       b.textContent = 'Review this move'
+       b.onclick = () => reviewRescope(c.scope)
+       row.appendChild(b)
+       says.textContent = c.where + '; ' + c.asked +
+         (c.taken ? ' — ' + c.taken_says : '')
+     } else {
+       // UNAVAILABLE, WITH THE REASON AND NOT WITHOUT THE ROW.
+       //
+       // A chooser that listed only what is possible would answer the question
+       // somebody is actually asking -- why can this not work from anywhere? -- by
+       // removing the row that carries the answer. The reasons are the backend's
+       // own words and they are specific: presses checked against the window they
+       // were made in cannot go somewhere that brings no window forward.
+       const pill = document.createElement('span')
+       pill.className = 'pill no'
+       pill.textContent = 'No'
+       row.appendChild(pill)
+       says.textContent = c.where + ' — not available: ' + (c.why || '')
+     }
+     row.appendChild(says)
+     box.appendChild(row)
+   })
+ }
+
+ // PREPARING A MOVE WRITES NOTHING, and it is the only way to reach `MoveRoutine`.
+ function reviewRescope(scope){
+   const r = routineWith(chosenRoutine)
+   if (!r) { return }
+   text($('routineMoveNote'), '')
+   acts.ReviewRescope(r.id, scope, $('routineWhereApp').value || '').then(v => {
+     if (!v || v.why) {
+       moving = null
+       showing($('routineMove'), false)
+       text($('routineWhereNote'), (v && v.why) || 'the move could not be prepared')
+       return
+     }
+     moving = v
+     drawMove()
+   })
+ }
+
+ function drawMove(){
+   const v = moving
+   showing($('routineMove'), !!v)
+   if (!v) { return }
+   // BOTH IDENTITIES, BECAUSE THE MOVE IS BETWEEN TWO. A refused preparation can have
+   // no destination at all -- a routine about no application, with none named -- and
+   // naming one would be a sentence about a place that does not exist.
+   text($('routineMoveMeans'), v.to
+     ? 'From ' + v.from + ' to ' + v.to + '. There it ' + v.where + ', and is ' +
+       v.asked + '.'
+     : 'From ' + v.from + '. There is nowhere for it to go yet.')
+   text($('routineMoveRefused'), v.refused || '')
+   showing($('routineMoveRefused'), !!v.refused)
+   text($('routineMoveTaken'), v.taken_says || '')
+   showing($('routineMoveTaken'), !!v.taken)
+   showing($('routineMoveConsentRow'), !!v.taken)
+   $('routineMoveConsent').checked = false
+   text($('routineMoveConsentSays'), v.taken
+     ? 'Yes — replace the routine at ' + v.taken_id + ' with this one' : '')
+   // WHAT MOVING WOULD DO TO THE FILE, WHICH IS NOT WHETHER IT MOVES. A rendering
+   // identical to the file still moves: it goes to another folder, which is the whole
+   // point. Saying `nothing would change` there would describe the one thing that does.
+   text($('routineMoveSays'), v.refused
+     ? 'There is nothing to move: the reason is above.'
+     : (v.changes
+          ? 'It would be re-rendered from its own demonstration as well as moved, so ' +
+            'the two differ. The left-hand pane is the routine you have now.'
+          : 'The same source would be written at the new place and removed from the ' +
+            'old one.'))
+   text($('routineMoveWas'), v.was || '')
+   text($('routineMoveNow'), v.now || '')
+   text($('routineMoveFrom'), v.from || '')
+   text($('routineMoveTo'), v.to || 'nowhere')
+   text($('routineMoveNote'), '')
+   paintMoveButtons()
+ }
+
+ // ONE PLACE DECIDES WHETHER A MOVE MAY BE PRESSED, asked from the review and from the
+ // tick-box. An occupied destination needs its own yes, and the button SAYS so rather than
+ // sitting live beside an unticked box: a press that comes back `there is already a routine
+ // there` is this window telling somebody off for pressing what it offered them.
+ function paintMoveButtons(){
+   const v = moving
+   if (!v) { return }
+   $('routineMoveBtn').disabled = !v.movable ||
+     !!(v.taken && !$('routineMoveConsent').checked)
+   text($('routineMoveBtn'), v.taken ? 'Move it, replacing what is there' : 'Move it')
+ }
+
+ // CANCEL WRITES NOTHING, BECAUSE NOTHING WAS WRITTEN. It lets go of the preparation the
+ // window holds, so a second press of a button somebody already dismissed cannot move with
+ // it. By token, so dismissing one does not throw away another still on the screen.
+ function cancelMove(){
+   const v = moving
+   moving = null
+   showing($('routineMove'), false)
+   text($('routineMoveNote'), '')
+   if (v && v.token) { acts.CancelMove(v.token) }
+ }
+
+ function moveRoutine(){
+   const v = moving
+   if (!v || !v.token) {
+     text($('routineMoveNote'), 'there is nothing to move')
+     return
+   }
+   // THE TOKEN OF THE REVIEW ON THE SCREEN, AND ONE BOOLEAN. The consent to replace is
+   // assembled by the backend from the version this review was prepared against; if
+   // something else has been saved there since, the revalidation under the locks refuses
+   // with nothing written.
+   const replace = !!(v.taken && $('routineMoveConsent').checked)
+   $('routineMoveBtn').disabled = true
+   acts.MoveRoutine(v.token, replace).then(done => {
+     if (!done || done.why) {
+       // THE REFUSAL STAYS ON THE SCREEN WITH THE REVIEW, which names what moved
+       // or what is in the way -- and the way forward is to look again, which needs
+       // the panel still there to press the button beside.
+       text($('routineMoveNote'), (done && done.why) || 'nothing was written')
+       paintMoveButtons()
+       return
+     }
+     moving = null
+     choices = null
+     showing($('routineMove'), false)
+     showing($('routineWhere'), false)
+     moveSaid = {id: done.to, says: done.says || '', left: done.left || '',
+       copied: !!done.copied}
+     // AND THE AFFECTED IDENTITIES ARE READ AGAIN AT ONCE, rather than at the next
+     // poll: the identity this panel was showing does not exist any more after a
+     // move, and the routine is now the one at the destination.
+     reloadRoutines(done.to)
+   })
+ }
+
+ // THE OUTCOME, RENDERED AS THE ONE IT WAS. Moved is an ordinary banner; copied is a
+ // PROBLEM card, because two routines exist and somebody has to decide what to do about
+ // the one that was supposed to go; residue is its own line either way.
+ //
+ // It belongs to the destination identity, so choosing another routine puts it away rather
+ // than leaving a sentence about one routine under another's name.
+ function drawMoveOutcome(r){
+   const said = (moveSaid && r && moveSaid.id === r.id) ? moveSaid : null
+   const out = $('routineMoveOutcome')
+   text(out, said ? said.says : '')
+   out.classList.toggle('bad', !!(said && said.copied))
+   showing(out, !!said)
+   text($('routineMoveLeft'), said ? said.left : '')
+   showing($('routineMoveLeft'), !!(said && said.left))
+ }
+
+ // THE LIBRARY, READ AGAIN NOW. The poll is 2.5 seconds away and the thing it would
+ // correct is a panel pointing at an identity that has gone.
+ function reloadRoutines(selectId){
+   acts.Routines().then(rs => {
+     routines = rs || []
+     if (selectId && routines.some(r => r.id === selectId)) { chosenRoutine = selectId }
+     shownRoutines = ''
+     drawRoutines()
+   })
+ }
+
  function drawReview(){
    const v = reviewing
    showing($('routineReview'), !!v)
@@ -2542,6 +2848,13 @@
    // AND A REVIEW BELONGS TO ONE ROUTINE. Choosing another card puts it away rather than
    // leaving two sources on screen under somebody else's name.
    if (reviewing && reviewing.id !== r.id) { cancelReview() }
+   // THE SAME FOR A PREPARED MOVE AND FOR THE CHOICES BESIDE IT: both are about one
+   // routine, and three availability answers under another routine's name are three
+   // wrong answers.
+   if (moving && moving.id !== r.id) { cancelMove() }
+   if (choices && choices.id !== r.id) { choices = null }
+   drawChoices()
+   drawMoveOutcome(r)
    paintRoutinePlay()
  }
 

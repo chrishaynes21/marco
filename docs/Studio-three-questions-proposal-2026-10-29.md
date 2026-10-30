@@ -20,11 +20,11 @@ Traced at `fb7e677`. This is what exists, what is missing, and the smallest beha
 close each gap — one proposal, four slices, in the order they should be built.
 
 **Status.** The two that change no behaviour are **implemented**: Simplify's discoverability and
-the availability explanations, with the app-less Play sentence corrected. **`Rescope` is
-implemented as a contract** in `internal/orchestrator/rescope.go` — the mechanism and its rules,
-held by tests that stand in both of its interleavings; it has **no surface yet**, which is the
-next bounded step. **Playback targeting is a contract, ruled on and not built**, and is the slice
-after that. See [[ADR-271-a-rescope-is-a-reviewed-move-between-identities]].
+the availability explanations, with the app-less Play sentence corrected. **`Rescope` is built**, contract and
+surface: the mechanism and its rules in `internal/orchestrator/rescope.go`, held by tests that
+stand in both of its interleavings, and the panel for it in `plugins/studio/rescope.go` with the
+page rendered against it. **Playback targeting is a contract, ruled on and not built**, and is
+the remaining slice. See [[ADR-271-a-rescope-is-a-reviewed-move-between-identities]].
 
 The three questions must stay apart, because they are decided at different moments, by different
 people, about different things:
@@ -357,14 +357,18 @@ availability.
    well as where it works, in the vocabulary `resolveroute.Eligible` uses, at the save and on the
    saved routine; the withdrawn chooser says why a guarded recording has one choice. And the
    sentence under Play no longer promises an application an app-less routine does not name.
-3. **`Rescope` — the contract is DONE; the surface is not.** The first real behaviour, and a
+3. **`Rescope` — DONE, contract and surface.** The first real behaviour, and a
    **reviewed move between identities** rather than a save under another word: both ends locked
    in a fixed order and revalidated, the destination checked with its own version-bound consent,
    the resulting source shown before approval because the rebuild can replace a hand edit, the
    destination read back, and the original removed only after that — reported as a COPY when the
-   removal does not happen. Eight mutations, eight failures, two of them standing in instants
-   nothing else can reach. **Next: the surface** — a chooser on the selected routine, the two
-   sources, the destination's consent card, and the copy-not-move result said plainly.
+   removal does not happen. Twelve mutations for the contract and thirty for the surface, all
+   killed, two of them standing in instants nothing else can reach. The surface offers all three
+   availability choices WITH the reason beside any that cannot be taken, both identities and both
+   sources before approval, a separate agreement for an occupied destination that the page cannot
+   author — the token and one boolean are all it sends — and Moved, `Copied; original retained`
+   and leftover litter as three distinct renderings, after which the affected identities are read
+   again.
 4. **Playback target.** The largest, and the one with a defect under it: a chooser in Studio, the
    selected window visible beside Play, a handle AND its owning process carried through the raise
    and the binding, one decision where there are now two, a refusal on disappearance or a change

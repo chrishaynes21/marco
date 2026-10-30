@@ -2,7 +2,7 @@
 type: adr
 status: accepted
 date: 2026-10-29
-decision: "ACCEPTED — CHANGING WHERE A ROUTINE WORKS IS A REVIEWED MOVE BETWEEN TWO IDENTITIES, NOT A SAVE UNDER ANOTHER WORD. A route's identity is its folder — `routes/<app>/context/<slug>.marco`, `routes/<app>/focus/<slug>.marco` and `routes/global/<slug>.marco` are three files — so changing the scope creates a route at one path and ends one at another, with everything that implies: two things that can already be there, two things that can change while somebody reads a review, and a window in which both exist. Until now the only rescope was `Deps.Resave`, which is immediate on purpose because the file it replaces refuses every press: one lock, no consent, no read-back, and a delete after a save it never verifies. Useful machinery, not a move contract. So `PrepareRescope` renders the routine for the scope asked for FROM ITS OWN DEMONSTRATION and writes nothing, and `Rescope` performs the move under both locks. SIX RULES, EACH ONE A WAY A ROUTINE COULD OTHERWISE BE LOST. (1) The review is bound by a token to the original's source AND demonstration, the destination's identity AND what was at it, the library, the scope asked for, and the exact source that would be written — so a value assembled from parts of two reviews no longer matches its own content, and a review prepared when the destination was empty is not the same review as one prepared after a routine appeared there, which matters the moment a surface holds pending moves in a map keyed by token. (2) BOTH identities are locked, in an order taken from the identities themselves and never from the caller: two windows moving one routine in opposite directions take the same two locks in opposite orders and each waits for the one the other holds. (3) Both ends are revalidated under those locks — the original's source and demonstration against the review, and the destination against what the consent was given to. (4) A destination collision needs SEPARATE, VERSION-BOUND consent: agreeing to move this routine is not agreeing to lose that one, and the consent names the destination's identity AND digests of the source and demonstration somebody was shown. Without consent the destination is created with `O_CREATE|O_EXCL`, so a routine appearing between the revalidation and the write is the failure rather than something written over. (5) The destination is READ BACK — source and demonstration both — before anything is removed, because a write that returned no error is not a routine that is there and the original is about to be deleted on the strength of it. (6) The original is revalidated once more immediately before removal and is NEVER deleted when it is newer than the version reviewed: both locks have been held throughout, so what this protects against is the writer that does not take them — a hand edit in `marco edit`, a text editor, a sync. AND THE REMOVAL TAKES THE SOURCE FIRST. `Registry.Delete` removes the demonstration and the anchor images before the source, which is right for a deletion -- everything is going -- and exactly wrong for a move, which is allowed to fail at the removal and promises the original is RETAINED when it does: a failed source removal through that order left a routine whose recording and images were already gone, one that can no longer be reviewed, rebuilt or moved and with anchors one that can no longer run, while the result said it had been retained. A move uses `Registry.DeleteSource` and then `Registry.DeleteLeftovers`: a routine IS its `.marco`, so removing that is what makes this a move, nothing beside it is touched until that has succeeded, and what is left afterwards is litter rather than a routine -- it cannot fail the move and is NAMED, because a recording left under a slug is a file the next routine saved there would inherit. AND THE OUTCOME IS NAMED HONESTLY. If the destination was written and the original could not be removed, the result says `Copied; original retained:` with the reason, and never `Moved`: there are two routines, and a person told otherwise goes looking for one of them. Selecting the scope a routine already has is refused as nothing to do rather than performed — the destination identity would BE the source identity, which means one lock taken twice, an exclusive create onto the file being moved, and a removal of what had just been written. A move RE-RENDERS rather than editing the source, because the difference between the scopes is in the generated Marco — a focus route carries the `Activate` that brings its application forward and the other two have it stripped — and rewriting generated Marco by hand is how two things that have to agree stop agreeing. The cost is that a hand-edited routine comes back as a rendering of its recording, so the file as it stands is one side of the review and what would be written is the other: approving the move is approving the loss of the edit, in front of them, rather than discovering it afterwards. A routine with no stored demonstration cannot be moved at all. A routine whose presses check the window they were made in cannot be moved to a scope that brings no window forward, which is the same rule the save path applies, asked at preparation so it is a sentence in a review rather than a refusal after somebody decided. A global routine being moved into an application needs one named — its own demonstration is asked first, and a refusal naming what to supply is the answer when that says nothing. 12 of 12 mutations killed, two of them standing in instants nothing else can reach: `AfterValidating` between the revalidation and the first write, and `afterDestination` in the one interval a move has that a save does not — the destination written and the original still there. The eighth was found by a surviving mutation: the destination's version was in the token and nothing detected its removal, because the revalidation refuses the same case a moment later. It is load-bearing for the review's IDENTITY rather than for the write, and now has a test that says so."
+decision: "ACCEPTED — CHANGING WHERE A ROUTINE WORKS IS A REVIEWED MOVE BETWEEN TWO IDENTITIES, NOT A SAVE UNDER ANOTHER WORD. A route's identity is its folder — `routes/<app>/context/<slug>.marco`, `routes/<app>/focus/<slug>.marco` and `routes/global/<slug>.marco` are three files — so changing the scope creates a route at one path and ends one at another, with everything that implies: two things that can already be there, two things that can change while somebody reads a review, and a window in which both exist. Until now the only rescope was `Deps.Resave`, which is immediate on purpose because the file it replaces refuses every press: one lock, no consent, no read-back, and a delete after a save it never verifies. Useful machinery, not a move contract. So `PrepareRescope` renders the routine for the scope asked for FROM ITS OWN DEMONSTRATION and writes nothing, and `Rescope` performs the move under both locks. SEVEN RULES, EACH ONE A WAY A ROUTINE COULD OTHERWISE BE LOST. (1) The review is bound by a token to the original's source AND demonstration, the destination's identity AND what was at it, the library, the scope asked for, and the exact source that would be written — so a value assembled from parts of two reviews no longer matches its own content, and a review prepared when the destination was empty is not the same review as one prepared after a routine appeared there, which matters the moment a surface holds pending moves in a map keyed by token. (2) BOTH identities are locked, in an order taken from the identities themselves and never from the caller: two windows moving one routine in opposite directions take the same two locks in opposite orders and each waits for the one the other holds. (3) Both ends are revalidated under those locks — the original's source and demonstration against the review, and the destination against what the consent was given to. (4) A destination collision needs SEPARATE, VERSION-BOUND consent: agreeing to move this routine is not agreeing to lose that one, and the consent names the destination's identity AND digests of the source and demonstration somebody was shown. Without consent the destination is created with `O_CREATE|O_EXCL`, so a routine appearing between the revalidation and the write is the failure rather than something written over. (5) The destination is READ BACK — source and demonstration both — before anything is removed, because a write that returned no error is not a routine that is there and the original is about to be deleted on the strength of it. (6) The original is revalidated once more immediately before removal and is NEVER deleted when it is newer than the version reviewed: both locks have been held throughout, so what this protects against is the writer that does not take them — a hand edit in `marco edit`, a text editor, a sync. AND THE REMOVAL TAKES THE SOURCE FIRST. `Registry.Delete` removes the demonstration and the anchor images before the source, which is the ordinary order for a deletion -- everything is going, though not a safe one even there -- and exactly wrong for a move, which is allowed to fail at the removal and promises the original is RETAINED when it does: a failed source removal through that order left a routine whose recording and images were already gone, one that can no longer be reviewed, rebuilt or moved and with anchors one that can no longer run, while the result said it had been retained. A move uses `Registry.DeleteSource` and then `Registry.DeleteLeftovers`: a routine IS its `.marco`, so removing that is what makes this a move, nothing beside it is touched until that has succeeded, and what is left afterwards is litter rather than a routine -- it cannot fail the move and is NAMED, because a recording left under a slug is a file the next routine saved there would inherit. AND THE OUTCOME IS NAMED HONESTLY. If the destination was written and the original could not be removed, the result says `Copied; original retained:` with the reason, and never `Moved`: there are two routines, and a person told otherwise goes looking for one of them. Selecting the scope a routine already has is refused as nothing to do rather than performed — the destination identity would BE the source identity, which means one lock taken twice, an exclusive create onto the file being moved, and a removal of what had just been written. A move RE-RENDERS rather than editing the source, because the difference between the scopes is in the generated Marco — a focus route carries the `Activate` that brings its application forward and the other two have it stripped — and rewriting generated Marco by hand is how two things that have to agree stop agreeing. The cost is that a hand-edited routine comes back as a rendering of its recording, so the file as it stands is one side of the review and what would be written is the other: approving the move is approving the loss of the edit, in front of them, rather than discovering it afterwards. A routine with no stored demonstration cannot be moved at all. A routine whose presses check the window they were made in cannot be moved to a scope that brings no window forward, which is the same rule the save path applies, asked at preparation so it is a sentence in a review rather than a refusal after somebody decided. A global routine being moved into an application needs one named — its own demonstration is asked first, and a refusal naming what to supply is the answer when that says nothing. AND STUDIO OFFERS IT, in four steps of which three write nothing: the three availability choices with a reason beside any that cannot be taken, a review showing both identities and both sources, Cancel, and Move. The entrance is visible rather than inside the maintenance detail, which is the whole of why nobody found Simplify. All three choices are listed INCLUDING the ones that cannot be chosen, because a chooser showing only what is possible answers the question somebody is actually asking by removing the row that would have carried the answer, and an unavailable row carries no button. And the page cannot author the agreement that costs somebody a routine: `Acts.MoveRoutine` takes the review's token and ONE BOOLEAN, the four digests stay in the window, and `Rescoping.ConsentToReplace` turns the yes into a `Consent` inside the package that recorded them -- a step further than `ReplaceDraft`, which takes digests from the page. Nothing written is a refusal that STAYS on the screen with the review, because looking again needs the panel still there; a move is a note, a copy with the original retained is a problem card, residue is a third line, and the affected identities are read again at once rather than at the next poll. 12 of 12 mutations killed for the contract and 30 of 30 for the surface, two of them standing in instants nothing else can reach: `AfterValidating` between the revalidation and the first write, and `afterDestination` in the one interval a move has that a save does not — the destination written and the original still there. The eighth was found by a surviving mutation: the destination's version was in the token and nothing detected its removal, because the revalidation refuses the same case a moment later. It is load-bearing for the review's IDENTITY rather than for the write, and now has a test that says so. The surface's one survivor was the same shape: deleting the release of a spent preparation changed nothing, because the contract underneath refuses the second press a moment later -- so the test now asserts THIS WINDOW's own sentence rather than that something was refused."
 supersedes: []
 affects:
   - execution
@@ -43,7 +43,7 @@ destination worth protecting.
 A rescope of a routine that **works** is the opposite case in every one of those, and reusing the
 machinery without the contract would be the kind of borrowing this repository has a name for.
 
-## The six rules
+## The seven rules
 
 **1. The review is an identity, and the token is it.** Bound to the original's source and
 demonstration, the destination's identity and what was at it, the library, the scope asked for,
@@ -78,10 +78,10 @@ is the writer that does not take them — `marco edit`, a text editor, a sync. D
 deleting work nobody reviewed.
 
 **7. And the removal takes the SOURCE first.** `Registry.Delete` takes the demonstration and the
-anchor images first and the source last. That is right for a deletion — everything is going, and
-a failure partway leaves no routine whose dependencies are missing — and exactly wrong for a
-move, which is allowed to fail at the removal and promises the original is **retained** when it
-does. Through that order a failed source removal left a routine whose recording and images were
+anchor images first and the source last. That is the ordinary order for a deletion — everything
+is going — though not a safe one even there, since its own last removal can fail with the
+dependencies already gone. It is exactly wrong for a move, which is allowed to fail at the
+removal and promises the original is **retained** when it does. Through that order a failed source removal left a routine whose recording and images were
 already gone: one that can no longer be reviewed, rebuilt or moved, and with anchors one that can
 no longer run — while the result said it had been retained.
 
@@ -90,6 +90,12 @@ its `.marco`: while that is there the routine is there, so removing it is what m
 and nothing beside it is touched until that has succeeded. What is left afterwards is litter
 rather than a routine — it cannot fail the move, and it is **named**, because a recording left
 under a slug is a file the next routine saved there would inherit.
+
+And it is named in a sentence of its OWN. `Rescoped.Says` is the outcome and `Rescoped.Left` is
+the residue, because they are two things to be told: the move happened, AND something is still
+lying at the old place. They were one sentence, and a surface rendering the outcome and a residue
+line beside it would have said one of them twice — which is the defect this window keeps
+finding in itself.
 
 ## And the outcome is named honestly
 
@@ -101,6 +107,42 @@ looking for one routine and find two. So the result says
 
 with the reason, every one of which is something they can act on. `Moved` is reserved for the
 outcome where the original is gone.
+
+## The surface, and the one thing it is not allowed to author
+
+Studio's panel for a chosen routine offers the move in four steps, three of which write nothing:
+the three availability choices with a reason beside any that cannot be taken, a review showing
+both identities and both sources, Cancel, and Move.
+
+**The entrance is visible.** Not inside the `Rebuild and re-record` detail, which is the whole of
+why nobody found Simplify: a complete review-and-replace flow, with consent and a refusal when
+either file moved, reachable only by somebody who already knew it was there.
+
+**All three choices are listed, including the ones that cannot be chosen.** A chooser showing only
+what is possible answers the question somebody is actually asking — *why can this not work from
+anywhere?* — by removing the row that would have carried the answer. The reasons are the
+backend's own words, and the row that cannot be chosen carries no button: a control that is live
+and answers a press with a refusal is a window telling somebody off for pressing what it offered
+them. Whether a scope is possible is asked of `WhyNotThisScope` and `rescopeTarget` through
+`PrepareRescope`, one choice at a time, so the page has no copy of either rule.
+
+**And the page cannot author the consent.** `Acts.MoveRoutine` takes the review's token and ONE
+BOOLEAN. The four digests a move is checked against are the backend's, recorded when it prepared
+the review; the page was shown a sentence naming the destination and what is at it, and what it
+sends is agreement with what it was shown. `Rescoping.ConsentToReplace` is where that agreement
+becomes a `Consent`, inside the package that holds the digests, so no surface can assemble one.
+
+This is a step further than Studio's older `ReplaceDraft`, which takes digests from the page. That
+is sound — they are compared against disk at the write — and it still leaves the page as the
+author of a value whose whole job is to say what somebody saw.
+
+**Three outcomes, three renderings.** Nothing written is a refusal that stays on the screen with
+the review, because the way forward is to look at what is there now and choose once more and that
+needs the panel still there to press the button beside. A move is a note. A copy with the original
+retained is a PROBLEM card, because two routines exist and somebody has to decide about the one
+that was supposed to go. Residue is a third line either way. Then the affected identities are read
+again at once rather than at the next poll: the identity the panel was showing does not exist after
+a move.
 
 ## Two things this deliberately does not do
 
@@ -166,3 +208,35 @@ with the two interleavings driven from seams that exist for exactly these instan
 - `TestARoutineWithNoDemonstrationCannotBeMoved`, `TestAHandEditIsShownBeforeAMoveReplacesIt` and
   `TestMovingAGlobalRoutineIntoAnApplicationNeedsOneNamed` — the three refusals a person meets
   before any of the above matters.
+- `TestAMoveNamesWhatItCouldNotSweepAndStillMoves` — a move with litter beside the original it
+  cannot sweep: the move still happens, the residue is named, and the outcome sentence is NOT also
+  carrying it. The failure is a non-empty directory where an anchor image goes, which `os.Remove`
+  refuses everywhere — an anchor rather than the demonstration on purpose, because the
+  revalidation immediately before the removal reads the demonstration and would report a copy.
+
+And the surface, in `plugins/studio`. Both halves, because neither substitutes for the other: a
+greyed-out button proves nothing about a backend that would have obliged, and a refusing backend
+proves nothing about a button that offers it.
+
+- `rescopeacts_test.go` against a real library: `TestEveryScopeIsAnsweredForAChosenRoutine`
+  (all three, the current one marked and not offered, and where-it-works and where-it-can-be-asked
+  -for as two sentences), `TestAGuardedRoutineIsRefusedTheScopesThatBringNoWindow` and
+  `TestARoutineWithNoDemonstrationIsOfferedNoMove` (unavailable WITH the reason),
+  `TestAPreparedMoveShowsBothEndsAndWritesNothing`,
+  `TestAReviewedMoveLandsAtTheNewIdentityAndSaysSo` (the control, and the preparation is spent —
+  asserted on THIS window's own sentence, because a kept review is refused a moment later by the
+  contract underneath and "something was refused" passes either way),
+  `TestAMoveWithATokenThisWindowNeverPreparedIsRefused`,
+  `TestAMoveOntoAnOccupiedIdentityNeedsItsOwnYes`,
+  `TestAYesToReplaceDoesNotCoverARoutineSavedSince` — the whole reason the call takes a boolean
+  — and `TestAMoveOfARoutineSavedAgainSinceTheReviewIsRefused`.
+- `rescopepage_test.go`, the page RENDERED in headless Chromium against a stubbed backend, because
+  a source guard passes as long as a field is named somewhere in the file:
+  `TestThePageOffersEveryScopeAndSaysWhyOneIsUnavailable`,
+  `TestThePageShowsBothEndsOfAMoveBeforeAnythingIsWritten` (and that Cancel writes nothing and
+  lets go by token), `TestThePageWillNotMoveOntoAnOccupiedIdentityWithoutAgreement`,
+  `TestThePageMovesWithTheReviewsOwnTokenAndNothingElse` (what the page submitted, recorded call by
+  call: two arguments, the review's token, and the agreement following the tick box),
+  `TestARefusedMoveKeepsTheReviewAndSaysWhat`,
+  `TestThePageRendersMovedCopiedAndResidueDistinctly`, and
+  `TestThePageReadsTheMovedIdentityBackAndSelectsIt`.

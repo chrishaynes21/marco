@@ -432,8 +432,9 @@ func TestAMoveNeverDeletesAnOriginalThatChangedAndSaysItCopied(t *testing.T) {
 // # The defect this closes
 //
 // `Rescope` used to remove the original with `Registry.Delete`, which takes the demonstration and
-// the anchor images FIRST and the source LAST. That order is right for a deletion — everything is
-// going — and exactly wrong for a move, which is allowed to fail at the removal and promises
+// the anchor images FIRST and the source LAST. That order is the ordinary one for a deletion
+// — everything is going — and exactly wrong for a move, which is allowed to fail at the
+// removal and promises
 // "original retained" when it does.
 //
 // Through `Delete`, a source removal that failed left a routine whose recording and images were
@@ -509,6 +510,61 @@ func TestAMoveThatCannotRemoveTheOriginalLeavesItWhole(t *testing.T) {
 	if png, err := os.ReadFile(anchor); err != nil || string(png) != "not really a png" {
 		t.Errorf("the retained original has lost an anchor image, so it may no "+
 			"longer run (%v)", err)
+	}
+}
+
+// AND LITTER THAT CANNOT BE SWEPT IS NAMED, IN ITS OWN SENTENCE, WITHOUT FAILING THE MOVE.
+//
+// By the time the leftovers are taken the routine does not exist — nothing resolves it, nothing
+// can play it — so what is left is litter rather than a routine and cannot fail anything. It is
+// still worth saying: a recording or an image left under a slug is a file the next routine saved
+// there would inherit.
+//
+// TWO SENTENCES AND NOT ONE. `Says` is the outcome and `Left` is the residue, because a caller
+// rendering both should be rendering two facts — one that had them composed together and a
+// residue line beside it would be saying one of them twice.
+//
+// The failure is arranged with a DIRECTORY where an anchor image goes, which `os.Remove` refuses
+// on every platform: no permissions, no open handle, no second process. It is an anchor rather
+// than the demonstration on purpose — the revalidation immediately before the removal reads the
+// source and the demonstration, so a demonstration replaced by a directory would be reported as a
+// COPY, which is a different claim than this one.
+func TestAMoveNamesWhatItCouldNotSweepAndStillMoves(t *testing.T) {
+	d, rt := aMovableRoutine(t)
+	stuck := filepath.Join(filepath.Dir(d.Reg.Path(rt)), rt.Slug+"-anchor-9.png")
+	// A DIRECTORY WITH SOMETHING IN IT: `os.Remove` takes an EMPTY one, which is the
+	// difference between this refusing and this quietly succeeding.
+	if err := os.MkdirAll(filepath.Join(stuck, "something"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := moved(t, d, rt, ScopeApp, Consent{})
+	if err != nil {
+		t.Fatalf("litter beside the original failed the move: %v", err)
+	}
+	if !got.Removed || !strings.HasPrefix(got.Says, "Moved") {
+		t.Fatalf("the move reads %q, want a move that happened", got.Says)
+	}
+	if len(got.Residue) == 0 {
+		t.Fatal("what could not be swept is not reported at all, so a file is left " +
+			"under that slug for the next routine saved there to inherit")
+	}
+	if !strings.Contains(got.Left, "anchor-9") {
+		t.Errorf("the residue sentence does not name what is still there: %q",
+			got.Left)
+	}
+	if !strings.Contains(got.Left, RouteID(rt)) {
+		t.Errorf("the residue sentence does not say where it is: %q", got.Left)
+	}
+	// AND THE OUTCOME SENTENCE IS NOT ALSO CARRYING IT.
+	if strings.Contains(got.Says, "anchor-9") {
+		t.Errorf("the outcome and the residue are one sentence, so a caller showing "+
+			"both says one of them twice: %q", got.Says)
+	}
+	// AND THE ROUTINE REALLY DID MOVE, which is what makes the residue litter rather
+	// than part of a routine.
+	if _, err := os.Stat(d.Reg.Path(rt)); !os.IsNotExist(err) {
+		t.Error("the original source is still there")
 	}
 }
 

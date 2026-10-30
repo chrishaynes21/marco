@@ -110,6 +110,23 @@ type Rescoping struct {
 // Movable is whether this review has something a move could write.
 func (m Rescoping) Movable() bool { return m.Refused == "" && m.Now != "" }
 
+// ConsentToReplace is the version-bound agreement to lose what was at the destination.
+//
+// THE DIGESTS ARE THIS PACKAGE'S AND A CALLER CANNOT AUTHOR THEM, which is the point: a consent
+// says what somebody SAW, and a surface that assembled one from its own fields would be handing
+// back a value whose only job is to be compared with the thing it came from. A caller shows
+// `TakenSays`, gets a yes, and asks for this.
+//
+// Zero when nothing was there, so passing it unconditionally is not a way to consent to a
+// collision that appeared afterwards: `Rescope` revalidates the destination under the locks and
+// an empty consent leaves the create EXCLUSIVE.
+func (m Rescoping) ConsentToReplace() Consent {
+	if !m.Taken {
+		return Consent{}
+	}
+	return Consent{ID: m.TakenID, Source: m.toSourceAt, Recording: m.toRecordingAt}
+}
+
 // Rescoped is what a move did, and it is NOT always "moved".
 //
 // A destination that was written and an original that could not be removed is TWO routines, and
@@ -127,9 +144,16 @@ type Rescoped struct {
 	// litter rather than a routine. Reported because a recording left under a slug is a
 	// file the next routine saved there would inherit.
 	Residue []string
-	// Says is the sentence for a person: "Moved …", or "Copied …; original retained: …"
-	// with the reason the original is still there.
+	// Says is the OUTCOME in a sentence, and nothing else: "Moved …", or
+	// "Copied …; original retained: …" with the reason the original is still there.
 	Says string
+	// Left is the residue above as a sentence, and it is SEPARATE from `Says` because
+	// it is a separate thing to be told: the move happened, and something is still
+	// lying at the old place. A caller that renders both renders two facts; one that
+	// had them composed into `Says` and a residue line beside it would be saying one
+	// of them twice, which is the defect this window keeps finding in itself. Empty
+	// when `Residue` is.
+	Left string
 }
 
 // PrepareRescope renders a saved routine for another scope, for review.
@@ -463,9 +487,9 @@ func (d Deps) Rescope(m Rescoping, consent Consent) (Rescoped, error) {
 	// ── THE SOURCE FIRST, AND NOTHING BESIDE IT UNTIL THAT HAS SUCCEEDED ──
 	//
 	// NOT `Registry.Delete`, which removes the demonstration and the anchor images FIRST
-	// and the source last. That order is right for a deletion — everything is going, and a
-	// failure partway leaves no routine whose dependencies are missing — and it is exactly
-	// wrong here, because this removal is allowed to fail and the promise when it does is
+	// and the source last. That order is the ordinary one for a deletion — everything is
+	// going — though not a safe one even there, and it is exactly wrong here, because this
+	// removal is allowed to fail and the promise when it does is
 	// that the original is RETAINED. Through `Delete`, a source removal that failed
 	// (Windows holding the file open, a permission, a sync) would have left a routine
 	// whose recording and images were already gone: a routine that can no longer be
@@ -497,12 +521,15 @@ func (d Deps) Rescope(m Rescoping, consent Consent) (Rescoped, error) {
 	mlog.Info("rescope: moved", "route", m.Name, "from", RouteID(m.From),
 		"to", RouteID(m.To), "scope", string(m.Want),
 		"replaced", consent.Given(), "residue", len(residue))
-	says := fmt.Sprintf("Moved %q to %s.", m.Name, RouteID(m.To))
+	// AND WHAT IS LEFT IS SAID IN ITS OWN SENTENCE, not folded into the outcome. See
+	// Rescoped.Left.
+	var left string
 	if len(residue) > 0 {
-		says += fmt.Sprintf(" What was beside it at %s could not be removed: %s.",
+		left = fmt.Sprintf("What was beside it at %s could not be removed: %s.",
 			RouteID(m.From), strings.Join(residue, "; "))
 	}
-	return Rescoped{To: m.To, Removed: true, Residue: residue, Says: says}, nil
+	return Rescoped{To: m.To, Removed: true, Residue: residue, Left: left,
+		Says: fmt.Sprintf("Moved %q to %s.", m.Name, RouteID(m.To))}, nil
 }
 
 // removeSource is the one removal a move's promise depends on.
