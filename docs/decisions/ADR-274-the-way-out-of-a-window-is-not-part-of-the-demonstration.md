@@ -169,11 +169,45 @@ repository held. The remaining survivor is the structural keys-only rule, which 
 can change, and it is written down in `exitGesture`'s own comment as structural rather than left
 looking like an untested branch.
 
+## One desktop recording, 2026-10-30
+
+**The owner demonstrated a routine in Rocket League and ended the recording by Alt-Tab back to
+Studio and pressing Stop — the exact gesture that refused every recording before this.** It saved,
+and running it entered freeplay.
+
+**WHAT THAT IS, EXACTLY: one recording through Alt-Tab → Stop → Save → playback.** It is the first
+time this decision has been exercised by a hand, and it is not general recording acceptance — one
+routine, one application, one way out, one run. The scenarios that establish recording as a whole
+are `plugins/e2e`'s and are unchanged by it.
+
+The claim is held by the ARTIFACT rather than by the account of it, which matters here more than
+usual: the capture markers are consumed before a recording is stored, so there is nothing in the
+file to take anybody's word from, and the only witness is what the demonstration does and does not
+contain. `routes/rocketleague/focus/enter-freeplay.rec.json`, 278 events:
+
+| in the stored demonstration | |
+| --- | --- |
+| `EvClick` | 10 — five presses with their releases |
+| `EvMove` | 267 |
+| `EvAppSwitch` | 1 (`rocketleague`) |
+| **`EvKey`** | **none** |
+
+So the Alt and the Tab came out as the way out, and everything the person went in to do stayed.
+That is both halves of the rule in one file: the trim happened, and it trimmed only the exit.
+
+Built at 15:48 from the tree at `33ef8cf`, and recorded at 15:53 in that build — so the Studio
+that made it carried this decision and the two slices after it.
+
 ## What this does NOT establish
 
-That any of it works **on a desktop**. Every case above hands the decision a stream of events, and
-the shape of the real one — the exact order in which the switcher takes the foreground, the poller
-notices, and the keys go down — came from reading `observe` and `noteBoundary` rather than from a
-recording made by a hand. The owner's own next recording is the test that matters, and Studio has
-to be rebuilt and reopened before it is: this fix is in the recorder Studio runs **in its own
-process**, so a window left open across the build records through the old one.
+**The review's own sentence — UNVERIFIED.** `Draft.ExitSentence` is the "said, never silent" half
+of this decision, and the saved artifact cannot prove what the card displayed: the recording holds
+what was kept, not what was shown about what was not. Nobody has reported reading it, so it stays
+unverified rather than being inferred from the trim having worked. Without it the trim is silent,
+which is the one thing this decision said it would not be.
+
+**And nothing an EDITED routine does.** The step editor, the phrases and the supplied text were all
+in the build that made the recording above, and none of them was exercised by it: the routine
+answers only to its own name, takes no text, and had no step edited. Those remain headless, as does
+the clock — the absence came out of the timestamps as designed, and whether a routine's waits
+replay as the person experienced them is a separate question this trial did not ask.

@@ -12276,3 +12276,27 @@ Both found by reading the source, and the gate that passed in between establishe
 the fixes also closed a larger gap: the confirmed path from token to command had no test at all,
 because everything past that line raises a window and starts a child. It is a seam now, so the
 decision is assertable without the desktop.
+
+### The exit gesture, confirmed on a desktop
+
+2026-10-30, 15:53. The owner demonstrated a routine in Rocket League and ended the recording by
+Alt-Tab back to Studio and pressing Stop — the gesture that refused every recording before that
+morning — and it saved and ran, entering freeplay.
+
+**One recording, not general recording acceptance**: one routine, one application, one way out, one
+run. The scenarios that establish recording as a whole are `plugins/e2e`'s and are untouched by
+it.
+
+Held by the artifact rather than the account, because the markers are consumed before a recording
+is stored and the file is the only witness. `enter-freeplay.rec.json` holds 278 events — ten clicks
+(five presses and their releases), 267 moves, one app switch — and **no key events at all**. The
+Alt and Tab came out as the way out, and everything the person went in to do stayed.
+
+Built at 15:48 from the tree at `33ef8cf`, so the aliases and the supplied text were in that Studio
+too, and neither was exercised: the routine answers only to its own name, takes no text, and had no
+step edited. Both remain headless. And the review's own sentence about what it left out stays
+UNVERIFIED: the recording holds what was kept, not what was shown about what was not, so the saved
+artifact cannot prove what the card displayed and nobody has reported reading it. That is the
+"said, never silent" half of
+[[ADR-274-the-way-out-of-a-window-is-not-part-of-the-demonstration]], and without it the trim is
+silent.
