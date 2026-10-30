@@ -122,12 +122,71 @@ func newDeps() orchestrator.Deps {
 //
 // Deleting the runInvocation call must fail TestEveryEntranceRoutesThroughTheOneIntake.
 func runAssistantDo(args []string) {
-	req, explain := parseDoArgs(args)
+	req, explain, window := parseDoArgs(args)
 	if req.Text == "" && req.Play == nil {
-		fmt.Fprintln(os.Stderr, `usage: marco do "<name>" [--explain]`)
+		fmt.Fprintln(os.Stderr, `usage: marco do "<name>" [--explain] [--window=<which>]`)
 		os.Exit(2)
 	}
-	os.Exit(doOrExplain(newDeps(), req, explain))
+	d := newDeps()
+	// THE WINDOW FIRST, AND A REFUSAL HERE PERFORMS NOTHING.
+	//
+	// Before `doOrExplain`, because the thing it would otherwise do is press something:
+	// a run told to act in a window that has closed must not fall back to whatever is in
+	// front, and the sentence costs the person nothing if it arrives before the first
+	// press rather than after it.
+	if window != "" {
+		if why := handOverTheWindow(d, window); why != "" {
+			// AND IT IS A REFUSAL, ANNOUNCED. Not a bare exit code with a
+			// sentence on stderr: every surface that spawns this reads the
+			// outcome off the wire line, and a run that ended without one is
+			// reported by Studio as a run whose answer is blank — which is
+			// what this did when it was first written, and what the end-to-end
+			// test of it found. REFUSED is the word: the run was asked for, it
+			// was understood, and it did not happen.
+			fmt.Fprintln(os.Stderr, why)
+			announce(OutcomeRefused)
+			os.Exit(OutcomeRefused.Exit())
+		}
+	}
+	os.Exit(doOrExplain(d, req, explain))
+}
+
+// handOverTheWindow gives the run the window it is to act in, or says why it cannot have one.
+//
+// Two kinds of term, and they answer different questions:
+//
+//	`<handle>:<owner>`  a window somebody has ALREADY chosen — a surface passing on its own
+//	                    resolution. Both halves, and the receiving end refuses when the handle
+//	                    no longer belongs to that process, so the identity cannot drift between
+//	                    the choice and the run.
+//	`3`, `notepad`, …   what a PERSON typed, resolved out of the list in front of them by
+//	                    `Deps.TheWindow` — the same resolution `marco learn --window` uses,
+//	                    ambiguity refused rather than taken in order.
+//
+// The second is resolved here and then pinned, so from that point on both paths are the same: a
+// handle and the process that owned it when it was chosen.
+//
+// A host that cannot be given a window is not a failure to work around. It means this build's
+// `*` host is not the OS host — a dry run, a stand-in — and a run that was told which window to
+// act in and cannot be told is refused rather than performed somewhere else.
+func handOverTheWindow(d orchestrator.Deps, term string) string {
+	hwnd, pid, pinned := orchestrator.GivenWindow(term)
+	if !pinned {
+		chosen, err := d.TheWindow(term)
+		if err != nil {
+			return err.Error()
+		}
+		hwnd, pid = chosen.HWnd, chosen.PID
+	}
+	h, ok := d.Hosts["*"].(*oshost.Host)
+	if !ok {
+		return "this run was told which window to act in, and the host performing it " +
+			"cannot be told — nothing was performed"
+	}
+	if _, err := h.GiveWindow(hwnd, pid); err != nil {
+		return err.Error()
+	}
+	return ""
 }
 
 // parseDoArgs reads the entrance's argv: the words, and the few flags a surface may add.
@@ -140,11 +199,12 @@ func runAssistantDo(args []string) {
 // one.
 //
 // Deleting an arm must fail TestTheEntranceNeverPutsAFlagInThePhrase.
-func parseDoArgs(args []string) (invoke.Request, bool) {
+func parseDoArgs(args []string) (invoke.Request, bool, string) {
 	req := invoke.Request{Source: invoke.SourceCLI}
 	var explicit routes.Route
 	var haveExplicit bool
 	var explain bool
+	var window string
 	var words []string
 	for i := 0; i < len(args); i++ {
 		switch a := args[i]; {
@@ -160,6 +220,14 @@ func parseDoArgs(args []string) (invoke.Request, bool) {
 			req.App = explicit.App
 		case a == "--focus":
 			explicit.Focus = true
+		case strings.HasPrefix(a, "--window="):
+			// WHICH WINDOW THIS RUN ACTS IN. A run's term and never a route's:
+			// it goes nowhere near the library. Absent is the behaviour this
+			// command has always had — `Activate` finds a window by program
+			// name — and that is deliberate, because a saved routine performed
+			// from a terminal or by the overlay is not somebody choosing a
+			// window. See handOverTheWindow.
+			window = strings.TrimPrefix(a, "--window=")
 		default:
 			words = append(words, a)
 		}
@@ -168,7 +236,7 @@ func parseDoArgs(args []string) (invoke.Request, bool) {
 	if haveExplicit {
 		req.Play = &explicit
 	}
-	return req, explain
+	return req, explain, strings.TrimSpace(window)
 }
 
 // doOrExplain is the last fork of the entrance: say where the words would go, or go there.

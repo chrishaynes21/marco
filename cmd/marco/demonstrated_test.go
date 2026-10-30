@@ -677,8 +677,11 @@ func TestExplainingNeverPerforms(t *testing.T) {
 // to Director, and it is PERFORMED — so a `--explain` nobody parsed is the one thing that makes
 // the thing happen. Held over every flag the entrance takes, not just the new one.
 func TestTheEntranceNeverPutsAFlagInThePhrase(t *testing.T) {
-	req, explain := parseDoArgs([]string{"--explain", "--source=typed",
+	req, explain, window := parseDoArgs([]string{"--explain", "--source=typed",
 		"ark", "graphics", "live"})
+	if window != "" {
+		t.Errorf("a window came out of a command that named none: %q", window)
+	}
 	if !explain {
 		t.Error("--explain was not recognised, so it is part of the phrase and " +
 			"the invocation would be performed instead of described")
@@ -690,8 +693,12 @@ func TestTheEntranceNeverPutsAFlagInThePhrase(t *testing.T) {
 		t.Errorf("the source came out as %q", req.Source)
 	}
 	// AND THE OTHER FLAGS STILL DO WHAT THEY DID.
-	req, explain = parseDoArgs([]string{"--play=open-mouse-settings", "--app=settings",
-		"--focus"})
+	req, explain, window = parseDoArgs([]string{"--play=open-mouse-settings",
+		"--app=settings", "--focus", "--window=4660:77"})
+	if window != "4660:77" {
+		t.Errorf("the window came out as %q, so it is either lost or in the phrase",
+			window)
+	}
 	if explain {
 		t.Error("nothing asked for an explanation")
 	}

@@ -335,6 +335,26 @@ window keeps the digests; the page agrees to the sentence it was shown and canno
 consent of its own. Moved, `Copied; original retained` and leftover litter are three separate
 renderings. See [[ADR-271-a-rescope-is-a-reviewed-move-between-identities]].
 
+## And which window a run presses in is chosen at the press
+
+A third question, and the one that had no answer. Studio raised an application's window and the
+child bound one: `theWindowToRaise` preferred the biggest window that was up, `winctx.Bind` took
+the first visible window of the program, and with two windows of one program those are different
+windows. Nothing downstream could tell — `confirmWindow` compares the program, the size, the
+scale and the owning process of the window that was BOUND, and a sibling window agrees on all of
+them. A routine naming no application had nothing raised at all, so its run began with Studio in
+front.
+
+So the window is chosen out of `orchestrator.Pickable` (which excludes Marco's own windows),
+shown beside Play, raised by HANDLE, and carried to the run as `--window=<handle>:<owner>` —
+both halves, because Windows hands a handle number back out. The child verifies it and never
+looks for another window of the same program. Nothing durable carries a handle.
+
+It is an INITIAL HANDOFF and the surface says so: the window gets the foreground at the start of
+the run, and a window that comes forward afterwards gets what is typed next — a guarded
+routine's presses are checked and stop, an unguarded one's are not. `marco do` without
+`--window` is unchanged. See [[ADR-272-the-window-a-run-acts-in-is-chosen-and-carried]].
+
 ## Related
 
 - [[Plays]] — what the person is holding once this chain finishes: kind, scope, standing

@@ -115,6 +115,12 @@ window.go = {main: {
     // which would take the rest of the page setup with it. See recording.go.
     Recording: () => Promise.resolve({active: false}),
     Unrunnable: () => Promise.resolve([]),
+    // THE WINDOW A RUN WOULD PRESS IN. Studio does not Play without one, so a
+    // harness that does not answer this is a page whose Play button is dead -
+    // which is the right failure, and not what these are about.
+    PlaybackTarget: () => Promise.resolve({chosen: '4660:77',
+      windows: [{id: '4660:77', label: 'a window',
+        says: 'Play brings a window to the front and presses there.'}]}),
     Routines: () => Promise.resolve([]),
     Library: () => Promise.resolve({dir: '/tmp/routes'}),
     Learning: () => Promise.resolve({name: 'trackmania video', application: 'trackmania',
@@ -241,6 +247,11 @@ window.go = {main: {
     Learning: () => Promise.resolve({active: false}),
     Recording: () => Promise.resolve({active: false}),
     Unrunnable: () => Promise.resolve([]),
+    // THE WINDOW A RUN WOULD PRESS IN. Studio does not Play without one, so a
+    // harness that does not answer this is a page whose Play button is dead.
+    PlaybackTarget: () => Promise.resolve({chosen: '4660:77',
+      windows: [{id: '4660:77', label: 'a window',
+        says: 'Play brings a window to the front and presses there.'}]}),
     Routines: () => Promise.resolve([]),
     Library: () => Promise.resolve({dir: '/tmp/routes'}),
     Watch: () => { tick++
@@ -388,6 +399,11 @@ window.go = {main: {
     Watch: () => Promise.resolve({act: '', active: false, transcript: null}),
     // A DRAFT IN REVIEW: stopped by the button, nothing on disk, two clicks and a wait.
     Unrunnable: () => Promise.resolve([]),
+    // THE WINDOW A RUN WOULD PRESS IN. Studio does not Play without one, so a
+    // harness that does not answer this is a page whose Play button is dead.
+    PlaybackTarget: () => Promise.resolve({chosen: '4660:77',
+      windows: [{id: '4660:77', label: 'a window',
+        says: 'Play brings a window to the front and presses there.'}]}),
     Routines: () => Promise.resolve([]),
     Library: () => Promise.resolve({dir: '/tmp/routes'}),
     Recording: () => Promise.resolve({name: 'ark graphics', active: false, review: true,
@@ -514,6 +530,11 @@ window.go = {main: {
     // the first one's source, its sentence and its Play button. Rows that differed
     // by name could not ask that question, and the version of this harness that had
     // two different names did not.
+    // THE WINDOW A RUN WOULD PRESS IN. Studio does not Play without one, so a
+    // harness that does not answer this is a page whose Play button is dead.
+    PlaybackTarget: () => Promise.resolve({chosen: '4660:77',
+      windows: [{id: '4660:77', label: 'a window',
+        says: 'Play brings a window to the front and presses there.'}]}),
     Routines: () => Promise.resolve([
       {id: 'arkascended/focus/settings', name: 'settings', slug: 'settings',
        app: 'arkascended', scope: 'app-anywhere', contract: 'guarded',
@@ -544,9 +565,15 @@ setTimeout(() => {
 setTimeout(() => {
   const cards = document.querySelectorAll('#routineList .card')
   if (cards.length > 0) { cards[0].click() }
+}, 3000)
+// AND PLAY IS PRESSED ON A LATER TICK, because choosing a routine asks the backend which
+// windows it could be played into and Play is dead until that answers. Clicking both in one
+// tick pressed a disabled button and performed nothing — which is the behaviour working,
+// and was this harness asking the wrong question. See target.go.
+setTimeout(() => {
   const b = document.getElementById('routinePlayBtn')
   if (b && !b.disabled) { b.click() }
-}, 3000)
+}, 3400)
 setTimeout(() => {
   const vis = (id) => {
     const e = document.getElementById(id)
@@ -564,7 +591,7 @@ setTimeout(() => {
     ' secondshown=' + window.__secondShown +
     ' secondwhy=' + window.__secondWhy +
     ' secondoff=' + window.__secondOff
-}, 4200)
+}, 4600)
 // WHAT THE SECOND CARD SHOWED WHILE IT WAS CHOSEN, read before the first is clicked:
 // its own source, its own reason, and its own disabled Play.
 setTimeout(() => {
@@ -686,6 +713,11 @@ window.go = {main: {
     Learning: () => Promise.resolve({active: false}),
     Watch: () => Promise.resolve({act: '', active: false, transcript: null}),
     Unrunnable: () => Promise.resolve([]),
+    // THE WINDOW A RUN WOULD PRESS IN. Studio does not Play without one, so a
+    // harness that does not answer this is a page whose Play button is dead.
+    PlaybackTarget: () => Promise.resolve({chosen: '4660:77',
+      windows: [{id: '4660:77', label: 'a window',
+        says: 'Play brings a window to the front and presses there.'}]}),
     Routines: () => Promise.resolve([]),
     Library: () => Promise.resolve({dir: '/tmp/routes'}),
     Recording: () => Promise.resolve({name: 'ark graphics', active: false, review: true,
@@ -783,6 +815,11 @@ window.go = {main: {
     SuggestRoutine: () => Promise.resolve({kind: 'none'}),
     Demonstrations: () => Promise.resolve([]),
     Saved: () => Promise.resolve([]),
+    // THE WINDOW A RUN WOULD PRESS IN. Studio does not Play without one, so a
+    // harness that does not answer this is a page whose Play button is dead.
+    PlaybackTarget: () => Promise.resolve({chosen: '4660:77',
+      windows: [{id: '4660:77', label: 'a window',
+        says: 'Play brings a window to the front and presses there.'}]}),
     Routines: () => Promise.resolve([]),
     Applications: () => Promise.resolve([]),
     Pictures: () => Promise.resolve([]),

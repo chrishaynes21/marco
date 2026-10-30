@@ -90,6 +90,12 @@ window.go = {main: {
         changes: true, replaceable: true,
         was_generation: 'unstated', now_generation: 'current'})
     },
+    // THE WINDOW A RUN WOULD PRESS IN. Studio does not Play without one, so a
+    // harness that does not answer this is a page whose Play button is dead -
+    // which is the right failure, and not what these are about.
+    PlaybackTarget: () => Promise.resolve({chosen: '4660:77',
+      windows: [{id: '4660:77', label: 'a window',
+        says: 'Play brings a window to the front and presses there.'}]}),
     Routines: () => Promise.resolve([
       {id: 'ark/focus/ark-graphics', name: 'ark graphics', slug: 'ark-graphics',
        app: 'ark', scope: 'app-anywhere', contract: 'guarded', runnable: true,
@@ -443,6 +449,11 @@ window.go = {main: {
     History: () => Promise.resolve([]),
     Unrunnable: () => Promise.resolve([]),
     Library: () => Promise.resolve({dir: 'C:/x/routes'}),
+    // THE WINDOW A RUN WOULD PRESS IN. Studio does not Play without one, so a
+    // harness that does not answer this is a page whose Play button is dead.
+    PlaybackTarget: () => Promise.resolve({chosen: '4660:77',
+      windows: [{id: '4660:77', label: 'a window',
+        says: 'Play brings a window to the front and presses there.'}]}),
     Routines: () => Promise.resolve([]),
     Recording: () => Promise.resolve({active: false,
       captures: 'Where you press and how long you pause.',

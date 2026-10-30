@@ -23,8 +23,9 @@ close each gap — one proposal, four slices, in the order they should be built.
 the availability explanations, with the app-less Play sentence corrected. **`Rescope` is built**, contract and
 surface: the mechanism and its rules in `internal/orchestrator/rescope.go`, held by tests that
 stand in both of its interleavings, and the panel for it in `plugins/studio/rescope.go` with the
-page rendered against it. **Playback targeting is a contract, ruled on and not built**, and is
-the remaining slice. See [[ADR-271-a-rescope-is-a-reviewed-move-between-identities]].
+page rendered against it. **Playback targeting is built**: the window is
+chosen beside Play, carried to the run as one term with its owner, and verified by the process
+that acts in it. All four slices are done. See [[ADR-271-a-rescope-is-a-reviewed-move-between-identities]].
 
 The three questions must stay apart, because they are decided at different moments, by different
 people, about different things:
@@ -369,7 +370,7 @@ availability.
    author — the token and one boolean are all it sends — and Moved, `Copied; original retained`
    and leftover litter as three distinct renderings, after which the affected identities are read
    again.
-4. **Playback target.** The largest, and the one with a defect under it: a chooser in Studio, the
+4. **Playback target — DONE.** The largest, and the one with a defect under it: a chooser in Studio, the
    selected window visible beside Play, a handle AND its owning process carried through the raise
    and the binding, one decision where there are now two, a refusal on disappearance or a change
    of owner — an explicit handoff for global routines, and **no Play at all without an identified

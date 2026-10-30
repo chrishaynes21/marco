@@ -125,6 +125,27 @@ type Host struct {
 	bound    uintptr
 	boundApp string
 	boundPID uint32
+	// given is the window a SURFACE already chose for this run, and givenPID its owner at
+	// the instant of that choice. Zero unless somebody handed one over. Guarded by mu.
+	//
+	// # Why the choice cannot be made here
+	//
+	// Because `winctx.Bind` is given a program NAME, and a program can own several
+	// windows: it takes the first visible one `EnumWindows` reaches. With two Explorer
+	// windows, two copies of a game, or two browser profiles, the window a surface
+	// brought forward and the window this process then bound are two different windows
+	// — and nothing downstream can tell, because `confirmWindow` compares the program,
+	// the size and the scale, and two windows of one program agree on all three. The
+	// press then lands in a window nobody chose, having passed every check.
+	//
+	// So the window travels. With one given, `Activate` binds THAT window and NEVER
+	// looks for another: a given window that has closed, or whose handle now belongs to
+	// another process, or which belongs to a different program than the route asked for,
+	// is a refusal. Substituting a sibling window would be the defect this closes,
+	// reintroduced as a fallback. See
+	// [[ADR-272-the-window-a-run-acts-in-is-chosen-and-carried]].
+	given    uintptr
+	givenPID uint32
 	// undone is the sentence of everything this run did not do, in order. See
 	// `Unperformed`. Guarded by mu.
 	undone []string
@@ -294,6 +315,16 @@ func (h *Host) Invoke(c runtime.HostCall) (string, runtime.Value, error) {
 		return h.doSecret(c)
 	case "activate":
 		app := c.Input.AsText()
+		if hwnd, pid := h.givenWindow(); hwnd != 0 {
+			// THE WINDOW THIS RUN WAS GIVEN, AND NOT A SEARCH FOR ANOTHER.
+			// See Host.given.
+			err := h.activateGiven(hwnd, pid, app)
+			if err != nil {
+				h.didNotDo(fmt.Sprintf("the window for this run could not "+
+					"be brought to the front: %v", err))
+			}
+			return ok(err)
+		}
 		// AND THIS IS THE PREPARATION HALF OF THE GUARDED CONTRACT: the window
 		// Activate settled on is BOUND, so a later press can ask about that same
 		// window rather than about whatever is in front by then. See `bindAt`.
@@ -2080,6 +2111,129 @@ func (h *Host) bindAt(hwnd uintptr, app string) {
 	}
 }
 
+// GiveWindow hands this run the window it is to act in, chosen by somebody else.
+//
+// It VERIFIES before it binds, and it reports what it found rather than repairing it: a handle
+// that is no longer a window, or no longer that process's, is a refusal with nothing pressed.
+// The alternative — looking for another window of the same program — is the behaviour this exists
+// to replace.
+//
+// It also RAISES it, because the surface that chose it may not be the thing that can: a person
+// typing `marco do --window=...` at a terminal has chosen a window and raised nothing. A raise
+// that does not work is kept beside the refusals rather than failing here, exactly as `activate`
+// keeps one: the guarded boundary asks whether the window is in front at the instant of the
+// press, and that is the answer that decides.
+//
+// # What it does NOT set
+//
+// `activated`. That flag governs the LEGACY origin rule — a window-relative click with no
+// recorded window resolves its origin from the foreground, and only after an Activate is the
+// foreground known to be the target. Being handed a window is not an Activate, no route step ran,
+// and quietly turning that rule on for every run with a `--window` would change where unguarded
+// presses land. What this sets is the BINDING, which is what a guarded press is checked against.
+//
+// Returns the program that owns the window, and the sentence to show when it cannot be used.
+func (h *Host) GiveWindow(hwnd uintptr, pid uint32) (string, error) {
+	if hwnd == 0 || pid == 0 {
+		// BOTH HALVES OR NEITHER. A handle with no owner cannot be told from a
+		// reused handle later, which is the whole reason the owner travels.
+		return "", fmt.Errorf("a window is a handle and the process that owns it, and " +
+			"only one of the two was given")
+	}
+	f := windowFacts(hwnd)
+	switch {
+	case !f.Alive:
+		return "", fmt.Errorf("the window chosen for this run has closed, so there " +
+			"is nothing to press in, and nothing was performed")
+	case f.PID == 0:
+		return "", fmt.Errorf("the window chosen for this run will not say which " +
+			"program it belongs to, so a press in it could not be told from a " +
+			"press in another copy of the same program")
+	case f.PID != pid:
+		// THE HANDLE HAS BEEN HANDED BACK OUT. Windows reuses window handles, so
+		// this is a different window wearing the same number, and the program name
+		// cannot see the difference.
+		return "", fmt.Errorf("the window chosen for this run belonged to process "+
+			"%d and that handle now belongs to process %d, so it is not the "+
+			"window that was chosen", pid, f.PID)
+	}
+	is := imageOf(f.PID)
+	if is == "" {
+		return "", fmt.Errorf("the program that owns the window chosen for this run " +
+			"will not say what it is")
+	}
+	h.mu.Lock()
+	h.given, h.givenPID = hwnd, pid
+	h.bound, h.boundApp, h.boundPID = hwnd, is, pid
+	h.originSet = false
+	h.mu.Unlock()
+	mlog.Debug("given: the window this run was told to act in",
+		"window", fmt.Sprintf("hwnd:%#x", hwnd), "pid", pid, "program", is)
+	if err := raiseWindow(hwnd); err != nil {
+		h.didNotDo(fmt.Sprintf("the %s window chosen for this run could not be "+
+			"brought to the front: %v", is, err))
+	}
+	return is, nil
+}
+
+// givenWindow is the window this run was handed, or zero.
+func (h *Host) givenWindow() (uintptr, uint32) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.given, h.givenPID
+}
+
+// activateGiven is `Activate` for a run that was told which window to act in.
+//
+// It checks the window is still the one that was chosen AND that it belongs to the program the
+// route asked for, and it does not search. A route that says `Activate "notepad"` while the run
+// was given a browser window is a surface that handed over the wrong window, and performing it
+// against either would be performing something nobody asked for.
+func (h *Host) activateGiven(hwnd uintptr, pid uint32, app string) error {
+	f := windowFacts(hwnd)
+	switch {
+	case !f.Alive:
+		return fmt.Errorf("the window chosen for this run has closed")
+	case f.PID != pid:
+		return fmt.Errorf("the window chosen for this run belonged to process %d and "+
+			"that handle now belongs to process %d", pid, f.PID)
+	}
+	is := imageOf(f.PID)
+	switch {
+	case is == "":
+		return fmt.Errorf("the program that owns the window chosen for this run will " +
+			"not say what it is")
+	case app != "" && !sameProgram(is, app):
+		return fmt.Errorf("this routine brings %q forward and the window chosen for "+
+			"this run belongs to %s, so it is not a window this routine is "+
+			"about", app, is)
+	}
+	h.bindGiven(hwnd, pid, is)
+	return raiseWindow(hwnd)
+}
+
+// bindGiven binds a given window, and marks the run activated because a route step asked for it.
+func (h *Host) bindGiven(hwnd uintptr, pid uint32, is string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.activated = true
+	h.originSet = false
+	h.bound, h.boundApp, h.boundPID = hwnd, is, pid
+}
+
+// sameProgram says whether a window's image name is the program a route asked to activate.
+//
+// `Activate` matches a program name against the executable with `strings.Contains` — a route
+// says `notepad` and the window's image is `notepad.exe` — so the comparison here is the same one,
+// in the same direction, or a route that worked by name would be refused by handle.
+func sameProgram(image, app string) bool {
+	image, app = strings.ToLower(strings.TrimSpace(image)), strings.ToLower(strings.TrimSpace(app))
+	if image == "" || app == "" {
+		return false
+	}
+	return strings.Contains(image, app) || strings.Contains(app, image)
+}
+
 // binding is the window this run bound, what was asked for, and who owned it then.
 func (h *Host) binding() (uintptr, string, uint32) {
 	h.mu.Lock()
@@ -2552,8 +2706,12 @@ func (h *Host) confirmWindow(m measuredWindow) (atWindow, string) {
 // time. See guardedpress_test.go.
 // `bindWindow` is the third: the preparation half, so a test can run a SAVED route end to end —
 // Activate, then the press — without a real window of somebody's game on the desktop.
+// `raiseWindow` is the fourth: bringing a GIVEN window forward is a syscall, and what a test
+// holds is that the decision reaches it with the handle that was chosen rather than one this
+// process picked.
 var (
 	windowFacts = winctx.Facts
 	imageOf     = winctx.ImageOf
 	bindWindow  = winctx.Bind
+	raiseWindow = winctx.Raise
 )

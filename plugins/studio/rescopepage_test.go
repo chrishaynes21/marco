@@ -122,6 +122,9 @@ window.go = {main: {
     // THE LIBRARY CHANGES WHEN A MOVE CHANGES IT, because the page is asked to read
     // the affected identities again: the identity its panel was showing does not
     // exist any more after a move, and the routine is the one at the destination.
+    PlaybackTarget: () => Promise.resolve({chosen: '4660:77',
+      windows: [{id: '4660:77', label: 'a window',
+        says: 'Play brings a window to the front and presses there.'}]}),
     Routines: () => {
       const row = (id, slug) => ({id: id, name: slug, slug: slug, app: 'notepad',
         scope: id.indexOf('/focus/') > 0 ? 'app-anywhere' : 'app',

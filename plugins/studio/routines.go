@@ -406,7 +406,7 @@ func saidTerms(lacks []string) []string {
 // a routine is `marco run --host dryrun`, which is a different command performing a file rather
 // than the product performing a routine. The button says so, and the page says so beside it:
 // offering a tick-box this could not honour would be worse than either.
-func (a *Acts) PlayRoutine(id string) string {
+func (a *Acts) PlayRoutine(id, window string) string {
 	id = strings.TrimSpace(id)
 	if id == "" {
 		return "choose a routine to run"
@@ -436,23 +436,49 @@ func (a *Acts) PlayRoutine(id string) string {
 		// what it lacks, or what to do about it, is.
 		return "this routine cannot be performed as it stands: " + chosen.Why
 	}
-	// AND THE APPLICATION HAS TO BE IN FRONT, WHICH ONLY THIS WINDOW CAN ARRANGE.
+	// AND EVERY REFUSAL THAT NEEDS NO DESKTOP COMES FIRST.
+	//
+	// Raising a window is the first thing below that touches the person's machine: it
+	// brings something to the front over whatever they were doing. A run already in
+	// flight, a recording in progress and a window that is closing are all decidable
+	// without that, so an impossible Play costs them nothing. `reserve` asks the same
+	// three again under the lock that claims the slot — this is the courtesy and that is
+	// the decision. The same ordering `Play` keeps for an Act, and in its words.
+	if why := a.whyNotNow(); why != "" {
+		return why
+	}
+	// ── AND THE WINDOW IT IS TO PRESS IN, WHICH IS A DECISION AND NOT A SEARCH ──
+	//
+	// Resolved again HERE, out of the window list as it is at this instant, because the
+	// list the page was showing is as old as its last ask. A term naming nothing open is
+	// a refusal: Studio does not Play without an identified external window, and the
+	// alternative it used to have was pressing into whatever was in front, which with
+	// this window in front is this window.
+	//
+	// For every scope, including the ones that name no application. A routine that works
+	// anywhere still presses SOMEWHERE, and nothing used to be brought forward for one
+	// at all. See target.go.
+	into, why := a.theChosenWindow(*chosen, window)
+	if why != "" {
+		return why
+	}
+	// AND THE RAISE IS OF THAT HANDLE, WHICH ONLY THIS WINDOW CAN DO.
 	//
 	// Windows refuses `SetForegroundWindow` to a process that does not already own the
 	// foreground, and the child this is about to start is a process nobody is looking at.
 	// Studio owns the foreground at this instant — somebody just clicked a button in it —
-	// so this is the one moment the window may hand it on. The same split `Play` draws for
-	// an Act, through the same function, and nothing here simulates a keypress to get
-	// around the lock.
+	// so this is the one moment the window may hand it on. Nothing here simulates a
+	// keypress to get around the lock.
 	//
-	// For both scopes that name an application: one brings it forward itself and needs the
-	// foreground to do it, the other works only while it is already there.
-	if chosen.App != "" {
-		if why := a.raise(chosen.App); why != "" {
-			return why
-		}
+	// BY HANDLE, not by application name. `a.raise(app)` chose a window of its own out of
+	// that program's windows — the biggest one that is up — and the child then bound the
+	// first one `EnumWindows` reached, which is a different window whenever a program has
+	// two. The press landed in a window nobody chose and every check passed, because two
+	// windows of one program agree on the program, the size and the scale.
+	if why := a.liftChosen(into); why != "" {
+		return why
 	}
-	return a.startRoutine(*chosen)
+	return a.startRoutine(*chosen, into)
 }
 
 // doCommand is the command that performs this routine: the binary, its arguments and its
@@ -463,7 +489,7 @@ func (a *Acts) PlayRoutine(id string) string {
 // otherwise reach this would be one nobody may run — and the two things worth getting right here
 // are both invisible from outside the process. Which ROUTE it was told to perform, and which
 // LIBRARY it was told to read.
-func (a *Acts) doCommand(r Routine) (bin string, args, env []string) {
+func (a *Acts) doCommand(r Routine, into orchestrator.Pickable) (bin string, args, env []string) {
 	// THE ROUTE ITSELF, NOT A PHRASE THAT MIGHT RESOLVE TO IT.
 	//
 	// `--play` carries the identity and the entrance never looks a phrase up again when it
@@ -481,6 +507,19 @@ func (a *Acts) doCommand(r Routine) (bin string, args, env []string) {
 	if r.Focus {
 		args = append(args, "--focus")
 	}
+	// AND THE WINDOW THIS RUN ACTS IN, as one term carrying the handle AND its owner.
+	//
+	// Both halves, because a handle is not an identity: Windows hands the number back
+	// out, and the program name does not separate two copies of one program. The child
+	// verifies the handle still belongs to that process, binds it, and never looks for
+	// another window of the same program — which is what it did when it was given a name.
+	//
+	// IT GOES NOWHERE NEAR THE LIBRARY. Which window this run acts in is not where the
+	// routine works, and a handle saved in a route would be an identity that stops
+	// existing when the window closes.
+	if term := into.Term(); term != "" {
+		args = append(args, "--window="+term)
+	}
 	// THE SAME STORE AND THE SAME LIBRARY, EXPLICITLY.
 	//
 	// The library especially. Both processes resolve it the same way now, which is the whole
@@ -492,8 +531,27 @@ func (a *Acts) doCommand(r Routine) (bin string, args, env []string) {
 		append(os.Environ(), "MARCO_HOME="+a.home, "MARCO_ROUTES="+a.routesDir)
 }
 
+// liftChosen brings the chosen window forward, and says so when it did not.
+//
+// A raise that did not work is answered HERE rather than left to the run, for the reason
+// `bringForward` gives at length: the measured version of trusting it was Play, nothing visible,
+// thirty seconds, "refused" — a run pausing correctly and repeatedly about a screen it could
+// not see, because the window was never brought forward. `checked` keeps it honest: a platform
+// that cannot tell where the foreground is says nothing and the run starts.
+func (a *Acts) liftChosen(into orchestrator.Pickable) string {
+	leading, checked := a.lift(into.HWnd, into.PID)
+	if checked && !leading {
+		return fmt.Sprintf("Windows would not bring %s to the front, and Marco will "+
+			"not press anything it cannot see — click that window yourself, then "+
+			"press Play again. (Windows only lets the window you last clicked hand "+
+			"the foreground on, so pressing Play while a full-screen game is behind "+
+			"it can be refused.)", into.Label())
+	}
+	return ""
+}
+
 // startRoutine claims the one run slot and spawns `marco do` for this routine.
-func (a *Acts) startRoutine(r Routine) string {
+func (a *Acts) startRoutine(r Routine, into orchestrator.Pickable) string {
 	// AND NOT THROUGH WHATEVER IS ON PATH. Asked before the slot is claimed, because a
 	// reservation released on the way back out is a window that was briefly busy for no
 	// reason — and because this is a fact about the installation rather than about the
@@ -514,7 +572,7 @@ func (a *Acts) startRoutine(r Routine) string {
 		a.busy, a.running, a.stopRun, a.done = false, nil, nil, nil
 		a.mu.Unlock()
 	}
-	bin, args, env := a.doCommand(r)
+	bin, args, env := a.doCommand(r, into)
 	ctx, stop := context.WithCancel(context.Background())
 	cmd := exec.CommandContext(ctx, bin, args...)
 	// AND NO CONSOLE WINDOW, which would take the foreground off the application this run
@@ -817,6 +875,34 @@ func (a *Acts) Library() Library {
 func (a *Acts) reserve(kind string) string {
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	if why := a.whyNotNowLocked(); why != "" {
+		return why
+	}
+	a.busy, a.kind = true, kind
+	a.transcript, a.reference, a.outcome = nil, "", ""
+	a.act, a.live, a.saying = "", false, ""
+	a.routine = nil
+	return ""
+}
+
+// whyNotNow is the same three refusals, asked WITHOUT claiming the slot.
+//
+// A QUESTION, and `reserve` is the enforcement: it asks these again under the lock that claims
+// the slot, which is what makes them a decision rather than a look. This exists so that a run
+// which was never going to start does not first bring a window to the front — raising is the
+// first thing a Play does that touches somebody's machine, and the Act path has carried that
+// ordering in its own words since it was written.
+//
+// ONE SET OF SENTENCES. A second copy of the three would drift, and the one somebody read would
+// be whichever came first.
+func (a *Acts) whyNotNow() string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.whyNotNowLocked()
+}
+
+// whyNotNowLocked is that question with `mu` already held.
+func (a *Acts) whyNotNowLocked() string {
 	switch {
 	case a.closing:
 		return "Studio is closing, so nothing new is started"
@@ -835,10 +921,6 @@ func (a *Acts) reserve(kind string) string {
 		// recordingLocked.
 		return "Marco is recording a demonstration; one thing at a time on one screen"
 	}
-	a.busy, a.kind = true, kind
-	a.transcript, a.reference, a.outcome = nil, "", ""
-	a.act, a.live, a.saying = "", false, ""
-	a.routine = nil
 	return ""
 }
 

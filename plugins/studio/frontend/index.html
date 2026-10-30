@@ -781,10 +781,35 @@
            And the label is just `Play`. It used to be `Play - press for real`, with the
            same warning repeated in the card's own paragraph above the list. The warning is
            worth making; it is worth making ONCE, next to the button it is about. -->
+      <!-- WHICH WINDOW THIS RUN PRESSES IN, BESIDE THE BUTTON THAT STARTS IT.
+           Not a preference and nothing durable: a decision about a window that exists
+           now, made at the instant somebody presses Play. A handle saved in a route
+           would be an identity that stops existing when the window closes.
+
+           ONE CANDIDATE IS SELECTED AND STILL SHOWN -- somebody is told which window
+           rather than discovering it from where the presses landed. SEVERAL is a
+           choice, because picking one of two browser profiles is not this window's
+           decision to make. NONE and Play is unavailable with the reason, which used
+           to be "press into whatever is in front": with Studio in front, that is
+           Studio. See target.go. -->
+      <div class="row" style="margin-top:12px" id="routineIntoRow">
+        <label style="width:7em" for="routineInto">press in</label>
+        <select id="routineInto" onchange="choseWindow()"></select>
+        <button id="routineIntoAgainBtn" onclick="loadTarget()">Refresh</button>
+      </div>
+      <div class="banner bad hide" style="margin-top:6px" id="routineIntoWhy"></div>
       <div class="row" style="margin-top:12px">
         <button class="go" id="routinePlayBtn" onclick="playRoutine()">Play</button>
         <span class="muted" id="routineNote"></span>
       </div>
+      <!-- AND WHAT CHOOSING IT ACTUALLY PROMISES, WHICH IS LESS THAN IT LOOKS.
+           The window receives the foreground at the START of the run. Marco does not
+           own the desktop: a window that comes forward afterwards gets what is typed
+           next. A guarded routine's presses are checked and stop; an unguarded one's
+           are not, and the sentence says which. The words are the backend's -- a page
+           with them typed into it would go on promising whatever it said after the
+           rule moved. -->
+      <div class="muted" style="margin-top:6px" id="routineIntoSays"></div>
       <!-- SAID ONCE, AND ONLY WHEN IT APPLIES. The warning used to be in the button's own
            label AND in the card's paragraph above the list. It belongs next to the button,
            and it belongs nowhere at all when the button cannot be pressed: the refusal
@@ -2855,7 +2880,18 @@
    if (choices && choices.id !== r.id) { choices = null }
    drawChoices()
    drawMoveOutcome(r)
-   paintRoutinePlay()
+   // AND THE WINDOW LIST IS ASKED FOR AGAIN WHENEVER THE ROUTINE CHANGES. It is the one
+   // thing that cannot be kept: the candidates depend on the routine's application, and
+   // the person is about to open the window they mean to press in.
+   if (targetFor !== r.id) {
+     targetFor = r.id
+     target = null
+     intoWindow = ''
+     drawTarget()
+     loadTarget()
+   } else {
+     drawTarget()
+   }
  }
 
  // ONE PLACE DECIDES WHETHER PLAY IS LIVE, asked from two.
@@ -2871,7 +2907,10 @@
  // stands" is a window telling somebody off for pressing what it offered them.
  function paintRoutinePlay(){
    const r = routineWith(chosenRoutine)
-   $('routinePlayBtn').disabled = runActive || !r || !r.runnable
+   // AND NOT WITHOUT A WINDOW TO PRESS IN. Studio does not Play into whatever is in
+   // front: with this window in front, that is this window. Dead rather than
+   // live-and-then-refused, because the refusal would arrive after the decision.
+   $('routinePlayBtn').disabled = runActive || !r || !r.runnable || !intoWindow
    // AND RECORD IT AGAIN IS OFF WHILE ANYTHING IS IN FLIGHT, but NOT because the
    // routine is unrunnable — a routine that refuses every press is the one somebody
    // most needs to record again, and a button greyed out there would be the window
@@ -2904,6 +2943,80 @@
    })
  }
 
+ // ── THE WINDOW THIS RUN WILL PRESS IN ────────────────────────────────
+ //
+ // `target` is the window list for the chosen routine as the backend last answered it, and
+ // `intoWindow` the term selected out of it. Neither is remembered anywhere: the next press
+ // of Play resolves the term again, at that instant, out of the list as it is then — a
+ // window can close between this row being drawn and the button being clicked.
+ let target = null, targetFor = '', intoWindow = ''
+
+ function loadTarget(){
+   const r = routineWith(chosenRoutine)
+   if (!r) { return }
+   acts.PlaybackTarget(r.id).then(t => {
+     if (chosenRoutine !== r.id) {
+       return // THEY CHOSE ANOTHER CARD while this was in flight.
+     }
+     target = t || null
+     // THE ONE THE BACKEND SELECTED, or nothing: a page that kept its own last
+     // choice across a refresh would play into a window that had closed.
+     intoWindow = (t && t.chosen) || ''
+     drawTarget()
+   })
+ }
+
+ function choseWindow(){
+   intoWindow = $('routineInto').value || ''
+   drawTarget()
+ }
+
+ function drawTarget(){
+   const t = target
+   const windows = (t && t.windows) || []
+   // THE ROW IS THERE WHENEVER THERE IS ANYTHING TO SHOW, and the reason replaces it
+   // when there is not: a dead Play button beside an empty chooser says nothing about
+   // what would fix it.
+   showing($('routineIntoRow'), windows.length > 0)
+   showing($('routineIntoWhy'), !!(t && t.why))
+   text($('routineIntoWhy'), (t && t.why) || '')
+   // THE OPTIONS ARE REBUILT ONLY WHEN THE WINDOWS CHANGED, so a redraw does not shut
+   // a dropdown somebody has open: this is called from every repaint of the panel.
+   const sel = $('routineInto')
+   const sig = JSON.stringify(windows.map(w => [w.id, w.label]))
+   if (sel.dataset.sig !== sig) {
+     sel.dataset.sig = sig
+     sel.innerHTML = ''
+     if (windows.length > 1) {
+       // AND NOTHING IS SELECTED FOR THEM. One of two windows of one program is a
+       // choice somebody has to make; filling it in would be this window deciding
+       // which of their two browser profiles a routine presses into.
+       const none = document.createElement('option')
+       none.value = ''
+       none.textContent = 'choose a window'
+       sel.appendChild(none)
+     }
+     windows.forEach(w => {
+       const o = document.createElement('option')
+       o.value = w.id
+       o.textContent = w.label
+       sel.appendChild(o)
+     })
+   }
+   sel.value = intoWindow
+   // AND THE SENTENCE BELONGS TO THE WINDOW THAT IS SELECTED.
+   //
+   // It used to be one sentence on the list, composed for whichever window the backend
+   // had selected \u2014 so choosing the OTHER of two windows left the first one's
+   // sentence on screen: the right words about the wrong window. With none chosen there
+   // is no window to name, and what is shown instead is the ask.
+   const row = (windows || []).find(w => w.id === intoWindow)
+   const says = row ? row.says : ((t && t.choose) || '')
+   text($('routineIntoSays'), says)
+   showing($('routineIntoSays'), !!says)
+   paintRoutinePlay()
+ }
+
  function playRoutine(){
    const r = routineWith(chosenRoutine)
    if (!r) { return }
@@ -2912,7 +3025,10 @@
    // THE IDENTITY, NOT THE NAME. The backend requires an exact match on it, so a
    // routine that has been saved again or removed since this list was drawn is refused
    // and sent back to the list rather than resolved to a namesake.
-   acts.PlayRoutine(r.id).then(err => {
+   //
+   // AND THE WINDOW IT IS TO PRESS IN, which the backend resolves AGAIN out of the live
+   // list: this term was true when the row was drawn, and a window can close in between.
+   acts.PlayRoutine(r.id, intoWindow).then(err => {
      if (err) {
        text($('routineNote'), err)
        $('routineNote').className = 'no'

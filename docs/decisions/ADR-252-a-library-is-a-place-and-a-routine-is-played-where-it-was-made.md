@@ -102,9 +102,17 @@ own presses, press Play.
 ### What the window does, in order
 
 1. finds the routine, and refuses NOW if it would not run — before anything is raised
-2. brings its application forward, because only the foreground process may
-3. spawns `marco do --play=<slug>` with the route's whole identity and the library named
-4. reads the answer off the published wire line
+2. resolves the WINDOW it is to press in, and refuses without one
+3. brings THAT WINDOW forward, because only the foreground process may
+4. spawns `marco do --play=<slug>` with the route's whole identity, the library named, and the
+   window as `--window=<handle>:<owner>`
+5. reads the answer off the published wire line
+
+Steps 2 and 4 are later than this decision and SUPERSEDE part of it. It said the window raises
+"its application", which is what it did — and a program can own several windows, so the one
+this surface raised and the one the child then bound were two different windows whenever
+somebody had two. A routine naming no application had nothing raised at all, so its run began
+with Studio in front. See [[ADR-272-the-window-a-run-acts-in-is-chosen-and-carried]].
 
 Step 2 is the same split [[ADR-244-pressing-play-is-the-authorisation]] already draws for an Act
 and for the same measured reason: Windows refuses `SetForegroundWindow` to a process that does not
@@ -273,8 +281,9 @@ which stays separately scoped.
   `TestSavingOneOfTwoNamesakesAgainRepairsTheOneAskedFor`,
   `TestARoutineWillNotRunWhileSomethingElseIs`,
   `TestARoutineWillNotRunWhileSomethingIsBeingRecorded`,
-  `TestTheApplicationIsBroughtForwardBeforeTheRunStarts`,
-  `TestARoutineThatNamesNoApplicationRaisesNothing`,
+  `TestTheChosenWindowIsBroughtForwardBeforeTheRunStarts`,
+  `TestARoutineThatNamesNoApplicationIsPlayedIntoAChosenWindow`,
+  `TestARoutineWithNowhereToPressIsNotPlayed`,
   `TestTheCommandCarriesTheRoutesIdentityAndTheLibrary`,
   `TestAContextRoutineIsNotAskedForAsAFocusOne`, `TestTheAnswerComesFromTheRunsOwnWord`,
   `TestARefusedPressReachesTheWindowWithItsReason`,

@@ -43,6 +43,44 @@ func (p Pickable) Target() recorder.Target {
 	return recorder.Target{HWnd: p.HWnd, PID: p.PID}
 }
 
+// Term is this window's identity as ONE word, for handing to the process that will act in it.
+//
+// BOTH HALVES OR NEITHER. A handle is not an identity — Windows hands the number back out, and
+// the program NAME does not separate two copies of one program — so the owner travels with it and
+// the receiving end refuses when the handle no longer belongs to that process. Two flags would be
+// two things a caller can supply half of, which is the failure this shape exists to prevent.
+//
+// It is a RUN's term and never a route's. Nothing written to disk carries one: which window this
+// run acts in is a different question from where the routine works, and a handle in a route would
+// be an identity that stops existing when the window closes. See
+// [[ADR-272-the-window-a-run-acts-in-is-chosen-and-carried]].
+func (p Pickable) Term() string {
+	if p.HWnd == 0 || p.PID == 0 {
+		return ""
+	}
+	return fmt.Sprintf("%d:%d", p.HWnd, p.PID)
+}
+
+// GivenWindow reads a resolved window identity back out of a term.
+//
+// `ok` is false for anything that is not exactly `<handle>:<owner>`, both positive decimals —
+// including the empty string, which is how a caller says it was given no window. A term that
+// parses is a decision somebody already made; a term that does not is NOT then looked up as a
+// name here, because the two answer different questions: `TheWindow` resolves what a PERSON
+// typed, out of the list in front of them, and this reads back what a surface resolved.
+func GivenWindow(term string) (hwnd uintptr, pid uint32, ok bool) {
+	handle, owner, found := strings.Cut(strings.TrimSpace(term), ":")
+	if !found {
+		return 0, 0, false
+	}
+	h, herr := strconv.ParseUint(handle, 10, 64)
+	o, oerr := strconv.ParseUint(owner, 10, 32)
+	if herr != nil || oerr != nil || h == 0 || o == 0 {
+		return 0, 0, false
+	}
+	return uintptr(h), uint32(o), true
+}
+
 // Label is one line of the list a person chooses from.
 func (p Pickable) Label() string {
 	if p.Title == "" {

@@ -29,6 +29,7 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/outcome"
 	"github.com/chaynes-simpleclouds/marco/internal/recorder"
 	"github.com/chaynes-simpleclouds/marco/internal/routes"
+	"github.com/chaynes-simpleclouds/marco/internal/winctx"
 )
 
 // aSavedRoutine records one and saves it, and hands back the surface.
@@ -82,7 +83,36 @@ func playing(t *testing.T, a *Acts, name string) string {
 		t.Fatalf("there is no routine called %q in the library: %+v", name,
 			a.Routines())
 	}
-	return a.PlayRoutine(r.ID)
+	// AND A WINDOW TO PLAY IT INTO, STATED, because Studio does not Play without one.
+	//
+	// The desktop is said rather than read for the reason `chosenwindow_test.go` gives:
+	// live reading makes these tests pass or fail on what the owner happens to have
+	// open. One window of the application these fixtures are about, so the single
+	// candidate is selected and the term is the one the page would hand back.
+	aWindowToPlayInto(t, "arkascended")
+	// AND THE RAISE SUCCEEDS, because a stated window cannot actually be brought
+	// forward: there is no such window. A test about the slot, the library or the
+	// transcript would otherwise get the refusal about a foreground instead. The tests
+	// that are about the raise say so for themselves, through the same seam.
+	if a.lifting == nil {
+		a.lifting = func(uintptr, uint32) (bool, bool) { return true, true }
+	}
+	into := a.PlaybackTarget(r.ID)
+	return a.PlayRoutine(r.ID, into.Chosen)
+}
+
+// aWindowToPlayInto states a desktop with exactly one window of one application on it.
+//
+// One, so there is nothing to choose and `PlaybackTarget` selects it: a test about something
+// else should not also be making a window choice, and two windows would make every one of them
+// assert the chooser instead of the thing it is about.
+func aWindowToPlayInto(t *testing.T, app string) {
+	t.Helper()
+	orchestrator.WindowsForTest(t, []winctx.LiveWindow{
+		{Handle: 0x4141, ProcessID: 4141, Image: app, Title: app + " window",
+			Visible: true, OnScreen: true},
+	})
+	orchestrator.ForegroundForTest(t, 0x4141, true)
 }
 
 // withAMarcoBeside states where marco is, for a test about something else.
@@ -443,7 +473,7 @@ func TestEveryMeasurementADragCanLackIsSaidInWords(t *testing.T) {
 // binary they launched from somewhere else.
 func TestPlayingAnUnknownRoutineNamesTheLibrary(t *testing.T) {
 	a := aSavedRoutine(t, "app-anywhere", nil)
-	why := a.PlayRoutine("arkascended/focus/nothing-like-this")
+	why := a.PlayRoutine("arkascended/focus/nothing-like-this", "")
 	if why == "" {
 		t.Fatal("a routine nobody saved was performed")
 	}
@@ -462,7 +492,7 @@ func TestPlayingARoutineByNameAloneIsRefused(t *testing.T) {
 	raised := 0
 	a.raising = func(string) string { raised++; return "" }
 	for _, loose := range []string{"ark graphics", "ark-graphics", "arkascended"} {
-		if why := a.PlayRoutine(loose); why == "" {
+		if why := a.PlayRoutine(loose, ""); why == "" {
 			t.Errorf("%q performed a routine, so a term that names two of them "+
 				"would perform one of the two", loose)
 		}
@@ -539,36 +569,62 @@ func TestARoutineWillNotRunWhileSomethingIsBeingRecorded(t *testing.T) {
 // So this is not a convenience. Without it a guarded routine's `Activate` fails, every press
 // refuses for want of a window to be checked against, and the run reports a routine that did
 // nothing — which looks exactly like a defect in the guard. Deleting the raise must fail this.
-func TestTheApplicationIsBroughtForwardBeforeTheRunStarts(t *testing.T) {
+func TestTheChosenWindowIsBroughtForwardBeforeTheRunStarts(t *testing.T) {
 	a := aSavedRoutine(t, "app-anywhere", nil)
-	raised := []string{}
-	a.raising = func(app string) string {
-		raised = append(raised, app)
+	// TWO WINDOWS OF THE SAME PROGRAM, which is the case the whole slice is about:
+	// the window this surface raises and the window the child would find by program
+	// name are two different windows, and nothing downstream can tell them apart.
+	orchestrator.WindowsForTest(t, []winctx.LiveWindow{
+		{Handle: 0x5151, ProcessID: 5151, Image: "arkascended", Title: "one",
+			Visible: true, OnScreen: true},
+		{Handle: 0x5252, ProcessID: 5252, Image: "arkascended", Title: "two",
+			Visible: true, OnScreen: true},
+	})
+	orchestrator.ForegroundForTest(t, 0x5151, true)
+	var lifted []uintptr
+	a.lifting = func(h uintptr, pid uint32) (bool, bool) {
+		lifted = append(lifted, h)
 		// AND IT REFUSES, so nothing is spawned: what is under test is that the
-		// raising happened and that it happened FIRST.
-		return "that application is not running"
+		// raising happened, that it reached THAT handle, and that it happened
+		// FIRST.
+		return false, true
 	}
-	why := playing(t, a, "ark graphics")
-	if len(raised) != 1 || raised[0] != "arkascended" {
-		t.Errorf("the window brought forward %v before the run, want "+
-			"[arkascended] — a child process cannot raise a window, so a "+
-			"routine started without this presses into whatever was in front",
-			raised)
+	r, found := routineCalled(a.Routines(), "ark graphics")
+	if !found {
+		t.Fatalf("it is not listed: %+v", a.Routines())
 	}
-	if why != "that application is not running" {
-		t.Errorf("a run started although its application could not be brought "+
-			"forward: %q", why)
+	withAMarcoBeside(t)
+	// THE TERM AS THE PACKAGE WRITES IT, not a hand-converted handle: 0x5252 in
+	// decimal is a second spelling of a thing `Pickable.Term` already says, and the
+	// first attempt at this test got it wrong and asserted a refusal instead.
+	second := orchestrator.Pickable{HWnd: 0x5252, PID: 5252}.Term()
+	why := a.PlayRoutine(r.ID, second)
+	if len(lifted) != 1 || lifted[0] != 0x5252 {
+		t.Errorf("the handles brought forward were %#x, want [0x5252] — the window "+
+			"somebody chose. A child process cannot raise anything, and one that "+
+			"found a window by program name would take whichever EnumWindows "+
+			"reached first", lifted)
+	}
+	if why == "" {
+		t.Error("a run started although the window could not be brought forward")
 	}
 	if a.busy {
 		t.Error("the run slot was claimed although nothing was started")
 	}
 }
 
-// AND A ROUTINE WITH NO APPLICATION RAISES NOTHING.
+// AND A ROUTINE WITH NO APPLICATION IS PLAYED INTO A WINDOW SOMEBODY CHOSE.
 //
-// `everywhere` switches nothing by definition. Bringing a window forward for it would be this
-// window choosing a foreground the routine did not ask for.
-func TestARoutineThatNamesNoApplicationRaisesNothing(t *testing.T) {
+// THIS IS THE OPPOSITE OF WHAT IT USED TO ASSERT, and the change is the point. `everywhere`
+// switches nothing, so nothing was brought forward for it — and the run therefore began with
+// STUDIO in front, because that is what a person is looking at when they press Play. An
+// unguarded press then went into this window.
+//
+// "The routine did not ask for a foreground" was true of the ROUTE and never of the run: a
+// routine that works anywhere still presses somewhere. So the window is chosen, raised by
+// handle, and carried " — and a routine with nowhere to press cannot be played at all. See
+// target.go.
+func TestARoutineThatNamesNoApplicationIsPlayedIntoAChosenWindow(t *testing.T) {
 	t.Setenv("MARCO_CV", "off")
 	t.Setenv("MARCO_ROUTES", t.TempDir())
 	a := recorded(t, func(p *recorder.RecordedEvent) {
@@ -578,8 +634,6 @@ func TestARoutineThatNamesNoApplicationRaisesNothing(t *testing.T) {
 	if why := a.SaveDraft("everywhere", ""); why != "" {
 		t.Fatalf("saving it to run anywhere: %s", why)
 	}
-	asked := 0
-	a.raising = func(string) string { asked++; return "" }
 	r, found := routineCalled(a.Routines(), "ark graphics")
 	if !found {
 		t.Fatalf("it is not listed: %+v", a.Routines())
@@ -587,16 +641,73 @@ func TestARoutineThatNamesNoApplicationRaisesNothing(t *testing.T) {
 	if r.App != "" || r.Scope != string(orchestrator.ScopeEverywhere) {
 		t.Fatalf("it is listed as %q in %q", r.Scope, r.App)
 	}
-	// THE REFUSAL IS THE SLOT, taken first so nothing is spawned by this test.
-	if why := a.reserve(kindAct); why != "" {
-		t.Fatal(why)
+	// A DESKTOP WITH ONE WINDOW ON IT THAT IS NOT MARCO'S.
+	orchestrator.WindowsForTest(t, []winctx.LiveWindow{
+		{Handle: 0x6161, ProcessID: 6161, Image: "notepad", Title: "notes",
+			Visible: true, OnScreen: true},
+	})
+	orchestrator.ForegroundForTest(t, 0x6161, true)
+	// AND IT IS OFFERED, although the routine is about no application: that is what
+	// "works anywhere" means, and which window it acts in is then the whole choice.
+	into := a.PlaybackTarget(r.ID)
+	if into.Why != "" ||
+		into.Chosen != (orchestrator.Pickable{HWnd: 0x6161, PID: 6161}).Term() {
+		t.Fatalf("the one window on this desktop was not offered: %+v", into)
 	}
-	if why := playing(t, a, "ark graphics"); why == "" {
-		t.Fatal("a run started while the slot was claimed")
+	var lifted []uintptr
+	a.lifting = func(h uintptr, pid uint32) (bool, bool) {
+		lifted = append(lifted, h)
+		return false, true
 	}
-	if asked != 0 {
-		t.Errorf("something was brought forward for a routine that switches "+
-			"nothing (%d time(s))", asked)
+	withAMarcoBeside(t)
+	// AND THE REFUSAL IS THE RAISE ITSELF, so nothing is spawned by this test. NOT the
+	// run slot: every refusal that needs no desktop is asked BEFORE anything is brought
+	// forward, so a claimed slot would stop this before the thing under test happened.
+	if why := a.PlayRoutine(r.ID, into.Chosen); why == "" {
+		t.Fatal("a run started although the window would not come forward")
+	}
+	if len(lifted) != 1 || lifted[0] != 0x6161 {
+		t.Errorf("the handles brought forward were %#x, want [0x6161]: a routine "+
+			"that works anywhere still presses somewhere, and without this the "+
+			"run begins with Studio in front", lifted)
+	}
+}
+
+// AND A ROUTINE WITH NOWHERE TO PRESS CANNOT BE PLAYED AT ALL.
+//
+// The other half, and the one that makes the half above safe: "choose a window" is only an
+// improvement on "press into whatever is in front" if there being NO window is a refusal rather
+// than a fallback. A desktop holding nothing but Marco's own windows is exactly that case, and
+// it is the case a person is in whenever they have just opened Studio.
+func TestARoutineWithNowhereToPressIsNotPlayed(t *testing.T) {
+	a := aSavedRoutine(t, "app-anywhere", nil)
+	orchestrator.WindowsForTest(t, nil)
+	orchestrator.ForegroundForTest(t, 0, false)
+	r, found := routineCalled(a.Routines(), "ark graphics")
+	if !found {
+		t.Fatalf("it is not listed: %+v", a.Routines())
+	}
+	into := a.PlaybackTarget(r.ID)
+	if into.Why == "" {
+		t.Fatalf("a desktop with no window on it offered somewhere to press: %+v",
+			into)
+	}
+	if !strings.Contains(into.Why, "arkascended") {
+		t.Errorf("the reason does not name what to start: %q", into.Why)
+	}
+	lifted := 0
+	a.lifting = func(uintptr, uint32) (bool, bool) { lifted++; return true, true }
+	withAMarcoBeside(t)
+	if why := a.PlayRoutine(r.ID, ""); why == "" {
+		t.Fatal("a run started with no window to press in, which is a run that " +
+			"presses into whatever is in front")
+	}
+	if lifted != 0 {
+		t.Errorf("something was brought forward for a run that was refused (%d)",
+			lifted)
+	}
+	if a.busy {
+		t.Error("the run slot was claimed although nothing was started")
 	}
 }
 
@@ -628,9 +739,12 @@ func TestTheCommandCarriesTheRoutesIdentityAndTheLibrary(t *testing.T) {
 	t.Setenv("MARCO_ROUTES", somewhereElse)
 	t.Setenv("MARCO_HOME", t.TempDir())
 
-	_, args, env := a.doCommand(r)
+	into := orchestrator.Pickable{HWnd: 0x4141, PID: 4141, App: "arkascended"}
+	_, args, env := a.doCommand(r, into)
+	// AND THE WINDOW THIS RUN ACTS IN, as one term carrying both halves. A handle
+	// without its owner cannot be told from a reused handle at the other end.
 	for _, want := range []string{"do", "--play=ark-graphics",
-		"--app=arkascended", "--focus"} {
+		"--app=arkascended", "--focus", "--window=" + into.Term()} {
 		if !hasArg(args, want) {
 			t.Errorf("the command does not carry %q: %v", want, args)
 		}
@@ -685,7 +799,7 @@ func TestAContextRoutineIsNotAskedForAsAFocusOne(t *testing.T) {
 	if r.Scope != string(orchestrator.ScopeApp) {
 		t.Fatalf("it is listed as %q", r.Scope)
 	}
-	_, args, _ := a.doCommand(r)
+	_, args, _ := a.doCommand(r, orchestrator.Pickable{})
 	if hasArg(args, "--focus") {
 		t.Errorf("a context routine is asked for as a focus one: %v", args)
 	}
@@ -1025,8 +1139,19 @@ func TestPlayingARoutineRunsItAndReportsWhatItSaid(t *testing.T) {
 	if !r.Runnable {
 		t.Fatalf("it is listed as unable to run: %s", r.Why)
 	}
-	if why := playing(t, a, "says hello"); why != "" {
-		t.Fatalf("pressing Play: %s", why)
+	// THROUGH `startRoutine`, WHICH IS THE SPAWN, with no window handed over.
+	//
+	// `PlayRoutine` is the DECISION — it resolves a window and refuses without one — and that
+	// has three tests of its own above. This is about the mechanism under it: a child
+	// started by this window, reading the library this window handed it, announcing its
+	// answer up the pipe. Handing it a stated window would prove none of that, because a
+	// window named in a fixture is not a window on this machine and the child verifies
+	// the one it is given — which is the next test.
+	//
+	// AND NO `--window` IS THE LEGACY COMMAND, unchanged: that is the shape `marco do`
+	// has always had, and preserving it is part of this contract.
+	if why := a.startRoutine(r, orchestrator.Pickable{}); why != "" {
+		t.Fatalf("starting the run: %s", why)
 	}
 	if !a.awaitRun(30 * time.Second) {
 		// WHERE IT STOPPED, NOT JUST THAT IT DID.
@@ -1064,6 +1189,69 @@ func TestPlayingARoutineRunsItAndReportsWhatItSaid(t *testing.T) {
 	if !strings.Contains(strings.Join(w.Transcript, "\n"), "nothing was pressed") {
 		t.Errorf("the routine's own output is not in the transcript:\n%s",
 			strings.Join(w.Transcript, "\n"))
+	}
+}
+
+// AND THE WINDOW TRAVELS, AND THE OTHER PROCESS CHECKS IT.
+//
+// The cross-process half, for real: a window handed to `marco do` that is not a window on this
+// machine. The child verifies what it was given, refuses, and NEVER looks for another window of
+// the same program — which is what it did when it was handed a program name, and is the whole
+// defect this slice closes.
+//
+// The refusal is ANNOUNCED rather than exited, which this test is also the reason for: the first
+// version printed a sentence on stderr and exited 1, and this window reported the run as having
+// ended with a blank answer. Every surface that spawns `marco do` reads the outcome off the wire
+// line.
+//
+// A handle that cannot be a window on any desktop, so this says the same thing on every machine:
+// it needs no window to exist, no window to close, and nothing of the owner's screen.
+func TestARunToldToActInAWindowThatIsNotThereIsRefused(t *testing.T) {
+	withAMarcoBeside(t)
+	dir := t.TempDir()
+	t.Setenv("MARCO_ROUTES", dir)
+	a := newActs(t.TempDir())
+	where := filepath.Join(dir, "global")
+	if err := os.MkdirAll(where, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// THE SAME HARMLESS ROUTINE: it logs and presses nothing, which is the only reason
+	// any of these may be run at all.
+	src := "// marco learn \"says hello\"\n\nthe App is a script.\n\n" +
+		"log \"says hello: nothing was pressed\".\n"
+	if err := os.WriteFile(filepath.Join(where, "says-hello.marco"),
+		[]byte(src), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	r, found := routineCalled(a.Routines(), "says hello")
+	if !found {
+		t.Fatalf("the routine is not in the library: %+v", a.Routines())
+	}
+	ghost := orchestrator.Pickable{HWnd: 0x7FFFFFF0, PID: 0x7FFFFFF0, App: "nothing"}
+	if why := a.startRoutine(r, ghost); why != "" {
+		t.Fatalf("starting the run: %s", why)
+	}
+	if !a.awaitRun(30 * time.Second) {
+		w := a.Watch()
+		t.Fatalf("the run did not finish in 30s: active=%v outcome=%q\n%s",
+			w.Active, w.Outcome, strings.Join(w.Transcript, "\n"))
+	}
+	w := a.Watch()
+	if w.Outcome != string(outcome.Refused) {
+		t.Errorf("the run ended as %q, want %q — transcript:\n%s", w.Outcome,
+			outcome.Refused, strings.Join(w.Transcript, "\n"))
+	}
+	said := strings.Join(w.Transcript, "\n")
+	if !strings.Contains(said, "window chosen for this run") {
+		t.Errorf("the refusal does not say it was about the window it was given:\n%s",
+			said)
+	}
+	// AND IT DID NOT RUN THE ROUTINE ANYWAY. The program logs a line; a run that
+	// refused the window and then performed the play would have pressed into whatever
+	// was in front, which is the behaviour being replaced.
+	if strings.Contains(said, "nothing was pressed") {
+		t.Errorf("the routine ran although the window it was given is not there:\n%s",
+			said)
 	}
 }
 
@@ -1132,9 +1320,23 @@ func TestTwoRoutinesOfOneNameAreTwoRoutines(t *testing.T) {
 			same[0].ID)
 	}
 	// AND EACH ONE IS ITSELF: its own application, its own saved Marco, its own route.
-	for _, want := range []struct{ id, app string }{
-		{"arkascended/focus/ark-graphics", "arkascended"},
-		{"discord/focus/ark-graphics", "discord"},
+	// ONE WINDOW OF EACH, so each routine has exactly one candidate and the choice
+	// under test is which application's window it is.
+	orchestrator.WindowsForTest(t, []winctx.LiveWindow{
+		{Handle: 0x7171, ProcessID: 7171, Image: "arkascended", Title: "ark",
+			Visible: true, OnScreen: true},
+		{Handle: 0x7272, ProcessID: 7272, Image: "discord", Title: "discord",
+			Visible: true, OnScreen: true},
+	})
+	orchestrator.ForegroundForTest(t, 0x7171, true)
+	for _, want := range []struct {
+		id, app, term string
+		hwnd          uintptr
+	}{
+		{"arkascended/focus/ark-graphics", "arkascended",
+			orchestrator.Pickable{HWnd: 0x7171, PID: 7171}.Term(), 0x7171},
+		{"discord/focus/ark-graphics", "discord",
+			orchestrator.Pickable{HWnd: 0x7272, PID: 7272}.Term(), 0x7272},
 	} {
 		t.Run(want.app, func(t *testing.T) {
 			r, found := routineWithID(a.Routines(), want.id)
@@ -1153,21 +1355,29 @@ func TestTwoRoutinesOfOneNameAreTwoRoutines(t *testing.T) {
 			if !r.Runnable {
 				t.Fatalf("%q cannot be run: %s", want.id, r.Why)
 			}
-			// AND PRESSING PLAY ON IT ASKS FOR EXACTLY THAT ROUTE.
-			raised := ""
-			a.raising = func(app string) string {
-				raised = app
-				return "that application is not running"
+			// AND PRESSING PLAY ON IT PRESSES IN A WINDOW OF EXACTLY THAT
+			// APPLICATION. By handle now, so the claim is about the window
+			// and not about a name two routines could share.
+			into := a.PlaybackTarget(want.id)
+			if into.Chosen != want.term {
+				t.Fatalf("%q would be played into %q, want %q: %+v",
+					want.id, into.Chosen, want.term, into)
 			}
-			if why := a.PlayRoutine(want.id); why == "" {
-				t.Fatal("a run started although the application was " +
-					"not there")
+			lifted := uintptr(0)
+			a.lifting = func(h uintptr, _ uint32) (bool, bool) {
+				lifted = h
+				return false, true
 			}
-			if raised != want.app {
-				t.Errorf("pressing Play on %q brought %q forward",
-					want.id, raised)
+			withAMarcoBeside(t)
+			if why := a.PlayRoutine(want.id, into.Chosen); why == "" {
+				t.Fatal("a run started although the window would " +
+					"not come forward")
 			}
-			_, args, _ := a.doCommand(r)
+			if lifted != want.hwnd {
+				t.Errorf("pressing Play on %q brought %#x forward, "+
+					"want %#x", want.id, lifted, want.hwnd)
+			}
+			_, args, _ := a.doCommand(r, orchestrator.Pickable{})
 			if !hasArg(args, "--app="+want.app) {
 				t.Errorf("the command for %q asks for %v", want.id, args)
 			}
@@ -1218,9 +1428,19 @@ func TestAnUnrunnableNamesakeDoesNotDisableTheValidRoutine(t *testing.T) {
 		t.Errorf("the valid routine carries a refusal: %s", good.Why)
 	}
 	// AND PRESSING PLAY ON THE VALID ONE IS NOT REFUSED FOR THE OTHER'S REASON.
-	a.raising = func(string) string { return "that application is not running" }
-	if why := a.PlayRoutine(good.ID); !strings.Contains(why, "not running") {
+	//
+	// The refusal arranged here is the WINDOW'S: a desktop with nothing on it, so Play
+	// comes back about having nowhere to press rather than about a namesake that
+	// refuses every press.
+	orchestrator.WindowsForTest(t, nil)
+	orchestrator.ForegroundForTest(t, 0, false)
+	withAMarcoBeside(t)
+	why := a.PlayRoutine(good.ID, "")
+	if !strings.Contains(why, "no window open") {
 		t.Errorf("pressing Play on the valid routine answered: %s", why)
+	}
+	if strings.Contains(why, "every press") {
+		t.Errorf("the valid routine was refused for its namesake's reason: %s", why)
 	}
 }
 

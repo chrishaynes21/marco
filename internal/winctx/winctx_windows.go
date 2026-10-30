@@ -315,6 +315,39 @@ func Bind(name string) (hwnd uintptr, err error) {
 	return found, nil
 }
 
+// Raise brings ONE window forward, by handle, and never looks for another.
+//
+// The difference from `Bind` is the whole point: `Bind` is given a program name and takes the
+// first visible window of it, which is whichever `EnumWindows` reaches first — a choice nobody
+// made, and one that cannot be told from the right answer afterwards, because two windows of one
+// program have the same executable, the same size class and the same scale. This is given the
+// window and has nothing to choose.
+//
+// It does NOT verify the handle's owner. That check belongs where the expected owner is known,
+// which is the caller that was handed both halves of the identity; raising is the part that needs
+// a syscall. See oshost.Host.GiveWindow.
+//
+// The waiting is `Bind`'s, for `Bind`'s reasons: `SetForegroundWindow` returns before the window
+// is frontmost, and a full-screen transition relayouts everything inside a window whose
+// activation has already been accepted.
+func Raise(hwnd uintptr) error {
+	if hwnd == 0 {
+		return fmt.Errorf("raise: no window")
+	}
+	if cur, _, _ := procGetForegroundWindow.Call(); cur != 0 && cur != hwnd {
+		prevForeground = cur
+	}
+	forceForeground(hwnd)
+	for range 15 {
+		if fg, _, _ := procGetForegroundWindow.Call(); fg == hwnd {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	waitWindowStable(hwnd)
+	return nil
+}
+
 // ActivateTitle brings the window whose TITLE contains a phrase to the front.
 //
 // Distinct from Activate, which matches by executable and therefore cannot tell two

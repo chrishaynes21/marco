@@ -75,5 +75,8 @@ func Facts(hwnd uintptr) WindowFacts { return WindowFacts{} }
 // Bind is unavailable without a window backend, so nothing can be bound and nothing guarded.
 func Bind(name string) (uintptr, error) { return 0, ErrUnsupported }
 
+// Raise brings one window forward by handle. See the Windows file.
+func Raise(uintptr) error { return ErrUnsupported }
+
 // CanReadWindowScale is false off Windows; see the Windows build for what it is for.
 func CanReadWindowScale() bool { return false }

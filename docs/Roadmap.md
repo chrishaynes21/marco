@@ -1553,6 +1553,61 @@ gate is testing a case the product no longer has and the right answer is to dele
 That is a judgement about perception, not a test repair, which is why it is here rather than in
 the alpha. See [[ADR-264-the-gate-answers-for-what-did-not-run]].
 
+## 38. One unexplained gate failure, recorded as one occurrence — OPEN
+
+**2026-10-29, `cmd/gate` run `20261029-175838`:**
+
+> `cmd/director` `TestAGrantedRunAsksNobodyAnything`
+>
+> `actgrant_test.go:754: the run could not establish its screen and never said so:
+> [starting ended]`
+
+1 failure, 0 findings, 30 tolerated skips, 5m56s. The run immediately after it passed with 0
+failures over the same tree.
+
+**The clean rerun does not establish the cause, and it is not recorded as resolved.** This entry
+exists because the alternative is a line in a transcript nobody reads again. The rule this
+repository already wrote down after the epoch flake applies: *a test that fails intermittently is
+reporting a race in the product until proven otherwise.*
+
+**What is known.** The test is one of the fourteen Director run-logic tests ADR-269 is about —
+they have to manufacture a performable act, and the way to get one was to photograph whatever was
+in front of the owner, so they inherit every precondition that photograph has. That is why two
+runs of one tree gave 8 findings and then 6 before the desktop tag existed. This one is NOT
+behind `-tags desktop`, and its assertion is about the run SAYING it could not establish a
+screen — the state it reported, `[starting ended]`, is a run that ended without the sentence.
+
+**What is not known, and is not being claimed.** It was observed during the Rescope surface work,
+and nothing in `cmd/director` reaches `Rescope`, `Rescoped` or `Registry.DeleteSource`. That
+narrows the interaction; it does not rule one out, and the failure has not been attributed to
+anything.
+
+**What the work is:** establishing whether the sentence is missing because the screen genuinely
+could not be established and the run stayed silent — which is a product defect in the account a
+run gives of itself — or because the precondition is environmental and the test should state its
+own desktop the way the tagged ones do. Deciding that is worth more than another rerun. See
+[[ADR-269-a-screen-free-gate-and-the-tests-that-need-the-screen]].
+
+## 39. An Act with no application still grounds against whatever is in front — OPEN
+
+[[ADR-272-the-window-a-run-acts-in-is-chosen-and-carried]] closed this for a saved ROUTINE: the
+window is chosen beside Play, raised by handle, carried to the run and verified there. Studio's
+Play for an **Act** was deliberately left out of that slice, and the hole is the same one:
+`Acts.bringForward("")` returns success for an Act that names no application, nothing is raised,
+and the run grounds against whatever leads the desktop — which at the instant somebody clicks
+Play in Studio is **Studio**.
+
+**Why it was not closed with the routine.** An Act is performed by the supervised runner under a
+written authorisation (`grant`, `actGrantVersion`, `cmd/director/actgrant.go`), so carrying a
+window through it means changing the grant's shape, its version and the runner that reads it. A
+routine's run is `marco do` and one flag. Doing both in one change would have made a bounded
+slice an unbounded one.
+
+**What the work is:** deciding whether the Act path gets the same chooser — which means a window
+in the grant, a version bump the runner refuses rather than guesses at, and the same verification
+on the far side — or whether an Act that names no application is simply refused at Play, which
+is smaller and loses nothing that works today.
+
 ## Deferred, with reasons
 
 - **Grounding DINO on GPU** — the 9.6s that sank it is a CPU-only `torch` artefact, but it
