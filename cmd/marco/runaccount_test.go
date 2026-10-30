@@ -5,7 +5,9 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -25,20 +27,34 @@ import (
 // transcript, so these assertions are about how the SURFACE reads the engine, never about input.
 
 // scriptedRun replaces the spawn with a child that prints `lines` and exits with `code`.
+//
+// # The child is THIS BINARY, and it used to be `sh`
+//
+// `exec.Command("sh", "-c", ...)` with a comment calling it "the shell that ships with this
+// repo's toolchain". It does not: Go ships no shell. `sh` was on PATH because the suite was being
+// run from a Git Bash prompt, so eleven tests in this package passed on one operator's shell and
+// failed under `gate.ps1`, which is this repository's own documented entry point " ' + M + ' with
+// `exec: "sh": executable file not found in %PATH%`. A clean Windows machine has no `sh` either.
+//
+// It is the same shape as the five families `2770d46` fixed: a test reading something the machine
+// happened to have. `cmd.exe` would only move the assumption to another platform.
+//
+// So the scripted child is the test binary re-executed in a mode `TestMain` intercepts " ' + M + ' the
+// pattern `os/exec`'s own tests use. It needs no shell, no network and no module cache, the
+// transcript is exactly the scripted lines because the child exits before the testing framework
+// prints anything of its own, and it is one program on every platform that can run the suite at
+// all. See scriptedChildMode.
 func scriptedRun(t *testing.T, code int, lines ...string) {
 	t.Helper()
 	prev := runSpawn
 	runSpawn = func([]string) (*exec.Cmd, io.Reader, error) {
-		// `go run` would be slow and needs the network on a cold module cache. The test binary
-		// itself is a program that already exists, and `-test.run` with a name matching nothing
-		// makes it print a couple of lines and exit 0 — which is not the transcript we need.
-		// So: the shell that ships with this repo's toolchain, echoing the script.
-		var b strings.Builder
-		for _, l := range lines {
-			b.WriteString("echo " + l + "\n")
-		}
-		b.WriteString("exit " + itoaSmall(code) + "\n")
-		cmd := exec.Command("sh", "-c", b.String())
+		cmd := exec.Command(os.Args[0])
+		// THE LINES AND THE EXIT CODE, as this binary's other mode reads them. A
+		// newline separator rather than a shell's quoting rules, which is most of
+		// why the old one needed a shell.
+		cmd.Env = append(os.Environ(),
+			scriptedChildLines+"="+strings.Join(lines, "\n"),
+			scriptedChildCode+"="+strconv.Itoa(code))
 		pipe, err := cmd.StdoutPipe()
 		if err != nil {
 			return nil, nil, err
@@ -50,13 +66,6 @@ func scriptedRun(t *testing.T, code int, lines ...string) {
 		return cmd, pipe, nil
 	}
 	t.Cleanup(func() { runSpawn = prev })
-}
-
-func itoaSmall(n int) string {
-	if n == 0 {
-		return "0"
-	}
-	return string(rune('0' + n))
 }
 
 // waitForRun polls the handler the page polls, until the run reports itself finished.

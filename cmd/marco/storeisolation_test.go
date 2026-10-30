@@ -27,13 +27,57 @@ package main
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/chaynes-simpleclouds/marco/internal/marcopaths"
 )
 
+// scriptedChildLines and scriptedChildCode are how a test tells this binary to be somebody
+// else's child instead of running tests.
+//
+// # Why the child is this binary
+//
+// Because a test that needs a process printing a scripted transcript needs a program, and every
+// other way of getting one reads something the machine happened to have: `sh` is Git Bash's and
+// is absent under `gate.ps1` and on a clean Windows box, `cmd.exe` moves the same assumption to
+// another platform, and `go run` needs the network on a cold module cache. The test binary is a
+// program that certainly exists, because it is the one asking.
+//
+// The pattern is `os/exec`'s own: re-execute with an environment variable the entry point looks
+// for, print, and EXIT " ' + M + ' before the testing framework prints a `PASS` nobody asked for, which
+// is what makes the transcript exactly the scripted lines.
+const (
+	scriptedChildLines = "MARCO_TEST_SCRIPTED_LINES"
+	scriptedChildCode  = "MARCO_TEST_SCRIPTED_CODE"
+)
+
+// scriptedChildMode is this binary being a child rather than a test run.
+//
+// Checked FIRST in `TestMain`, before the temporary store below: a child is not a test run and
+// has no business making a store, and the parent has already put one in its environment anyway.
+func scriptedChildMode() bool {
+	lines, ok := os.LookupEnv(scriptedChildLines)
+	if !ok {
+		return false
+	}
+	for _, l := range strings.Split(lines, "\n") {
+		if l != "" {
+			fmt.Println(l)
+		}
+	}
+	code, err := strconv.Atoi(os.Getenv(scriptedChildCode))
+	if err != nil {
+		code = 0
+	}
+	os.Exit(code)
+	return true // unreachable; the compiler wants it
+}
+
 func TestMain(m *testing.M) {
+	// THE CHILD MODE FIRST. See scriptedChildMode.
+	scriptedChildMode()
 	if os.Getenv(marcopaths.EnvHome) != "" {
 		// SOMETHING ALREADY NAMED ONE. A dogfood store, a harness, a person
 		// debugging one test against a store they prepared: all of those are
