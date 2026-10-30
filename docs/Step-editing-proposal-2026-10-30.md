@@ -350,6 +350,13 @@ routine that does nothing is not a smaller routine; deleting one is an operation
 exists and already sweeps what sits beside it (`Registry.Delete`), and offering an edit that
 quietly amounts to a delete would be offering it without any of that.
 
+**R11a. And the token binds the source the review SHOWED, not only a digest of the file it read.**
+Found while reading the slice back and corrected across all three review types, because it is one
+contract: `Was` is exported and mutable, and a digest taken at preparation is a stored value, so
+rewriting the field left the token matching and the write went ahead having displayed something
+nobody read off disk. `sealed` digests the field too. See
+[[ADR-273-a-routine-writes-down-what-it-does]].
+
 **R11. The account is in the token, and revalidated at the write.** One more field in
 `sealed()` beside `sourceAt` and `recordingAt` (`regenerate.go:440`), and one more digest re-read
 under the lock in `Replace`, refusing with which of the three moved. The reason is the one the

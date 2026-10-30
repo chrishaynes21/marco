@@ -223,6 +223,12 @@ is run by the production driver over a host that records what it was asked to do
   move, each with a genuinely absent account as the control.
 - `TestAReplacementIsRefusedWhenTheStoredStepsMovedWhileItWasOpen` — the third digest at the rebuild
   end.
+- `TestAnEditReviewIsBoundToTheSourceItShowed`, `TestARebuildReviewIsBoundToTheSourceItShowed` and
+  `TestAMoveReviewIsBoundToTheSourceItShowed` — three directions each, which is what makes them two
+  claims and not one: only the displayed source rewritten (refused, and every file in the routine's
+  folder byte-identical), nothing touched (written), and the file on disk changed (refused
+  independently, with the displayed source still matching). The third is also the control that
+  stops the first passing for a contract which refuses everything.
 - `TestAnOperationThatRefersToNothingIsAnError` and
   `TestEveryPositionInOneEditIsIntoTheListThatWasShown` — the split between a refusal somebody can
   read and an operation there is nothing to show about, and the rule that stops two operations in
@@ -248,10 +254,35 @@ is run by the production driver over a host that records what it was asked to do
   unchanged behaviour pinned down where it lives, in both directions: the account is not believed,
   and it is not swept by a surface that knows nothing about it either.
 
+## A review is bound to the source it SHOWED, and separately to the file on disk
+
+Found while reading this slice back, and corrected across all three review types in it — a
+rebuild, a move and an edit — because it is one contract and leaving two of them weaker would be a
+difference nobody decided.
+
+Every review here puts the file as it stands on one side and what would be written on the other,
+and that left-hand side is the whole of what makes approving a replacement an approval of something
+somebody recognises. It is also an exported, mutable field. The token sealed a digest of it
+(`sourceAt`), and that is a STORED value: a caller that rewrote `Was` after preparation left the
+digest alone, so the token still matched, the write still went ahead, and what had been displayed
+as the file as it stands was something nobody read off disk. The bytes written were correct Marco
+either way; the harm is the other half of `Prepared.Token`'s own sentence, that somebody approved
+what they were shown.
+
+So `sealed` now digests the FIELD as well, which it recomputes:
+
+| | what it answers |
+| --- | --- |
+| `sourceAt` | is the routine on disk still the one this review was built from? |
+| `routes.DigestOf(Was)` | is this review still showing what it showed? |
+
+Equal by construction at preparation, and they diverge in exactly one case. **What was displayed
+and what currently exists are two questions, and both have to match the preparation.**
+
 ## The mutation run
 
-**30 of 30 killed**, over three rounds: 22 sites on the first implementation, 30 after the
-corrections. Every survivor was a token field rather than a decision, and every one of them wrote
+**33 of 33 killed**, over four rounds: 22 sites on the first implementation, 30 after the
+account-reading and deep-copy corrections, and 3 more for the review-integrity one above. Every survivor was a token field rather than a decision, and every one of them wrote
 a test:
 
 - the account's digest in the edit review's token and in the rebuild review's token. Both are

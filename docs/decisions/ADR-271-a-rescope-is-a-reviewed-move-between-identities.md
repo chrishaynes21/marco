@@ -156,6 +156,16 @@ inventing source nobody wrote would be worse. What it does instead is show them 
 stands on one side, what would be written on the other — so approving the move is approving the
 loss, in front of them, rather than discovering it a week later.
 
+## Amended 2026-10-30
+
+A move's token binds the source it SHOWED as well as a digest of the file it read. `Was` is
+exported and mutable, and `fromSourceAt` is a stored reading, so a caller that rewrote `Was` after
+preparation left the token matching and the move went ahead having displayed something nobody read
+off disk. Rule (1) above now covers both questions. The move's token also carries the routine's
+stored step list, which the same slice introduced. See
+[[ADR-273-a-routine-writes-down-what-it-does]], and
+`TestAMoveReviewIsBoundToTheSourceItShowed`.
+
 ## Enforced by
 
 `internal/orchestrator`, through `PrepareRescope` and `Rescope` — the two calls a surface makes —

@@ -615,6 +615,23 @@ func (d Deps) SaveEdit(e EditReview) error {
 // token answers, plus the account. See Prepared.sealed for why the target is in it.
 func (e EditReview) sealed() EditReview {
 	parts := []string{e.sourceAt, e.recordingAt, e.stepsAt, routes.DigestOf(e.Now),
+		// AND THE SOURCE IT SHOWED, which is a SEPARATE thing from the digest
+		// above it.
+		//
+		// `sourceAt` is a reading of the file taken at preparation and compared
+		// against the file at the write: it answers "is the routine on disk still
+		// the one this was built from". It does NOT answer "is this review still
+		// showing what it showed", because it is a stored value and the field it
+		// describes is exported and mutable. A caller that rewrote `Was` left the
+		// token intact, the write went ahead, and what was displayed as the file
+		// as it stands was something nobody read off disk.
+		//
+		// Digesting the field itself closes that, because `sealed` recomputes this
+		// from whatever `Was` now holds. The two are equal by construction and
+		// diverge exactly when somebody has changed what the review says it
+		// showed. WHAT WAS DISPLAYED and WHAT CURRENTLY EXISTS are two questions
+		// and both have to match the preparation.
+		routes.DigestOf(e.Was),
 		// AND THE BYTES THAT WOULD LAND BESIDE THE ROUTINE. The source is
 		// covered by `Now` and the account is a second file this would write,
 		// so it is a second thing the review has to be about.

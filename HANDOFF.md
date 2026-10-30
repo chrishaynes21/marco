@@ -12070,5 +12070,15 @@ of this. And nothing here establishes that an edited routine presses anything on
 execution tests run the real engine over a host that answers in memory, which settles order,
 duration and the stop-on-failure chain and settles nothing about a real press in a real window.
 
+**And reading the slice back found one thing in all three review contracts.** A review puts the
+file as it stands on one side and what would be written on the other, and that left-hand side is
+the whole of what makes approving a replacement an approval of something somebody recognises. It is
+also an exported, mutable field, and the token sealed a digest TAKEN AT PREPARATION rather than the
+field: rewrite `Was` afterwards and the token still matched, the write still went ahead, and what
+was displayed as the file as it stands was something nobody read off disk. The bytes written were
+correct Marco either way, which is why nothing failed. `sealed` digests the field too now, in a
+rebuild, a move and an edit alike: what was DISPLAYED and what currently EXISTS are two questions,
+and both have to match the preparation.
+
 See [[ADR-273-a-routine-writes-down-what-it-does]], and
 [[Step-editing-proposal-2026-10-30]] for the trace and the alternatives that were rejected.

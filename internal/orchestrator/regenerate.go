@@ -612,6 +612,23 @@ func (p Prepared) sealed() Prepared {
 		// WHAT THE REVIEW IS: the two files it was built from, what it would
 		// write, and why it would write nothing.
 		p.sourceAt, p.recordingAt, p.stepsAt, routes.DigestOf(p.Now), p.Refused,
+		// AND THE SOURCE IT SHOWED, which is a SEPARATE thing from the digest
+		// above it.
+		//
+		// `sourceAt` is a reading of the file taken at preparation and compared
+		// against the file at the write: it answers "is the routine on disk still
+		// the one this was built from". It does NOT answer "is this review still
+		// showing what it showed", because it is a stored value and the field it
+		// describes is exported and mutable. A caller that rewrote `Was` left the
+		// token intact, the write went ahead, and what was displayed as the file
+		// as it stands was something nobody read off disk.
+		//
+		// Digesting the field itself closes that, because `sealed` recomputes this
+		// from whatever `Was` now holds. The two are equal by construction and
+		// diverge exactly when somebody has changed what the review says it
+		// showed. WHAT WAS DISPLAYED and WHAT CURRENTLY EXISTS are two questions
+		// and both have to match the preparation.
+		routes.DigestOf(p.Was),
 		// AND WHERE IT WOULD GO: the route's whole identity, each part on its
 		// own so no two routes can run together into one string, and the
 		// library. `Focus` is in because it is the difference between a routine
