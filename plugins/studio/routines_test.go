@@ -740,7 +740,7 @@ func TestTheCommandCarriesTheRoutesIdentityAndTheLibrary(t *testing.T) {
 	t.Setenv("MARCO_HOME", t.TempDir())
 
 	into := orchestrator.Pickable{HWnd: 0x4141, PID: 4141, App: "arkascended"}
-	_, args, env := a.doCommand(r, into)
+	_, args, env := a.doCommand(r, into, nil, "")
 	// AND THE WINDOW THIS RUN ACTS IN, as one term carrying both halves. A handle
 	// without its owner cannot be told from a reused handle at the other end.
 	for _, want := range []string{"do", "--play=ark-graphics",
@@ -799,7 +799,7 @@ func TestAContextRoutineIsNotAskedForAsAFocusOne(t *testing.T) {
 	if r.Scope != string(orchestrator.ScopeApp) {
 		t.Fatalf("it is listed as %q", r.Scope)
 	}
-	_, args, _ := a.doCommand(r, orchestrator.Pickable{})
+	_, args, _ := a.doCommand(r, orchestrator.Pickable{}, nil, "")
 	if hasArg(args, "--focus") {
 		t.Errorf("a context routine is asked for as a focus one: %v", args)
 	}
@@ -1150,7 +1150,7 @@ func TestPlayingARoutineRunsItAndReportsWhatItSaid(t *testing.T) {
 	//
 	// AND NO `--window` IS THE LEGACY COMMAND, unchanged: that is the shape `marco do`
 	// has always had, and preserving it is part of this contract.
-	if why := a.startRoutine(r, orchestrator.Pickable{}); why != "" {
+	if why := a.startRoutine(r, orchestrator.Pickable{}, nil, ""); why != "" {
 		t.Fatalf("starting the run: %s", why)
 	}
 	if !a.awaitRun(30 * time.Second) {
@@ -1228,7 +1228,7 @@ func TestARunToldToActInAWindowThatIsNotThereIsRefused(t *testing.T) {
 		t.Fatalf("the routine is not in the library: %+v", a.Routines())
 	}
 	ghost := orchestrator.Pickable{HWnd: 0x7FFFFFF0, PID: 0x7FFFFFF0, App: "nothing"}
-	if why := a.startRoutine(r, ghost); why != "" {
+	if why := a.startRoutine(r, ghost, nil, ""); why != "" {
 		t.Fatalf("starting the run: %s", why)
 	}
 	if !a.awaitRun(30 * time.Second) {
@@ -1377,7 +1377,7 @@ func TestTwoRoutinesOfOneNameAreTwoRoutines(t *testing.T) {
 				t.Errorf("pressing Play on %q brought %#x forward, "+
 					"want %#x", want.id, lifted, want.hwnd)
 			}
-			_, args, _ := a.doCommand(r, orchestrator.Pickable{})
+			_, args, _ := a.doCommand(r, orchestrator.Pickable{}, nil, "")
 			if !hasArg(args, "--app="+want.app) {
 				t.Errorf("the command for %q asks for %v", want.id, args)
 			}

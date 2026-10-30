@@ -286,6 +286,13 @@ type playInvocation struct {
 	rt         routes.Route
 	named      map[string]string
 	positional []string
+	// flagged names the arguments whose values arrived as explicit flags rather than
+	// inside a phrase. See routes.CheckFlagged: a secret-typed argument may not be
+	// supplied that way.
+	flagged []string
+	// expect is the digest of the routine this invocation was authorised against, or ""
+	// when nothing pinned a version. See invoke.Request.Expect.
+	expect string
 }
 
 // performDecidedPlay runs the play the decision chose, with whatever arguments the words carried.
@@ -299,7 +306,8 @@ func performDecidedPlay(d orchestrator.Deps, dec invoke.Decision, req invoke.Req
 	// none. Only a phrase has to be read for them — and re-reading a phrase that carried none,
 	// over cargo that did, would silently drop arguments somebody supplied. Which is the exact
 	// failure `TestALearnedPlayRefusesArgumentsRatherThanDroppingThem` exists to prevent.
-	steps := []playInvocation{{rt: dec.Play, named: req.Named, positional: req.Positional}}
+	steps := []playInvocation{{rt: dec.Play, named: req.Named,
+		positional: req.Positional, flagged: req.Flagged, expect: req.Expect}}
 	if !dec.Explicit && len(req.Named)+len(req.Positional) == 0 {
 		_, named, positional := routes.ParseInvocation(strings.TrimSpace(req.Text))
 		steps[0].named, steps[0].positional = named, positional
@@ -455,7 +463,14 @@ var stopper = withPanicStop
 //
 // Deleting the Authorize call must fail TestExactPlayMatchDoesNotBypassAuthority.
 func performOnePlay(d orchestrator.Deps, p playInvocation) (Outcome, error) {
-	resolved := orchestrator.Classify(d.Reg, p.rt, plays.Pretty(p.rt.Slug))
+	// AND THE VALUES IT WILL RUN WITH, COPIED ONTO THE THING BEING AUTHORISED.
+	//
+	// Everything below reads them off `resolved` rather than off `p`, which is what makes
+	// "what runs is what was authorised" true rather than merely intended: a caller still
+	// holding the map it passed in cannot change what gets typed after the door has
+	// answered. See orchestrator.Resolved.WithValues.
+	resolved := orchestrator.Classify(d.Reg, p.rt, plays.Pretty(p.rt.Slug)).
+		WithValues(p.named)
 	decision := orchestrator.Authorize(resolved, d.Authority)
 	mlog.Info("intake: authority", "play", p.rt.Slug,
 		"verdict", string(decision.Verdict), "reason", decision.Reason)
@@ -472,7 +487,7 @@ func performOnePlay(d orchestrator.Deps, p playInvocation) (Outcome, error) {
 	// THE FORK. A play Marco wrote by watching is performed by the Director, which can see;
 	// everything else runs here, exactly as it always has.
 	if resolved.Learned() {
-		if err := performLearned(d, resolved, p.named, p.positional); err != nil {
+		if err := performLearned(d, resolved, resolved.Values, p.positional); err != nil {
 			return OutcomeFailed, err
 		}
 		return OutcomePerformed, nil
@@ -492,7 +507,27 @@ func performOnePlay(d orchestrator.Deps, p playInvocation) (Outcome, error) {
 	// record carries this identity, so an attempt that is killed leaves a reference that
 	// still says which routine, which revision, which source and which contract — and the
 	// bytes described are the bytes performed. See `snapshot`.
-	s := take(d, p.rt, p.named, p.positional)
+	// THE AUTHORISED VALUES, NOT THE ONES THE CALLER STILL HOLDS.
+	//
+	// STRUCTURAL, AND NO TEST CAN SEE IT SWAPPED: the two are equal by construction at
+	// this line, and nothing in this process mutates the map between the door and here,
+	// so the mutation that reads `p.named` instead survives the suite. It is written this
+	// way because the property is "what runs is what was authorised", and a line that
+	// reads the caller's map is one caller away from that being false — which is the same
+	// reasoning `Resolved.WithValues` copies for, and the same shape ADR-271 records
+	// about a review's `Was`.
+	s := take(d, p.rt, resolved.Values, p.positional, p.flagged, p.expect)
+	// ── AND AN INVOCATION THAT MAY NOT RUN AT ALL IS REFUSED, NOT FAILED ──
+	//
+	// Before the reference is claimed, for the reason the authority door's own refusal sits
+	// where it does: a run that was declined pressed nothing and never reached the machine,
+	// so there is no attempt to account for. A routine that types text somebody has to
+	// supply, invoked without it, is that case -- and the alternative is what it did
+	// before, which was to type nothing and report `performed`.
+	if s.refused != "" {
+		fmt.Fprintln(os.Stdout, s.refused)
+		return OutcomeRefused, nil
+	}
 	res := citeRoutineRun(began, p.rt, s.did)
 
 	var cancelled bool

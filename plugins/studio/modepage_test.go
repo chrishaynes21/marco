@@ -67,6 +67,13 @@ window.go = {main: {
     // Go raw string, and one closed ten of these files at once.
     RoutineAnswers: (id) => Promise.resolve({id: id, phrases: [],
       askable: true}),
+    // THE PLAY ROW'S READ, which the page makes for every routine it draws.
+    // A stub without it is a page that throws mid-render; no backtick may appear
+    // in this comment, because the harness around it is a Go raw string.
+    PlayNeeds: (id) => Promise.resolve({id: id, fields: [], needs: false}),
+    ReviewPlay: (id) => Promise.resolve({id: id, why: 'not what this asks about'}),
+    ConfirmPlay: () => Promise.resolve(''),
+    CancelPlay: () => {},
     Routines: () => Promise.resolve([
       {id: 'ark/focus/ark-graphics', name: 'ark graphics', slug: 'ark-graphics',
        app: 'ark', scope: 'app-anywhere', contract: 'guarded', runnable: true,

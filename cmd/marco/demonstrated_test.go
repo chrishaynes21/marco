@@ -677,8 +677,11 @@ func TestExplainingNeverPerforms(t *testing.T) {
 // to Director, and it is PERFORMED — so a `--explain` nobody parsed is the one thing that makes
 // the thing happen. Held over every flag the entrance takes, not just the new one.
 func TestTheEntranceNeverPutsAFlagInThePhrase(t *testing.T) {
-	req, explain, window := parseDoArgs([]string{"--explain", "--source=typed",
+	req, explain, window, err := parseDoArgs([]string{"--explain", "--source=typed",
 		"ark", "graphics", "live"})
+	if err != nil {
+		t.Fatalf("parseDoArgs: %v", err)
+	}
 	if window != "" {
 		t.Errorf("a window came out of a command that named none: %q", window)
 	}
@@ -693,8 +696,12 @@ func TestTheEntranceNeverPutsAFlagInThePhrase(t *testing.T) {
 		t.Errorf("the source came out as %q", req.Source)
 	}
 	// AND THE OTHER FLAGS STILL DO WHAT THEY DID.
-	req, explain, window = parseDoArgs([]string{"--play=open-mouse-settings",
-		"--app=settings", "--focus", "--window=4660:77"})
+	req, explain, window, err = parseDoArgs([]string{"--play=open-mouse-settings",
+		"--app=settings", "--focus", "--window=4660:77",
+		"--arg=message=hello there", "--expect=abc123def456"})
+	if err != nil {
+		t.Fatalf("parseDoArgs: %v", err)
+	}
 	if window != "4660:77" {
 		t.Errorf("the window came out as %q, so it is either lost or in the phrase",
 			window)
@@ -708,5 +715,55 @@ func TestTheEntranceNeverPutsAFlagInThePhrase(t *testing.T) {
 	}
 	if req.Text != "" {
 		t.Errorf("a flag ended up in the phrase: %q", req.Text)
+	}
+	// AND THE VALUE CAME OUT AS A VALUE, with its spaces, rather than as words.
+	//
+	// A `--arg` that fell into the phrase would be the worst of all of them: the phrase
+	// would then match nothing, the invocation would go to Director, and the text somebody
+	// supplied would have become part of a request about the world.
+	if got, ok := req.Named["message"]; !ok || got != "hello there" {
+		t.Errorf("the value came out as %q (present=%v)", got, ok)
+	}
+	if len(req.Flagged) != 1 || req.Flagged[0] != "message" {
+		t.Errorf("the entrance did not record which values arrived as flags: %q",
+			req.Flagged)
+	}
+	// AND THE VERSION THIS RUN WAS CONFIRMED AGAINST came out as a version.
+	//
+	// An unparsed `--expect=` would be the same hazard as an unparsed `--explain`: it
+	// falls into the words, the phrase then matches nothing, and the invocation goes to
+	// Director and is PERFORMED -- the version pin turning into the thing that removes
+	// every check it was added to make.
+	if req.Expect != "abc123def456" {
+		t.Errorf("the confirmed version came out as %q", req.Expect)
+	}
+}
+
+// AND A VALUE GIVEN TWICE IS REFUSED RATHER THAN OVERWRITTEN.
+//
+// A map cannot hold the second, and nothing after this point could notice: one of two things
+// somebody typed would be typed and the other silently would not. So it is caught here, where the
+// flags are still a list — and a malformed one is refused for the same reason, because the
+// alternative is that it falls into the phrase and gets performed.
+func TestADuplicateOrMalformedValueFlagIsRefused(t *testing.T) {
+	for _, args := range [][]string{
+		{"--play=x", "--arg=message=one", "--arg=message=two"},
+		{"--play=x", "--arg=message=one", "--arg=MESSAGE=two"},
+		{"--play=x", "--arg=message"},
+		{"--play=x", "--arg="},
+		{"--play=x", "--arg==value"},
+	} {
+		if _, _, _, err := parseDoArgs(args); err == nil {
+			t.Errorf("%v was accepted", args)
+		}
+	}
+	// AND AN EMPTY VALUE IS NOT MALFORMED. `--arg=message=` is somebody saying "type
+	// nothing here", which is a value.
+	req, _, _, err := parseDoArgs([]string{"--play=x", "--arg=message="})
+	if err != nil {
+		t.Fatalf("an explicitly empty value was refused: %v", err)
+	}
+	if got, ok := req.Named["message"]; !ok || got != "" {
+		t.Errorf("the empty value came out as %q (present=%v)", got, ok)
 	}
 }

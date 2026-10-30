@@ -12218,3 +12218,61 @@ One of the fixes also found something larger: the phrases panel's read was calle
 that decides which window Play presses in, and ten page harnesses lacked the binding — so five
 Play and target tests went red on a panel that has nothing to do with running anything. A
 secondary panel does not belong upstream of the one control that acts.
+
+## And a routine can be told what to type
+
+The mechanism was all there and one surface could not reach it. A name declares the arguments, a
+reserved key tapped during the demonstration puts the placeholder where the text goes, and
+`routes.ApplyArgs` fills it at run time; `marco do`, `marco hotkey` and the overlay could all
+supply a value. Studio could not — no flag, no field — and `ApplyArgs` leaves an unfilled
+placeholder EMPTY, so a routine whose purpose was to type what somebody supplied typed nothing and
+reported `performed`. The product already refused the mirror case for a learned play, in the words
+this slice borrowed: dropping them silently would let somebody watch the wrong thing happen and
+believe they had asked for it.
+
+**Missing is not empty.** The test is whether a value was SUPPLIED, not whether it has length: an
+empty string somebody gave on purpose is a value, because clearing a field is a thing people do.
+`len(v) == 0` refuses exactly the case they meant, and the rule reaches the page too — a box typed
+into and cleared counts as given.
+
+Values travel with the identity as flags and never as words, since an explicit identity's words are
+deliberately not read for arguments. They are COPIED onto the authorised decision, and the
+confirmation binds the route, the source digest and the values — recomputed from what the struct
+now holds, because sealing a mutable map by reference leaves the digest and the map moving
+together. A routine saved since, a value changed since, or one added since all refuse. Nothing
+durable holds a value: not the route, the recording, a run record, a log or a refusal's sentence —
+a diagnostic names the argument and never its text, and the confirmation is the one place a value
+is repeated, on a screen, to the person who typed it.
+
+The fields sit beside Play rather than below the step panel and the phrases panel: they are
+required inputs to running a routine, not maintenance. And the plain Play button cannot go round
+the confirmation.
+
+See [[ADR-276-a-routine-may-be-told-what-to-type]]. Two things worth keeping: a value carrying a
+line break is refused because `escapeArg` escapes only a backslash and a quotation mark, so it
+produces a literal that does not lex — the refusal is about the escaping and not a claim about
+demonstrations. And the page tests found a defect of their own: returning to a routine reused its
+old field DOM, text and all, because the rebuild is skipped when the fields are unchanged and
+clearing the HTML left the signature claiming they were still drawn.
+
+**Not tried on a desktop.**
+
+### And two corrections to the argument slice
+
+**The confirmed version stopped at Studio.** It checked the digest and then started a child that
+read the file AGAIN — so a save landing between those two moments ran a version nobody confirmed,
+with the values they had supplied for other steps. The version travels now (`--expect=<digest>`)
+and the child compares it against the one read its snapshot is made from, which is the same bytes
+that execute. It is the version the invocation was SEALED with and never a fresh reading, because a
+reading taken at confirmation time is a reading of whatever is on disk now — the thing being
+caught. An absent pin pins nothing, which is every entrance that confirmed nothing.
+
+**And unknown arguments were discarded before validation.** The values were filtered to the names
+the routine takes and only then checked, so the unknown-name arm could never fire: `message` plus a
+misspelt `mesage` dropped the second and ran with the first. The filter was doing the ignoring
+before the check could see it. The names are validated as supplied now.
+
+Both found by reading the source, and the gate that passed in between established neither. One of
+the fixes also closed a larger gap: the confirmed path from token to command had no test at all,
+because everything past that line raises a window and starts a child. It is a seam now, so the
+decision is assertable without the desktop.

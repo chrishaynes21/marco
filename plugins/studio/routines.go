@@ -436,6 +436,33 @@ func (a *Acts) PlayRoutine(id, window string) string {
 		// what it lacks, or what to do about it, is.
 		return "this routine cannot be performed as it stands: " + chosen.Why
 	}
+	// ── AND A ROUTINE THAT NEEDS TEXT DOES NOT COME THROUGH HERE AT ALL ──
+	//
+	// This button presses with no values, which for a routine whose purpose is to type
+	// what somebody supplied means typing nothing — the thing it did before any of this
+	// existed, reporting `performed`. The door refuses that now, so leaving this live
+	// would be offering a press that is declined a moment later; and offering the fields
+	// beside it while leaving this live would be offering two buttons, one of which is
+	// wrong. See playvalues.go.
+	if needs := a.PlayNeeds(id); needs.Why == "" && needs.Needs {
+		return "this routine types text you supply, so fill that in and press Play " +
+			"there — it will show you what it would type before it runs"
+	}
+	// NOTHING PINNED, because nothing was confirmed: this button is for a routine that
+	// needs no text, and there is no version anybody was shown. See invoke.Request.Expect.
+	return a.playChosen(*chosen, window, nil, "")
+}
+
+// playChosen is the half of a Play that touches the person's machine, shared by the plain button
+// and by a confirmed invocation.
+//
+// Apart from `PlayRoutine` because the two differ in exactly one thing — whether there are values
+// — and everything after this point is identical: the window is resolved out of the list as it is
+// at this instant, it is raised by handle, and the child is spawned. A second copy of that would
+// be a second place deciding which window a run presses in.
+func (a *Acts) playChosen(chosen Routine, window string,
+	values map[string]string, expect string) string {
+
 	// AND EVERY REFUSAL THAT NEEDS NO DESKTOP COMES FIRST.
 	//
 	// Raising a window is the first thing below that touches the person's machine: it
@@ -458,7 +485,7 @@ func (a *Acts) PlayRoutine(id, window string) string {
 	// For every scope, including the ones that name no application. A routine that works
 	// anywhere still presses SOMEWHERE, and nothing used to be brought forward for one
 	// at all. See target.go.
-	into, why := a.theChosenWindow(*chosen, window)
+	into, why := a.theChosenWindow(chosen, window)
 	if why != "" {
 		return why
 	}
@@ -478,7 +505,7 @@ func (a *Acts) PlayRoutine(id, window string) string {
 	if why := a.liftChosen(into); why != "" {
 		return why
 	}
-	return a.startRoutine(*chosen, into)
+	return a.startRoutine(chosen, into, values, expect)
 }
 
 // doCommand is the command that performs this routine: the binary, its arguments and its
@@ -489,7 +516,9 @@ func (a *Acts) PlayRoutine(id, window string) string {
 // otherwise reach this would be one nobody may run — and the two things worth getting right here
 // are both invisible from outside the process. Which ROUTE it was told to perform, and which
 // LIBRARY it was told to read.
-func (a *Acts) doCommand(r Routine, into orchestrator.Pickable) (bin string, args, env []string) {
+func (a *Acts) doCommand(r Routine, into orchestrator.Pickable,
+	values map[string]string, expect string) (bin string, args, env []string) {
+
 	// THE ROUTE ITSELF, NOT A PHRASE THAT MIGHT RESOLVE TO IT.
 	//
 	// `--play` carries the identity and the entrance never looks a phrase up again when it
@@ -519,6 +548,36 @@ func (a *Acts) doCommand(r Routine, into orchestrator.Pickable) (bin string, arg
 	// existing when the window closes.
 	if term := into.Term(); term != "" {
 		args = append(args, "--window="+term)
+	}
+	// ── AND THE TEXT THIS RUN IS TO TYPE, AS FLAGS AND NEVER AS WORDS ──
+	//
+	// `--arg=name=value`, one per value, because an EXPLICIT identity deliberately never
+	// has its words read for arguments: appending `name:value` to this argv would do
+	// nothing at all. See cmd/marco's performDecidedPlay.
+	//
+	// Sorted, so two runs of the same routine with the same values produce the same
+	// command — a map's order is not a fact about the invocation, and an argv that
+	// shuffled would make every assertion about this one flaky rather than wrong.
+	//
+	// THE VALUES ARE THE BACKEND'S COPY of what the confirmation showed. This window does
+	// not read them off the page, and nothing here logs them: a command line is a durable
+	// diagnostic in every sense that matters.
+	// AND THE VERSION THIS RUN WAS CONFIRMED AGAINST.
+	//
+	// This window checked the digest a moment ago and the child is about to read the file
+	// again; a save in between would run something nobody confirmed, with the text they
+	// supplied for the steps they were shown. So the version goes with the request and the
+	// child compares it against the bytes it executes. See invoke.Request.Expect.
+	if expect != "" {
+		args = append(args, "--expect="+expect)
+	}
+	names := make([]string, 0, len(values))
+	for name := range values {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		args = append(args, "--arg="+name+"="+values[name])
 	}
 	// THE SAME STORE AND THE SAME LIBRARY, EXPLICITLY.
 	//
@@ -577,7 +636,9 @@ func (a *Acts) liftChosen(into orchestrator.Pickable) string {
 }
 
 // startRoutine claims the one run slot and spawns `marco do` for this routine.
-func (a *Acts) startRoutine(r Routine, into orchestrator.Pickable) string {
+func (a *Acts) startRoutine(r Routine, into orchestrator.Pickable,
+	values map[string]string, expect string) string {
+
 	// AND NOT THROUGH WHATEVER IS ON PATH. Asked before the slot is claimed, because a
 	// reservation released on the way back out is a window that was briefly busy for no
 	// reason — and because this is a fact about the installation rather than about the
@@ -598,7 +659,7 @@ func (a *Acts) startRoutine(r Routine, into orchestrator.Pickable) string {
 		a.busy, a.running, a.stopRun, a.done = false, nil, nil, nil
 		a.mu.Unlock()
 	}
-	bin, args, env := a.doCommand(r, into)
+	bin, args, env := a.doCommand(r, into, values, expect)
 	ctx, stop := context.WithCancel(context.Background())
 	cmd := exec.CommandContext(ctx, bin, args...)
 	// AND NO CONSOLE WINDOW, which would take the foreground off the application this run

@@ -1,7 +1,9 @@
 package routes
 
 import (
+	"fmt"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -91,12 +93,7 @@ func ParseInvocation(command string) (route string, named map[string]string, pos
 func ApplyArgs(src string, named map[string]string, positional []string) string {
 	// Zip positional values onto the declared arg names (source order), so a value
 	// given without a "key:" still reaches its named placeholder.
-	byPos := map[string]string{}
-	for i, name := range ArgNames(src) {
-		if i < len(positional) {
-			byPos[strings.ToLower(name)] = positional[i]
-		}
-	}
+	byPos := zipPositional(src, positional)
 	return phRe.ReplaceAllStringFunc(src, func(m string) string {
 		key := strings.ToLower(m[2 : len(m)-2])
 		if v, ok := named[key]; ok {
@@ -142,4 +139,220 @@ func escapeArg(s string) string {
 	s = strings.ReplaceAll(s, `\`, `\\`)
 	s = strings.ReplaceAll(s, `"`, `\"`)
 	return s
+}
+
+// ── WHAT A ROUTINE NEEDS, AND WHETHER IT HAS IT ──────────────────────────────
+
+// Argument is one value a routine accepts, and where that value comes from.
+//
+// TWO KINDS, AND A SURFACE MUST TELL THEM APART. `ArgNames` returns both in one list, so anything
+// that read it as uniformly "text to type" would put a password in a text box. A secret-typed
+// argument is not typed by whoever presses Play: `oshost.doSecret` reads it from the credential
+// store, and when the store does not have it the run refuses and says how to set it.
+type Argument struct {
+	Name string
+	// Secret is whether it is read from the credential store rather than supplied as text.
+	Secret bool
+}
+
+// Arguments is what a routine accepts, with each one's kind.
+//
+// The same order `ArgNames` has always reported — placeholders first, then route-qualified secret
+// arguments — because the overlay's labels and `marco args` are built from it and an order that
+// changed would reorder what people read.
+func Arguments(src string) []Argument {
+	var out []Argument
+	seen := map[string]bool{}
+	add := func(name string, secret bool) {
+		if name != "" && !seen[name] {
+			seen[name] = true
+			out = append(out, Argument{Name: name, Secret: secret})
+		}
+	}
+	for _, m := range phRe.FindAllStringSubmatch(src, -1) {
+		add(m[1], false)
+	}
+	for _, m := range secretArgRe.FindAllStringSubmatch(src, -1) {
+		add(m[1], true)
+	}
+	return out
+}
+
+// zipPositional maps positional values onto the declared argument names, in source order.
+//
+// ONE OWNER, because `ApplyArgs` does this to fill the placeholders and a check that answers
+// "was a value supplied" has to agree with it exactly. Two copies would disagree the first time
+// either changed, and the disagreement would read as "it refused and then typed it anyway".
+func zipPositional(src string, positional []string) map[string]string {
+	out := map[string]string{}
+	for i, name := range ArgNames(src) {
+		if i < len(positional) {
+			out[strings.ToLower(name)] = positional[i]
+		}
+	}
+	return out
+}
+
+// CheckArgs says why a routine cannot be run with these values, or nil when it can.
+//
+// # Missing is not empty
+//
+// The test is whether a value was SUPPLIED, which a map answers and a length never can. An empty
+// string somebody supplied on purpose is a value — clearing a field is a thing people do, and a
+// routine that types nothing where they asked for nothing is correct. `len(v) == 0` would refuse
+// exactly the case they meant.
+//
+// And a value is used as supplied: not trimmed, not collapsed. A leading space in a typed field is
+// text somebody typed.
+//
+// # And the names are checked both ways
+//
+// A value for a name the routine does not take is REFUSED rather than dropped: it is somebody
+// expecting text to appear somewhere, and the routine has nowhere to put it. That is the rule
+// `performLearned` already applies to a play with no arguments at all, generalised — and its
+// reason is the same: dropping them silently would let somebody watch the wrong thing happen and
+// believe they had asked for it.
+//
+// A SECRET-typed argument is NOT required here. It comes from the credential store, and a run that
+// cannot find it refuses at the moment it is needed with the sentence that says how to set it.
+// Whether a value may be OFFERED for one is a question about the entrance that offered it, not
+// about this routine, so it is not answered here.
+//
+// # No value appears in anything this returns
+//
+// The argument is named; its text is not. These sentences reach logs, terminals and run records,
+// and a value that is somebody's message or address does not belong in any of them.
+func CheckArgs(src string, named map[string]string, positional []string) error {
+	args := Arguments(src)
+	known := map[string]bool{}
+	for _, a := range args {
+		known[strings.ToLower(a.Name)] = true
+	}
+	var unknown []string
+	for k := range named {
+		if !known[strings.ToLower(k)] {
+			unknown = append(unknown, k)
+		}
+	}
+	if len(unknown) > 0 {
+		sort.Strings(unknown)
+		return fmt.Errorf("this routine does not take %s, so there is nowhere for that "+
+			"text to go%s", joinArgs(unknown), takesWhat(args))
+	}
+	if len(positional) > len(args) {
+		return fmt.Errorf("%d values were given and this routine takes %d%s",
+			len(positional), len(args), takesWhat(args))
+	}
+	byPos := zipPositional(src, positional)
+	// ── AND A VALUE THIS SUBSTITUTION CANNOT WRITE DOWN ──
+	//
+	// `escapeArg` escapes a backslash and a quotation mark and nothing else, so a value
+	// carrying a carriage return or a line feed produces a Marco string literal that does
+	// not lex: `lex: unterminated string literal`, and the routine fails at its own first
+	// line having pressed nothing.
+	//
+	// THAT IS THE WHOLE OF THE REASON, and it is a fact about the substitution as it
+	// stands rather than a claim about demonstrations. Whether a routine should be able to
+	// type several lines is a separate question with its own answer; whoever lifts this
+	// refusal should know they are lifting an escaping limit.
+	//
+	// Refused rather than escaped, in this increment, because an escape nobody has
+	// exercised is how the two replacements above came to look sufficient.
+	for _, a := range args {
+		v, ok := named[strings.ToLower(a.Name)]
+		if !ok {
+			v, ok = byPos[strings.ToLower(a.Name)]
+		}
+		if ok && strings.ContainsAny(v, "\r\n") {
+			return fmt.Errorf("the value given for %q runs over more than one line, "+
+				"and a routine cannot type that yet", a.Name)
+		}
+	}
+	var missing []string
+	for _, a := range args {
+		if a.Secret {
+			continue
+		}
+		k := strings.ToLower(a.Name)
+		if _, ok := named[k]; ok {
+			continue
+		}
+		if _, ok := byPos[k]; ok {
+			continue
+		}
+		missing = append(missing, a.Name)
+	}
+	if len(missing) > 0 {
+		return fmt.Errorf("this routine types text that has to be supplied, and no value "+
+			"was given for %s", joinArgs(missing))
+	}
+	return nil
+}
+
+// takesWhat names what a routine does accept, for a sentence that has just said what it does not.
+func takesWhat(args []Argument) string {
+	var names []string
+	for _, a := range args {
+		if a.Secret {
+			names = append(names, a.Name+" (from the credential store)")
+			continue
+		}
+		names = append(names, a.Name)
+	}
+	if len(names) == 0 {
+		return " — it takes none"
+	}
+	return " — it takes " + joinArgs(names)
+}
+
+// joinArgs is a list in a sentence, with each name quoted so two of them cannot read as one.
+func joinArgs(in []string) string {
+	quoted := make([]string, 0, len(in))
+	for _, s := range in {
+		quoted = append(quoted, fmt.Sprintf("%q", s))
+	}
+	switch len(quoted) {
+	case 0:
+		return ""
+	case 1:
+		return quoted[0]
+	}
+	return strings.Join(quoted[:len(quoted)-1], ", ") + " and " + quoted[len(quoted)-1]
+}
+
+// CheckFlagged says why a value may not be offered through an explicit flag, or nil when it may.
+//
+// # One entrance may offer what another may not
+//
+// A phrase carrying `password:value` has always reached `oshost.doSecret`, which uses it AND
+// REMEMBERS it in the credential store. Whatever is thought of that, it is not something to
+// acquire a second time through a flag that a window fills in and a command line carries — so a
+// value offered for a SECRET-typed argument through a flag is refused, and the sentence says where
+// that value is supposed to come from.
+//
+// The phrase path is untouched. This is about the entrance, which is why it takes the names that
+// arrived as flags rather than the values: nothing here needs to see one.
+func CheckFlagged(src string, flagged []string) error {
+	if len(flagged) == 0 {
+		return nil
+	}
+	secret := map[string]bool{}
+	for _, a := range Arguments(src) {
+		if a.Secret {
+			secret[strings.ToLower(a.Name)] = true
+		}
+	}
+	var refused []string
+	for _, name := range flagged {
+		if secret[strings.ToLower(name)] {
+			refused = append(refused, name)
+		}
+	}
+	if len(refused) == 0 {
+		return nil
+	}
+	sort.Strings(refused)
+	return fmt.Errorf("%s cannot be given here: it is read from the credential store, so "+
+		"set it once with `marco secret set` and this routine will find it",
+		joinArgs(refused))
 }

@@ -244,3 +244,28 @@ func writeFileFor(t *testing.T, path, body string) error {
 	t.Helper()
 	return os.WriteFile(path, []byte(body), 0o644)
 }
+
+// THE AUTHORISED VALUES ARE A COPY, SO WHAT RUNS IS WHAT WAS AUTHORISED.
+//
+// Sealing a map by reference seals nothing: a decision holding the caller's map changes when the
+// caller does, and a digest taken at authorisation moves with it. That is the defect ADR-271
+// records about a move's `Was` — a stored reading compared against a mutable field — and the
+// values a routine types are the worst possible place to repeat it, because the whole point of
+// confirming them is that somebody read them.
+func TestTheAuthorisedValuesAreACopyOfWhatWasGiven(t *testing.T) {
+	given := map[string]string{"message": "as it was shown"}
+	r := Resolved{Route: routes.Route{Slug: "write-a-note"}}.WithValues(given)
+	// THE CALLER CHANGES ITS MIND AFTER THE DOOR HAS ANSWERED.
+	given["message"] = "something else entirely"
+	given["smuggled"] = "and another"
+	if got := r.Values["message"]; got != "as it was shown" {
+		t.Errorf("the authorised value changed to %q when the caller's map did", got)
+	}
+	if _, ok := r.Values["smuggled"]; ok {
+		t.Error("a value added after authorisation reached the authorised decision")
+	}
+	// AND NO VALUES IS STILL NO VALUES, rather than an empty map nobody can tell from one.
+	if plain := (Resolved{}).WithValues(nil); plain.Values != nil {
+		t.Errorf("an invocation with no values carries %v", plain.Values)
+	}
+}

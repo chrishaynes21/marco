@@ -110,6 +110,13 @@ window.go = {main: {
         phrases: ['fill in the address'],
         said: '"address" no longer answers to "' + args[1] + '".'})
     },
+    // THE PLAY ROW'S READ, which the page makes for every routine it draws.
+    // A stub without it is a page that throws mid-render; no backtick may appear
+    // in this comment, because the harness around it is a Go raw string.
+    PlayNeeds: (id) => Promise.resolve({id: id, fields: [], needs: false}),
+    ReviewPlay: (id) => Promise.resolve({id: id, why: 'not what this asks about'}),
+    ConfirmPlay: () => Promise.resolve(''),
+    CancelPlay: () => {},
     Routines: () => {
       const row = (id, slug) => ({id: id, name: slug, slug: slug, app: 'notepad',
         scope: 'app-anywhere', contract: 'legacy', runnable: true,

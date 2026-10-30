@@ -136,6 +136,28 @@ type Request struct {
 	// whole invocation and a caller is not tempted to keep a second channel beside it.
 	Named      map[string]string
 	Positional []string
+	// Expect is the digest of the routine this invocation was authorised against, or ""
+	// when nothing pinned a version.
+	//
+	// A SURFACE THAT CONFIRMED A VERSION IS NOT THE THING THAT READS IT. Studio reads the
+	// routine, shows what it would type, takes a confirmation and then starts a child
+	// that reads the file again — and a save landing in between would run a version
+	// nobody confirmed. So the version travels, and the child compares it against the
+	// bytes it is about to execute.
+	//
+	// EMPTY IS UNCHANGED BEHAVIOUR, not a hole: the CLI, a hotkey and the overlay pin
+	// nothing because nothing was confirmed to them. What this closes is the gap between
+	// a confirmation and the run it authorised.
+	Expect string
+	// Flagged names the arguments whose values arrived as explicit FLAGS rather than
+	// inside a phrase.
+	//
+	// It exists because one entrance may offer a value that another may not. A phrase
+	// carrying `password:value` has always reached the credential store and still does;
+	// a flag a window fills in must not become a second way to do that, and the only
+	// place that can tell the two apart is the entrance that read them. `Decide` never
+	// looks at this — it is cargo, like the values themselves.
+	Flagged []string
 	// App is the foreground application, when the entrance knows it. Scope resolution needs it.
 	App string
 	// Pending says Director is holding a question nobody has answered yet.

@@ -816,9 +816,42 @@
         <button id="routineIntoAgainBtn" onclick="loadTarget()">Refresh</button>
       </div>
       <div class="banner bad hide" style="margin-top:6px" id="routineIntoWhy"></div>
+      <!-- THE TEXT THIS ROUTINE NEEDS, BESIDE PLAY AND BEFORE ITS CONFIRMATION.
+           Not below the step panel and the phrases panel: those are about CHANGING a
+           routine, and these are required inputs to running one. A field somebody must
+           fill in before the routine can do anything belongs next to the button that
+           starts it and the window it will press in.
+
+           A routine with none of these shows nothing at all -- which is every routine
+           saved before this existed, and an ordinary routine rather than a problem.
+
+           NO BOX FOR A SECRET. The credential store answers for one, and a field here
+           would make it travel on a command line; what the row owes somebody is where
+           the value comes from and what to do when it is not set. See playvalues.go. -->
+      <div class="hide" style="margin-top:12px" id="routineArgsBox">
+        <div class="muted">this routine types text you supply</div>
+        <div id="routineArgsList" class="steprows"></div>
+      </div>
       <div class="row" style="margin-top:12px">
         <button class="go" id="routinePlayBtn" onclick="playRoutine()">Play</button>
         <span class="muted" id="routineNote"></span>
+      </div>
+
+      <!-- AND WHAT IT WOULD TYPE, READ BACK BEFORE IT TYPES IT.
+           The one place a value is repeated, and it is not a diagnostic: it is on a
+           screen, read by the person who typed it, and showing it is the whole point.
+
+           CONFIRMED BY TOKEN ALONE. The values are the backend's copy of what this card
+           shows; a page handing them back would be a page that could hand back different
+           ones. A value edited between reading this and pressing it refuses. -->
+      <div class="card hide" id="routineWillType" style="margin-top:10px">
+        <h3 style="margin:0 0 8px" id="routineWillTypeName"></h3>
+        <ol id="routineWillTypeRows" class="steps"></ol>
+        <div class="no hide" style="margin-top:6px" id="routineWillTypeWhy"></div>
+        <div class="row" style="margin-top:12px">
+          <button class="go" id="routineConfirmBtn" onclick="confirmPlay()">Run it</button>
+          <button class="stop" onclick="cancelPlay()">Cancel</button>
+        </div>
       </div>
       <!-- AND WHAT CHOOSING IT ACTUALLY PROMISES, WHICH IS LESS THAN IT LOOKS.
            The window receives the foreground at the START of the run. Marco does not
@@ -3375,6 +3408,164 @@
    } else {
      drawAnswers()
    }
+   // AND WHAT IT NEEDS TYPED, WITH THE TEXT DROPPED WHENEVER THE ROUTINE CHANGES.
+   //
+   // Dropped rather than kept: the values belong to one run of one routine, and carrying
+   // them to another card would offer somebody a confirmation for text they typed for
+   // something else. Nothing is prefilled, here or ever -- see R6.
+   if (!argNeeds || argNeeds.id !== r.id) {
+     argNeeds = null
+     argValues = {}
+     willType = null
+     drawWillType()
+     drawArgs()
+     loadArgNeeds()
+   } else {
+     drawArgs()
+   }
+ }
+
+ // ── THE TEXT A ROUTINE NEEDS, AND WHAT IT WOULD TYPE ───────────────────────
+ //
+ // `argNeeds` is what the backend last said the chosen routine needs; `argValues` is what
+ // has been typed into the boxes, by argument name; `willType` is the prepared invocation.
+ //
+ // THE VALUES LIVE HERE AND NOWHERE DURABLE. Nothing writes them anywhere, nothing
+ // prefills them, and choosing another routine drops them -- text somebody typed once for
+ // one run is not a property of the routine.
+ let argNeeds = null
+ let argValues = {}
+ let willType = null
+
+ function loadArgNeeds(){
+   const r = routineWith(chosenRoutine)
+   if (!r) { argNeeds = null; argValues = {}; drawArgs(); return }
+   acts.PlayNeeds(r.id).then(v => { argNeeds = v; drawArgs() })
+ }
+
+ function drawArgs(){
+   const r = routineWith(chosenRoutine)
+   const a = (argNeeds && r && argNeeds.id === r.id) ? argNeeds : null
+   const needs = !!(a && a.needs)
+   showing($('routineArgsBox'), needs)
+   const list = $('routineArgsList')
+   if (!needs) {
+     // AND THE SIGNATURE GOES WITH THE FIELDS.
+     //
+     // Found by a test. The rebuild below is skipped when the fields are the same as
+     // last time, so that a poll does not take the caret out of a box somebody is
+     // typing into -- and clearing only the HTML left the signature saying those
+     // fields were still drawn. Choosing another routine and coming back then reused
+     // the old box, text and all: a field that looks filled while the value behind it
+     // has been dropped, so Play is dead and nobody can see why.
+     list.innerHTML = ''
+     list.dataset.sig = ''
+     paintRoutinePlay()
+     return
+   }
+   // REDRAWN ONLY WHEN THE FIELDS THEMSELVES CHANGE. The poll comes round every few
+   // hundred milliseconds, and rebuilding an input somebody is typing into would take
+   // the caret with it.
+   const sig = a.id + '\u0000' + a.fields.map(f => f.name + ':' + f.secret).join('|')
+   if (list.dataset.sig !== sig) {
+     list.dataset.sig = sig
+     list.innerHTML = ''
+     a.fields.forEach(f => {
+       const row = document.createElement('div')
+       row.className = 'row'
+       const label = document.createElement('label')
+       label.style.width = '7em'
+       label.textContent = f.name
+       row.appendChild(label)
+       if (f.secret) {
+         // NO BOX. The store answers for it; a field here would put it on an argv.
+         const says = document.createElement('span')
+         says.className = 'muted'
+         says.style.flex = '1'
+         says.textContent = f.says
+         row.appendChild(says)
+       } else {
+         const box = document.createElement('input')
+         box.type = 'text'
+         box.style.flex = '1'
+         box.id = 'routineArg-' + f.name
+         box.value = ''
+         box.oninput = () => { argValues[f.name] = box.value; paintRoutinePlay() }
+         row.appendChild(box)
+       }
+       list.appendChild(row)
+     })
+   }
+   paintRoutinePlay()
+ }
+
+ // suppliedArgs is whether every text field has been GIVEN a value.
+ //
+ // GIVEN, NOT NON-EMPTY. An empty box somebody has typed into and cleared is a value --
+ // clearing a field is a thing people do, and a routine that types nothing where they
+ // asked for nothing is correct. So the test is whether the name is present in what has
+ // been typed, which is the same distinction the backend makes.
+ function suppliedArgs(){
+   const r = routineWith(chosenRoutine)
+   const a = (argNeeds && r && argNeeds.id === r.id) ? argNeeds : null
+   if (!a || !a.needs) { return true }
+   return a.fields.every(f => f.secret ||
+     Object.prototype.hasOwnProperty.call(argValues, f.name))
+ }
+
+ // playRoutineWithValues is what Play does for a routine that needs text: it ASKS, and
+ // the answer is read before anything presses.
+ function reviewPlay(){
+   const r = routineWith(chosenRoutine)
+   if (!r) { return }
+   $('routinePlayBtn').disabled = true
+   acts.ReviewPlay(r.id, argValues).then(v => {
+     willType = v
+     drawWillType()
+     paintRoutinePlay()
+   })
+ }
+
+ function drawWillType(){
+   const r = routineWith(chosenRoutine)
+   const have = !!(willType && r && willType.id === r.id)
+   showing($('routineWillType'), have)
+   if (!have) { return }
+   text($('routineWillTypeName'), willType.name
+     ? 'Run \u201c' + willType.name + '\u201d?' : 'Run it?')
+   const rows = $('routineWillTypeRows')
+   rows.innerHTML = ''
+   ;(willType.says || []).forEach(line => {
+     const li = document.createElement('li')
+     li.textContent = line
+     rows.appendChild(li)
+   })
+   text($('routineWillTypeWhy'), willType.why || '')
+   showing($('routineWillTypeWhy'), !!willType.why)
+   // AND THE BUTTON FOLLOWS THE ANSWER. A live Run beside a refusal would be this
+   // window offering a press it declines.
+   $('routineConfirmBtn').disabled = !willType.token
+ }
+
+ function confirmPlay(){
+   if (!willType || !willType.token) { return }
+   const token = willType.token
+   $('routineConfirmBtn').disabled = true
+   acts.ConfirmPlay(token, intoWindow).then(said => {
+     // SPENT EITHER WAY. The backend lets go of the invocation whether it ran or
+     // refused, so what is on screen must not offer it again.
+     willType = null
+     drawWillType()
+     text($('routineNote'), said || '')
+     paintRoutinePlay()
+   })
+ }
+
+ function cancelPlay(){
+   if (willType && willType.token) { acts.CancelPlay(willType.token) }
+   willType = null
+   drawWillType()
+   paintRoutinePlay()
  }
 
  // ONE PLACE DECIDES WHETHER PLAY IS LIVE, asked from two.
@@ -3393,7 +3584,8 @@
    // AND NOT WITHOUT A WINDOW TO PRESS IN. Studio does not Play into whatever is in
    // front: with this window in front, that is this window. Dead rather than
    // live-and-then-refused, because the refusal would arrive after the decision.
-   $('routinePlayBtn').disabled = runActive || !r || !r.runnable || !intoWindow
+   $('routinePlayBtn').disabled = runActive || !r || !r.runnable || !intoWindow ||
+     !suppliedArgs()
    // AND RECORD IT AGAIN IS OFF WHILE ANYTHING IS IN FLIGHT, but NOT because the
    // routine is unrunnable — a routine that refuses every press is the one somebody
    // most needs to record again, and a button greyed out there would be the window
@@ -3503,6 +3695,13 @@
  function playRoutine(){
    const r = routineWith(chosenRoutine)
    if (!r) { return }
+   // A ROUTINE THAT TYPES SUPPLIED TEXT IS READ BACK FIRST.
+   //
+   // Not a second button: the same Play, which ASKS when there is text to show and
+   // presses when there is not. `PlayRoutine` refuses the first case anyway -- the
+   // backend will not press with no values -- so this is the window agreeing with the
+   // door rather than a rule of its own.
+   if (argNeeds && argNeeds.id === r.id && argNeeds.needs) { reviewPlay(); return }
    text($('routineNote'), 'starting “' + r.name + '”…')
    $('routineNote').className = 'muted'
    // THE IDENTITY, NOT THE NAME. The backend requires an exact match on it, so a

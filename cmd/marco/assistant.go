@@ -124,9 +124,19 @@ func newDeps() orchestrator.Deps {
 //
 // Deleting the runInvocation call must fail TestEveryEntranceRoutesThroughTheOneIntake.
 func runAssistantDo(args []string) {
-	req, explain, window := parseDoArgs(args)
+	req, explain, window, err := parseDoArgs(args)
+	if err != nil {
+		// A MALFORMED FLAG PERFORMS NOTHING, which is the property the whole of
+		// parseDoArgs is written around: an unrecognised flag falls into the phrase,
+		// and a phrase that matches nothing goes to Director and is PERFORMED. A
+		// duplicate value is the same hazard with a worse ending — one of two things
+		// somebody typed would be typed and the other silently would not.
+		fmt.Fprintln(os.Stderr, "marco: "+err.Error())
+		os.Exit(2)
+	}
 	if req.Text == "" && req.Play == nil {
-		fmt.Fprintln(os.Stderr, `usage: marco do "<name>" [--explain] [--window=<which>]`)
+		fmt.Fprintln(os.Stderr, `usage: marco do "<name>" [--arg=name=value] `+
+			`[--explain] [--window=<which>]`)
 		os.Exit(2)
 	}
 	os.Exit(doInTheChosenWindow(newDeps(), req, explain, window, os.Stdout, os.Stderr))
@@ -214,8 +224,9 @@ func handOverTheWindow(d orchestrator.Deps, term string) string {
 // one.
 //
 // Deleting an arm must fail TestTheEntranceNeverPutsAFlagInThePhrase.
-func parseDoArgs(args []string) (invoke.Request, bool, string) {
+func parseDoArgs(args []string) (invoke.Request, bool, string, error) {
 	req := invoke.Request{Source: invoke.SourceCLI}
+	argFlags := map[string]bool{}
 	var explicit routes.Route
 	var haveExplicit bool
 	var explain bool
@@ -235,6 +246,43 @@ func parseDoArgs(args []string) (invoke.Request, bool, string) {
 			req.App = explicit.App
 		case a == "--focus":
 			explicit.Focus = true
+		case strings.HasPrefix(a, "--expect="):
+			// THE VERSION THIS RUN WAS AUTHORISED AGAINST. See invoke.Request.Expect.
+			req.Expect = strings.TrimSpace(strings.TrimPrefix(a, "--expect="))
+		case strings.HasPrefix(a, "--arg="):
+			// A VALUE, CARRIED WITH THE IDENTITY RATHER THAN READ OUT OF WORDS.
+			//
+			// `--arg=name=value`, repeatable, spelled like every other flag
+			// here. It exists because an EXPLICIT identity deliberately never
+			// has its words read for arguments — see performDecidedPlay — so a
+			// surface that holds an identity has nowhere to put a value, and
+			// appending `name:value` to the argv would do nothing at all.
+			//
+			// The name is folded the way the grammar folds a `key:` token, and
+			// the value is taken VERBATIM after the first `=`: a value may
+			// contain one, and may be empty, and may be whitespace. None of
+			// that is trimmed, because all of it is text somebody typed.
+			//
+			// A NAME GIVEN TWICE IS REFUSED, not overwritten. A map cannot hold
+			// the second and nothing afterwards could notice, so the duplicate
+			// has to be caught here, where the flags are still a list.
+			name, value, ok := strings.Cut(strings.TrimPrefix(a, "--arg="), "=")
+			name = strings.ToLower(strings.TrimSpace(name))
+			switch {
+			case !ok || name == "":
+				return req, false, "", fmt.Errorf(
+					"--arg needs a name and a value, as --arg=name=value")
+			case argFlags[name]:
+				return req, false, "", fmt.Errorf(
+					"--arg=%s was given more than once, and only one "+
+						"value can be used", name)
+			}
+			argFlags[name] = true
+			if req.Named == nil {
+				req.Named = map[string]string{}
+			}
+			req.Named[name] = value
+			req.Flagged = append(req.Flagged, name)
 		case strings.HasPrefix(a, "--window="):
 			// WHICH WINDOW THIS RUN ACTS IN. A run's term and never a route's:
 			// it goes nowhere near the library. Absent is the behaviour this
@@ -251,7 +299,7 @@ func parseDoArgs(args []string) (invoke.Request, bool, string) {
 	if haveExplicit {
 		req.Play = &explicit
 	}
-	return req, explain, strings.TrimSpace(window)
+	return req, explain, strings.TrimSpace(window), nil
 }
 
 // doOrExplain is the last fork of the entrance: say where the words would go, or go there.

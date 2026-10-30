@@ -138,6 +138,21 @@ type Acts struct {
 	// and so is the step list the operations were counted against. See stepedit.go.
 	edits     map[string]orchestrator.EditReview
 	editOrder []string
+	// invocations is each prepared RUN of a routine that needs text, held by its token
+	// so that what is confirmed is what runs and the page cannot hand back values it was
+	// never given. Bounded, because each one holds text somebody typed.
+	invocations     map[string]orchestrator.Invocation
+	invocationOrder []string
+	// playing is what a confirmed invocation is handed to, and is `playChosen` unless a
+	// test substitutes it.
+	//
+	// IT EXISTS FOR ONE LINE THAT NOTHING ELSE CAN REACH. `ConfirmPlay` decides what a
+	// confirmed run is pinned to -- the version the invocation was SEALED with, never a
+	// fresh reading -- and everything after that point raises a window and starts a
+	// child, which is `marco do` performing real input and the one thing this suite may
+	// never do. So the decision is assertable and the desktop half is not reached. The
+	// same shape as `recording`, for the same reason.
+	playing func(Routine, string, map[string]string, string) string
 	// kind is WHICH KIND of run the slot is holding — an Act's supervised performance or
 	// a saved routine's — and routine is the second one's account of itself, nil for the
 	// first. Both outlive the run, because the window still has to describe one that has

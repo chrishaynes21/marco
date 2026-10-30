@@ -97,6 +97,15 @@ it without reading `Request.Text` at all.
 resolver that records every call and assert it was **not** asked
 (`TestAnExplicitPlayIsNeverLookedUpAgain`).
 
+**A routine may also take CHANGING TEXT.** A declared argument, a placeholder the demonstration
+puts in place, and `routes.ApplyArgs` filling it at run time — and a routine that needs text and
+is given none now REFUSES rather than typing nothing, which is what it did before. Values travel
+with the identity as `--arg=name=value` flags and never as words, because an explicit identity's
+words are deliberately not read for arguments; they are copied onto the authorised decision, and a
+routine with arguments is confirmed before it presses. See
+[[ADR-276-a-routine-may-be-told-what-to-type]] and
+[[Text-arguments-proposal-2026-10-30]].
+
 Arguments follow identity. A Binding carries its own (`` `e = enter freeplay with 3 ``) and a
 clicked Run carries none; only a phrase has to be read for them. Re-reading a phrase that carried
 none, over cargo that did, would silently drop arguments somebody supplied.

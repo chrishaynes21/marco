@@ -10,6 +10,7 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/mlog"
 	"github.com/chaynes-simpleclouds/marco/internal/orchestrator"
 	"github.com/chaynes-simpleclouds/marco/internal/oshost"
+	"github.com/chaynes-simpleclouds/marco/internal/plays"
 	"github.com/chaynes-simpleclouds/marco/internal/recorder"
 	"github.com/chaynes-simpleclouds/marco/internal/routes"
 	"github.com/chaynes-simpleclouds/marco/internal/stopsignal"
@@ -186,10 +187,21 @@ type snapshot struct {
 	contract orchestrator.Contract
 	// err is why there is nothing to perform.
 	err error
+	// refused is why this invocation may not run AT ALL, which is a different answer from
+	// `err`: nothing was attempted, so it is a refusal rather than a failure and no
+	// reference is claimed for it.
+	//
+	// Today it is one thing: a routine that types text somebody has to supply, invoked
+	// without it. Taken HERE because the check needs the source and this function is the
+	// one read of it -- asking again would be a second answer about one file, which is the
+	// whole reason this snapshot exists.
+	refused string
 }
 
 // take reads the routine once and says what is about to run.
-func take(d orchestrator.Deps, rt routes.Route, named map[string]string, positional []string) snapshot {
+func take(d orchestrator.Deps, rt routes.Route, named map[string]string,
+	positional []string, flagged []string, expect string) snapshot {
+
 	s := snapshot{rt: rt, path: d.Reg.Path(rt), named: named}
 	mlog.Debug("run: reading route", "route", rt.Slug, "path", s.path)
 	src, err := os.ReadFile(s.path)
@@ -197,6 +209,54 @@ func take(d orchestrator.Deps, rt routes.Route, named map[string]string, positio
 		mlog.Error("run: read failed", "path", s.path, "err", err)
 		s.did = ran{Contract: contractUnstated}
 		s.err = fmt.Errorf("read %s: %w", s.path, err)
+		return s
+	}
+	// WHETHER IT MAY RUN WITH THESE VALUES, BEFORE ANY OF THEM IS SUBSTITUTED.
+	//
+	// `ApplyArgs` leaves an unfilled placeholder EMPTY, which is right for the routines
+	// that have none and wrong for a routine whose purpose is to type what somebody
+	// supplied: it would press on and type nothing, and report `performed`. The product
+	// already refuses the mirror case -- arguments given to a play that takes none -- for
+	// the reason `performLearned` states, and this is that sentence with the subject
+	// changed. See routes.CheckArgs.
+	// ── AND IT IS THE VERSION THAT WAS AUTHORISED, COMPARED AGAINST THESE BYTES ──
+	//
+	// Against `src` — the one read this snapshot is made from, which is the same bytes
+	// `filled` is built out of and the same bytes that execute. Asking the file again
+	// would be a second answer about one file and would reopen the gap it is closing.
+	//
+	// THE GAP: a surface reads the routine, shows somebody what it would type, takes
+	// their confirmation, and starts this process. A save landing between the
+	// confirmation and this read runs a version nobody confirmed — with the values they
+	// gave, which is the worst of it, because the text was approved for other steps.
+	//
+	// Refused, and nothing is pressed: this is before `ApplyArgs` and before any
+	// reference is claimed. Empty `expect` pins nothing, which is every entrance that
+	// confirmed nothing.
+	if expect != "" && routes.DigestOf(string(src)) != expect {
+		mlog.Info("run: refused", "route", rt.Slug, "why", "the routine changed since "+
+			"it was confirmed")
+		s.refused = fmt.Sprintf("%q has been saved again since you confirmed what it "+
+			"would do, so nothing has been run — look at it again",
+			plays.Pretty(rt.Slug))
+		s.did = ran{Digest: routes.DigestOf(string(src)), Contract: contractUnstated}
+		return s
+	}
+	// AND A VALUE OFFERED THROUGH AN ENTRANCE THAT MAY NOT OFFER IT.
+	//
+	// Asked first, because it is about the request rather than about the routine: a flag
+	// carrying a secret-typed argument is refused whatever else is right about the
+	// invocation. See routes.CheckFlagged.
+	if why := routes.CheckFlagged(string(src), flagged); why != nil {
+		mlog.Info("run: refused", "route", rt.Slug, "why", why.Error())
+		s.refused = fmt.Sprintf("%q: %v", plays.Pretty(rt.Slug), why)
+		s.did = ran{Digest: routes.DigestOf(string(src)), Contract: contractUnstated}
+		return s
+	}
+	if why := routes.CheckArgs(string(src), named, positional); why != nil {
+		mlog.Info("run: refused", "route", rt.Slug, "why", why.Error())
+		s.refused = fmt.Sprintf("%q: %v", plays.Pretty(rt.Slug), why)
+		s.did = ran{Digest: routes.DigestOf(string(src)), Contract: contractUnstated}
 		return s
 	}
 	s.filled = routes.ApplyArgs(string(src), named, positional)

@@ -42,6 +42,37 @@ type Resolved struct {
 	// Provenance is the state of its origin record. Only `intact` means the file is still
 	// the artifact Director verified.
 	Provenance routes.OriginState
+	// Values are the argument values this invocation will run with.
+	//
+	// ON THE AUTHORISED THING, because for a routine that types what somebody supplied the
+	// supplied text is most of what permission is about: a confirmation that named the
+	// routine and not the text would be asking about the half nobody is unsure of.
+	//
+	// A COPY, AND THAT IS THE POINT. See WithValues.
+	Values map[string]string
+}
+
+// WithValues returns this Resolved carrying the values the invocation will run with.
+//
+// # Copied, because sealing a map by reference seals nothing
+//
+// A decision holding the caller's map is a decision that changes when the caller does — and a
+// digest taken at authorisation would still match it, because the digest and the map would move
+// together. That is the defect [[ADR-271-a-rescope-is-a-reviewed-move-between-identities]] records
+// about `Was`: a stored reading compared against a mutable field, where WHAT WAS DISPLAYED and
+// WHAT CURRENTLY EXISTS are two questions and only one was being asked.
+//
+// So the values are copied in here, and what runs is read back off the Resolved rather than from
+// whatever the caller still holds.
+func (r Resolved) WithValues(named map[string]string) Resolved {
+	if len(named) == 0 {
+		return r
+	}
+	r.Values = make(map[string]string, len(named))
+	for k, v := range named {
+		r.Values[k] = v
+	}
+	return r
 }
 
 // Learned reports a play Marco wrote from behaviour it watched, still matching its provenance.
