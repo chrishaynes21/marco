@@ -11964,3 +11964,56 @@ CLAUDE.md said `go test ./...` still gates perception through the every-tenth-fr
 here, where the recording is under `.tmp/`.
 
 See [[ADR-270-packaging-is-gated-on-a-clean-checkout]] and [[Alpha-candidate-2026-10-29]].
+
+## And then three things about a routine somebody already has
+
+The recorder-first routine was something a person could make and press Play on. Three slices made
+it something they can FIND, MOVE and AIM, and they are traced before any of them was built in
+[[Studio-three-questions-proposal-2026-10-29]] — which exists because the window ran three
+different questions together. Recording scope is settled before the hooks go on and is a fact
+about the demonstration. Route availability is the folder, and is durable. Which window THIS RUN
+acts in is neither, and must never become durable.
+
+**Simplify could not be found.** A complete review-and-replace flow — two sources side by side, a
+version-bound consent, a refusal when either file moved — sat inside a collapsed `Rebuild and
+re-record` detail, reachable by somebody who already knew it was there. It is beside Play now, and
+offered whenever the demonstration is still stored rather than only when the generator's rules
+have moved: a routine today's rules wrote can still be full of typing pauses. The same slice says
+where a routine can be ASKED FOR, which is a different question from where it works and one
+nothing in the window answered.
+
+**Changing where a routine works is a move, not an edit.** Three scopes are three files, so it
+creates a route at one path and ends one at another: both identities locked in an order taken from
+the identities themselves, both revalidated under those locks, the destination created exclusively
+unless a version-bound consent says to replace what is there, the destination READ BACK, and the
+original removed only after that. Twice corrected in review, both times in the failure path:
+`Registry.Delete` took the demonstration and the images before the source, so a failed source
+removal left a routine whose dependencies were gone while the result said *original retained*; and
+the comment justifying that order called it harmless for an ordinary deletion, which it is not.
+See [[ADR-271-a-rescope-is-a-reviewed-move-between-identities]].
+
+**And the window a run acts in was two independent choices.** Studio raised one — the biggest
+window of the program that was up — and the child bound another, because `winctx.Bind` is given a
+program NAME and takes the first visible window `EnumWindows` reaches. With two Explorer windows,
+two copies of a game or two browser profiles those are different windows, and NOTHING DOWNSTREAM
+COULD TELL: the guarded boundary compares the program, the size, the scale and the owning process
+of the window that was BOUND, and a sibling agrees on the first three while the fourth compares the
+bound window against itself. A routine naming no application had nothing raised at all, so its run
+began with Studio in front.
+
+The window is chosen now, shown beside Play, raised by handle, and carried as one term with its
+owner. Twice corrected in review, both times in the same place and both times only reachable by
+the UNGUARDED cases — which are exactly the two scopes with no `Activate`: a refused foreground
+handoff was recorded and then returned as success, and the success check asked whether the PROGRAM
+was leading rather than whether the chosen window was. See
+[[ADR-272-the-window-a-run-acts-in-is-chosen-and-carried]].
+
+Five of the eighty-three mutations across the three slices were survivors first, and every one was
+a finding about a test: a refusal the contract underneath makes a moment later satisfies an
+assertion that only asks whether something was refused; a mutation in `cmd/marco` reaches nothing
+until `marco.exe` is rebuilt, and the staleness guard skips rather than running stale, so the skip
+is green; and a stated desktop that answers the same way twice cannot tell a check before a raise
+from one after it.
+
+The candidate, what has been verified and with what, and what a reader should not conclude from
+the green: [[Alpha-candidate-2026-10-29]].

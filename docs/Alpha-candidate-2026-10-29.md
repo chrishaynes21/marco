@@ -5,32 +5,102 @@ date: 2026-10-29
 source_paths:
   - internal/recorder
   - internal/orchestrator
+  - internal/oshost
+  - internal/winctx
   - internal/platform/winprovider
   - internal/runtime
+  - plugins/studio
   - cmd/gate
+  - cmd/cleanroom
   - cmd/director
+  - cmd/marco
 ---
 
-# Alpha candidate — `feat/demonstrated-acts` at `2770d46`
+# Alpha candidate — `feat/demonstrated-acts` at `8550723`
 
-> **Clean-checkout verification: PASSED for `2770d46`**, on 2026-10-29 at 18:21Z. A fresh
+> **Clean-checkout verification: PASSED for `8550723`**, on 2026-10-30 at 03:47Z. A fresh
 > `--no-hardlinks` clone, checked out detached, holding only what git has — no untracked file,
 > nothing ignored — then `go build ./...` and `go run ./cmd/gate` inside it:
-> *passed, 0 failures, 0 findings, 30 tolerated skips, in 5m8s*, with go1.26.2.
+> *passed, 0 failures, 0 findings, 30 tolerated skips, in 5m38s*, with go1.26.2.
 > It did NOT pack, install, run the desktop-tagged tests or any desktop scenario.
 > Full record in `cmd/cleanroom`'s own output; the stage is
 > [[ADR-270-packaging-is-gated-on-a-clean-checkout]].
+>
+> **The result for `2770d46` is superseded and not re-stated.** It was true of that commit and
+> says nothing about the sixteen after it, which is the whole reason this row names a commit.
+
+> **AND ONE RUN OF IT IS VOID, RECORDED HERE RATHER THAN DISCARDED.** The first attempt at
+> `8550723` reported *failed — 2 failures* inside the clone:
+> `internal/stopsignal` `TestAnUnreadableGenerationDoesNotRefuseToStartAPlay`
+> (*the generation file could not be replaced while something has it open*) and `cmd/director`
+> `TestCancellationBlocksTheNextInteractionAndPreservesThePriorAccounting` (*the second
+> interaction was put to the person 1 time(s) after the run was cancelled*).
+>
+> **The cause was the operator.** `go test -tags desktop ./cmd/director/` was started while that
+> gate was running, so two suites exercising `cmd/director` and the same `%LOCALAPPDATA%` state
+> ran at once. The verdict is therefore not evidence about the commit, in either direction: it is
+> void, the run above was made with nothing else touching the machine, and the voided one is
+> written down because a failure deleted from a transcript is a failure nobody can weigh later.
+>
+> It is **not** offered as the cause of [[Roadmap]] 38. That is an intermittent failure of a
+> DIFFERENT test, observed during a solo run, and nothing here establishes its cause. What this
+> adds to that item is one observation: two `cmd/director` tests fail under concurrent load, so
+> shared state in that package is a mechanism worth checking when somebody takes 38 up.
 
 What a person can do with this tree, end to end: name a command in plain words, demonstrate it
 once in a window they chose, be asked whether to keep it, and press Play. The demonstration is
 admitted from ONE window; the routine is filed under the application it was shown in; and the
 run refuses to act on any other one.
 
+And with this candidate, three more things about a routine they already have. They can ask for a
+SECOND LOOK at it — a version rendered from its own demonstration, shown beside the one they
+have, written only if they say so. They can CHANGE WHERE IT WORKS, which is a reviewed move
+between two identities rather than a save under another word. And they can SAY WHICH WINDOW it
+presses in, which is carried to the run and verified there — where before, with two windows of
+one program, the window Studio raised and the window the run bound could be different windows and
+nothing downstream could tell.
+
 This page is the handoff — what landed, what has been verified and with what, what has NOT been
 run, and what a reader should not conclude from the green. It is a checkpoint, not an
 architectural note; `docs/Director.md` and the ADRs remain the truth about design.
 
-## The four commits this handoff is about
+## The three routine slices this candidate adds
+
+Sixteen commits since `2770d46`, and they are one arc: the recorder-first routine a person makes
+in Studio became something they can FIND, MOVE and AIM. Nothing in them changes the language, the
+recorder or the engine's contracts.
+
+| Commit | Subject | What it settles |
+| --- | --- | --- |
+| `098872b` `32402e7` `f44b8ff` `3c07d18` `fb7e677` `7b9e7ef` | the Studio journey, measured and redrawn | A front door; Play under what is selected; the recording card saying what is happening while it happens; two words that each mean one thing; and two copy reductions — the second because the page said the same fact twice in four places. Measured against [[Studio-UI-audit-2026-10-29]]. |
+| `8cded4e` | three questions Studio ran together, traced | Recording scope, route availability and playback target answer different questions at different moments. [[Studio-three-questions-proposal-2026-10-29]] is the trace and the four slices. |
+| `41594af` | a second look that can be found, and where a routine can be asked for | Simplify was a complete review-and-replace flow reachable only by somebody who already knew it was there. It is beside Play now, offered whenever the demonstration is still stored — not only when the generator's rules moved. And each scope says where the routine can be ASKED FOR as well as where it works. |
+| `74c8ec9` `fb4a1fc` `a44ddbc` | a rescope is a reviewed move between identities | Where a routine works IS its folder, so changing it is a MOVE: both ends locked in a fixed order, both revalidated, the destination created exclusively unless a version-bound consent says otherwise, the destination read back, and the original removed only then — source first, so a retained original is retained WHOLE. [[ADR-271-a-rescope-is-a-reviewed-move-between-identities]]. |
+| `3c01842` | changing where a routine works, from the panel that shows it | The surface: all three availability choices WITH the reason beside any that cannot be taken, both sources before approval, a separate agreement for an occupied destination that the page cannot author, and Moved / `Copied; original retained` / residue as three renderings. |
+| `2c95794` `213b0e6` `8550723` | the window a run acts in is chosen and carried | Studio raised one window and the child bound another, and no check could see it. The window is chosen, shown beside Play, raised by handle and carried as `<handle>:<owner>`; the child verifies it, refuses a rejected handoff before entering the routine, and requires the EXACT chosen window in front rather than any window of its program. [[ADR-272-the-window-a-run-acts-in-is-chosen-and-carried]]. |
+
+**Three of those six rows are corrections to the two before them**, each found in review and each
+a separate commit: a retained original losing its demonstration, a comment claiming a deletion
+order was harmless, a refused foreground handoff recorded and then returned as success, and a
+success check that accepted a sibling window. Every one of them only bites a case the guarded
+boundary does not cover.
+
+Held by, in the same order: `plugins/studio` `TestNothingInTheRoutinePanelIsSaidTwice` and
+`TestTheReviewSaysItWillNotRunAboveTheReason` · `TestThePageOffersEveryScopeAndSaysWhyOneIsUnavailable`
+and `TestThePageMovesWithTheReviewsOwnTokenAndNothingElse` · `internal/orchestrator`
+`TestAMoveThatCannotRemoveTheOriginalLeavesItWhole` and
+`TestAMoveNamesWhatItCouldNotSweepAndStillMoves` · `TestThePageWillNotPlayUntilOneOfSeveralWindowsIsChosen`
+· `cmd/marco` `TestASiblingWindowInFrontRefusesAndPressesNothing` and
+`internal/oshost` `TestTheWindowIsCheckedAfterTheRaiseAndNotBefore`.
+
+**Mutation gates for the three slices: 6 + 30 + 30 + 10 + 7 = 83 mutations, 83 killed.** Five
+were survivors first, and each said something about the tests rather than the code: a refusal the
+contract underneath makes a moment later passes an assertion that only asks whether something was
+refused; a mutation in `cmd/marco` reaches nothing until `marco.exe` is rebuilt, and the staleness
+guard skips rather than running stale, so the skip was green; and a stated desktop that answers
+the same way twice cannot tell a check before a raise from one after it.
+
+## The four commits the previous candidate was about
 
 | Commit | Subject | What it settles |
 | --- | --- | --- |
@@ -118,16 +188,19 @@ in.
 
 ## What has been verified, and with what
 
-Every row was run against this tree on 2026-10-29.
+Every row was run against this tree, the first six of them on 2026-10-30 against
+`8550723` and the rest on 2026-10-29 against `2770d46` where no commit since touches what they
+measure — each row says which.
 
 | Check | Command | Result |
 | --- | --- | --- |
-| The working tree builds | `go build ./...` | builds |
-| **The repository AS COMMITTED builds AND gates itself** | `go run ./cmd/cleanroom` | **PASSED for `2770d46`** — a fresh clone holding only what git has, then `go build ./...` and `go run ./cmd/gate` inside it: 0 failures, 0 findings, 30 tolerated skips, 5m8s. This is the only check that can say so; the working tree is not evidence about a clone, and three times today the two disagreed. |
-| Formatting | `gofmt -l internal cmd plugins` | clean |
-| Engine suite | `go test ./...` | green, 73 packages |
-| The gate's screen-free stage | `go run ./cmd/gate` | passed — 0 failures, 0 findings, 30 tolerated skips, 4m39s |
-| The tests that need the screen | `go test -tags desktop ./cmd/director/` | ok, 6.2s |
+| The working tree builds | `go build ./...` | builds, 2026-10-30 |
+| **The repository AS COMMITTED builds AND gates itself** | `go run ./cmd/cleanroom` | **PASSED for `8550723`**, 2026-10-30 — a fresh clone holding only what git has, then `go build ./...` and `go run ./cmd/gate` inside it: 0 failures, 0 findings, 30 tolerated skips, 5m38s. This is the only check that can say so; the working tree is not evidence about a clone, and three times on 2026-10-29 the two disagreed. One earlier attempt is void — see the banner. |
+| Formatting | `gofmt -l internal cmd plugins` | clean, 2026-10-30 |
+| Engine suite | `go test ./...` | green, 2026-10-30 |
+| **Studio's own suite** | `go test ./...` in `plugins/studio` | green, 2026-10-30, 90s, 286 tests. A SEPARATE MODULE and not in the row above, which is where the three slices' page tests live: seven of them render the page in headless Chromium, because a source guard passes as long as a field is named somewhere in the file. |
+| The gate's screen-free stage | `go run ./cmd/gate` | passed, 2026-10-30 — 0 failures, 0 findings, 30 tolerated skips, 5m25s |
+| The tests that need the screen | `go test -count=1 -tags desktop ./cmd/director/` | ok, 2026-10-30, 173s. NOT COMPARABLE to the 6.2s this row used to read: the tag adds three tests and `go test` runs the whole package either way, so that figure was a cached or partial measurement rather than a faster one. Run alone — see the banner for what happens when it is not. |
 | The runtime under the race detector | `go test -race -count=5 ./internal/runtime/` | ok, 2.1s, no race reported |
 | The concurrency-heavy programs that drive it | `go test -race -count=5 ./internal/driver/ -run TestGolden/...` over the ten status/parallel/lock cases | ok, 1.4s, no race reported |
 | That the detector was armed at all | a deliberate two-goroutine increment in a throwaway module | `WARNING: DATA RACE`, so the two clean rows above are a measurement and not a silent no-op |
@@ -141,7 +214,8 @@ concurrency-heavy programs that drive it, with no desktop-tagged tests and no in
 It is not a repository-wide race campaign and must not be read as one. Running it on Windows
 needs cgo and gcc — mingw-w64 via winget `BrechtSanders.WinLibs.POSIX.UCRT`.
 
-**Mutation gates.** The chosen-window corrections: 5 of 5 mutations killed. The classification
+**Mutation gates for the previous candidate.** The three slices' own gates are in their
+section above. The chosen-window corrections: 5 of 5 mutations killed. The classification
 slice: 16 of 18, with 2 recorded as unfalsifiable and the reasoning written into the ADR. The
 new ignore gate: 2 of 2 — restoring `coverage.*` makes the live gate fail naming the file it
 hid, and a `matchesIgnore` that always answers no fails the table in seven places. Across all
@@ -160,6 +234,25 @@ broken tree cannot be established from an unbroken one.
 | `plugins/vision`, `plugins/ocr`, `plugins/llama` | per-plugin suites | Each needs something this repository does not contain — gcc and a vendored runtime, tesseract, a model server — and nothing in the alpha bundle uses them. The gate prints each with its reason. |
 
 ## Known limits
+
+- **One intermittent `cmd/director` failure is open and unexplained** ([[Roadmap]] 38).
+  `TestAGrantedRunAsksNobodyAnything` failed once during a solo `cmd/gate` run on 2026-10-29
+  — *the run could not establish its screen and never said so* — and the run after it passed. A
+  clean rerun does not establish a cause, and being outside the commits here does not rule out an
+  interaction. Separately, two OTHER `cmd/director`-touching tests fail under concurrent load,
+  which is a mechanism worth checking and is not a cause.
+- **Studio's Play for an ACT still grounds against whatever is in front** ([[Roadmap]] 39). The
+  window selection in this candidate covers a saved ROUTINE. An Act is performed by the supervised
+  runner under a written authorisation, so carrying a window through it means changing the grant's
+  shape and the version the runner reads — a slice of its own. An Act that names no application
+  raises nothing, which from Studio means the run begins with Studio in front.
+- **The playback window has never been exercised on a real desktop.** Every claim about it is
+  automation against a stated desktop and two seams: whether Windows grants a foreground handoff
+  depends on which process owns the foreground at that instant, and no test here has asked the
+  real one.
+- **Nothing in the three slices has been used by a person.** The window chooser, the scope chooser
+  and the move review are held by rendered page tests and backend tests, not by anybody pressing
+  them.
 
 - **A machine with no desktop has not been observed running the converted tests.** That it
   would is argued from `winprovider.DesktopForTest` covering every window read, not measured.
@@ -217,6 +310,15 @@ broken tree cannot be established from an unbroken one.
   SOURCE builds and gates itself. Packing, installing, the desktop-tagged tests and every desktop
   scenario are stages 3 to 6 and are still held; the clean-checkout result says in its own output
   that it did not run them.
+- Not that the three routine slices work on a desktop. They are verified by automation only, and
+  the playback handoff in particular stands on two seams: a stated window and a stated foreground.
+- Not that the voided clean-checkout run was environmental rather than a defect. It was traced to
+  one cause — a second suite started by the operator while the gate was running — and the rerun
+  was made alone. What was NOT done is establishing that those two tests are otherwise sound
+  under load, which is why the observation is written into [[Roadmap]] 38 rather than closed.
+- Not that 83 killed mutations mean the slices are correct. Each gate asks whether THESE tests
+  notice THESE breaks; five of the eighty-three were survivors first, and in every case the
+  survivor was a finding about a test that looked like it was asking something it was not.
 - Not that `plugins/voice` builds anywhere. It needs the Vosk C headers, which are not vendored,
   and it fails identically in the working tree and in a clone. The clean-checkout run does not
   build it, because `cmd/gate` does not.

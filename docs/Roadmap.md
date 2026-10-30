@@ -1582,6 +1582,15 @@ and nothing in `cmd/director` reaches `Rescope`, `Rescoped` or `Registry.DeleteS
 narrows the interaction; it does not rule one out, and the failure has not been attributed to
 anything.
 
+**One more observation, 2026-10-30, and it is not a cause.** A clean-checkout run of `8550723`
+was contaminated by a second suite started while it was running, and two tests failed under that
+load: `internal/stopsignal` `TestAnUnreadableGenerationDoesNotRefuseToStartAPlay` (*the
+generation file could not be replaced while something has it open*) and `cmd/director`
+`TestCancellationBlocksTheNextInteractionAndPreservesThePriorAccounting`. Both pass alone. That
+says shared state in and around `cmd/director` is a mechanism worth checking when somebody takes
+this item up; it says nothing about the failure above, which was observed during a solo run of a
+DIFFERENT test.
+
 **What the work is:** establishing whether the sentence is missing because the screen genuinely
 could not be established and the run stayed silent — which is a product defect in the account a
 run gives of itself — or because the precondition is environmental and the test should state its
