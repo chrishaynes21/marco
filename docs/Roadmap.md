@@ -1582,6 +1582,19 @@ and nothing in `cmd/director` reaches `Rescope`, `Rescoped` or `Registry.DeleteS
 narrows the interaction; it does not rule one out, and the failure has not been attributed to
 anything.
 
+**AND A THIRD SOLO GATE RUN FAILED ON A SIBLING TEST.** `gate.ps1`, immediately after the run
+below: `cmd/director` `TestCancellationBlocksTheNextInteractionAndPreservesThePriorAccounting`
+— *the second interaction was put to the person 1 time(s) after the run was cancelled*. A
+different test and a different assertion, in the same family: `cmd/director`'s run-logic and
+acceptance tests, about what a run did and when. It had also failed in the overlapped run, so it
+is not concurrency-only.
+
+**So stage 1 of the gate has failed on this family in three of four solo runs**, which is why
+this item now blocks packaged acceptance: the candidate cannot reach stages 2 to 6 while these
+rotate. Two OTHER stage-1 failures in the same runs were a different class and are fixed —
+a test needing `sh`, a survivor count that was a fact about the machine, and a wall-clock mean
+that measured contention; none of them is this.
+
 **SECOND OCCURRENCE, 2026-10-30, `gate.ps1` run `20261029-214243`.** The same test, the same
 assertion, the same words:
 
