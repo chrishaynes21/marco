@@ -1,6 +1,10 @@
 package recorder
 
-import "time"
+import (
+	"slices"
+	"sort"
+	"time"
+)
 
 // ── RECORD ONLY THE CHOSEN WINDOW ────────────────────────────────────────────
 //
@@ -159,6 +163,14 @@ type Boundary struct {
 	// crossing is why this recording cannot be written down, or "" while it still can.
 	// FIRST REASON WINS: the first thing that crossed is the one the person can act on.
 	crossing string
+	// heldAcross is the keys that were down in the window when the boundary was crossed,
+	// waiting to be drained into the recording as `EvHeldAcross` markers.
+	//
+	// A QUEUE OF FACTS AND NOT A VERDICT. See EvHeldAcross: whether one of these ends the
+	// recording or ruins it depends on what happens after it, which nothing here can see.
+	// The queue exists because one leaving can strand several keys at once — Alt-Tab
+	// strands both of them — and the door that drains it appends one marker each.
+	heldAcross []string
 	// away is the running total of time spent outside the window, and absences is how
 	// many times. Both are for the sentence review shows; the clock transformation reads
 	// the markers themselves.
@@ -194,6 +206,28 @@ func (b *Boundary) HeldBefore(ids []string) {
 // Crossing is why the recording cannot be saved, or "" when it can.
 func (b *Boundary) Crossing() string { return b.crossing }
 
+// HeldAcross drains the keys that were down in the window when the boundary was crossed.
+//
+// Sorted, because the source is a map and a recording whose markers come out in a different
+// order on different runs is a recording whose review sentence changes for no reason.
+func (b *Boundary) HeldAcross() []string {
+	if len(b.heldAcross) == 0 {
+		return nil
+	}
+	out := b.heldAcross
+	b.heldAcross = nil
+	sort.Strings(out)
+	return out
+}
+
+// heldAcrossBoundary queues one key, ignoring a key already waiting.
+func (b *Boundary) heldAcrossBoundary(id string) {
+	if slices.Contains(b.heldAcross, id) {
+		return
+	}
+	b.heldAcross = append(b.heldAcross, id)
+}
+
 // Away is how long was spent outside the chosen window, and how many separate absences.
 func (b *Boundary) Away() (time.Duration, int) { return b.away, b.absences }
 
@@ -206,8 +240,16 @@ func (b *Boundary) Outside() (bool, time.Time) { return !b.inside, b.leftAt }
 // Arrived tells the boundary where the foreground is now, and reports the marker to record when
 // that is a change.
 //
-// A LEAVING WITH SOMETHING STILL HELD IS A CROSSING, decided here because this is the instant
-// it stops being recoverable: whatever happens to that key next happens somewhere else.
+// A LEAVING WITH SOMETHING STILL HELD IS REPORTED HERE AND JUDGED LATER.
+//
+// This is the instant the key stops being recoverable — whatever happens to it next happens
+// somewhere else — and it is NOT the instant anybody can say what it meant. A key still down as
+// the window is left is either a gesture the demonstration depends on, or the Alt-Tab somebody
+// used to come back to the window with the Stop button in it. This used to call `cross` and so
+// answered the first way every time, which refused every recording ended the obvious way.
+//
+// Every stranded key is reported, not the first: Alt-Tab strands two, and which one a map hands
+// back first is not a fact about the recording.
 func (b *Boundary) Arrived(inside bool, at time.Time) (EventKind, bool) {
 	if inside == b.inside {
 		return 0, false
@@ -215,9 +257,7 @@ func (b *Boundary) Arrived(inside bool, at time.Time) (EventKind, bool) {
 	b.inside = inside
 	if !inside {
 		for id := range b.heldInside {
-			b.cross(id + " was still held when the window was left, so the " +
-				"recording has half of a gesture in it")
-			break
+			b.heldAcrossBoundary(id)
 		}
 		b.leftAt = at
 		return EvLeft, true
@@ -267,8 +307,11 @@ func (b *Boundary) Pressed(id string, down, admitted, isStop bool) Admission {
 	if b.heldInside[id] {
 		delete(b.heldInside, id)
 		if !admitted {
-			b.cross(id + " was pressed in the window and released outside it, so " +
-				"the recording has half of a gesture in it")
+			// REPORTED, NOT JUDGED, for the reason `Arrived` gives: the
+			// release of the Alt somebody held to leave the window takes this
+			// branch, and so does the release of a key the demonstration
+			// depended on. `inWindowClock` is where they separate.
+			b.heldAcrossBoundary(id)
 			return Drop
 		}
 		b.tainted(id)

@@ -120,6 +120,13 @@ type Draft struct {
 	// The time itself is already out of the clock — see inWindowClock.
 	Away     time.Duration
 	Absences int
+	// Exit is the keys somebody used to leave the chosen window on their way to stopping
+	// the recording, which are not in Steps or Events.
+	//
+	// ON THE DRAFT FOR THE REASON Away IS. Review is before the save, and this is the one
+	// thing a person is told was taken out of their demonstration — see
+	// `orchestrator.ExitSentence` for the wording and `exitGesture` for what bounds it.
+	Exit []string
 	// Mode is what the recording was TOLD to capture, or Unstated when nothing was.
 	//
 	// It travels on the draft because review happens before the save: a person deciding
@@ -310,7 +317,7 @@ func (c *Capture) Finish() *Draft {
 	return &Draft{
 		Name: name, Args: argNames, Steps: steps, Events: events,
 		App: app, StoppedBy: how,
-		Away: cap.Away, Absences: cap.Absences,
+		Away: cap.Away, Absences: cap.Absences, Exit: cap.Exit,
 		// A CROSSING COMES FIRST, because it is the more fundamental refusal: a
 		// gesture whose other half happened somewhere else is not a recording with
 		// a problem in it, it is a recording of something that was not done here.
@@ -348,6 +355,23 @@ func (dr *Draft) AwaySentence() string {
 	return fmt.Sprintf("You left the window %s, for %s in all. Nothing from out there was "+
 		"recorded, and the waiting is not in the routine.", times,
 		dr.Away.Round(time.Second))
+}
+
+// ExitSentence is what review tells the person was left out of their demonstration, or "" when
+// nothing was.
+//
+// Beside `AwaySentence` because it answers the same kind of question — why the routine is not
+// quite what you did — and for the same reason: review happens before the save, and the person
+// is the only one who can decide that leaving the window is not what they meant.
+//
+// THE KEYS ARE NAMED, not counted. "Two keys were left out" is a sentence somebody can only act
+// on by guessing which, and the whole point of saying it is that they can disagree.
+func (dr *Draft) ExitSentence() string {
+	if dr == nil || len(dr.Exit) == 0 {
+		return ""
+	}
+	return "The " + joinWords(dr.Exit) + " you used to leave the window and come back " +
+		"here are how the recording was ended, not part of it, so they were left out."
 }
 
 // Save writes a draft as legal Marco, under the scope it is given.

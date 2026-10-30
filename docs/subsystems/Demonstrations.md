@@ -584,10 +584,27 @@ are already right, and there is nothing in it for any reader to reinterpret.
 **Retained means reachable.** `marco learn "<name>" --whole-desktop` asks for the old
 behaviour, and either way the scope is printed before the recording starts. Studio has no control
 for it yet, which is a gap rather than a decision. Both review surfaces DO say what happened:
-`Draft.AwaySentence` is on the terminal's preview and on Studio's card, because a draft shorter
-than the demonstration somebody gave reads as a recorder that missed something.
+`Draft.AwaySentence` is on the terminal's preview, because a draft shorter than the demonstration
+somebody gave reads as a recorder that missed something.
+
+**It is NOT on Studio's card, and this note said it was.** `Recording.Away` has been in the
+payload since this rule landed and `TestReviewSaysTheWindowWasLeft` holds it there, but the page
+has no element bound to it and never draws it — so the one sentence explaining why a routine is
+shorter than the demonstration is invisible in the window most recordings are made in. Found while
+adding the element beside it for `ExitSentence`; written down here rather than fixed in that slice.
 
 See [[ADR-268-record-only-the-chosen-window]].
+
+**And coming back here to press Stop is how a recording ends, so it is not part of one.** Alt-Tab
+holds two keys down while the switcher takes the foreground, so a boundary that refused a recording
+the instant somebody left it with something held refused every recording ended by the button the
+window offers. The keys are REPORTED now (`EvHeldAcross`) and judged at review
+(`orchestrator.exitGesture`): the trailing run of unreleased key presses before the last leaving is
+the way out, and it is the only thing this boundary takes out instead of refusing. Three bounds
+keep that safe — nothing may follow them, keys only, and somebody must have left rather than the
+window having gone away — and a stranded key the demonstration carried on past is still a crossing.
+`Draft.ExitSentence` names what was left out, on the terminal and on Studio's card.
+See [[ADR-274-the-way-out-of-a-window-is-not-part-of-the-demonstration]].
 
 **The three are still three different things.** ADR-251's window *check*, the harness's *"input
 that cannot be confined to the windows this run owns is not input this run may send"*, and this

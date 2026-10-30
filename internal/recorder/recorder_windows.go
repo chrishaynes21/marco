@@ -893,6 +893,12 @@ func observe(ev RecordedEvent, inside bool) int {
 	if now := b.Crossing(); now != was {
 		markers = append(markers, RecordedEvent{Kind: EvCrossed, KeyName: now, T: ev.T})
 	}
+	// AND A KEY STRANDED BY THE BOUNDARY, which is a fact and not yet a refusal. It goes
+	// into the buffer AFTER the EvLeft above, so whoever reads the stream can see which
+	// absence stranded it. See EvHeldAcross.
+	for _, id := range b.HeldAcross() {
+		markers = append(markers, RecordedEvent{Kind: EvHeldAcross, KeyName: id, T: ev.T})
+	}
 	idx := -1
 	for _, m := range markers {
 		appendUnderLock(m)
@@ -1382,10 +1388,14 @@ func (r *winRecorder) noteBoundary(inside bool, at time.Time) {
 	if changed {
 		markers = append(markers, RecordedEvent{Kind: k, T: at})
 	}
-	// A LEAVING CAN CROSS: `Arrived` is where a key still held when the window is left
-	// becomes unrepresentable, and that reason has to reach the buffer from this door too.
 	if now := bound.Crossing(); now != was {
 		markers = append(markers, RecordedEvent{Kind: EvCrossed, KeyName: now, T: at})
+	}
+	// A LEAVING STRANDS WHAT WAS HELD, and this door is the one that usually sees it: the
+	// foreground poller notices the switcher taking the foreground, not the key that was
+	// still down when it did. The fact has to reach the buffer from here too.
+	for _, id := range bound.HeldAcross() {
+		markers = append(markers, RecordedEvent{Kind: EvHeldAcross, KeyName: id, T: at})
 	}
 	for _, m := range markers {
 		appendUnderLock(m)

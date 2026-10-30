@@ -642,6 +642,13 @@
     <h3 id="capReviewName" style="margin:0 0 8px"></h3>
     <div id="capSaid"></div>
 
+    <!-- AND WHAT WAS LEFT OUT OF IT, ABOVE THE STEPS, because it is about steps that are
+         not there. Alt-Tab back to this window to press Stop and those two keys are how
+         the recording ended rather than part of it, so they are not in the demonstration
+         — and that is the ONLY thing the boundary trims instead of refusing, which is why
+         it is said out loud. Empty and hidden when nothing was left out. -->
+    <div class="muted hide" style="margin-top:6px" id="capExit"></div>
+
     <!-- WHAT WAS DEMONSTRATED, FIRST. The draft in plain words, one line each, in order,
          from the recording that ran. It is the thing being approved. -->
     <ol id="capSteps" class="steps"></ol>
@@ -2110,13 +2117,15 @@
        return
      }
      const sig = r.name + '\u0000' + (r.said || '') + '\u0000' + (r.missing || '')
-       + '\u0000' + (r.steps || []).join('|')
+       + '\u0000' + (r.exit || '') + '\u0000' + (r.steps || []).join('|')
      if (sig === shownCapture) { return }
      shownCapture = sig
      // WHICH ROUTINE THIS WILL BE, from the draft's own name. See capReviewName.
      text($('capReviewName'), r.name ? 'Review “' + r.name + '”' : 'Review this recording')
      text($('capSaid'), r.said || '')
      $('capSaid').className = r.failed ? 'no' : 'ok'
+     text($('capExit'), r.exit || '')
+     showing($('capExit'), !!r.exit)
      text($('capMissing'), r.missing || '')
      showing($('capWontRunBox'), !!r.missing)
      text($('capUnsupported'), r.unsupported || '')

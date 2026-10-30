@@ -171,6 +171,15 @@ type Recording struct {
 	// gap where the absence was is a quarter of a second now, which is right for the
 	// routine and is not what happened. See orchestrator.Draft.AwaySentence.
 	Away string `json:"away,omitempty"`
+	// Exit says which keys somebody used to leave the window on their way back here, and
+	// that they are not in the demonstration.
+	//
+	// IT IS THE ONE THING REVIEW SAYS WAS TAKEN OUT, which is why it is said at all: the
+	// boundary refuses every other half-gesture rather than trimming it, and the only
+	// reason this one is trimmed is that it is how the recording was ENDED. A person who
+	// disagrees — who meant that Alt — can only disagree if the card tells them. See
+	// orchestrator.Draft.ExitSentence.
+	Exit string `json:"exit,omitempty"`
 	// Window is the window this recording is of, named as the person chose it.
 	Window string `json:"window,omitempty"`
 	// Paused says the person is outside that window RIGHT NOW, and for how long.
@@ -591,6 +600,7 @@ func (a *Acts) Recording() Recording {
 	// and it would write a second routine rather than the new version somebody meant.
 	out.AgainElsewhere = againElsewhere(c.again, dr.App)
 	out.Away = dr.AwaySentence()
+	out.Exit = dr.ExitSentence()
 	out.Pressable = dr.Pressable()
 	out.Steps = inWords(dr.Steps)
 	// AND A GESTURE THAT CANNOT BE WRITTEN DOWN IS SAID HERE, BESIDE THE STEPS.

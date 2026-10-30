@@ -371,6 +371,11 @@ func (d Deps) Learn(name string) error {
 	if said := dr.AwaySentence(); said != "" {
 		fmt.Fprintln(d.Out, said)
 	}
+	// AND WHAT WAS LEFT OUT OF IT, for the same reason and in the same place: it is about
+	// steps that are not there. See Draft.ExitSentence.
+	if said := dr.ExitSentence(); said != "" {
+		fmt.Fprintln(d.Out, said)
+	}
 	if err := d.preview("Recorded", dr); err != nil {
 		return err
 	}

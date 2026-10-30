@@ -266,3 +266,55 @@ func TestAnUnconfinedRecordingAdmitsEverything(t *testing.T) {
 		t.Errorf("the channel carried %q", got)
 	}
 }
+
+// A KEY THE LEAVING STRANDED REACHES THE RECORDING AS A FACT, AND NOT AS A REFUSAL.
+//
+// The wiring between the boundary and the buffer, which no test of either alone can hold: the
+// boundary reports the key, `inWindowClock` decides what it meant, and between them is this
+// door. Delete the drain and the decision has nothing to read — every recording ended by
+// Alt-Tab goes back to refusing, and every unit test of the boundary still passes.
+//
+// It is also the half that says NO CROSSING is written here. The boundary used to refuse at this
+// instant, and at this instant there is nothing to refuse on: the only thing known is that a key
+// was down when the foreground moved.
+func TestAKeyStrandedByLeavingReachesTheRecordingAsAFact(t *testing.T) {
+	ch := aConfinedRecording(t)
+	now := time.Now()
+	observe(RecordedEvent{Kind: EvKey, KeyName: "a", Down: true, T: now}, true)
+	observe(RecordedEvent{Kind: EvKey, KeyName: "a", Down: false, T: now}, true)
+	observe(RecordedEvent{Kind: EvKey, KeyName: "alt", Down: true, T: now}, true)
+	// AND THE SWITCHER TAKES THE FOREGROUND WHILE ALT IS STILL DOWN.
+	observe(RecordedEvent{Kind: EvKey, KeyName: "tab", Down: true, T: now}, false)
+
+	buf, pub := recorded(t, ch)
+	for _, ev := range buf {
+		if ev.Kind == EvCrossed {
+			t.Errorf("leaving the window refused the recording on the spot: %q",
+				ev.KeyName)
+		}
+	}
+	left, held := -1, -1
+	for i, ev := range buf {
+		switch {
+		case ev.Kind == EvLeft:
+			left = i
+		case ev.Kind == EvHeldAcross && ev.KeyName == "alt":
+			held = i
+		}
+	}
+	if held < 0 {
+		t.Fatalf("the key the leaving stranded is not in the recording: %v", buf)
+	}
+	// AFTER THE LEAVING IT BELONGS TO, because that is how a reader of the stream knows
+	// which absence stranded it.
+	if left < 0 || held < left {
+		t.Errorf("the stranded key is at %d and the leaving at %d", held, left)
+	}
+	// AND A SURFACE WATCHING THE CHANNEL SEES IT TOO, like every other marker.
+	for _, ev := range pub {
+		if ev.Kind == EvHeldAcross {
+			return
+		}
+	}
+	t.Error("the stranded key never reached the channel")
+}

@@ -169,9 +169,17 @@ func TestAnOrdinaryKeyHeldFromOutsideRefusesTheRecording(t *testing.T) {
 	}
 }
 
-// LEAVING WITH SOMETHING STILL HELD, which is the same rule read in the other direction: the
-// recording has the press and whatever happened to the release happened somewhere else.
-func TestLeavingTheWindowWithAKeyHeldRefusesTheRecording(t *testing.T) {
+// LEAVING WITH SOMETHING STILL HELD IS REPORTED AND NOT JUDGED HERE.
+//
+// The same fact as before — the recording has the press and whatever happened to the release
+// happened somewhere else — and no longer a verdict, because at this instant there is not enough
+// to reach one with. The key is either a gesture the demonstration depends on or the Alt-Tab
+// somebody used to reach the Stop button, and what separates them is what happens NEXT.
+// `orchestrator.exitGesture` is where that is decided; this is where the fact is reported.
+//
+// Deleting the report must fail the orchestrator's own cases both ways round: a stranded key
+// nothing followed saves, and one the demonstration carried on past refuses.
+func TestLeavingTheWindowWithAKeyHeldIsReportedForJudgingLater(t *testing.T) {
 	b := NewBoundary()
 	arrived(b, 0)
 	if got := b.Pressed("shift", true, true, false); got != Admit {
@@ -180,12 +188,41 @@ func TestLeavingTheWindowWithAKeyHeldRefusesTheRecording(t *testing.T) {
 	if _, ok := b.Arrived(false, at(100)); !ok {
 		t.Fatal("leaving the window was not reported")
 	}
-	if why := b.Crossing(); why == "" {
-		t.Fatal("a recording where shift went down in the window and up somewhere " +
-			"else has half a gesture in it and saved anyway")
+	if why := b.Crossing(); why != "" {
+		t.Errorf("the boundary refused the recording at the instant somebody left it, "+
+			"which is before it can know what they were doing: %q", why)
+	}
+	if held := b.HeldAcross(); len(held) != 1 || held[0] != "shift" {
+		t.Fatalf("the keys stranded by the leaving are %q, not shift", held)
+	}
+	// DRAINED, so the doors that read it do not write the same marker on every event
+	// afterwards — which is the rule the crossing marker already had.
+	if held := b.HeldAcross(); len(held) != 0 {
+		t.Errorf("the same stranded key came back a second time: %q", held)
 	}
 	if got := b.Pressed("shift", false, false, false); got != Drop {
 		t.Errorf("the release outside the window was %v", got)
+	}
+	// AND THE RELEASE REPORTS IT TOO, from the other door: whichever of the two the
+	// recorder notices first, the fact reaches the buffer.
+	if held := b.HeldAcross(); len(held) != 1 || held[0] != "shift" {
+		t.Errorf("the release outside the window reported %q", held)
+	}
+}
+
+// EVERY KEY THE LEAVING STRANDED, not the first one a map handed back.
+//
+// Alt-Tab strands both of them, and a recording that reported one would have the other left in
+// it — a press with no release, in a demonstration that was allowed to be saved.
+func TestLeavingReportsEveryKeyItStranded(t *testing.T) {
+	b := NewBoundary()
+	arrived(b, 0)
+	b.Pressed("alt", true, true, false)
+	b.Pressed("tab", true, true, false)
+	b.Arrived(false, at(100))
+	held := b.HeldAcross()
+	if len(held) != 2 || held[0] != "alt" || held[1] != "tab" {
+		t.Errorf("the leaving stranded %q, not alt and tab in that order", held)
 	}
 }
 
@@ -276,15 +313,18 @@ func TestAPointerMoveWhileSomethingIsHeldOutsideRefusesNothing(t *testing.T) {
 func TestTheFirstCrossingIsTheReasonGiven(t *testing.T) {
 	b := NewBoundary()
 	arrived(b, 0)
-	b.Pressed("shift", true, true, false)
-	b.Arrived(false, at(100)) // shift held across the edge — the first reason
+	b.Arrived(false, at(100))
+	b.Pressed("shift", true, false, false) // held from outside
+	b.Arrived(true, at(200))
+	b.Pressed("x", true, true, false) // used in the window with shift held — the first
 	first := b.Crossing()
 	if first == "" || !strings.Contains(first, "shift") {
 		t.Fatalf("the first crossing is %q", first)
 	}
+	b.Arrived(false, at(300))
 	b.Pressed("ctrl", true, false, false)
-	b.Arrived(true, at(200))
-	b.Pressed("x", true, true, false) // another, later
+	b.Arrived(true, at(400))
+	b.Pressed("z", true, true, false) // another, later
 	if b.Crossing() != first {
 		t.Errorf("the reason changed to %q", b.Crossing())
 	}

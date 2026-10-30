@@ -266,7 +266,8 @@ no recorder, so there is no unattended caller to change.
   `TestTheActivatingClickDoesNotExcuseWhatIsStillHeldBesideIt` — the bound on the exception, as
   separate cases, because the version that cleared what was held beside an activating release
   survived a gate of every other case in the file.
-- `internal/recorder` `TestLeavingTheWindowWithAKeyHeldRefusesTheRecording`,
+- `internal/recorder` `TestLeavingTheWindowWithAKeyHeldIsReportedForJudgingLater` (which was
+  `…RefusesTheRecording` until the amendment below moved the verdict to review),
   `TestADragThatLeavesTheRectangleStaysOneGesture`,
   `TestAPointerMoveWhileSomethingIsHeldOutsideRefusesNothing`,
   `TestTheFirstCrossingIsTheReasonGiven`,
@@ -373,3 +374,15 @@ only kills is a gate nobody can read:
   there for the reason `howMuchToRecord` and `chooseTheWindow` are separate functions:
   `runAssistantLearn` ends in `os.Exit`, so the only other way to establish that a flag reaches
   `Deps` is to run the real recorder on somebody's desktop.
+
+## Amended 2026-10-30
+
+A key still held when the window is left is **reported** by the boundary and judged at review,
+rather than refused on the spot. The rule above is unchanged — a gesture that crosses the boundary
+is still unrepresentable and still not trimmed — but it was being applied at the one instant where
+the two cases cannot be told apart: a gesture the demonstration depends on, and the Alt-Tab
+somebody used to reach the Stop button. Deciding there refused every recording ended by coming back
+to this window, which is how everybody ends one. The way out is now the only thing this boundary
+takes out instead of refusing, under three bounds, and it is said out loud. See
+[[ADR-274-the-way-out-of-a-window-is-not-part-of-the-demonstration]], and
+`TestAltTabbingBackToStopTheRecordingSaves`.
