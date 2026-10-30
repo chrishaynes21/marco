@@ -941,7 +941,13 @@
            between a person and Play. The review card they open is NOT in here -- its
            caution, its refusal and its replacement consent have to be readable. -->
       <details style="margin-top:12px" id="routineMaintain">
-        <summary>Rebuild and re-record</summary>
+        <!-- ADDRESSABLE, because the provenance line inside this is EVIDENCE a desktop
+             scenario reads: that Studio agrees the routine states no generation, before
+             anything is pressed. A disclosure with no id can be seen by a person and
+             reached by nothing, and the scenario that needs it failed in stage 6 saying
+             Studio did not say what it says perfectly well one click away. See
+             plugins/e2e/scenario_generation.go. -->
+        <summary id="routineMaintainSummary">Rebuild and re-record</summary>
       <!-- AND HOW IT WAS RECORDED, WHEN THE FILE SAYS SO.
            Hidden rather than filled in when it does not. Every routine saved before
            Studio could state a mode says nothing, and what those captured depended on

@@ -80,6 +80,19 @@ func aReviewedRebuildReplacesTheRoutine(w *world) result {
 	// AND STUDIO SAYS SO, in its own words, before anything is pressed. Evidence rather
 	// than the verdict — but a window that offered a review while saying the routine was
 	// current would be offering a comparison nobody asked for.
+	//
+	// THE LINE IS BEHIND A DISCLOSURE, so this opens it. Provenance was deliberately put
+	// in the collapsed `Rebuild and re-record` detail, and the content of a closed
+	// <details> is not in the accessibility tree at all — so this scenario failed in
+	// stage 6 of the packaged gate saying Studio did not say what it says one click away.
+	//
+	// Opening a disclosure is navigation, not the review: the claim that Studio agrees
+	// BEFORE anything is pressed is intact, and reading it off the review card instead
+	// would have weakened it to after. `plugins/studio`
+	// TestTheProvenanceLineIsBehindADisclosureWithAnId holds the page's half.
+	if err := st.s.press("routineMaintainSummary"); err != nil {
+		return ending(started, err)
+	}
 	shot, err := st.s.look()
 	if err != nil {
 		return ending(started, err)

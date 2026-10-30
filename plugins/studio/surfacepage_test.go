@@ -65,12 +65,21 @@ window.go = {main: {
     Routines: () => Promise.resolve([]),
   },
 }}
-// onScreen is what an accessibility tree would hold: an element whose every ancestor is
-// displayed. A class check on the element alone would say capBtn is fine while captureCard
-// hides it, which is the defect this file is about.
+const inClosedDisclosure = (el) => {
+  for (let p = el; p; p = p.parentElement) {
+    if (p.tagName === 'DETAILS' && !p.open) { return true }
+  }
+  return false
+}
+// onScreen is what an accessibility tree holds, which is neither textContent nor offsetParent
+// alone. A hidden ancestor (display:none) takes offsetParent away; a CLOSED DISCLOSURE does
+// not — Chromium keeps a layout box for the content of a closed <details> — and UI Automation
+// leaves it out all the same. The provenance line is in one, so the first version of this read
+// it as on screen while the real window did not offer it at all.
 const onScreen = (id) => {
   const el = document.getElementById(id)
-  return (el && el.offsetParent !== null) ? 1 : 0
+  if (!el || el.offsetParent === null) { return 0 }
+  return inClosedDisclosure(el) ? 0 : 1
 }
 const press = (id) => {
   const el = document.getElementById(id)

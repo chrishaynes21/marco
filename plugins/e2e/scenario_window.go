@@ -73,10 +73,20 @@ func readinessNoticesAMissingSibling(w *world) result {
 			"spawn is, which is the fact the missing-sibling case is about")
 	}
 	// AND THE LIMITS ARE THERE ON A CLEAN MACHINE, which is when a panel gets believed.
-	if !quiet.says("Nothing here looks at a screen") {
-		return fail(started, "the readiness panel does not state its limits when it "+
-			"has no problems to report, and a clean panel is exactly when somebody "+
-			"believes it")
+	//
+	// BY MEANING AND NOT BY SENTENCE. This looked for "Nothing here looks at a screen",
+	// which is what the panel used to say; the copy reduction rewrote it and this
+	// scenario failed in stage 6 about a panel that states its limits perfectly well.
+	// The three things it must not promise are the hooks, a press and a screen — which
+	// is exactly what `plugins/studio` readiness_test.go asserts of the sentence, so a
+	// rewording that drops one of them breaks a screen-free test first.
+	for _, must := range []string{"hooks", "press", "screen"} {
+		if !quiet.says(must) {
+			return fail(started, fmt.Sprintf("the readiness panel does not mention "+
+				"%q when it has no problems to report, so it reads as a promise "+
+				"about it — and a clean panel is exactly when somebody believes "+
+				"it", must))
+		}
 	}
 
 	aside := w.b.marco + ".away"

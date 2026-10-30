@@ -138,6 +138,22 @@ const pick = (i) => {
 // button's argument for the first's survived exactly that. The ids are the surface a person and
 // an assistive technology both reach.
 const press = (id) => { document.getElementById(id).click() }
+const inClosedDisclosure = (el) => {
+  for (let p = el; p; p = p.parentElement) {
+    if (p.tagName === 'DETAILS' && !p.open) { return true }
+  }
+  return false
+}
+// onScreen is what an accessibility tree holds, which is neither textContent nor offsetParent
+// alone. A hidden ancestor (display:none) takes offsetParent away; a CLOSED DISCLOSURE does
+// not — Chromium keeps a layout box for the content of a closed <details> — and UI Automation
+// leaves it out all the same. The provenance line is in one, so the first version of this read
+// it as on screen while the real window did not offer it at all.
+const onScreen = (id) => {
+  const el = document.getElementById(id)
+  if (!el || el.offsetParent === null) { return 0 }
+  return inClosedDisclosure(el) ? 0 : 1
+}
 const look = (i) => {
   says[i] = document.getElementById('routineWrote').textContent
   live[i] = document.getElementById('routineReviewBtn').disabled ? 0 : 1
@@ -151,11 +167,22 @@ const shown = (id) => {
 }
 let panes = 0, bothgens = 0, afterCancel = 1, replaceLive = 0
 let choiceSaid = '', cautionSaid = '', foldedNow = '', plainCaution = 'x'
+let wroteClosed = 1, wroteOpened = 0, summaryThere = 0
 setTimeout(() => { pick(0) }, 1500)
 setTimeout(() => { look(0); pick(1) }, 1800)
 setTimeout(() => { look(1); pick(2) }, 2100)
 setTimeout(() => { look(2); pick(3) }, 2400)
-setTimeout(() => { look(3); pick(1); press('routineReviewBtn') }, 2700)
+setTimeout(() => {
+  look(3)
+  // THE PROVENANCE LINE IS BEHIND A DISCLOSURE, and a scenario has to open it.
+  wroteClosed = onScreen('routineWrote')
+  summaryThere = document.getElementById('routineMaintainSummary') ? 1 : 0
+  press('routineMaintainSummary')
+}, 2700)
+setTimeout(() => {
+  wroteOpened = onScreen('routineWrote')
+  pick(1); press('routineReviewBtn')
+}, 2900)
 setTimeout(() => {
   // THE REVIEW: both sources on screen, each labelled with its own reading.
   const was = document.getElementById('routineReviewWas').textContent
@@ -206,9 +233,40 @@ setTimeout(() => {
     ' caution=' + (cautionSaid.includes('removes the') ? 1 : 0) +
     ' plaincaution=' + (plainCaution === '' ? 1 : 0) +
     ' foldednow=' + (foldedNow.includes('OS\u0027s Type') ? 1 : 0) +
-    ' reviewed=' + (window.reviewed || 0)
+    ' reviewed=' + (window.reviewed || 0) +
+    ' wroteclosed=' + wroteClosed +
+    ' wroteopened=' + wroteOpened +
+    ' summarythere=' + summaryThere
 }, 5400)
 `
+
+// AND THE PROVENANCE LINE IS BEHIND A DISCLOSURE SOMEBODY HAS TO OPEN.
+//
+// It lives in the collapsed `Rebuild and re-record` detail, which is where the maintenance facts
+// were deliberately put. `textContent` reads it there perfectly well, which is why every test in
+// this file was happy with it — and an accessibility tree does not hold it at all, so the desktop
+// scenario that reads Studio's agreement before pressing Review failed in stage 6 of the packaged
+// gate saying Studio did not say what it says one click away.
+//
+// So the disclosure has an id, and this asserts what opening it does. `plugins/e2e`
+// `scenario_generation.go` presses the same id.
+func TestTheProvenanceLineIsBehindADisclosureWithAnId(t *testing.T) {
+	title, n := aRenderedGenerationPage(t)
+
+	if n("summarythere") != 1 {
+		t.Fatalf("the maintenance disclosure has no id, so nothing outside this window "+
+			"can open it: %q", title)
+	}
+	if n("wroteclosed") != 0 {
+		t.Errorf("the provenance line is on screen without the disclosure being "+
+			"opened, so this test no longer describes the page: %q", title)
+	}
+	if n("wroteopened") != 1 {
+		t.Errorf("opening the disclosure does not put the provenance line on screen, "+
+			"so a scenario that presses it still cannot read Studio's agreement: %q",
+			title)
+	}
+}
 
 // EACH OF THE FOUR READINGS IS ON THE PAGE IN ITS OWN WORDS.
 //
