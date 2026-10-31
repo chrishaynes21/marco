@@ -162,8 +162,10 @@ type Recording struct {
 	// check. See orchestrator.RecordedAs.
 	Mode     string `json:"mode,omitempty"`
 	Captures string `json:"captures,omitempty"`
-	// Everywhere is WHERE a recording captures, which is everywhere, and is a release
-	// requirement rather than a nicety. See everywhereSentence.
+	// Everywhere is WHERE a recording captures and how it ends, and is a release
+	// requirement rather than a nicety. The name is older than the sentence and is kept
+	// so the field, the element and the test still answer to one word; what it says is
+	// now that recording is bounded to the chosen window. See everywhereSentence.
 	Everywhere string `json:"everywhere,omitempty"`
 	// Review says a draft is waiting: the capture has ended and nothing is on disk.
 	// This is the state the Stop button exists to reach.
@@ -214,8 +216,10 @@ type Recording struct {
 	Pressable int `json:"pressable,omitempty"`
 	// Steps is the draft in plain words, one line each, in order.
 	Steps []string `json:"steps,omitempty"`
-	// StopKey names the optional shortcut, so the button is not the only way out and the
-	// other way is written where somebody can see it.
+	// StopKey names the stop gesture, so the button is not the only way out and the other
+	// way is written where somebody can see it — which is BEFORE Record as well as during
+	// a recording, because the card that holds it while one is running is behind the
+	// application being demonstrated in. There is always one: see stopLabel.
 	StopKey string `json:"stop_key,omitempty"`
 	Said    string `json:"said,omitempty"`
 	Failed  bool   `json:"failed,omitempty"`
@@ -617,12 +621,16 @@ func (a *Acts) Recording() Recording {
 		// being described is one somebody is about to make. The same field a running
 		// capture fills with its own mode, so the page needs no second question and
 		// no sentence of its own.
+		//
+		// AND THE STOP KEY BEFORE THERE IS A RECORDING TO STOP. It was reported only
+		// once one was running, which is the state where the card holding it is
+		// behind whatever somebody is demonstrating in. See everywhereSentence.
 		return Recording{Mode: string(studioCaptures),
+			StopKey:    stopLabel(),
 			Captures:   capturesSentence(studioCaptures),
-			Everywhere: everywhereSentence()}
+			Everywhere: everywhereSentence(stopLabel())}
 	}
-	out := Recording{Name: c.name,
-		StopKey: recorder.ParseStopKey(os.Getenv("MARCO_STOP_KEY")).Label()}
+	out := Recording{Name: c.name, StopKey: stopLabel()}
 	// WHAT IT IS CAPTURING, FROM THE CAPTURE AND NOT FROM THIS WINDOW'S INTENTIONS.
 	//
 	// `c.mode` is what the recorder was actually told when this one started, so a Studio
@@ -630,10 +638,16 @@ func (a *Acts) Recording() Recording {
 	// promising coordinates. The sentence is the window's; the word is the recording's.
 	out.Mode = string(c.mode)
 	out.Captures = capturesSentence(c.mode)
-	// AND WHERE, WHICH DOES NOT CHANGE WHILE ONE IS RUNNING. Said during a recording as
-	// well as before one, because the card is on screen the whole time somebody is away
-	// doing the thing — and that is when it matters.
-	out.Everywhere = everywhereSentence()
+	// AND WHERE, WHICH DOES NOT CHANGE WHILE ONE IS RUNNING.
+	//
+	// Answered during a recording as well as before one, though only the record card
+	// draws it and that card is hidden while one is running — the band has its own
+	// sentences, which say the window, the pause and the way back. This used to claim the
+	// disclosure was on screen throughout "because the card is on screen the whole time
+	// somebody is away doing the thing", which `showing($('captureCard'), idle && ...)`
+	// has never done. A field the page may ask for in any state is worth answering in any
+	// state; what is not worth doing is saying where it appears and being wrong.
+	out.Everywhere = everywhereSentence(out.StopKey)
 	// AND WHICH ROUTINE THIS IS A SECOND RECORDING OF, when it is one.
 	if g := c.again; g != nil {
 		out.Again, out.AgainName, out.AgainScope = g.id, g.name, g.scope
@@ -1097,35 +1111,47 @@ func (a *Acts) Resave(id string) string {
 		"Refresh and choose it again", id)
 }
 
-// everywhereSentence is where a recording captures, which is everywhere, said before it starts.
+// everywhereSentence is what a recording takes in and how it ends, said before it starts.
 //
-// # Why this has to be said out loud
+// # It used to say the opposite of what the recorder does
 //
-// Because the recorder's hooks are GLOBAL. Every press and key anywhere on the desktop enters the
-// demonstration, attributed to whatever window was in the foreground at that instant, with an app
-// switch emitted whenever that changes — which is by design, and is how `Activate` comes to be in
-// a routine at all. The only thing removed is Studio's own interactions, by process, so that a
-// glance at this window mid-demonstration does not become a drag from the application to Marco
-// and back.
+// It said Marco watches the keyboard and mouse EVERYWHERE, that anything done in the meantime
+// becomes part of the routine, and — in the clause that did the damage — that "recording only a
+// chosen window is not something Marco can do yet". All three were true of the hooks when this was
+// written. None of them survived [[ADR-268-record-only-the-chosen-window]]: `Deps.Watch`'s zero
+// value is `OneWindow`, Studio sets no `Watch`, and `StartRecording` refuses a confined recording
+// that was not told which window. The recording Studio makes is of ONE CHOSEN WINDOW.
 //
-// So a person demonstrating is demonstrating the whole desktop. Answer a message halfway through
-// and the reply is in the routine. The product relied on them not doing anything else and said so
-// nowhere, which is the kind of thing a person finds out by finding it in a file.
+// So the largest thing on the record card denied the chooser two rows under it, and the band three
+// states later contradicted it three times over — the window named, the pause shown while it
+// happens, the keys that came back trimmed. All of that exists only because confinement does. It
+// cost a person either the recording they did not make, or a demonstration given with every other
+// application closed for no reason.
 //
-// # And it does not claim the opposite either
+// # And it says the way out while somebody can still read it
 //
-// Recording only the chosen window does not exist — see Roadmap 36 and the Demonstrations note.
-// The playback window CHECK is a different thing: it re-bases a press onto a window that moved and
-// refuses one that changed, at the instant before acting, and it is not a bound on what a
-// recording captures or on where input may land. A reader who found the check could reasonably
-// conclude this was covered, so this says it is not.
+// The stop shortcut existed only in the recording band, which is BEHIND the application being
+// demonstrated in for the whole of the time it is on screen, and there as the smallest text in it
+// after a red Cancel. The one moment a person can learn the key is before they press Record, and
+// that is the one card that never named it. So the key is in this sentence, and it comes from
+// `recorder.ParseStopKey` rather than from `$MARCO_STOP_KEY` directly: an unset override is not no
+// shortcut, it is F12 (`recorder.DefaultStopKey`), and a window that read the variable raw would
+// go quiet about the key in the default installation — which is every installation.
 //
-// From the backend rather than written into the page, like the sentence above it, so the day
-// recording does become bounded this changes with it rather than going quietly stale.
-func everywhereSentence() string {
-	return "While this is recording, Marco watches your keyboard and mouse EVERYWHERE — " +
-		"every application, not just the one you are demonstrating in. Anything you do " +
-		"in the meantime becomes part of the routine. Studio's own window is the one " +
-		"exception and is left out. Recording only a chosen window is not something " +
-		"Marco can do yet."
+// From the backend rather than written into the page, like the sentence above it, so the day the
+// rule moves again the sentence moves with it rather than going quietly stale. Held by
+// `TestTheWindowSaysWhatARecordingTakesInBeforeRecord`.
+func everywhereSentence(stopKey string) string {
+	return "Records actions in the window you choose. Recording pauses outside it. " +
+		"Return to Studio and press Stop, or press " + stopKey + "."
+}
+
+// stopLabel is the configured stop gesture, as a person would read it.
+//
+// ONE ANSWER FOR BOTH CARDS. `Recording` reported the raw `$MARCO_STOP_KEY` on one path and the
+// parsed label on the other, so the same installation named F12 during a recording and nothing at
+// all before one — the unset variable read as "there is no shortcut" in the one state where
+// somebody still had time to learn it.
+func stopLabel() string {
+	return recorder.ParseStopKey(os.Getenv("MARCO_STOP_KEY")).Label()
 }

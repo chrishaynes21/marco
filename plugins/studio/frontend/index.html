@@ -248,6 +248,14 @@
  .steprows .pair{display:block;font:400 12px var(--sans);color:var(--warn)}
  .steprows .gone .what{text-decoration:line-through;color:var(--dim)}
  .steprows input[type=number]{width:6.5em}
+ /* THE CONTROLS STAY ON THE STEP THEY BELONG TO. `.row` wraps, which is right for a
+    card's own rows and wrong inside a grid cell: on a typing step `name it` landed on
+    its own line above `Ask me for it` and `Remove`, so one step was two rows deep and
+    the list lost the rhythm that makes it readable as a list. The step's words shrink
+    instead — they already break anywhere. */
+ .steprows .sr > .row{flex-wrap:nowrap}
+ .steprows .sr > .row button{white-space:nowrap}
+ .steprows .what{min-width:0}
 
  /* A LIVE STATE LOOKS LIVE, AND A HELD ONE LOOKS HELD. The whole reason the paused
     state exists is that silence looks exactly like a recording that is still
@@ -657,29 +665,35 @@
          same demonstration could save or be refused with nothing on screen to say why.
          See recording.go. -->
     <div class="muted" style="margin-top:6px" id="capCaptures"></div>
-    <!-- AND WHERE IT WILL CAPTURE, WHICH IS EVERYWHERE.
-         A release requirement, and not a nicety. The recorder's hooks are global: every press
-         and key anywhere on the desktop enters the demonstration, attributed to whatever
-         window was in the foreground at that instant. The only thing left out is Studio's own
-         interactions. So a person demonstrating is demonstrating the whole desktop — answer a
-         message halfway through and the reply is in the routine — and until now the product
-         said that nowhere.
+    <!-- WHAT A RECORDING TAKES IN, AND HOW IT ENDS.
+         A release requirement, and not a nicety. This comment used to explain that the
+         recorder's hooks are global, that a person demonstrating is demonstrating the whole
+         desktop, and that bounding a recording to one window "does not exist". All of that
+         was true, and none of it survived ADR-268: the recording Studio makes is of the
+         window chosen two rows below, leaving it PAUSES rather than records elsewhere, and
+         the band three states on says so three times over. The banner had become the one
+         statement in the journey that denied the control under it.
 
-         It is deliberately NOT a claim that recording is bounded to the window being
-         demonstrated in. That does not exist; see Roadmap 36 and the Demonstrations note. The
-         playback window CHECK is a different thing and is not this.
+         And it is where the way out is named. The stop key was in the recording band only,
+         which is behind the application being demonstrated in for the whole of the time it
+         is on screen — so the only card a person can read it on is this one, before they
+         press Record.
 
-         From the backend, like the line above it, so the day recording does become bounded the
-         sentence changes with it rather than going quietly stale. -->
+         From the backend, like the line above it, so the day the rule moves again the
+         sentence moves with it rather than going quietly stale. See everywhereSentence. -->
     <div class="banner" style="margin-top:8px" id="capEverywhere"></div>
-    <div class="row" style="margin-top:10px"><label style="width:7em">call it</label>
-      <input type="text" id="capName" placeholder="what you will ask Marco for"></div>
-    <!-- WHICH WINDOW, CHOSEN BEFORE RECORDING STARTS.
+    <!-- WHICH WINDOW, CHOSEN BEFORE RECORDING STARTS, AND ASKED FIRST.
          Not inferred. The first version took the first window to come forward after
          Record, which is whatever Windows does next: an updater, a notification, the
          terminal. The person then demonstrated into a window nothing was watching and
-         could not correct a choice they were never shown. See recording.go Windows. -->
-    <div class="row" style="margin-top:10px"><label style="width:7em">record</label>
+         could not correct a choice they were never shown. See recording.go Windows.
+
+         ABOVE THE NAME, because it is the consequential half and the one needing
+         preparation — the routine's name can be typed at any point, and a window that is
+         not open yet has to be opened before this list can offer it. The card asked for the
+         name first, so the sentence telling somebody to go and open their application sat
+         at the bottom of a form they had already started filling in. -->
+    <div class="row" style="margin-top:10px"><label style="width:7em" for="capWindow">record</label>
       <select id="capWindow" style="flex:1"></select>
       <button onclick="loadWindows()">refresh</button></div>
     <!-- THE ACTIONABLE HALF ONLY. This said "Only what you do in that window is recorded"
@@ -687,6 +701,8 @@
          Two paragraphs used to sit between them and hid the repetition; with those gone the
          rendered page said it twice in one card. -->
     <div class="muted" style="margin-top:6px">Open it first if it is not in the list.</div>
+    <div class="row" style="margin-top:10px"><label style="width:7em" for="capName">call it</label>
+      <input type="text" id="capName" placeholder="what you will ask Marco for"></div>
     <div class="row" style="margin-top:10px">
       <button class="go" id="capBtn" onclick="startCapture()">Record</button>
       <button onclick="hideRecord()">Cancel</button>
@@ -841,7 +857,13 @@
     <!-- AND WHAT IT CAPTURED, at review and again on the saved card. The same sentence
          as beside Record, from the recording that actually ran rather than from what
          this window intended. -->
-    <div class="muted" style="margin-top:6px" id="capReviewCaptures"></div>
+    <!-- AND IT IS NOT SAID A THIRD TIME HERE.
+         `capReviewCaptures` repeated the record card's capture sentence, between the scope
+         chooser and Simplify — between a person and the two buttons they came to this card
+         for. Beside Record it describes a choice somebody is about to make; at review that
+         choice is made, the steps are on the screen, and the words are in the way. The
+         element stays so nothing reads a missing id as a page that stopped answering. -->
+    <div class="muted hide" style="margin-top:6px" id="capReviewCaptures"></div>
     <!-- THE SAME SENTENCE AT REVIEW, where Save is the next button. -->
     <div class="muted hide" style="margin-top:6px" id="capAgainReview"></div>
 
@@ -996,12 +1018,24 @@
            would make it travel on a command line; what the row owes somebody is where
            the value comes from and what to do when it is not set. See playvalues.go. -->
       <div class="hide" style="margin-top:12px" id="routineArgsBox">
-        <div class="muted">this routine types text you supply</div>
+        <h3 style="margin:0 0 8px">Text this routine needs</h3>
         <div id="routineArgsList" class="steprows"></div>
       </div>
       <div class="row" style="margin-top:12px">
         <button class="go" id="routinePlayBtn" onclick="playRoutine()">Play</button>
         <span class="muted" id="routineNote"></span>
+        <!-- AND THE ONE REASON PLAY IS DARK THAT THE PERSON CAN FIX FROM HERE.
+             Four conditions disable the button and three already have a sentence on the
+             card: not runnable is `routineWhy`, no window is `routineIntoWhy`, a run in
+             flight writes `routineNote`. A field with nothing in it yet had none — so
+             arriving at a routine that types supplied text was arriving at an empty box
+             and a dead button, with nothing joining the two.
+
+             ITS OWN ELEMENT, not a second writer of `routineNote`. That span carries a
+             run's progress and its errors; a requirement that cleared it would wipe
+             `starting "x"...` the moment somebody typed, and one that did not clear it
+             would leave a stale ask over a finished run. See paintRoutinePlay. -->
+        <span class="muted hide" id="routineWants"></span>
       </div>
 
       <!-- AND WHAT IT WOULD TYPE, READ BACK BEFORE IT TYPES IT.
@@ -1032,6 +1066,15 @@
            label AND in the card's paragraph above the list. It belongs next to the button,
            and it belongs nowhere at all when the button cannot be pressed: the refusal
            above is what that person needs to read.
+
+           AND NOT BESIDE THE SENTENCE ABOVE IT, WHICH SAYS THE SAME THING BETTER. Both
+           opened `Play brings ... forward and presses`, consecutively, in the same muted
+           grey: one naming the application, one naming the window. The window is the
+           accurate half — it is resolved, it is the one a run will raise, and the
+           backend's sentence goes on to say whether its presses are checked. So this is
+           drawn only when there is no window sentence to carry it, which is the routine
+           that names no application: it raises nothing, there is nothing to name, and it
+           is the one case that needs its own words. See playMeans.
 
            AND IT NAMES NO APPLICATION A ROUTINE DOES NOT HAVE. The sentence was `Play
            brings the application forward and presses for real`, shown for EVERY runnable
@@ -2323,14 +2366,17 @@
      // Blank when the backend states nothing, which is the honest rendering of a
      // statement that is not being made — never a guess at which mode it might be.
      text($('capCaptures'), r.captures || '')
-     // AND WHERE IT CAPTURES, WHICH IS EVERYWHERE. From the backend, and shown both
-     // before a recording and during one — during is when it matters, because the card
-     // is on screen the whole time somebody is away doing the thing. See the element.
+     // AND WHAT IT TAKES IN, AND HOW IT ENDS. From the backend. Written on every poll
+     // and read on the record card, which is where it is needed: that card is hidden
+     // while a recording is running, and the band has its own sentences for the window,
+     // the pause and the way back. This comment used to say the disclosure was on screen
+     // throughout, "because the card is on screen the whole time somebody is away doing
+     // the thing" — the card is `hide`d four lines below. See the element.
      text($('capEverywhere'), r.everywhere || '')
      showing($('capEverywhere'), !!r.everywhere)
-     text($('capReviewCaptures'), r.captures || '')
+     // SAID ONCE, BESIDE RECORD. See the element for why review does not repeat it.
+     text($('capReviewCaptures'), '')
      showing($('capCaptures'), !!r.captures)
-     showing($('capReviewCaptures'), !!r.captures)
      // WHICH ROUTINE THIS IS A SECOND RECORDING OF, in both cards, on every poll.
      //
      // Outside the signature guard below for the same reason the line above is: that
@@ -2854,17 +2900,25 @@
 
  // WHAT PLAY DOES, FOR THE ROUTINE IN FRONT OF SOMEBODY RATHER THAN FOR ROUTINES.
  //
- // A routine with an application is brought forward by name. One saved to work anywhere
- // names no application, raises nothing, and presses into whatever holds the foreground —
- // which is THIS WINDOW at the instant somebody clicks Play. Saying "brings the application
- // forward" there promised an application the route does not have; saying nothing at all
- // would leave the one case that needs a sentence without one.
+ // A routine saved to work anywhere names no application, raises nothing, and presses into
+ // whatever holds the foreground — which is THIS WINDOW at the instant somebody clicks
+ // Play. Saying "brings the application forward" there promised an application the route
+ // does not have; saying nothing at all would leave the one case that needs a sentence
+ // without one.
+ //
+ // AND NOTHING FOR THE ROUTINE THAT HAS ONE, because the sentence above it already said it
+ // and said it better. `routineIntoSays` names the window a run will RAISE — resolved,
+ // selected, the actual one — and goes on to say whether its presses are checked against
+ // it. This said `Play brings notepad forward and presses for real` directly underneath, in
+ // the same grey: two consecutive sentences opening the same way, one of them about an
+ // application and one about a window. A routine with an application and no window to press
+ // in has a refusal on screen instead, which is what that person needs to read.
  //
  // Held by TestPlayNeverPromisesAnApplicationARoutineDoesNotName.
  function playMeans(r){
    if (!r) { return '' }
    return r.app
-     ? 'Play brings ' + r.app + ' forward and presses for real.'
+     ? ''
      : 'Play presses for real, into whatever is in front when it runs. This routine ' +
        'names no application, so Marco brings nothing forward.'
  }
@@ -3648,8 +3702,11 @@
    showing($('routineCaptures'), !!r.captures)
    showing($('routineWhy'), !r.runnable)
    text($('routineWhy'), r.why || '')
-   showing($('routinePlayMeans'), !!r.runnable)
+   // ONE HANDOFF SENTENCE, and `playMeans` is the one that decides which. Shown on
+   // whether there are words rather than on a second copy of its condition: two
+   // expressions for one choice is how the card came to say it twice. See the element.
    text($('routinePlayMeans'), playMeans(r))
+   showing($('routinePlayMeans'), !!r.runnable && !!playMeans(r))
    text($('routineSource'), r.source || '')
    // WHICH GENERATION WROTE IT, AND WHAT IT WAS WRITTEN WITHOUT.
    //
@@ -3859,6 +3916,8 @@
        const label = document.createElement('label')
        label.style.width = '7em'
        label.textContent = f.name
+       // AND THE LABEL BELONGS TO ITS BOX. Bound below, once the box exists and has an
+       // id: a label floating beside a field is a word, and clicking it does nothing.
        row.appendChild(label)
        if (f.secret) {
          // NO BOX. The store answers for it; a field here would put it on an argv.
@@ -3872,6 +3931,7 @@
          box.type = 'text'
          box.style.flex = '1'
          box.id = 'routineArg-' + f.name
+         label.htmlFor = box.id
          // FILLED FROM THE PROPOSAL, AND THE VALUE IS TAKEN AS SUPPLIED.
          //
          // Both, together: a box that LOOKED filled while nothing stood behind it
@@ -3925,6 +3985,20 @@
  // clearing a field is a thing people do, and a routine that types nothing where they
  // asked for nothing is correct. So the test is whether the name is present in what has
  // been typed, which is the same distinction the backend makes.
+ // missingArgs is the fields with nothing supplied yet, in the order they are drawn.
+ //
+ // The same test as `suppliedArgs`, which is why it is beside it: one predicate and one
+ // list disagreeing about what "missing" means is a sentence naming a box that is not the
+ // one holding Play back. A secret is never named — the store answers for it and there is
+ // no box here to fill in.
+ function missingArgs(){
+   const r = routineWith(chosenRoutine)
+   const a = (argNeeds && r && argNeeds.id === r.id) ? argNeeds : null
+   if (!a || !a.needs) { return [] }
+   return a.fields.filter(f => !f.secret &&
+     !Object.prototype.hasOwnProperty.call(argValues, f.name)).map(f => f.name)
+ }
+
  function suppliedArgs(){
    const r = routineWith(chosenRoutine)
    const a = (argNeeds && r && argNeeds.id === r.id) ? argNeeds : null
@@ -4027,6 +4101,17 @@
    // live-and-then-refused, because the refusal would arrive after the decision.
    $('routinePlayBtn').disabled = runActive || !r || !r.runnable || !intoWindow ||
      !suppliedArgs()
+   // AND THE FIELDS IT IS WAITING ON ARE NAMED, when that is the only thing it waits on.
+   //
+   // Only then: a routine that cannot be performed at all has a refusal above, and a
+   // second line asking for text would compete with it for the same decision. UNSUPPLIED
+   // rather than empty, which is the distinction `suppliedArgs` makes and the reason this
+   // reads the same predicate — a box somebody has typed into and cleared is a value, and
+   // a routine asked to type nothing types nothing.
+   const wants = (!runActive && r && r.runnable && intoWindow && !suppliedArgs())
+     ? 'Fill in ' + missingArgs().join(' and ') + ' above to play it.' : ''
+   text($('routineWants'), wants)
+   showing($('routineWants'), !!wants)
    // AND RECORD IT AGAIN IS OFF WHILE ANYTHING IS IN FLIGHT, but NOT because the
    // routine is unrunnable — a routine that refuses every press is the one somebody
    // most needs to record again, and a button greyed out there would be the window

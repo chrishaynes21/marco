@@ -114,6 +114,12 @@ product said so nowhere. The window says it before Record now, and says the othe
 recording only a chosen window is not something Marco can do yet. See [[Demonstrations]] and
 Roadmap 36 for why the playback window CHECK is a different thing and does not cover it.
 
+> **This paragraph is what was true on 2026-10-26 and is kept as the record of it.** Recording
+> became bounded to one chosen window two days later
+> ([[ADR-268-record-only-the-chosen-window]]), and the disclosure described above — the half that
+> says it cannot be done — went on denying the window chooser under it until 2026-10-31. See that
+> ADR's amendment.
+
 **`performed` does not mean Marco checked.** `internal/outcome` defines it conditionally — *"for a
 Play whose arrival could be checked, it means checked"* — and the README was reading the condition
 off, promising that `performed` means Marco looked again and confirmed. For a coordinate routine
@@ -346,9 +352,11 @@ not.
   as a fault, an installation reporting each piece, a piece with no revision said to have none, a
   replaced file and a missing file as two different problems, an unreadable manifest saying so, and
   a byte-order mark NOT treated as a broken manifest.
-- `plugins/studio` `TestTheWindowSaysRecordingWatchesEverythingBeforeRecord` — the disclosure
-  RENDERED, because a sentence nobody draws is not a disclosure, with all four of its claims
-  including that recording only a chosen window is not something Marco can do.
+- `plugins/studio` `TestTheWindowSaysWhatARecordingTakesInBeforeRecord` — the disclosure
+  RENDERED, because a sentence nobody draws is not a disclosure. It was
+  *TestTheWindowSaysRecordingWatchesEverythingBeforeRecord* and it asserted the opposite claim,
+  which is the one [[ADR-268-record-only-the-chosen-window]] made untrue and which this test then
+  held in place for three days. See its amendment of 2026-10-31.
 - `internal/recorder` `TestAHookThreadThatNeverStartedDoesNotWedgeTheShutdown`,
   `TestAPollerThatNeverComesBackDoesNotWedgeTheShutdown` — neither wait can wedge a caller, and the
   shutdown is bounded rather than merely each part of it.

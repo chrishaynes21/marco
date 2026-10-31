@@ -386,3 +386,37 @@ to this window, which is how everybody ends one. The way out is now the only thi
 takes out instead of refusing, under three bounds, and it is said out loud. See
 [[ADR-274-the-way-out-of-a-window-is-not-part-of-the-demonstration]], and
 `TestAltTabbingBackToStopTheRecordingSaves`.
+
+## Amended 2026-10-31 — and the window finally says so
+
+The decision above landed on 2026-10-28 and **Studio went on telling people the opposite of it**
+until today. The largest element on the record card was a warning that Marco watches the keyboard
+and mouse EVERYWHERE, that anything done in the meantime becomes part of the routine, and — the
+clause that did the damage — that *recording only a chosen window is not something Marco can do
+yet*. Two rows underneath it sat the window chooser this ADR required.
+
+Nothing was wrong with the recorder. The sentence was from before the decision, a page test
+asserted each of its claims, and so the one statement the product made about what it was doing was
+the one thing it no longer did. The cost is a person who either gives a demonstration with every
+other application closed for no reason, or does not give it at all.
+
+`everywhereSentence` now reads **"Records actions in the window you choose. Recording pauses
+outside it. Return to Studio and press Stop, or press F12."** — the three facts a person needs
+before they press Record, in the order they need them. It still comes from the backend rather than
+the page, which is the property that was supposed to stop this: a sentence rendered through an
+element changes when the rule changes. What it could not do is notice that the rule had changed
+and nobody had rewritten it. The test is the thing that should have, and it was asserting the old
+claim word for word, so it is renamed and it now asserts the absence of both dead clauses as well
+as the presence of the live ones.
+
+**And the way out is named while somebody can still read it.** The stop gesture was reported only
+once a recording was running, in the band — which is behind the application being demonstrated in
+for the whole of the time it is on screen. It is in the sentence above, and `Recording` answers
+with it before there is anything to stop. It is read through `recorder.ParseStopKey`, not from
+`$MARCO_STOP_KEY` directly: an unset override is not *no shortcut*, it is `DefaultStopKey`, and the
+one path that read the variable raw went silent about the key in every default installation.
+
+Enforced by `plugins/studio` `TestTheWindowSaysWhatARecordingTakesInBeforeRecord` (renamed from
+*TestTheWindowSaysRecordingWatchesEverythingBeforeRecord*) — rendered, the four live clauses
+present, and the two retired ones asserted ABSENT, because a disclosure can name the chosen window
+and still go on to deny it.

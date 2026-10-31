@@ -476,21 +476,27 @@ func kindsAsked(t *testing.T, title string) string {
 	return m[1]
 }
 
-// THE WINDOW SAYS THAT RECORDING WATCHES EVERYTHING, BEFORE ANYBODY PRESSES RECORD.
+// THE WINDOW SAYS WHAT A RECORDING TAKES IN AND HOW IT ENDS, BEFORE ANYBODY PRESSES RECORD.
 //
-// A release requirement rather than a nicety. The recorder's hooks are global: every press and
-// key anywhere on the desktop enters the demonstration, and the only thing left out is Studio's
-// own interactions. A person demonstrating is demonstrating the whole desktop — answer a message
-// halfway through and the reply is in the routine — and the product said so nowhere.
+// A release requirement rather than a nicety, and it has been both halves of one in turn.
+//
+// THIS TEST USED TO HOLD A FALSE CLAIM IN PLACE, which is why the inversion is recorded here
+// rather than quietly rewritten. It asserted the disclosure said Marco watches the keyboard and
+// mouse EVERYWHERE, that it is every application, and that "recording only a chosen window is not
+// something Marco can do yet" — all true of the hooks when it was written, and none of them true
+// after [[ADR-268-record-only-the-chosen-window]]. A disclosure asserting the opposite of what the
+// recorder does is worse than none: the largest thing on the record card denied the window chooser
+// two rows below it, and this test is what kept it there.
+//
+// So it asserts the two facts a person needs before pressing Record — that the window they pick is
+// the bound, and that leaving it pauses rather than records — and that THE WAY OUT IS NAMED while
+// they can still read it. The stop key lived only in the band, which is behind the application
+// being demonstrated in for as long as it is on screen.
 //
 // RENDERED, because a sentence nobody draws is not a disclosure. The backend returning it and the
 // page having an element for it are two facts, and only something that runs the page can join
 // them: a guard reading the source would pass on a page that computed the text into a hidden div.
-//
-// And it must not claim the opposite either. Recording only a chosen window does not exist, so
-// the sentence says that, and this asserts it says that — a disclosure that implied a bound would
-// be worse than none.
-func TestTheWindowSaysRecordingWatchesEverythingBeforeRecord(t *testing.T) {
+func TestTheWindowSaysWhatARecordingTakesInBeforeRecord(t *testing.T) {
 	browser := aBrowser()
 	if browser == "" {
 		t.Skip("no headless Chromium on this machine to render the page in")
@@ -526,13 +532,10 @@ window.go = {main: {
       windows: [{id: '4660:77', label: 'a window',
         says: 'Play brings a window to the front and presses there.'}]}),
     Routines: () => Promise.resolve([]),
-    Recording: () => Promise.resolve({active: false,
+    Recording: () => Promise.resolve({active: false, stop_key: 'F12',
       captures: 'Where you press and how long you pause.',
-      everywhere: 'While this is recording, Marco watches your keyboard and mouse ' +
-                  'EVERYWHERE — every application, not just the one you are ' +
-                  'demonstrating in. Studio\u0027s own window is the one exception ' +
-                  'and is left out. Recording only a chosen window is not something ' +
-                  'Marco can do yet.'}),
+      everywhere: 'Records actions in the window you choose. Recording pauses ' +
+                  'outside it. Return to Studio and press Stop, or press F12.'}),
   },
 }}
 setTimeout(() => {
@@ -541,9 +544,11 @@ setTimeout(() => {
   const said = hidden ? '' : el.textContent
   document.title =
     ' shown=' + (hidden ? 0 : 1) +
+    ' chosen=' + (said.includes('in the window you choose') ? 1 : 0) +
+    ' pauses=' + (said.includes('pauses outside it') ? 1 : 0) +
+    ' stop=' + (said.includes('press Stop') ? 1 : 0) +
+    ' key=' + (said.includes('press F12') ? 1 : 0) +
     ' everywhere=' + (said.includes('EVERYWHERE') ? 1 : 0) +
-    ' apps=' + (said.includes('every application') ? 1 : 0) +
-    ' exception=' + (said.includes('own window is the one exception') ? 1 : 0) +
     ' notyet=' + (said.includes('not something Marco can do yet') ? 1 : 0) +
     ' undef=' + (said.includes('undefined') ? 1 : 0)
 }, 2500)
@@ -561,13 +566,28 @@ setTimeout(() => {
 		t.Fatalf("the disclosure is not on screen before Record: %q", title)
 	}
 	for _, c := range []struct{ key, what string }{
-		{"everywhere", "that recording watches everywhere"},
-		{"apps", "that it is every application and not only the one being demonstrated in"},
-		{"exception", "that Studio's own window is the exception"},
-		{"notyet", "that recording only a chosen window is not something Marco can do"},
+		{"chosen", "that what is recorded is the window the person chooses"},
+		{"pauses", "that leaving that window pauses the recording rather than recording elsewhere"},
+		{"stop", "that Stop in this window is a way out"},
+		{"key", "which key is the other way out"},
 	} {
 		if n(c.key) != 1 {
 			t.Errorf("the disclosure does not say %s: %q", c.what, title)
+		}
+	}
+	// ── AND NOT THE CLAIM IT USED TO ASSERT ──
+	//
+	// The two clauses that denied the chooser under this card. Named rather than left to
+	// the positive assertions above, because the defect was a sentence that said both: a
+	// disclosure can name the chosen window AND go on to say recording it is not possible,
+	// and every assertion above would pass.
+	for _, c := range []struct{ key, what string }{
+		{"everywhere", "that it watches everywhere"},
+		{"notyet", "that recording one chosen window cannot be done yet"},
+	} {
+		if n(c.key) != 0 {
+			t.Errorf("the disclosure still claims %s, which is the opposite of "+
+				"what the recorder does: %q", c.what, title)
 		}
 	}
 	if n("undef") != 0 {

@@ -492,11 +492,17 @@ nothing there can have tried it. A panel that dropped the caveat on a clean mach
 as a promise at exactly the moment somebody believed one.
 [[ADR-255-readiness-is-what-has-been-checked]]
 
-## A recording is not bounded to a window, and the playback check is not that bound
+## A recording is bounded to one chosen window, and the playback check is a different bound
 
-Two different things wear confinement words in this codebase, and only one of them is built. The
-distinction is written down here because the implemented one is easy to read as satisfying the
-requirement, and it does not.
+Two different things wear confinement words in this codebase and they are not the same bound. The
+distinction is written down here because each is easy to read as satisfying the other, and neither
+does.
+
+This heading used to read *a recording is not bounded to a window*. It stopped being true on
+2026-10-28 ([[ADR-268-record-only-the-chosen-window]]) and the body below was rewritten then; the
+heading was not, so the one line a reader skimming the contents took away was the retired claim.
+Studio's record card made the same mistake in front of people for three days — see that ADR's
+amendment of 2026-10-31.
 
 **What IS implemented — the playback check.** A guarded press states the window it was
 demonstrated in and everything needed to resolve an offset into it; at the moment of pressing,

@@ -119,9 +119,15 @@ setTimeout(() => {
 
 // WHAT A RECORDING WILL CAPTURE IS ON THE PAGE BEFORE ANYBODY PRESSES RECORD.
 //
-// Beside Record, where the choice being described is one somebody is about to make, and again at
-// review. From the backend both times: a page with the sentence typed into it would go on
-// promising coordinates after the window stopped stating one.
+// Beside Record, where the choice being described is one somebody is about to make. From the
+// backend: a page with the sentence typed into it would go on promising coordinates after the
+// window stopped stating one.
+//
+// AND ONCE. This asserted the review said it too, between the scope chooser and Simplify —
+// between a person and the two buttons they came to that card for, about a choice that was made
+// several states ago. The fact is not lost: a SAVED routine's card states how it was made
+// (`routineCaptures`, asserted below), which is where it is a fact about a routine rather than a
+// repetition of the form.
 func TestThePageSaysWhatARecordingWillCapture(t *testing.T) {
 	title, n := aRenderedModePage(t)
 	if got := n("beside"); got != 1 {
@@ -132,8 +138,10 @@ func TestThePageSaysWhatARecordingWillCapture(t *testing.T) {
 		t.Errorf("the line beside Record is hidden, so the sentence exists and "+
 			"nobody can read it: %q", title)
 	}
-	if got := n("reviewtext"); got != 1 {
-		t.Errorf("the review does not say what was captured: %q", title)
+	if got := n("reviewtext"); got != 0 {
+		t.Errorf("the review repeats the record card's capture sentence, which is "+
+			"said beside Record and again on the saved routine's own card: %q",
+			title)
 	}
 }
 
