@@ -67,7 +67,23 @@
    --display:"Segoe UI Variable Display","Segoe UI",system-ui,-apple-system,sans-serif;
    --text:"Segoe UI Variable Text","Segoe UI",system-ui,-apple-system,sans-serif;
    --mach:"Cascadia Mono","Cascadia Code",Consolas,ui-monospace,monospace;
-   --r:7px;
+   /* ── THE SCALE, so spacing and shape are chosen once rather than per element ──
+      `--r` is the panel radius and `--r-sm` belongs to the things inside one: a
+      button, a field, a framed list. Two radii is the whole shape system, and the
+      nesting is what reads as modern -- a 7px control inside a 10px panel sits in
+      it, where the same radius on both makes a card look like a big button.
+
+      `--ctl` is one height for every control on the page, because a row of a
+      button, a field and a select that disagree by two pixels each is the detail
+      that makes a careful window look assembled rather than drawn.
+
+      `--lift` is DELIBERATELY NEARLY NOTHING: a hairline under the edge and a wide,
+      very soft fall. This page's rule is that a border means "separate object", so a
+      shadow here may only say "this surface is the near one" -- the moment it is
+      visible as a shadow it is a second border, which is what made eleven cards read
+      as one list. */
+   --r:10px; --r-sm:7px; --ctl:34px;
+   --lift:0 1px 1px rgba(0,0,0,.22), 0 10px 26px -14px rgba(0,0,0,.5);
  }
  /* THE PAPER SIDE. Guarded so an explicit dark choice beats a light desktop. */
  @media (prefers-color-scheme:light){
@@ -77,6 +93,7 @@
      --spot:#5a49c4; --spot-ink:#ffffff; --spot-dim:#8d82dd;
      --ok:#2d8a4e; --warn:#8f5f07; --no:#c33a2e;
      --ok-bg:#eaf5ec; --warn-bg:#faf2e2; --no-bg:#fdedeb; --spot-bg:#f0edfb;
+   --lift:0 1px 1px rgba(33,30,39,.045), 0 10px 26px -16px rgba(33,30,39,.16);
    }
  }
  :root[data-theme="light"]{
@@ -85,6 +102,7 @@
    --spot:#5a49c4; --spot-ink:#ffffff; --spot-dim:#8d82dd;
    --ok:#2d8a4e; --warn:#8f5f07; --no:#c33a2e;
    --ok-bg:#eaf5ec; --warn-bg:#faf2e2; --no-bg:#fdedeb; --spot-bg:#f0edfb;
+   --lift:0 1px 1px rgba(33,30,39,.045), 0 10px 26px -16px rgba(33,30,39,.16);
  }
 
  *{box-sizing:border-box}
@@ -92,40 +110,68 @@
       margin:0;height:100vh;display:flex;overflow:hidden;
       -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
  ::selection{background:var(--spot-dim);color:#fff}
+ /* THE SCROLLBAR IS PART OF THE WINDOW. The host's default is a wide light-grey
+    gutter that belongs to no theme on this page, and it is on screen for the whole
+    of the longest view. Inset by its own transparent border so the thumb reads as a
+    rule in the margin rather than a channel beside the text. */
+ *::-webkit-scrollbar{width:12px;height:12px}
+ *::-webkit-scrollbar-track{background:transparent}
+ *::-webkit-scrollbar-thumb{background:var(--line);border-radius:99px;
+      border:3.5px solid transparent;background-clip:content-box}
+ *::-webkit-scrollbar-thumb:hover{background:var(--faint);
+      border:3.5px solid transparent;background-clip:content-box}
+ *::-webkit-scrollbar-corner{background:transparent}
  :focus-visible{outline:2px solid var(--spot);outline-offset:2px;border-radius:3px}
 
  /* ── the rail: three places, and the one you are in is marked ── */
- #rail{width:208px;flex:0 0 208px;background:var(--sink);
+ #rail{width:214px;flex:0 0 214px;background:var(--sink);
        border-right:1px solid var(--line);display:flex;flex-direction:column;
-       padding:20px 0 14px}
- .brand{font:600 16px/1.2 var(--display);color:var(--ink);padding:0 18px 20px;
+       padding:18px 0 14px}
+ .brand{font:600 15.5px/1.2 var(--display);color:var(--ink);padding:0 20px 16px;
         display:flex;align-items:center;gap:9px;letter-spacing:.005em}
  /* A cue mark, not a logo: the bar a stage manager rules beside the line they are
     on. It is the one piece of furniture this window has. */
  .brand::before{content:"";width:3px;height:17px;border-radius:2px;
         background:var(--spot);flex:0 0 3px}
- .railbtn{display:block;width:100%;text-align:left;
-          font:400 14.5px var(--text);background:none;border:0;
-          border-left:2px solid transparent;color:var(--dim);
-          padding:9px 18px;cursor:pointer;transition:color .12s,background .12s}
+ /* A DESTINATION IS A PILL, and the one you are in is filled.
+    It was a full-bleed row with a 2px rule down its left edge -- the shape a code
+    editor uses for a file tree, which is a list of things you open rather than four
+    places you can be. A pill inset from both edges reads as a place, and it lets the
+    accent FILL rather than underline: the active destination is then the same kind of
+    mark as a chosen card, which is the one other thing on this page that is filled
+    with `--spot-bg`. The hairline ring is what stops it floating. */
+ .railbtn{display:block;width:calc(100% - 20px);margin:1px 10px;text-align:left;
+          font:400 14px var(--text);background:none;border:0;
+          border-radius:var(--r-sm);color:var(--dim);
+          padding:8px 12px;cursor:pointer;transition:color .12s,background .12s}
  .railbtn:hover{color:var(--ink);background:var(--raise)}
- .railbtn.on{color:var(--ink);border-left-color:var(--spot);
-          background:var(--spot-bg);font-weight:600}
- .railfoot{margin-top:auto;padding:14px 18px 0;font-size:13px;color:var(--dim)}
+ .railbtn.on{color:var(--ink);background:var(--spot-bg);font-weight:600;
+          box-shadow:inset 0 0 0 1px var(--line)}
+ .railfoot{margin-top:auto;padding:14px 20px 0;font-size:12.75px;line-height:1.5;
+          color:var(--dim)}
  #railrun{border-top:1px solid var(--line);padding-top:13px;margin-bottom:9px}
 
  /* ── the main area: one column, measured ── */
- main{flex:1;min-width:0;overflow-y:auto;padding:34px 40px 56px}
- main > section{max-width:860px}
- h1{font:600 26px/1.22 var(--display);margin:0 0 6px;letter-spacing:-.012em}
+ /* THE COLUMN IS CENTRED IN WHAT IS LEFT OF THE WINDOW.
+    It was pinned to the left edge at a fixed 40px, so on anything wider than about
+    1100px the whole product sat in the left two-thirds with a field of empty ground
+    beside it -- which reads as a page that has not been laid out rather than one with
+    a measure. The measure was already right and is kept; what changed is that the
+    leftover width is now split evenly, and the gutter breathes with the window
+    instead of staying at one number. */
+ main{flex:1;min-width:0;overflow-y:auto;padding:38px clamp(22px,4.5vw,56px) 80px;
+      scrollbar-gutter:stable}
+ main > section{max-width:880px;margin-inline:auto}
+ h1{font:600 28px/1.2 var(--display);margin:0 0 7px;letter-spacing:-.021em;
+    text-wrap:balance}
  /* The lead, at a readable measure. A sentence that explains what an Act IS has
     to be a sentence somebody will read, which 110 characters of monospace was
     not. */
- .sub{font-size:16.5px;line-height:1.6;color:var(--dim);margin:0 0 26px;
+ .sub{font-size:16.5px;line-height:1.6;color:var(--dim);margin:0 0 30px;
       max-width:62ch}
  /* A section label with a rule running off it — a boundary, rather than the
     uppercase blue heading of a developer tool. */
- h2{font:600 11.5px/1 var(--text);color:var(--faint);margin:32px 0 12px;
+ h2{font:600 11.5px/1 var(--text);color:var(--faint);margin:36px 0 13px;
     text-transform:uppercase;letter-spacing:.11em;
     display:flex;align-items:center;gap:12px}
  h2::after{content:"";flex:1;height:1px;background:var(--line)}
@@ -133,7 +179,15 @@
 
  /* ── surfaces, spent by role rather than stamped on everything ── */
  .card{background:var(--raise);border:1px solid var(--line);border-radius:var(--r);
-       padding:15px 17px;margin-bottom:10px}
+       padding:17px 19px;margin-bottom:12px;box-shadow:var(--lift)}
+ /* AND A CARD INSIDE A CARD IS A DRAWER, NOT A SECOND CARD.
+    Six panels open inside the selected routine's card -- its steps, the edit, the
+    scopes, the move, the review, what it will type -- and each one repeated the
+    border, the radius and the ground of the thing it had just opened out of. Two
+    identical frames, one inside the other, four pixels apart. Sunk instead, with the
+    border and the lift dropped: it is visibly PART of the panel that opened it, which
+    is what it is. Must stay above `.card.pick`, which is a row and resets more. */
+ .card .card{background:var(--sink);border-color:transparent;box-shadow:none}
  /* ── THE VISUAL PASS ──────────────────────────────────────────────────────────
     One sans family throughout, and MONO FOR VALUES ONLY — coordinates, chords,
     paths, source. That is a different axis from hierarchy, which is carried by
@@ -145,7 +199,7 @@
 
  /* A ROUTINE IS A ROW. Hairlines between, so the names carry the list. */
  .card.pick{background:none;border:0;border-top:1px solid var(--line);
-        border-radius:0;padding:13px 10px;margin:0;cursor:pointer;
+        border-radius:0;padding:13px 10px;margin:0;cursor:pointer;box-shadow:none;
         transition:background .12s}
  .card.pick:hover{background:var(--sink)}
  .card.pick:last-child{border-bottom:1px solid var(--line)}
@@ -177,8 +231,17 @@
  /* A STEP ROW WITH ITS CONTROLS IN IT. Compact and inside the table rather than beside it:
     the thing being changed and the control that changes it are one row, so nothing has to
     be matched up by counting. */
+ /* AND A LIST OF VALUES IS FRAMED, which is what makes it one object.
+    The rows were hairline-separated but open at the top, the bottom and both sides,
+    so a four-row list of arguments was four loose rules lying across the card. One
+    frame around them, on both grounds -- a fill would disappear in a drawer, which is
+    already sunk -- and the hairlines inside it then read as the table they are.
+    `:empty` because the page fills these by innerHTML and an empty frame is a window
+    drawing a container for nothing. */
+ .steprows{border:1px solid var(--line);border-radius:var(--r-sm);padding:0 12px}
+ .steprows:empty{display:none}
  .steprows .sr{display:grid;grid-template-columns:28px 1fr auto;gap:8px;
-   align-items:center;padding:5px 0;border-bottom:1px solid var(--line)}
+   align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}
  .steprows .sr:last-child{border-bottom:0}
  .steprows .n{font:400 12px var(--mach);color:var(--dim);text-align:right}
  .steprows .what{font:400 13px var(--mach);color:var(--ink);overflow-wrap:anywhere}
@@ -189,21 +252,59 @@
  /* A LIVE STATE LOOKS LIVE, AND A HELD ONE LOOKS HELD. The whole reason the paused
     state exists is that silence looks exactly like a recording that is still
     going, so it may not look like the same card in a different mood. */
- .band{border-radius:var(--r);padding:16px 18px}
- .band.rec{background:linear-gradient(90deg,var(--no-bg),transparent 72%);
+ .band{border-radius:var(--r);padding:18px 20px;margin-bottom:12px}
+ .band.rec{background:linear-gradient(90deg,var(--no-bg),transparent 92%);
         box-shadow:inset 3px 0 0 var(--no)}
  .band.hold{background:var(--warn-bg);box-shadow:inset 3px 0 0 var(--warn)}
  .statusword{font:700 21px/1.15 var(--display);letter-spacing:-.02em}
  .statusword.hold{color:var(--warn)}
+ /* AND A RUNNING RECORDING HAS THE ONE MOVING THING IN THIS WINDOW.
+    Nothing else on the page animates, which is why this works: the band already
+    carries the colour and the inset rule, and what it could not say is that the
+    recording is happening NOW rather than that this is the recording screen. Dropped
+    for the held state, which has its own colour and is the opposite claim, and for
+    anybody who has asked for less motion. */
+ .band.rec .statusword:not(.hold)::before{content:"";display:inline-block;
+        width:9px;height:9px;border-radius:50%;background:var(--no);
+        margin-right:11px;vertical-align:.1em;animation:beat 1.7s ease-in-out infinite}
+ @keyframes beat{50%{opacity:.28}}
 
  /* THE PRIMARY ACTION, GIVEN ITS WEIGHT. One filled button per screen. */
- button.go.big{font-size:15px;padding:11px 24px}
+ button.go.big{font-size:15px;padding:11px 24px;min-height:40px}
  /* AND A BLOCKING HEADING, which is a short line in the warning's own colour. */
  .wontrun{font:700 15px/1.3 var(--display);color:var(--no);margin-bottom:3px}
  /* The chosen one is MARKED, not outlined again: a second border around a thing
     that already has one is how every card ended up looking the same. */
  .card.on{border-color:var(--line);box-shadow:inset 3px 0 0 var(--spot);
           padding-left:20px;background:var(--spot-bg)}
+ /* BUT A CHOSEN ROW DOES NOT INDENT. The extra padding above is for a card, which
+    has a border the bar has to clear; a row has none, so the 10px it already has is
+    clear of the 3px bar -- and moving the name ten pixels right made the selected
+    routine look misaligned with the two above it rather than marked. The bar is the
+    difference, which is the whole idea of marking rather than outlining again. */
+ .card.pick.on{padding-left:10px}
+
+ /* ── WHAT YOU CAN DO TO THE ROUTINE YOU CHOSE ───────────────────────────────
+    Four separate things a person might do to a saved routine stand in a row down
+    that panel: look at it again, edit its steps, add a phrase it answers to, change
+    where it works. Each is a control and a sentence, each at the weight of the one
+    above, with nothing marking where one ended -- so the panel read as one long
+    column of controls rather than four choices, and three of the four were things
+    the owner of this repository could not find.
+
+    A ruled row each. It is a class on elements that were already there and in the
+    order they were already in, so every structural claim about this panel is
+    untouched; what it adds is the boundary those claims never described. */
+ .deed{border-top:1px solid var(--line);margin-top:15px;padding-top:15px}
+ .deed > .muted{margin-top:4px}
+ #routineChosen{margin-top:26px}
+ #routineIdentity{font:600 20px/1.25 var(--display);letter-spacing:-.014em;margin:0}
+ /* AND THE FIELDS A ROUTINE ASKS FOR ARE A FORM, NOT A TABLE. They share a class
+    with three lists of values -- the phrases, the steps, the step edit -- and those
+    want the frame; a label beside a box does not, and the box fills the row it is in
+    rather than stopping two-thirds of the way across a frame drawn around it. */
+ #routineArgsList{border:0;padding:0}
+ #routineArgsList .row > input[type=text]{max-width:none}
 
  .muted{color:var(--dim)} .ok{color:var(--ok)} .no{color:var(--no)}
  .warn{color:var(--warn)}
@@ -228,10 +329,16 @@
  .grow{flex:1;min-width:0}
 
  /* ── controls: three tiers, so Play does not look like Refresh ── */
- button{font:400 13.5px var(--text);background:var(--raise);color:var(--ink);
-        border:1px solid var(--line);border-radius:6px;padding:7px 13px;
-        cursor:pointer;transition:background .12s,border-color .12s}
- button:hover:not(:disabled){border-color:var(--faint)}
+ /* ONE HEIGHT, from `--ctl`, for the button, the field and the select alike. A row
+    of three controls that disagree by two pixels each is the detail that makes a
+    carefully written window look assembled. Vertical padding is KEPT beside the
+    minimum height, because a long label wraps and a button holding two lines of text
+    has to grow rather than spill. */
+ button{font:500 13.5px var(--text);background:var(--raise);color:var(--ink);
+        border:1px solid var(--line);border-radius:var(--r-sm);padding:7px 14px;
+        min-height:var(--ctl);
+        cursor:pointer;transition:background .12s,border-color .12s,color .12s}
+ button:hover:not(:disabled){border-color:var(--faint);background:var(--sink)}
  button:disabled{opacity:.42;cursor:default}
  /* The primary. Filled, because on this page it is always the one thing the
     sentence above it just asked for. */
@@ -246,7 +353,8 @@
  button.stop:hover:not(:disabled){background:var(--no);color:#fff}
 
  input[type=text]{font:400 14px var(--text);background:var(--sink);color:var(--ink);
-        border:1px solid var(--line);border-radius:6px;padding:7px 10px;width:100%}
+        border:1px solid var(--line);border-radius:var(--r-sm);padding:7px 11px;
+        min-height:var(--ctl);width:100%}
  /* IN A ROW IT SHARES THE ROW. `width:100%` beside a label is 100% of the row on its
     own, so every labelled field wrapped onto its own line and "call it" sat above an
     input stretched across the card. */
@@ -256,7 +364,8 @@
  input[type=text]:focus{outline:none;border-color:var(--spot);
         box-shadow:0 0 0 3px var(--spot-bg)}
  select{font:400 14px var(--text);background:var(--sink);color:var(--ink);
-        border:1px solid var(--line);border-radius:6px;padding:7px 10px;min-width:14em}
+        border:1px solid var(--line);border-radius:var(--r-sm);padding:7px 11px;
+        min-height:var(--ctl);min-width:12em;max-width:100%}
  input[type=checkbox]{accent-color:var(--spot);width:15px;height:15px;margin:0}
  label{color:var(--dim)}
 
@@ -269,7 +378,10 @@
      border-radius:var(--r);padding:11px 13px;font-size:12.5px;line-height:1.55;
      color:var(--dim)}
 
- details{margin-top:18px;border-top:1px solid var(--line);padding-top:12px}
+ /* A COLLAPSED DETAIL IS ONE MORE THING A PERSON COULD DO, so it is ruled and
+    spaced like the deeds above it rather than at its own measurement. Six rows down
+    the selected routine's panel, one rhythm. */
+ details{margin-top:15px;border-top:1px solid var(--line);padding-top:15px}
  summary{color:var(--faint);cursor:pointer;font-size:13.5px;list-style:none;
      display:flex;align-items:center;gap:7px}
  summary::-webkit-details-marker{display:none}
@@ -305,7 +417,7 @@
  #learnLeft,#railphase,#learnGot{font-variant-numeric:tabular-nums}
 
  @media (prefers-reduced-motion:reduce){
-   *,*::before{transition:none!important}
+   *,*::before{transition:none!important;animation:none!important}
  }
  /* LAST, AND IT WINS. Everything on this page is shown or hidden by toggling this
     one class, and a rule above that sets a display would otherwise un-hide a
@@ -436,6 +548,14 @@
 <!-- ────────────────────────── SCENES ────────────────────────── -->
 <section id="view-routines" class="hide">
   <h1>Routines</h1>
+  <!-- AND THIS ONE SAYS WHAT IT IS FOR, which the other three screens already did.
+       Acts, Scenes and Run history each open with a lead sentence under the heading;
+       the screen somebody actually lives in went straight from one word to a text
+       box, so the hierarchy that explains every other screen was missing from the
+       one that needed it. Three clauses for the three things on the screen, in the
+       order they are in. -->
+  <p class="sub">Ask for one in your own words, record a new one by doing it once, or
+    choose one below to play it or change what it does.</p>
 
   <!-- THE QUESTION FIRST.
        This is the one control that answers what somebody came here to do, and it used
@@ -445,7 +565,13 @@
 
        It asks Director and nothing else: the resolution, the scope policy, the library
        and the candidate labels are Director's, and this window asks rather than
-       deciding. Moving the box did not move that. See plugins/studio/resolve.go. -->
+       deciding. Moving the box did not move that. See plugins/studio/resolve.go.
+
+       AND IT IS LABELLED, like the two sections under it. It is the one control this
+       screen is arranged around and it was the only part of the screen with no name
+       over it, so the structure a person scans -- ask, record, what you have -- was
+       legible from the second heading down. -->
+  <h2 style="margin-top:0">Ask for one</h2>
   <div class="card" id="askCard">
     <div class="row">
       <input id="askBox" type="text" placeholder="say what you want, in your own words"
@@ -607,7 +733,24 @@
          `capKey` is the CONFIGURED stop key, from `Recording.StopKey`, so the button is
          not the only way out and the other way is written where somebody can see it. It
          is whatever this machine is set to and is never named here. -->
-    <div class="row" style="margin-top:12px">
+    <!-- AND THAT COMING BACK FOR THE BUTTON IS ALLOWED.
+         The owner's first question of a live recording was how to end one: the Stop
+         button is in THIS window, and this window is behind whatever is being
+         demonstrated in, so a button somebody cannot see is only an instruction if
+         they know they may come back to it. They may, and that is a real capability
+         rather than a tolerance -- leaving the window and returning is the ONE thing
+         the boundary trims instead of refusing, so the two keys that got here are not
+         in the demonstration. [[ADR-274-the-way-out-of-a-window-is-not-part-of-the-demonstration]]
+         built it and no surface said so; `capExit` reports it afterwards, which is
+         after the moment somebody needed to know.
+
+         A statement about the boundary, deliberately NOT a second copy of what the
+         button under it says. The 21-word instruction that used to stand here told
+         somebody to press the button in front of them, and this is not that coming
+         back: journeypage_test holds that line. -->
+    <div class="muted" style="margin-top:12px">Switch back to this window whenever you
+      are done — getting here and back is left out of what you are teaching.</div>
+    <div class="row" style="margin-top:10px">
       <button class="go" id="capStopBtn" onclick="stopCapture()">Stop recording</button>
       <button class="stop" onclick="cancelCapture()">Cancel</button>
       <span class="muted" id="capKey"></span>
@@ -781,13 +924,17 @@
     <div id="routineList" style="margin-top:12px"></div>
     <div class="muted hide" id="routineNone">Nothing has been recorded yet. Record one
       above and it appears here.</div>
+    <!-- AND IT IS SET APART FROM THE LIST IT BELONGS TO. It opened flush under the
+         last row with the same 17px heading the rows use, so the panel about the
+         selected routine read as a fourth entry in the list. Space above it and a
+         heading a size up; the row it is about is already marked. -->
     <div class="hide" id="routineChosen">
       <!-- WHAT IS SELECTED, BEFORE ANYTHING ABOUT IT.
            The list above marks the chosen card, and that was already true. What was not
            is this panel saying which routine it is about: it opened with three lines of
            provenance, and the name and application were only up in the list. See
            [[Studio-UI-audit-2026-10-29]]. -->
-      <h3 id="routineIdentity" style="margin-top:16px"></h3>
+      <h3 id="routineIdentity"></h3>
       <div class="muted" id="routineIdentityWhere"></div>
 
       <!-- AND WHERE YOU CAN ASK FOR IT, which is a different question from where it works
@@ -910,7 +1057,7 @@
            Replace lives. That is said once, here, because a button that rewrites
            somebody's routine and a button that shows them a comparison must not look
            alike. See drawRoutinePlay. -->
-      <div class="hide" id="routineSecondLook" style="margin-top:10px">
+      <div class="hide deed" id="routineSecondLook">
         <div class="row">
           <!-- NAMED FOR THE THING IT DOES, and the review said UNDERNEATH rather than
                beside it. It read "Review simplification", which names the review and
@@ -937,10 +1084,12 @@
            it, this sends it back with the changes, and a routine written since is a refusal
            with the list reloaded -- because row 5 of a list nobody saw is somebody's
            intention applied to the wrong step. See stepedit.go. -->
-      <div class="row" style="margin-top:10px" id="routineStepsRow">
-        <button id="routineStepsBtn" onclick="stepEditing()">Edit its steps</button>
-        <span class="muted">Change a wait, or remove a step. Nothing is written until you
-          review it.</span>
+      <div class="deed" id="routineStepsRow">
+        <div class="row">
+          <button id="routineStepsBtn" onclick="stepEditing()">Edit its steps</button>
+        </div>
+        <div class="muted">Change a wait, remove a step, or ask for the text a step
+          types. Nothing is written until you review it.</div>
       </div>
       <!-- AND WHAT A SAVE DID, WHICH HAS THREE ANSWERS. Saved is a banner; a source that
            landed without its step list is a PROBLEM card, because the routine runs as
@@ -958,8 +1107,8 @@
            backend refuses a phrase another routine is already reached by and says which, as
            the one thing a card about one routine must not decide for itself. See answers.go
            and `orchestrator.AddAlias`. -->
-      <div id="routineAnswersBox" style="margin-top:12px">
-        <div class="muted">Also answers to</div>
+      <div class="deed" id="routineAnswersBox">
+        <div class="muted" style="margin-top:0">Also answers to</div>
         <!-- THE PHRASES, each with the one thing that can be done to it. Empty and silent
              for a routine that answers only to its own name, which is an ordinary routine
              and not a problem worth a sentence. -->
@@ -988,10 +1137,13 @@
            nobody found it. The choices themselves need a backend call -- whether a scope
            is possible for THIS routine is `WhyNotThisScope`, not something a page can work
            out -- so the button is what asks for them. See rescope.go. -->
-      <div class="row" style="margin-top:10px" id="routineWhereRow">
-        <button id="routineWhereBtn" onclick="scopeChoices()">Change where it works</button>
-        <span class="muted">Shows all three choices, and why any of them is
-          unavailable. Nothing is written until you move it.</span>
+      <div class="deed" id="routineWhereRow">
+        <div class="row">
+          <button id="routineWhereBtn" onclick="scopeChoices()">Change where it
+            works</button>
+        </div>
+        <div class="muted">Shows all three choices, and why any of them is unavailable.
+          Nothing is written until you move it.</div>
       </div>
       <!-- WHAT A MOVE DID, AND MOVED IS NOT COPIED.
            A destination written with the original gone is a move; one written with the

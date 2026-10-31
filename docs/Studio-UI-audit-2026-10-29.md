@@ -368,3 +368,98 @@ one case where `Record it again` is the wrong advice.
 The UI pass closed at `fb7e677`. The three product decisions it deliberately did not touch —
 discoverability of review-and-replace, route availability, and the playback target — are traced
 and proposed in [[Studio-three-questions-proposal-2026-10-29]].
+
+## The third slice: the layout
+
+Asked for as *"improve the UI's layout, make it feel more modern and streamlined"*, on the
+rebuilt window, after [[ADR-277-a-request-may-propose-the-text-a-routine-types]] and
+[[ADR-278-the-text-a-step-types-can-be-made-something-you-supply]] had both landed. The two
+slices above changed WHAT is on each screen and in what order. This one changed how it is laid
+out, and almost all of it is stylesheet: the structural claims the two tests above hold are
+untouched, which was a constraint rather than a happy accident.
+
+### What was wrong, and it was mostly geometry
+
+| | |
+| --- | --- |
+| The column | pinned to the left edge at a fixed 40px, so past about 1100px of window the whole product sat in the left two-thirds beside a field of empty ground |
+| A card inside a card | repeated the border, the radius and the ground of the thing it had just opened out of — six of them in the selected routine's panel, each one two identical frames four pixels apart |
+| The four deeds | *look at it again*, *edit its steps*, *add a phrase*, *change where it works*: four separate things, each a control and a sentence, each at the weight of the one above, with nothing marking where one ended |
+| The chosen routine's panel | opened flush under the last row of the list, at the same 17px heading the rows use, so it read as a fourth entry in the list |
+| The chosen ROW | indented its name 10px past the two above it, so the selected routine looked misaligned rather than marked |
+| Controls | three different heights in one row — a button at 33px, a field at 34px, a select at 34px with its own padding |
+| The screen's three sections | two were labelled and the ask box, the one control the screen is arranged around, was not |
+| The scrollbar | the host's default: a wide light-grey gutter belonging to no theme on this page, on screen for the whole of the longest view |
+
+### What changed
+
+**A scale, chosen once.** `--r` (10px) is the panel radius and `--r-sm` (7px) belongs to the
+things inside one; `--ctl` (34px) is one height for every control; `--lift` is a shadow kept
+deliberately below the threshold of being seen as a shadow, because this page's rule is that a
+border means *separate object* and a visible shadow would be a second border.
+
+**The column is centred** and its gutter breathes with the window (`clamp(22px,4.5vw,56px)`).
+The measure was already right and is kept.
+
+**A card inside a card is a drawer:** sunk to `--sink`, with the border and the lift dropped, so
+it is visibly part of the panel that opened it. `.card.pick` (a routine's row) resets more and
+sits below that rule on purpose.
+
+**The deeds are ruled apart**, and a collapsed `<details>` keeps the same rhythm — six evenly
+spaced rows down the selected routine's panel. `.deed` is a class on elements that were already
+there, in the order they were already in.
+
+**And two of the four gave up their row**, so all four read the same way: the control, then what
+it will do underneath. That is the shape the Simplify ruling asked for — *"Review changes before
+replacing" beneath it* — applied to its three neighbours.
+
+**The ask box is labelled**, so the screen's structure is three parallel sections: *Ask for one*,
+*Record*, *Your routines*. The Routines screen also gained the lead sentence the other three
+screens already had.
+
+**A running recording has the one moving thing in this window:** a pulsing dot before
+`Recording`. Nothing else on the page animates, which is why it reads as *now* rather than
+decoration; dropped for the held state, which has its own colour and is the opposite claim, and
+for anybody who has asked for less motion.
+
+### And one sentence that is not layout
+
+**The way back was never on screen.** The Stop button is in Studio's window and Studio's window
+is behind whatever is being demonstrated in, so a button somebody cannot see is only an
+instruction if they know they may come back for it. They may — and that is a capability rather
+than a tolerance: leaving the window and returning is the ONE thing the boundary trims instead of
+refusing, so the two keys that got there are not in the demonstration.
+[[ADR-274-the-way-out-of-a-window-is-not-part-of-the-demonstration]] built it, `capExit` reports
+it AFTERWARDS, and no surface said it while it mattered. The owner's first question of a live
+recording was how to end one.
+
+It is deliberately not a second copy of the button's label: the 21-word instruction removed in
+the slice above told somebody to press the button in front of them, and
+`TestTheRecordingStateNamesItsWindowAndItsWayOut` still holds that line.
+
+### Rendered states
+
+| | |
+| --- | --- |
+| `5-the-layout-pass.png` | the selected routine's whole panel: four ruled deeds, two collapsed details, the drawer treatment |
+| `5b-the-way-back.png` | the live band, the dot, and the sentence about coming back |
+| `5c-the-paper-side.png` | the same screen on the light desktop |
+
+**A harness artifact worth writing down, because it looked exactly like a defect.** Flipping
+`data-theme` from script under `--virtual-time-budget` leaves `.railbtn`'s 120ms background
+transition stuck at its starting value: the token reads light at the element and the computed
+background is still the dark one. It renders as a black pill on a cream rail. Setting the
+attribute in the markup before first paint shows the real result, which is correct. Nothing on
+the real window flips theme mid-session.
+
+### Held by
+
+The structural tests of the two slices above, unchanged and still passing — that is the claim
+this pass makes about itself. `TestTheJourneyPutsTheQuestionFirstAndPlayUnderWhatIsSelected`,
+`TestTheRecordingStateNamesItsWindowAndItsWayOut`,
+`TestTheReviewShowsTheStepsBeforeEverythingAboutThem` and
+`TestASecondLookAtARoutineIsOfferedWithoutOpeningADetail` all read the order and the wording of
+exactly the markup this pass moved.
+
+**NOT ESTABLISHED: no desktop.** Every screen here is a headless render of stubbed state. The
+window itself has not been rebuilt or opened since.
