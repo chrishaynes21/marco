@@ -773,6 +773,19 @@ func splitSecrets(s string, declared map[string]bool) []segment {
 	return out
 }
 
+// MeansASecret reports whether this argument name is one the generator resolves from the
+// CREDENTIAL STORE rather than typing.
+//
+// EXPORTED BECAUSE A SURFACE THAT LETS SOMEBODY NAME AN ARGUMENT HAS TO KNOW. The step editor
+// can turn the text a step types into a supplied value under a name of the person's choosing,
+// and a name on this list does not produce supplied text at all — it produces
+// `do OS's Secret …`, which reads their credential store and types whatever is in it. That is a
+// surprise nobody asked for, so the editor refuses the name and says why.
+//
+// One list, here, because two would disagree the first time either changed and the disagreement
+// would be a routine that reads a password where somebody expected their own words.
+func MeansASecret(name string) bool { return isSecretArg(name) }
+
 // isSecretArg reports whether a declared arg name should be handled as a secret
 // (resolved from the credential store, never written into the route, masked).
 func isSecretArg(name string) bool {

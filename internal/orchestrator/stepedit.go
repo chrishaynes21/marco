@@ -2,8 +2,8 @@ package orchestrator
 
 // EDITING A STEP: THE STEP LIST IS WHAT CHANGES, AND THE SOURCE IS RE-RENDERED FROM IT.
 //
-// Two operations — set a wait's duration, remove a step — and the same four-step contract every
-// other writer in this package uses:
+// Three operations — set a wait's duration, remove a step, make the text a step types something
+// you SUPPLY — and the same four-step contract every other writer in this package uses:
 //
 //	PREPARE   read the routine, work out the step list its saved source is the render OF, apply
 //	          the operations to THAT, render again. NOTHING IS WRITTEN. What comes back is both
@@ -49,8 +49,10 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 
+	"github.com/chaynes-simpleclouds/marco/internal/codegen"
 	"github.com/chaynes-simpleclouds/marco/internal/driver"
 	"github.com/chaynes-simpleclouds/marco/internal/macroir"
 	"github.com/chaynes-simpleclouds/marco/internal/mlog"
@@ -70,7 +72,7 @@ import (
 var ErrStepsNotWritten = errors.New("the routine was saved with the edit and its steps were " +
 	"not written down beside it")
 
-// EditOp is one of the two things an edit can do. There are two on purpose; see the note above.
+// EditOp is one of the three things an edit can do; see the note above.
 type EditOp string
 
 const (
@@ -78,7 +80,35 @@ const (
 	EditWait EditOp = "wait"
 	// EditRemove removes one step, whole.
 	EditRemove EditOp = "remove"
+	// EditArgument makes the text a step types something SUPPLIED, under a name.
+	//
+	// # Why this is an edit rather than something you do while demonstrating
+	//
+	// It was already possible, and the two ways in were both invisible: name the recording
+	// `write a note with message` so the phrase declares an argument, and tap a RESERVED KEY
+	// (`simplify.DefaultArgKey`, f9) at the moment in the demonstration where the text goes.
+	// Both have to be known in advance, and neither is discoverable from any surface — the
+	// owner of this repository could not find them, which is how this came to be built.
+	//
+	// As an edit it needs no foreknowledge and no second demonstration: somebody types the
+	// text they actually want, sees it in the step list, and says THIS is the part that
+	// changes. It works on routines that were saved before any of this existed.
+	//
+	// What it does is replace the step's literal with `{{name}}`, which is the placeholder
+	// the whole of [[ADR-276-a-routine-may-be-told-what-to-type]] is already built on:
+	// `routes.Arguments` reads it, Studio's field beside Play asks for it, `routes.ApplyArgs`
+	// fills it at run time, and a request can now propose it
+	// ([[ADR-277-a-request-may-propose-the-text-a-routine-types]]). Nothing downstream needed
+	// changing, which is the whole reason this is three lines of IR and not a feature.
+	EditArgument EditOp = "argument"
 )
+
+// argName is what a placeholder's name may be: exactly what `routes` own pattern will read back.
+//
+// THE SAME CHARACTERS AND NO OTHERS. A name this accepts and `phRe` does not would be written
+// into the source as text that looks like a placeholder and is never filled — the routine would
+// type two braces and the person's name at them.
+var argName = regexp.MustCompile(`^[a-z0-9_-]+$`)
 
 // StepEdit is one operation, against a position in the step list as the caller was shown it.
 //
@@ -94,6 +124,13 @@ type StepEdit struct {
 	At int `json:"at"`
 	// To is the new duration in milliseconds, for EditWait. Ignored otherwise.
 	To int `json:"to"`
+	// Name is what the supplied text is called, for EditArgument. Ignored otherwise.
+	//
+	// LOWERCASED when it is applied, because every reader downstream compares these
+	// case-insensitively — `CheckArgs` lowers them, `zipPositional` lowers them — and a
+	// stored `{{Message}}` beside a field asking for `message` is a confusion with nothing
+	// to gain from it.
+	Name string `json:"name"`
 }
 
 // EditReview is one routine with its step list edited, for review.
@@ -333,10 +370,19 @@ func (d Deps) PrepareEditOf(rt routes.Route, shown string, edits []StepEdit) (Ed
 	}
 
 	// ── THE OPERATIONS ──
-	edited, says, refused, aerr := applyEdits(basis.steps, edits)
+	edited, says, refused, declared, aerr := applyEdits(basis.steps, edits)
 	if aerr != nil {
 		return EditReview{}, aerr
 	}
+	// AND THE NAMES THE EDIT DECLARED JOIN THE ROUTINE'S OWN, for the render below.
+	//
+	// Without them `codegen` keeps a `{{name}}` in the typed literal only if the routine
+	// already declared it, and turns any other one into `do OS's Secret …`. So the first
+	// version of this rendered `do OS's Secret with "message"` where
+	// `do OS's Type with "{{message}}"` belonged — a routine that reads somebody's
+	// credential store where they asked for their own words. Found by reading the render,
+	// not by a failing test: every assertion was about the step list, which was right.
+	args := append(append([]string{}, basis.args...), declared...)
 	e.steps, e.Says = edited, says
 	if refused != "" {
 		e.Refused = refused
@@ -349,7 +395,7 @@ func (d Deps) PrepareEditOf(rt routes.Route, shown string, edits []StepEdit) (Ed
 			"down, so the edit is not offered: %w", e.Name, merr)
 	}
 	e.stepsToWrite = written
-	now, assets, rerr := d.render(&Draft{Name: basis.name, Args: basis.args,
+	now, assets, rerr := d.render(&Draft{Name: basis.name, Args: args,
 		Steps: edited, Mode: basis.mode}, scope.mode(), rt.App, rt)
 	if rerr != nil {
 		// THE GENERATOR'S OWN WORDS, as the rebuild review does with them: a thing
@@ -390,7 +436,6 @@ type basis struct {
 // rather than as what it suggests.
 func (d Deps) basisFor(rt routes.Route, src string, rec []byte) (basis, string, error) {
 	name := NameIn(src, rt.Slug)
-	base, args := routes.SplitArgs(name)
 	stored, state := d.Reg.Steps(rt)
 	switch state {
 	case routes.StepsIntact:
@@ -403,6 +448,7 @@ func (d Deps) basisFor(rt routes.Route, src string, rec []byte) (basis, string, 
 			return basis{}, "its stored steps contain nothing that can be " +
 				"performed", nil
 		}
+		base, args := declaredFor(name, steps)
 		return basis{steps: steps, name: base, args: args, mode: ModeOf(src),
 			mismatch: "its saved source is not what its stored steps render " +
 				"to under today's rules, so the two no longer agree — " +
@@ -461,28 +507,41 @@ func (d Deps) basisFor(rt routes.Route, src string, rec []byte) (basis, string, 
 // would move the later positions under the earlier edits, so the two operations somebody asked
 // for would not be the two that happened — and silently, because the result is a perfectly good
 // routine that does the wrong thing.
-func applyEdits(steps []macroir.Step, edits []StepEdit) ([]macroir.Step, []string, string, error) {
+// The fourth return is the argument names the edits DECLARED, which the re-render needs.
+//
+// # Why a render has to be told
+//
+// `codegen.splitSecrets` keeps a `{{name}}` in the typed literal only when the name is DECLARED
+// (or numeric); any other one becomes `do OS's Secret …`. So an edit that writes `{{message}}`
+// into a step and renders against the routine's OLD declarations produces a routine that reads
+// the credential store — which is exactly what this did before it returned these: the diagnostic
+// read `do OS's Secret with "message"` where `do OS's Type with "{{message}}"` belonged.
+//
+// Returned rather than derived by the caller from the steps, because the caller would then be
+// working out what an edit meant a second time, and the two readings would be free to disagree.
+func applyEdits(steps []macroir.Step, edits []StepEdit) ([]macroir.Step, []string, string, []string, error) {
 	drop := map[int]bool{}
 	waits := map[int]int{}
+	args := map[int]string{}
 	var says []string
 	for _, ed := range edits {
 		if ed.At < 0 || ed.At >= len(steps) {
-			return nil, nil, "", fmt.Errorf("there is no step %d in a routine of %d "+
+			return nil, nil, "", nil, fmt.Errorf("there is no step %d in a routine of %d "+
 				"steps, so nothing was changed — look at it again",
 				ed.At+1, len(steps))
 		}
 		switch ed.Op {
 		case EditWait:
 			if steps[ed.At].Kind != macroir.StepWait {
-				return nil, nil, "", fmt.Errorf("step %d is not a wait, so it "+
+				return nil, nil, "", nil, fmt.Errorf("step %d is not a wait, so it "+
 					"has no duration to change", ed.At+1)
 			}
 			if ed.To < 0 {
-				return nil, nil, "", fmt.Errorf("a wait cannot be %dms long",
+				return nil, nil, "", nil, fmt.Errorf("a wait cannot be %dms long",
 					ed.To)
 			}
 			if drop[ed.At] {
-				return nil, nil, "", fmt.Errorf("step %d is asked to be both "+
+				return nil, nil, "", nil, fmt.Errorf("step %d is asked to be both "+
 					"changed and removed, so nothing was changed",
 					ed.At+1)
 			}
@@ -491,8 +550,13 @@ func applyEdits(steps []macroir.Step, edits []StepEdit) ([]macroir.Step, []strin
 				"(it was %dms)", ed.At+1, ed.To, steps[ed.At].Ms))
 		case EditRemove:
 			if _, changed := waits[ed.At]; changed {
-				return nil, nil, "", fmt.Errorf("step %d is asked to be both "+
+				return nil, nil, "", nil, fmt.Errorf("step %d is asked to be both "+
 					"changed and removed, so nothing was changed",
+					ed.At+1)
+			}
+			if _, supplied := args[ed.At]; supplied {
+				return nil, nil, "", nil, fmt.Errorf("step %d is asked to be both "+
+					"supplied and removed, so nothing was changed",
 					ed.At+1)
 			}
 			// ── A GESTURE GOES WHOLE OR NOT AT ALL ──
@@ -504,13 +568,13 @@ func applyEdits(steps []macroir.Step, edits []StepEdit) ([]macroir.Step, []strin
 			// releases, or releases one it never held.
 			partner, pwhy := holdPartner(steps, ed.At)
 			if pwhy != "" {
-				return nil, nil, pwhy, nil
+				return nil, nil, pwhy, nil, nil
 			}
 			drop[ed.At] = true
 			line := fmt.Sprintf("step %d is removed", ed.At+1)
 			if partner >= 0 {
 				if waits[partner] != 0 {
-					return nil, nil, "", fmt.Errorf("step %d is asked to "+
+					return nil, nil, "", nil, fmt.Errorf("step %d is asked to "+
 						"be changed and is the other half of the "+
 						"hold at step %d, so nothing was changed",
 						partner+1, ed.At+1)
@@ -521,8 +585,73 @@ func applyEdits(steps []macroir.Step, edits []StepEdit) ([]macroir.Step, []strin
 					steps[ed.At].Key)
 			}
 			says = append(says, line)
+		case EditArgument:
+			if drop[ed.At] {
+				return nil, nil, "", nil, fmt.Errorf("step %d is asked to be both "+
+					"supplied and removed, so nothing was changed",
+					ed.At+1)
+			}
+			// AND NO CHECK AGAINST A DURATION. A step is a Type or a Wait and
+			// never both, so "supplied and given a duration" cannot be asked of
+			// one step: the kind check below is what answers, with the true
+			// reason. A guard for it would be one that cannot fire.
+			if steps[ed.At].Kind != macroir.StepType {
+				return nil, nil, "", nil, fmt.Errorf("step %d does not type any "+
+					"text, so there is nothing about it to supply",
+					ed.At+1)
+			}
+			// ALREADY SUPPLIED IS NOT A CHANGE. A second pass over the same step
+			// would bury one placeholder inside another and the routine would
+			// type the braces.
+			if routes.Arguments(steps[ed.At].Text) != nil {
+				return nil, nil, "", nil, fmt.Errorf("the text at step %d is "+
+					"already supplied when the routine runs", ed.At+1)
+			}
+			name := strings.ToLower(strings.TrimSpace(ed.Name))
+			if !argName.MatchString(name) {
+				return nil, nil, "", nil, fmt.Errorf("%q is not a name a supplied "+
+					"value can have — letters, digits, dashes and "+
+					"underscores, and at least one of them", ed.Name)
+			}
+			// ── AND NOT A NAME THE GENERATOR READS FROM THE CREDENTIAL STORE ──
+			//
+			// `codegen` resolves a placeholder called `password`, `token`, `pin`,
+			// `key` and a handful of others from the CREDENTIAL STORE rather than
+			// typing it — `codegen.MeansASecret` is the list. So naming the
+			// changing text one of those would not produce supplied text at all:
+			// the routine would read whatever is in the store and type that.
+			//
+			// Somebody asking for a value they supply must not get a credential
+			// lookup because of the word they chose, and they cannot be expected
+			// to know the list. So it is refused, named, and said plainly.
+			if codegen.MeansASecret(name) {
+				return nil, nil, "", nil, fmt.Errorf("a supplied value cannot be "+
+					"called %q: the generator reads that name from the "+
+					"credential store instead of typing it, so the "+
+					"routine would type whatever is saved there — pick "+
+					"another name", name)
+			}
+			// ── AND NOTHING HERE CHECKS WHETHER THIS ROUTINE ALREADY HAS ONE ──
+			//
+			// `routes.Arguments` reports placeholders first and secrets after and
+			// drops a name it has already seen, so a `{{token}}` beside a
+			// `do OS's Secret …:token` would make the SECRET vanish from the list
+			// and offer somebody a text box for their password. That is a real
+			// defect and it cannot happen here: `macroir` has no step kind for a
+			// secret, so a routine this editor will touch — one whose source is
+			// exactly what its own step list renders — contains none. The name
+			// check above is about the NAME and needs no routine to look at.
+			//
+			// A guard for it would be a guard that cannot fire, which reads to the
+			// next person exactly like an enforced rule. Two of those were written
+			// and removed in the slice this feature serves. If the IR ever gains a
+			// secret step, this is the paragraph that says what to add.
+			args[ed.At] = name
+			says = append(says, fmt.Sprintf("the text at step %d becomes "+
+				"something you supply, named %q (it was %q)", ed.At+1, name,
+				steps[ed.At].Text))
 		default:
-			return nil, nil, "", fmt.Errorf("%q is not something an edit can do",
+			return nil, nil, "", nil, fmt.Errorf("%q is not something an edit can do",
 				ed.Op)
 		}
 	}
@@ -534,6 +663,9 @@ func applyEdits(steps []macroir.Step, edits []StepEdit) ([]macroir.Step, []strin
 		if ms, ok := waits[i]; ok {
 			s.Ms = ms
 		}
+		if name, ok := args[i]; ok {
+			s.Text = "{{" + name + "}}"
+		}
 		out = append(out, s)
 	}
 	if len(out) == 0 {
@@ -542,9 +674,99 @@ func applyEdits(steps []macroir.Step, edits []StepEdit) ([]macroir.Step, []strin
 		// already sweeps what sits beside it. An edit that quietly amounted to a
 		// delete would be offering that without any of it.
 		return nil, says, "removing that would leave the routine with nothing to do. " +
-			"Deleting the routine is how to get rid of it", nil
+			"Deleting the routine is how to get rid of it", nil, nil
 	}
-	return out, says, "", nil
+	// THE NAMES THIS EDIT DECLARED, so a render keeps them in the typed literal instead of
+	// reaching for the credential store.
+	//
+	// WALKED OVER THE ORIGINAL LIST, because that is what `args` is keyed by. Walking the
+	// edited one would read the right names only while nothing was removed: a removal
+	// earlier in the same review shifts every later position, so the lookup would land on
+	// a different step — or on none, losing a declaration and turning the placeholder into
+	// a credential-store read. It is the same reason every operation here is collected
+	// against original positions in the first place.
+	declared := make([]string, 0, len(args))
+	for i := range steps {
+		if name, ok := args[i]; ok {
+			declared = append(declared, name)
+		}
+	}
+	return out, says, "", declared, nil
+}
+
+// declaredFor is a routine's name without its arguments, and every argument a render of these
+// STORED STEPS must declare.
+//
+// # One owner, because three renders need it and two of them got it wrong
+//
+// Rendering a stored step list means handing `codegen` a [Draft], and `codegen` keeps a
+// `{{name}}` inside a typed literal only when the name is DECLARED — anything else becomes
+// `do OS's Secret …`, a read of somebody's credential store. The declarations used to come from
+// the routine's NAME alone (`say hello with message`), which was enough while the learn phrase was
+// the only way a placeholder could arrive.
+//
+// [EditArgument] is a second way, and it broke BOTH other renders:
+//
+//   - the step panel's basis check, so the second edit of an edited routine refused — the
+//     re-render did not reproduce the saved source, because it rendered a credential read; and
+//   - the REBUILD review's "today's rules" arm, which rendered `do OS's Secret with "message"` as
+//     the version it offered to replace the routine with. Found by the regression test the
+//     Architect asked for, after the first two had been fixed one at a time.
+//
+// So the question is answered once, here, and a fourth render can ask it instead of rediscovering
+// it. The name's own arguments come first and keep their order, because positional `{{N}}`
+// placeholders are named from that order.
+func declaredFor(name string, steps []macroir.Step) (string, []string) {
+	base, args := routes.SplitArgs(name)
+	return base, append(args, suppliedIn(steps, args)...)
+}
+
+// suppliedIn is the placeholder names a step list already types, that the name has not declared.
+//
+// # Why a placeholder in the steps IS a declaration
+//
+// `codegen` keeps a `{{name}}` inside a typed literal only when the name is DECLARED, and turns
+// any other one into a credential-store read. The declarations have always come from the learn
+// phrase — `say hello with message` — so a routine whose placeholder arrived any OTHER way reads
+// back as a routine that types a password.
+//
+// That was fine while the only way in was the phrase. [EditArgument] is a second way in, and
+// without this the second edit of an edited routine REFUSES: the basis is rendered to check that
+// it reproduces the saved source, and rendering `{{message}}` with nothing declaring it produces
+// `do OS's Secret with "message"`, which is not what is on disk. Found by a test that made the
+// same edit twice.
+//
+// So the step list declares what it holds. Nothing new is stored and no format changed: the
+// placeholder was always the fact, and this is the reading of it.
+//
+// # Except a name the generator means as a secret
+//
+// `codegen.MeansASecret` — `password`, `token`, `pin` and the rest. For those, declaring changes
+// what is RENDERED (a global secret becomes a route-qualified one), so a routine on disk with one
+// of those typed in it would stop matching its own source and become uneditable. [EditArgument]
+// refuses those names outright, so this cannot be the only thing standing between somebody and
+// that surprise — and leaving them undeclared keeps every routine already saved rendering exactly
+// as it does today.
+func suppliedIn(steps []macroir.Step, declared []string) []string {
+	has := map[string]bool{}
+	for _, a := range declared {
+		has[strings.ToLower(a)] = true
+	}
+	var out []string
+	for _, s := range steps {
+		if s.Kind != macroir.StepType {
+			continue
+		}
+		for _, a := range routes.Arguments(s.Text) {
+			name := strings.ToLower(a.Name)
+			if has[name] || codegen.MeansASecret(name) {
+				continue
+			}
+			has[name] = true
+			out = append(out, name)
+		}
+	}
+	return out
 }
 
 // holdPartner is the other half of a held key, -1 when the step is not half of one, and the

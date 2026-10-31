@@ -702,6 +702,26 @@
     <!-- THE SAME SENTENCE AT REVIEW, where Save is the next button. -->
     <div class="muted hide" style="margin-top:6px" id="capAgainReview"></div>
 
+    <!-- AND A SIMPLER VERSION OF THE SAME RECORDING, BEFORE IT IS SAVED.
+         The saved routine's card has offered this since there was one, and `marco learn`'s
+         terminal review has offered it for longer — so the one surface where somebody is
+         LOOKING at a demonstration they just made, with the steps in front of them and
+         Save under their hand, was the only one that could not simplify it. They had to
+         save it and then simplify the saved routine: two writes to get the version they
+         wanted.
+
+         The rules are not this window's. It asks the same `SimplifiedDraft` the terminal
+         review asks, which re-derives from the EVENTS with typing folded harder.
+
+         NOTHING IS WRITTEN BY EITHER BUTTON. The steps above change, the way back appears,
+         and Save still writes whichever version is being shown — which is the rule it
+         already followed. See drawCapture. -->
+    <div class="row" style="margin-top:12px" id="capSimplifyRow">
+      <button id="capSimplifyBtn" onclick="simplifyDraft()">Simplify&hellip;</button>
+      <button class="hide" id="capOriginalBtn"
+        onclick="useOriginalDraft()">Use the original</button>
+      <span class="muted" id="capSimplifySays"></span>
+    </div>
     <div class="row" style="margin-top:14px">
       <button class="go" id="capSaveBtn" onclick="saveCapture()">Save</button>
       <button class="stop" onclick="cancelCapture()">Cancel</button>
@@ -890,12 +910,20 @@
            Replace lives. That is said once, here, because a button that rewrites
            somebody's routine and a button that shows them a comparison must not look
            alike. See drawRoutinePlay. -->
-      <div class="row hide" style="margin-top:10px" id="routineSecondLook">
-        <button id="routineSimplifyBtn"
-          onclick="reviewRebuilt('simplify-typing')">Review simplification</button>
-        <button class="hide" id="routineReviewBtn"
-          onclick="reviewRebuilt('current')">Review today's rules</button>
-        <span class="muted">Shows a comparison. Nothing is written until you replace it.</span>
+      <div class="hide" id="routineSecondLook" style="margin-top:10px">
+        <div class="row">
+          <!-- NAMED FOR THE THING IT DOES, and the review said UNDERNEATH rather than
+               beside it. It read "Review simplification", which names the review and
+               buries the action: somebody looking for a way to simplify a routine was
+               reading a row of words about reviewing. The ellipsis is the convention
+               for "this opens something" and carries the promise that nothing happens
+               yet; the line below keeps that promise explicit. -->
+          <button id="routineSimplifyBtn"
+            onclick="reviewRebuilt('simplify-typing')">Simplify&hellip;</button>
+          <button class="hide" id="routineReviewBtn"
+            onclick="reviewRebuilt('current')">Review today's rules</button>
+        </div>
+        <div class="muted" style="margin-top:4px" id="routineSecondLookSays">Review changes before replacing. Nothing is written until you do.</div>
       </div>
 
       <!-- AND A STEP CAN BE CHANGED, WHICH IS AN EDIT AND NOT A MOVE.
@@ -1153,6 +1181,10 @@
              see Review.Rebuild. -->
         <div class="muted" id="routineReviewChoice"></div>
         <div class="banner hide" id="routineReviewCaution"></div>
+        <!-- WHAT REPLACING WOULD DO TO THE STORED STEP LIST, which is where an edit
+             lives. The contract has written this sentence since step editing existed and
+             this window never asked for it. -->
+        <div class="banner hide" id="routineReviewSteps"></div>
         <div class="banner bad hide" id="routineReviewRefused"></div>
         <div class="muted" id="routineReviewSays"></div>
         <!-- THE TWO SOURCES, CLOSED. They were `<details open>`, so two listings of Marco
@@ -2033,6 +2065,27 @@
      text($('capNote'), '')
    })
  }
+ // ── A SIMPLER VERSION OF THE SAME RECORDING, AND THE WAY BACK ──
+ //
+ // Neither writes anything. Both refresh the card from the backend, which is where the
+ // steps come from, so what is on screen after either press is the version Save would
+ // write -- the page does not keep its own copy of a draft to disagree with.
+ function simplifyDraft(){
+   $('capSimplifyBtn').disabled = true
+   acts.SimplifyDraft().then(why => {
+     $('capSimplifyBtn').disabled = false
+     text($('capSimplifySays'), why || '')
+     pollCapture()
+   })
+ }
+ function useOriginalDraft(){
+   $('capOriginalBtn').disabled = true
+   acts.UseOriginalDraft().then(why => {
+     $('capOriginalBtn').disabled = false
+     text($('capSimplifySays'), why || '')
+     pollCapture()
+   })
+ }
  // taken is the routine Save refused to replace, held so Replace can name the exact one somebody
  // agreed to. Cleared the moment anything is written or the panel goes away.
  let taken = null
@@ -2179,10 +2232,24 @@
        shownCapture = ''
        return
      }
+     // AND WHETHER IT HAS BEEN SIMPLIFIED IS PART OF THE SIGNATURE.
+     //
+     // The steps change with it, so the list would redraw either way -- but the two
+     // buttons and the line beside them are drawn inside this guard, and a
+     // simplification with nothing left to fold would produce the same steps and
+     // otherwise leave the card saying nothing had happened.
      const sig = r.name + '\u0000' + (r.said || '') + '\u0000' + (r.missing || '')
        + '\u0000' + (r.exit || '') + '\u0000' + (r.steps || []).join('|')
+       + '\u0000' + (r.simplified ? 1 : 0) + (r.original ? 1 : 0)
      if (sig === shownCapture) { return }
      shownCapture = sig
+     // THE WAY BACK APPEARS ONLY ONCE THERE IS SOMETHING TO GO BACK TO, and the line
+     // says which version is on screen. Nothing here is written: Save still writes
+     // whichever one is being shown.
+     showing($('capOriginalBtn'), !!r.original)
+     text($('capSimplifySays'), r.simplified
+       ? 'These steps are a simplified version. Nothing is written until you save.'
+       : 'Folds typing pauses and runs. Nothing is written until you save.')
      // WHICH ROUTINE THIS WILL BE, from the draft's own name. See capReviewName.
      text($('capReviewName'), r.name ? 'Review “' + r.name + '”' : 'Review this recording')
      text($('capSaid'), r.said || '')
@@ -2790,9 +2857,10 @@
    const have = !!(stepList && r && stepList.id === r.id)
    showing($('routineSteps'), have)
    if (!have) { return }
-   text($('routineStepsNote'), 'Change a wait, or remove a step. The routine is written ' +
-     'again from this list, so removing a press removes the whole of it \u2014 and the waits ' +
-     'around it stay as they are until you change them too.')
+   text($('routineStepsNote'), 'Change a wait, remove a step, or make the text a step ' +
+     'types something you supply each time \u2014 all of that step\u2019s text, not part ' +
+     'of it. The routine is written again from this list, so removing a press removes the ' +
+     'whole of it, and the waits around it stay as they are until you change them too.')
    const box = $('routineStepRows')
    box.innerHTML = ''
    stepList.rows.forEach(row => {
@@ -2826,6 +2894,55 @@
        set.onclick = () => askStepChange({op: 'wait', at: row.at,
          to: Math.max(0, parseInt(ms.value, 10) || 0)})
        controls.append(ms, set)
+     }
+     // ── AND THE TEXT A STEP TYPES CAN BECOME SOMETHING YOU SUPPLY ──
+     //
+     // Offered only on a step that types text, because that is the only step there is
+     // anything to supply ABOUT: a box beside a click would be a control that refuses,
+     // and the refusal would arrive after somebody had typed a name into it.
+     //
+     // It was already possible and both ways in were invisible: name the recording
+     // "... with message" so the phrase declares an argument, and tap F9 at the moment
+     // in the demonstration where the text goes. Neither is discoverable from any
+     // surface -- the owner of this repository could not find them. Here it needs no
+     // foreknowledge and no second demonstration: type the text you actually want, then
+     // say THIS is the part that changes.
+     if (row.types) {
+       const name = document.createElement('input')
+       name.type = 'text'
+       name.id = 'routineStepArgName-' + row.at
+       name.placeholder = 'name it'
+       name.style.width = '7em'
+       name.value = asked && asked.op === 'argument' ? asked.name : ''
+       const ask = document.createElement('button')
+       ask.id = 'routineStepArg-' + row.at
+       ask.textContent = asked && asked.op === 'argument' ? 'Keep the text' : 'Ask me for it'
+       // ALL OF IT, SAID ON THE CONTROL ITSELF. The format could hold a placeholder
+       // beside fixed text -- "Dear {{name}}," is a thing a routine can type -- but
+       // choosing PART of a step's text is not something this offers, and a control
+       // that looked as though it might would be read as offering it. The review line
+       // then names the text it replaced, so what was given up is visible before Save.
+       ask.title = 'replaces all of the text this step types'
+       ask.onclick = () => {
+         if (asked && asked.op === 'argument') { dropStepChange(row.at); return }
+         const n = (name.value || '').trim()
+         // A NAME IS REQUIRED, AND THE CONTRACT STILL JUDGES IT. This only declines to
+         // send an EMPTY one, because a window that asked for nothing and got a refusal
+         // back about nothing would be a worse way to say "name it" than the box
+         // already does.
+         if (!n) { name.focus(); return }
+         askStepChange({op: 'argument', at: row.at, name: n})
+       }
+       controls.append(name, ask)
+     }
+     // AND A STEP WHOSE TEXT IS ALREADY SUPPLIED SAYS SO, rather than offering the
+     // control again for an edit the contract refuses.
+     if (row.supplied) {
+       const already = document.createElement('span')
+       already.className = 'muted'
+       already.id = 'routineStepArgAlready-' + row.at
+       already.textContent = 'you supply this (' + row.named + ')'
+       controls.appendChild(already)
      }
      const cut = document.createElement('button')
      cut.id = 'routineStepCut-' + row.at
@@ -2871,9 +2988,19 @@
    showing(box, stepChanges.length > 0)
    $('routineStepReviewBtn').disabled = stepChanges.length === 0
    if (!stepChanges.length) { return }
-   text(box, 'Asked: ' + stepChanges.map(c => c.op === 'wait'
-     ? 'step ' + (c.at + 1) + ' waits ' + c.to + 'ms'
-     : 'step ' + (c.at + 1) + ' is removed').join('; ') +
+   // EVERY OP NAMED, and a word this does not know says so rather than borrowing
+   // another one's sentence. The ternary here read "is removed" for anything that was
+   // not a wait, so the third operation would have told somebody their step was being
+   // deleted -- a false sentence about their own routine, in the one place that exists
+   // to say what is about to happen.
+   const saysChange = (c) => {
+     const at = 'step ' + (c.at + 1)
+     if (c.op === 'wait') { return at + ' waits ' + c.to + 'ms' }
+     if (c.op === 'remove') { return at + ' is removed' }
+     if (c.op === 'argument') { return at + ' asks you for its text (' + c.name + ')' }
+     return at + ' is changed in a way this window cannot describe (' + c.op + ')'
+   }
+   text(box, 'Asked: ' + stepChanges.map(saysChange).join('; ') +
      '. Nothing is written until you review and save it.')
  }
 
@@ -3232,6 +3359,15 @@
      'recording' : '')
    text($('routineReviewCaution'), v.caution || '')
    showing($('routineReviewCaution'), !!v.caution)
+   // AND WHAT REPLACING WOULD DO TO THE ROUTINE'S OWN STEP LIST, which is where an edit
+   // lives. One of the two rebuild choices re-derives from the demonstration and undoes
+   // every edit with it -- including text that was made into something you supply, which
+   // would come back as the fixed words it was recorded as. The contract's sentence,
+   // beside the caution, because it is the half of "what replacing costs" that the two
+   // sources cannot show: they show the result, not that an edit is what is being
+   // dropped.
+   text($('routineReviewSteps'), v.steps_says || '')
+   showing($('routineReviewSteps'), !!v.steps_says)
    text($('routineReviewRefused'), v.refused || '')
    showing($('routineReviewRefused'), !!v.refused)
    // WHAT REPLACING WOULD DO, SAID PLAINLY. A routine today's generator wrote rebuilds

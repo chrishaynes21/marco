@@ -102,6 +102,16 @@ type capture struct {
 	ended sync.Once
 	// done closes when `Record` has returned, which is when there is a draft to review.
 	done chan struct{}
+	// wasDraft is the recording as it was DEMONSTRATED, kept once it has been
+	// simplified so there is a way back, and nil until then.
+	//
+	// The original rather than the previous version: simplifying twice must still have
+	// one thing to return to, and that thing is what the person did.
+	wasDraft *orchestrator.Draft
+	// simplified is whether the draft under review is a simplification rather than the
+	// recording as it was made. SHOWN, because a person approving a list of steps is owed
+	// the fact that something has been folded since they made it.
+	simplified bool
 	// draft is what was recorded, unsaved. Nil while recording and after a failure.
 	draft *orchestrator.Draft
 
@@ -192,6 +202,14 @@ type Recording struct {
 	// steps, with nothing having told them — and the review sentence afterwards is no
 	// substitute, because by then the demonstration they have to give again is over.
 	Paused string `json:"paused,omitempty"`
+	// Simplified says the steps below are a SIMPLIFICATION rather than the recording as
+	// it was made, and Original whether there is something to go back to.
+	//
+	// SAID, BECAUSE SOMEBODY APPROVING A LIST OF STEPS IS OWED IT. A review that folded
+	// typing since they demonstrated it, and showed the result as though it were what
+	// they did, would be a card quietly disagreeing with their own memory of it.
+	Simplified bool `json:"simplified,omitempty"`
+	Original   bool `json:"original,omitempty"`
 	// Pressable is how many steps send input, which is what makes a draft worth saving.
 	Pressable int `json:"pressable,omitempty"`
 	// Steps is the draft in plain words, one line each, in order.
@@ -497,6 +515,71 @@ func (a *Acts) CancelRecording() string {
 	return ""
 }
 
+// SimplifyDraft shows a simplified version of the recording under review, and writes nothing.
+//
+// # Why this is on the review and not only on the saved routine
+//
+// A saved routine has offered it since [[ADR-273-a-routine-writes-down-what-it-does]]'s slice, and
+// `marco learn`'s terminal review has offered it for longer. STUDIO'S REVIEW DID NOT, so the one
+// surface where somebody looks at a demonstration they just made — with the steps in front of
+// them and Save under their hand — was the one that could not simplify it. They had to save it
+// first and then simplify the saved routine, which is two writes to get the version they wanted.
+//
+// The rules are not this window's: [orchestrator.Deps.SimplifiedDraft] is what the terminal review
+// asks, re-deriving from the EVENTS with typing folded harder.
+//
+// NOTHING IS WRITTEN. The draft under review is swapped for the simplified one and the original is
+// kept beside it, so [Acts.UseOriginalDraft] puts it back; Save persists whichever is being shown,
+// which is the rule it already followed.
+func (a *Acts) SimplifyDraft() string {
+	dr, cp, why := a.draftToSave()
+	if why != "" {
+		return why
+	}
+	d := orchestrator.Deps{Reg: a.reg(), Out: &strings.Builder{}}
+	next := d.SimplifiedDraft(dr)
+	switch {
+	case next == nil:
+		return "that recording cannot be simplified"
+	case next.Unrepresentable != "":
+		// THE REASON RATHER THAN A REFUSAL. Simplifying re-runs the same pipeline
+		// over the same events, so what gets refused is a property of the
+		// DEMONSTRATION — and a reason that can only appear by surprise is the one
+		// worth not swallowing. The terminal review says the same thing.
+		return "a simplified version cannot be saved as it stands, so it is not " +
+			"offered: " + next.Unrepresentable
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if cp.wasDraft == nil {
+		// THE FIRST SIMPLIFICATION KEEPS THE ORIGINAL, and a second one does not
+		// overwrite it: simplifying twice must still have one way back, to what was
+		// demonstrated rather than to the previous simplification.
+		cp.wasDraft = cp.draft
+	}
+	cp.draft = next
+	cp.simplified = true
+	return ""
+}
+
+// UseOriginalDraft puts the recording as it was demonstrated back under review.
+//
+// The way back the ruling asks for, and it is the ORIGINAL rather than one step back: simplifying
+// twice leaves one thing to return to, which is what was recorded.
+func (a *Acts) UseOriginalDraft() string {
+	_, cp, why := a.draftToSave()
+	if why != "" {
+		return why
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if cp.wasDraft == nil {
+		return "this recording has not been simplified, so there is nothing to go back to"
+	}
+	cp.draft, cp.wasDraft, cp.simplified = cp.wasDraft, nil, false
+	return ""
+}
+
 // SaveDraft persists the reviewed recording, under the scope it is GIVEN.
 //
 // `scope` is "app", "app-anywhere" or "everywhere", and `app` is the application the scope is
@@ -599,6 +682,7 @@ func (a *Acts) Recording() Recording {
 	// againElsewhere for why a mismatch is worth a sentence: the save would succeed,
 	// and it would write a second routine rather than the new version somebody meant.
 	out.AgainElsewhere = againElsewhere(c.again, dr.App)
+	out.Simplified, out.Original = c.simplified, c.wasDraft != nil
 	out.Away = dr.AwaySentence()
 	out.Exit = dr.ExitSentence()
 	out.Pressable = dr.Pressable()

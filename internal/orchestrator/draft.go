@@ -1210,6 +1210,35 @@ func (d Deps) DraftOf(name string, events []recorder.RecordedEvent, app, stopped
 	return d.draftFor(RebuildCurrent, name, events, app, stoppedBy, mode)
 }
 
+// SimplifiedDraft is this draft re-derived from its own events with typing folded harder, or nil
+// when there is nothing to re-derive from.
+//
+// # One owner, because two surfaces ask
+//
+// `marco learn`'s review has offered this since there was a review: the terminal shows the draft,
+// somebody types `s`, and the same pipeline runs over the same events with
+// [RebuildSimplifyTyping]. Studio's recording review now offers it too, and a second copy of that
+// line would be a second answer to "what does simplifying mean" — free to disagree the first time
+// either changed, in a window where the person cannot see the pipeline.
+//
+// THE EVENTS, NOT THE STEPS. Simplifying is a re-derivation and not a transformation of what was
+// already derived: folding a typed run harder is a decision about the recording, and a step list
+// is what one set of decisions already produced. The draft's own name travels WITH its arguments
+// (`nameWithArgs`), or a draft of `say hello with message` would come back having forgotten what
+// it takes.
+//
+// Nothing is written and nothing is decided: a caller shows what comes back, keeps the original
+// to go back to, and writes neither until somebody says so. A draft whose simplification cannot
+// be represented comes back carrying its own `Unrepresentable` reason rather than as nil, because
+// that reason is the thing worth reading.
+func (d Deps) SimplifiedDraft(dr *Draft) *Draft {
+	if dr == nil {
+		return nil
+	}
+	return d.draftFor(RebuildSimplifyTyping, nameWithArgs(dr), dr.Events, dr.App,
+		dr.StoppedBy, dr.Mode)
+}
+
 // ── WHICH RULES A REBUILD IS RENDERED UNDER ───────────────────────────────────
 
 // Rebuild is which rules a review's version was rendered under.

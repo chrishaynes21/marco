@@ -97,6 +97,14 @@ it without reading `Request.Text` at all.
 resolver that records every call and assert it was **not** asked
 (`TestAnExplicitPlayIsNeverLookedUpAgain`).
 
+**AND A STEP'S TEXT CAN BE MADE INTO ONE FROM THE PANEL THAT SHOWS THE ROUTINE.** A third edit
+operation replaces a Type step's literal with `{{name}}` — the same placeholder everything below is
+built on — so somebody types the text they actually want and then says which part changes. It was
+possible two ways before and both were invisible (the learn phrase's `with name` clause, and a
+reserved key tapped mid-demonstration), which is the whole reason for it. A name the generator
+reads from the CREDENTIAL STORE is refused, because asking for text you supply must not quietly
+produce a password lookup. See [[ADR-278-the-text-a-step-types-can-be-made-something-you-supply]].
+
 **A routine may also take CHANGING TEXT.** A declared argument, a placeholder the demonstration
 puts in place, and `routes.ApplyArgs` filling it at run time — and a routine that needs text and
 is given none now REFUSES rather than typing nothing, which is what it did before. Values travel
@@ -425,6 +433,7 @@ configured resolver was absent, answered, or asked and silent. See
 - [[Visibility]] — the one account of what Marco is doing
 - [[34F-legacy-marco-product-audit]] — §13 counted the deciders; §22 Phase 2 is this note
 - [[ADR-277-a-request-may-propose-the-text-a-routine-types]] — a proposal is never a supply
+- [[ADR-278-the-text-a-step-types-can-be-made-something-you-supply]] — and a way to declare one
 - [[ADR-083-one-invocation-intake]] · [[ADR-084-a-plays-identity-is-its-subject]] ·
   [[ADR-085-a-performance-is-a-registry-command]]
 - [[ADR-029-resolution-is-not-permission]] · [[ADR-066-stop-is-a-product-event]] ·

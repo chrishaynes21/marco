@@ -411,9 +411,25 @@ func TestASecondLookAtARoutineIsOfferedWithoutOpeningADetail(t *testing.T) {
 	// AND IT SAYS IT WRITES NOTHING, beside the button rather than after the press.
 	// A control that shows a comparison and one that rewrites somebody's routine must
 	// not look alike.
-	row := between(t, page, `id="routineSecondLook"`, `</div>`)
-	if !strings.Contains(row, "Nothing is written") {
-		t.Errorf("the second-look row does not say that nothing is written: %q", row)
+	//
+	// READ OVER THE WHOLE BLOCK, because the sentence now sits BENEATH the row rather
+	// than beside it: the action is called "Simplify…" so that somebody looking for a
+	// way to simplify a routine finds a verb, and the promise that nothing happens yet
+	// is the line under it. The old reading stopped at the row's first `</div>` and
+	// would have reported the sentence missing the moment it moved anywhere.
+	block := between(t, page, `id="routineSecondLook"`, `id="routineSteps"`)
+	if !strings.Contains(block, "Nothing is written") {
+		t.Errorf("the second-look block does not say that nothing is written: %q",
+			block)
+	}
+	// AND THE ACTION IS A VERB. "Review simplification" named the review and buried the
+	// thing it does, which is what the panel is for.
+	if !strings.Contains(block, ">Simplify&hellip;<") {
+		t.Errorf("the action is not called Simplify: %q", block)
+	}
+	// AND THE REVIEW IS STILL PROMISED, which is the half the label must not cost.
+	if !strings.Contains(block, "Review changes before replacing") {
+		t.Errorf("the block does not promise a review: %q", block)
 	}
 
 	js := page[strings.Index(page, "<script>"):]

@@ -87,6 +87,21 @@ type Review struct {
 	Rebuild string `json:"rebuild,omitempty"`
 	Choice  string `json:"choice,omitempty"`
 	Caution string `json:"caution,omitempty"`
+	// Discards says a replacement would throw away the routine's STORED STEPS, and
+	// StepsSays is the contract's sentence about it.
+	//
+	// THE CONTRACT WROTE THAT SENTENCE AND THIS WINDOW NEVER ASKED FOR IT.
+	// `orchestrator.Prepared.StepsWarning` has existed since step editing did, and the
+	// review here carried `Caution` — which is about WHICH REBUILD was chosen — and
+	// nothing about the steps. So a routine whose text had been made into a supplied
+	// value, rebuilt with typing folded harder, would come back as the recording with
+	// the fixed text in it and the argument gone, having said nothing beforehand.
+	//
+	// Found by a regression test about something else: that edits and rebuilds never
+	// render a credential read. They do not — and one of the two arms quietly undoes the
+	// edit, which a person is owed before they press Replace rather than after.
+	Discards  bool   `json:"discards,omitempty"`
+	StepsSays string `json:"steps_says,omitempty"`
 	// Was is the saved source and Now the one a replacement would write, both in full.
 	//
 	// THE WHOLE OF EACH, because the review is of the whole of each. A list of changed
@@ -168,7 +183,8 @@ func (a *Acts) ReviewRebuilt(id, kind string) Review {
 
 	r := Review{ID: id, Token: p.Token, Name: p.Name, Was: p.Was, Now: p.Now,
 		Rebuild: string(p.Rebuild), Choice: p.Rebuild.Choice(),
-		Caution: p.Rebuild.Caution(),
+		Caution:  p.Rebuild.Caution(),
+		Discards: p.DiscardsEdits(), StepsSays: p.StepsWarning(),
 		Refused: p.Refused, Changes: p.Changes(), Replaceable: p.Replaceable(),
 		WasGeneration: string(p.WasGeneration.Reading),
 		NowGeneration: string(p.NowGeneration.Reading)}

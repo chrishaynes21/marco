@@ -12374,3 +12374,57 @@ says, and nothing had checked that a misspelt argument is not sent to Studio to 
 reviewed.
 
 **The slice is complete at R1 to R9.** Nothing in it has been exercised on a desktop.
+
+### 2026-10-30 — and a way to declare a text argument that somebody can find
+
+The owner asked for it: naming a recording `say hello with message` and tapping f9 mid-demonstration
+were the only two ways to get a text argument, and neither is mentioned by any surface. A third
+edit operation in the step panel replaces a Type step's literal with `{{name}}`, so you type the
+text you actually want and then say which part changes — and it works on routines saved before any
+of this existed.
+
+**The defect it shipped with for an hour, and the reason to read renders:** every assertion about
+the step list passed while the rendered routine read `do OS's Secret with "message"` instead of
+`do OS's Type with "{{message}}"`. `codegen` keeps a placeholder in a typed literal only when the
+name is DECLARED; anything else becomes a credential-store read. So an edit that invented a
+placeholder produced a routine that types whatever is in somebody's credential store. Two fixes:
+the edit returns the names it declared, and a placeholder already in a step list declares itself —
+without the second, the SECOND edit of an edited routine refused, saying the routine no longer
+agreed with itself.
+
+And a name `codegen` means as a credential (`password`, `token`, `pin`, `key` …) is refused
+outright, because choosing one of those words must not quietly turn supplied text into a password
+lookup.
+
+See [[ADR-278-the-text-a-step-types-can-be-made-something-you-supply]].
+
+### 2026-10-30 — two UX rulings, and the same defect at a third site
+
+**Simplify… is the name of the action now**, on the saved routine's card, with *Review changes
+before replacing* beneath it rather than in its label — it read "Review simplification", which
+names the review and buries the thing it does. **And the unsaved recording review offers it too**:
+preview a simplified draft, keep the way back to what was demonstrated, write nothing until Save.
+The one surface where somebody looks at a demonstration they just made was the only one that could
+not simplify it.
+
+**The Type-never-Secret defect was at a THIRD site**, found by the regression test the Architect
+asked for: the rebuild review's today's-rules arm rendered `do OS's Secret with "message"` as the
+version it offered to replace the routine with. Fixed twice before it was fixed once, so
+`declaredFor` is now the one owner of "what a render of these stored steps must declare" and all
+three renders ask it.
+
+**And a sentence the contract has written since step editing existed was never asked for.**
+`Prepared.StepsWarning` says a rebuild will replace the stored steps — so somebody who had made a
+step's text into a supplied value and then pressed Simplify… would get the recording back with the
+argument gone, told nothing beforehand. On the review card now. Found while writing a test about
+something else — complete code, produced and never invoked, which is the pattern this repository
+keeps finding.
+
+**The gate caught a skip I added without declaring it**, and it had fired: the second-edit test
+reached for a wait the fixture does not have and skipped, so it was passing while making no claim.
+The fixture types two runs now and the second edit supplies the second one.
+
+Recorded and not fixed: a routine saved from a SIMPLIFIED draft cannot be step-edited afterwards,
+because a fresh save writes no step account. Pre-existing, now reachable from one window.
+
+See [[ADR-278-the-text-a-step-types-can-be-made-something-you-supply]].

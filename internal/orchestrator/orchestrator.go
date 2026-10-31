@@ -395,8 +395,7 @@ func (d Deps) Learn(name string) error {
 		case actionSave:
 			return d.keepWhatWasShown(dr)
 		}
-		next := d.draftFor(RebuildSimplifyTyping, nameWithArgs(dr), dr.Events, dr.App,
-			dr.StoppedBy, dr.Mode)
+		next := d.SimplifiedDraft(dr)
 		if next.Unrepresentable != "" {
 			// A REFUSAL CANNOT ARRIVE HERE THAT WAS NOT ALREADY TRUE ABOVE.
 			// "Simplify further" re-runs the same pipeline over the same events

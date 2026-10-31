@@ -292,7 +292,11 @@ func (d Deps) Prepare(rt routes.Route, kind Rebuild) (Prepared, error) {
 			p.Refused = "its stored steps contain nothing that can be performed"
 			return p.sealed(), nil
 		}
-		base, args := routes.SplitArgs(p.Name)
+		// AND WHAT A RENDER OF THESE STEPS HAS TO DECLARE, which is not only what the
+		// NAME declares: a placeholder an edit put into the steps is declared by being
+		// there, or this renders a credential-store read as the version it offers to
+		// replace the routine with. See declaredFor.
+		base, args := declaredFor(p.Name, steps)
 		now, assets, rerr := d.render(&Draft{Name: base, Args: args, Steps: steps,
 			Mode: ModeOf(src)}, scope.mode(), rt.App, rt)
 		if rerr != nil {

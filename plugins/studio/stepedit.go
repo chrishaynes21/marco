@@ -49,6 +49,7 @@ import (
 
 	"github.com/chaynes-simpleclouds/marco/internal/macroir"
 	"github.com/chaynes-simpleclouds/marco/internal/orchestrator"
+	"github.com/chaynes-simpleclouds/marco/internal/routes"
 )
 
 // StepRow is one step as the panel offers it.
@@ -75,6 +76,22 @@ type StepRow struct {
 	Pairs    bool   `json:"pairs,omitempty"`
 	PairsAt  int    `json:"pairs_at,omitempty"`
 	PairSays string `json:"pair_says,omitempty"`
+	// Types says this step types TEXT, which is what can be made into something
+	// supplied, and Text is the text it types now.
+	//
+	// THE PANEL OFFERS THE CONTROL ONLY WHERE IT APPLIES. A box beside a click or a key
+	// press would be a control that refuses, and the refusal would arrive after somebody
+	// had typed a name into it.
+	Types bool   `json:"types,omitempty"`
+	Text  string `json:"text,omitempty"`
+	// Supplied says the text is ALREADY something supplied when the routine runs, so
+	// there is nothing to ask for, and Named is what it is called.
+	//
+	// Shown rather than hidden: a step that already takes its text from the person is the
+	// answer to "can this change", and a row that simply offered the control again would
+	// invite an edit that is refused.
+	Supplied bool   `json:"supplied,omitempty"`
+	Named    string `json:"named,omitempty"`
 }
 
 // StepChange is one operation the page asks for, against a position in the list it was shown.
@@ -85,6 +102,8 @@ type StepChange struct {
 	At int    `json:"at"`
 	// To is the new duration in milliseconds, for a wait.
 	To int `json:"to"`
+	// Name is what the supplied text is called, for an "argument" change.
+	Name string `json:"name"`
 }
 
 // StepEditing is a routine's steps as the panel lists them, before anything is asked.
@@ -209,6 +228,15 @@ func stepRows(e orchestrator.EditReview) []StepRow {
 		if s.Kind == macroir.StepWait {
 			r.Wait, r.Ms = true, s.Ms
 		}
+		if s.Kind == macroir.StepType {
+			// WHAT IT TYPES NOW, so the panel can offer to make it changeable and
+			// say what it would be replacing.
+			r.Types, r.Text = true, s.Text
+			if args := routes.Arguments(s.Text); len(args) > 0 {
+				r.Types = false
+				r.Supplied, r.Named = true, args[0].Name
+			}
+		}
 		if partner := e.PairedWith(i); partner >= 0 {
 			r.Pairs, r.PairsAt = true, partner
 			r.PairSays = fmt.Sprintf("removing this removes step %d as well, "+
@@ -257,8 +285,13 @@ func (a *Acts) ReviewStepEdit(id, basis string, changes []StepChange) StepPrevie
 	}
 	edits := make([]orchestrator.StepEdit, 0, len(changes))
 	for _, c := range changes {
+		// THE NAME TRAVELS UNTRIMMED OF ITS MEANING, and the contract validates it.
+		// A window that lowered it, stripped it or rejected it here would be a second
+		// opinion about what a placeholder may be called — and the one that matters is
+		// the one `routes` own pattern will read back.
 		edits = append(edits, orchestrator.StepEdit{
-			Op: orchestrator.EditOp(strings.TrimSpace(c.Op)), At: c.At, To: c.To})
+			Op: orchestrator.EditOp(strings.TrimSpace(c.Op)), At: c.At, To: c.To,
+			Name: c.Name})
 	}
 	d := orchestrator.Deps{Reg: a.reg(), Out: &strings.Builder{}}
 	e, err := d.PrepareEditOf(chosen.route(), basis, edits)
