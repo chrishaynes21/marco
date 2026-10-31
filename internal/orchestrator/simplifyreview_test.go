@@ -111,7 +111,12 @@ func TestTheTwoRebuildsProduceDifferentRoutines(t *testing.T) {
 		t.Errorf("the ordinary rebuild carries a caution it has nothing to warn "+
 			"about: %q", current.Rebuild.Caution())
 	}
-	for _, says := range []string{"removes the pauses", "up to a second", "unchanged"} {
+	// WHAT IT TAKES OUT, WHAT THAT BUYS, AND WHAT IT COSTS. The third is the one worth
+	// naming here: this pass shortens a routine by pressing sooner, and nothing in
+	// Marco knows when a screen will catch up, so the person has to be told before they
+	// choose rather than by running it.
+	for _, says := range []string{"quarter of a second", "before a menu has appeared",
+		"Nothing else changes"} {
 		if !strings.Contains(folded.Rebuild.Caution(), says) {
 			t.Errorf("the caution does not say %q: %q", says,
 				folded.Rebuild.Caution())
@@ -140,39 +145,58 @@ func TestAStatedCoordinateModeSurvivesSimplifyingWithVisionOn(t *testing.T) {
 		t.Fatalf("the saved routine does not carry the deliberate pause, so there is "+
 			"nothing here to lose:\n%s", saved)
 	}
-	for _, kind := range Offered() {
-		t.Run(string(kind), func(t *testing.T) {
-			p, err := d.Prepare(rt, kind)
-			if err != nil {
-				t.Fatalf("preparing: %v", err)
-			}
-			// THE UNRELATED WAIT IS STILL THERE.
-			if !strings.Contains(p.Now, "Sleep with 3000") {
-				t.Errorf("the rebuilt routine lost the 3 second pause it "+
-					"waits before pressing, so it will press before the "+
-					"screen has caught up:\n%s", p.Now)
-			}
-			// AND THE STATEMENT ABOUT HOW IT WAS RECORDED SURVIVED INTO IT.
-			// `SimplifyRoute` wrote through `codegen.Route` and deleted it.
-			if ModeOf(p.Now) != Coordinates {
-				t.Errorf("the rebuilt routine states mode %q, so a tidy-up "+
-					"edited a claim about somebody's recording out of "+
-					"their file:\n%s", ModeOf(p.Now), p.Now)
-			}
-		})
+	// ── THE ORDINARY REBUILD KEEPS IT, WHICH IS THE WHOLE OF ADR-254 ──
+	p, err := d.Prepare(rt, RebuildCurrent)
+	if err != nil {
+		t.Fatalf("preparing: %v", err)
 	}
-	// AND THE CONTROL: the same demonstration stating NOTHING, under the same
-	// environment, is capped — which is what makes the two cases above a reading of the
-	// file rather than a build that never caps anything.
+	if !strings.Contains(p.Now, "Sleep with 3000") {
+		t.Errorf("the rebuilt routine lost the 3 second pause it waits before "+
+			"pressing, so it will press before the screen has caught "+
+			"up:\n%s", p.Now)
+	}
+	// ── AND SIMPLIFYING CAPS IT, BECAUSE THAT IS WHAT IT IS FOR ──
+	//
+	// NOT A REVERSAL OF THE RULE ABOVE, and the difference is who decided. ADR-254's
+	// defect was the ENVIRONMENT capping at save time with nothing on screen to say
+	// so — which is still what the case above forbids, under $MARCO_CV=on, for the
+	// rebuild a caller gets by saying nothing. This is the choice named "Make it
+	// faster", whose caution says it presses sooner and whose result is shown beside
+	// the original before anything is written. A simplification that could not touch
+	// a wait was a no-op on every recording of clicks, which is most of them.
+	folded, err := d.Prepare(rt, RebuildSimplifyTyping)
+	if err != nil {
+		t.Fatalf("preparing the simplified version: %v", err)
+	}
+	if strings.Contains(folded.Now, "Sleep with 3000") {
+		t.Errorf("simplifying kept the 3 second pause, so it cannot shorten a "+
+			"routine whose length is its waiting:\n%s", folded.Now)
+	}
+	if !strings.Contains(folded.Now, "Sleep with 250") {
+		t.Errorf("simplifying did not clamp the pause to a quarter of a "+
+			"second:\n%s", folded.Now)
+	}
+	// AND THE STATEMENT ABOUT HOW IT WAS RECORDED SURVIVED INTO BOTH.
+	// `SimplifyRoute` wrote through `codegen.Route` and deleted it.
+	for _, got := range []Prepared{p, folded} {
+		if ModeOf(got.Now) != Coordinates {
+			t.Errorf("the rebuilt routine states mode %q, so a tidy-up edited "+
+				"a claim about somebody's recording out of their "+
+				"file:\n%s", ModeOf(got.Now), got.Now)
+		}
+	}
+	// AND THE CONTROL FOR THE FIRST CASE: the same demonstration stating NOTHING, under
+	// the same environment and the same ordinary rebuild, IS capped — which is what
+	// makes the case above a reading of the file rather than a build that never caps.
 	plain, plainRt := aTypedRoutine(t, Unstated)
-	p, err := plain.Prepare(plainRt, RebuildSimplifyTyping)
+	q, err := plain.Prepare(plainRt, RebuildCurrent)
 	if err != nil {
 		t.Fatalf("preparing the unstated routine: %v", err)
 	}
-	if strings.Contains(p.Now, "Sleep with 3000") {
+	if strings.Contains(q.Now, "Sleep with 3000") {
 		t.Errorf("a routine stating no mode kept its uncapped pause under "+
-			"$MARCO_CV=on, so this build does not cap at all and the cases "+
-			"above establish nothing:\n%s", p.Now)
+			"$MARCO_CV=on, so this build does not cap at all and the case "+
+			"above establishes nothing:\n%s", q.Now)
 	}
 }
 
@@ -316,10 +340,10 @@ func TestSimplifyingAndSayingNoLeavesTheRoutineAlone(t *testing.T) {
 	// AND THE CAUTION WAS ON SCREEN BEFORE THE QUESTION, which is the point of it: a
 	// person deciding needs to know that folding the typing removes the pauses in it.
 	said := out.String()
-	if !strings.Contains(said, "removes the pauses") {
+	if !strings.Contains(said, "quarter of a second") {
 		t.Errorf("the command asked without saying what simplifying changes:\n%s", said)
 	}
-	if strings.Index(said, "removes the pauses") > strings.Index(said, "[y]es") {
+	if strings.Index(said, "quarter of a second") > strings.Index(said, "[y]es") {
 		t.Errorf("the caution came after the question:\n%s", said)
 	}
 }

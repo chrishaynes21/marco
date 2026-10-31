@@ -64,6 +64,41 @@ const DefaultTypingRhythmMs = 300
 // macros are untouched.
 const AggressiveTypingRhythmMs = 1000
 
+// SimplifiedMaxWaitMs is what an explicit simplification clamps every remaining wait to.
+//
+// # Why simplifying touches waits at all
+//
+// Because shortening the routine is what somebody pressing Simplify is asking for, and on a
+// recording of CLICKS the waits ARE its length. A demonstration of a game menu carries the
+// person's own reaction time between every press — a measured one ran 2610ms, 2180ms,
+// 2180ms, 1160ms and on: 19.6 seconds of waiting across 17 waits, in a routine whose typing was
+// five characters. Folding typed runs cannot touch any of that, so Simplify was a no-op on
+// exactly the recordings somebody most wants shortened, and said so only by showing two
+// identical panes.
+//
+// # Why 250ms, and why this is not the cap `normalize` applies
+//
+// `MaxWaitMs`'s default of 50ms belongs to the anchored world: with CV on, the wait-gate does the
+// real waiting and the recorded gap is scaffolding. With CV off — the default, and the state
+// every Studio recording is made in — there is nothing to wait ON, so
+// [[ADR-254-what-a-recording-captures-is-stated]] disables the cap entirely for a routine that
+// states `coordinates`. That rule stands: an ordinary save and `RebuildCurrent` still keep every
+// recorded gap exactly.
+//
+// This is the other half of that decision rather than a reversal of it. ADR-254's defect was the
+// ENVIRONMENT deciding to cap, at save time, invisibly, with nothing on screen to say so. This is
+// a person pressing a button named for shortening a routine, being shown the before and the
+// after, and choosing to replace. 250ms is several frames at any refresh rate a game runs at and
+// still a quarter of a second rather than a pause — the reasoning
+// `workflowrun.DefaultDwell` was chosen under.
+//
+// IT CAN BE TOO FAST, AND THAT IS THE PERSON'S TO JUDGE. Nothing here knows when a menu will
+// appear; that is precisely what an anchor would have known, and anchors are off. So a routine
+// whose menu takes longer than this to draw will press before it is there. The caution beside the
+// button says so in those words, the review shows both versions, and nothing is written until
+// Replace.
+const SimplifiedMaxWaitMs = 250
+
 func (o Options) normalize() Options {
 	if o.WaitGranularityMs <= 0 {
 		o.WaitGranularityMs = 10

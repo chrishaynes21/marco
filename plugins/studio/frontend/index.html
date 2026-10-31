@@ -2459,9 +2459,20 @@
      // says which version is on screen. Nothing here is written: Save still writes
      // whichever one is being shown.
      showing($('capOriginalBtn'), !!r.original)
+     // WHAT SIMPLIFYING DOES, WHICH IS TAKE THE WAITING OUT.
+     //
+     // This said `Folds typing pauses and runs`, which was the whole of it until the
+     // waits were included and was never the reason anybody pressed it: on a recording
+     // of clicks the waits ARE the routine's length, and folding typed runs left a
+     // twenty-second demonstration twenty seconds long. The risk is said here too,
+     // because this card's Save writes straight to the library with no second
+     // comparison to look at. See orchestrator.Rebuild.Caution.
      text($('capSimplifySays'), r.simplified
-       ? 'These steps are a simplified version. Nothing is written until you save.'
-       : 'Folds typing pauses and runs. Nothing is written until you save.')
+       ? 'These steps are a simplified version, with the waiting shortened. ' +
+         'Nothing is written until you save.'
+       : 'Shortens the waiting: typing becomes one step and every other pause ' +
+         'drops to a quarter of a second. If the routine then presses before a ' +
+         'screen has caught up, use the original. Nothing is written until you save.')
      // WHICH ROUTINE THIS WILL BE, from the draft's own name. See capReviewName.
      text($('capReviewName'), r.name ? 'Review “' + r.name + '”' : 'Review this recording')
      text($('capSaid'), r.said || '')

@@ -1334,7 +1334,12 @@ const (
 	// changes the least.
 	RebuildCurrent Rebuild = "current"
 	// RebuildSimplifyTyping is that, plus folding a typed run into one step across
-	// longer pauses.
+	// longer pauses AND clamping every remaining wait to
+	// `simplify.SimplifiedMaxWaitMs`, which is what makes it shorten a routine of
+	// clicks rather than only one of typing.
+	//
+	// The word in it is older than what it does and is kept because it is a term the
+	// page and the backend exchange; what it means is on the control, in `Choice`.
 	//
 	// IT CHANGES TIMING, which is why it is a separate choice with its own sentence
 	// rather than an improvement applied quietly. See `(Rebuild) Caution`.
@@ -1350,7 +1355,11 @@ func (r Rebuild) known() bool { return r == RebuildCurrent || r == RebuildSimpli
 // Choice is the words on the control that asks for this rebuild.
 func (r Rebuild) Choice() string {
 	if r == RebuildSimplifyTyping {
-		return "Simplify typing pauses"
+		// THE WORD STAYS AND SAYS WHAT IT DOES. It read "Simplify typing pauses",
+		// which is narrower than what this does and narrower than why anybody
+		// presses it; a second NAME for it would be worse than a narrow one, so the
+		// button, this label and the caution all say Simplify.
+		return "Simplify — shorten the waiting"
 	}
 	return "Rebuild with current rules"
 }
@@ -1360,25 +1369,31 @@ func (r Rebuild) Choice() string {
 //
 // # Why the simplified one has to say this
 //
-// Because "simplify" sounds like a tidy-up and is not one. Folding a typed run into a single step
-// removes the waits BETWEEN those keystrokes — up to a second of them — and a routine that typed
-// into a box which needed that second to catch up will now type into it faster than it did when
-// somebody watched it work. That is a behaviour change, chosen on purpose, and a person is owed
-// it in a sentence rather than in a diff of two sources they are being asked to compare.
+// Because "simplify" sounds like a tidy-up and is not one. It takes the waiting out: typed runs
+// fold into one step, and every remaining wait is clamped to a quarter of a second. The waiting is
+// where a demonstration's length lives — it is the person's own reaction time between presses —
+// so this is the pass that makes a routine run in seconds instead of half a minute, and it is a
+// behaviour change chosen on purpose.
 //
-// What it does NOT change is also worth stating, because the sentence above invites the question:
-// a wait that was not inside a typed run stays exactly as it was, and so do which button each
-// press used, which keys were held across what, and the routine stopping at the first action that
-// did not happen.
+// AND IT CAN BE TOO FAST. Nothing here knows when a menu will appear; an anchor would have, and
+// anchors are off. A routine whose screen takes longer than a quarter second to catch up will
+// press before it is there. That belongs in the sentence and not in a diff of two sources
+// somebody is being asked to compare — which is how they would otherwise find out, by running it.
+//
+// What it does NOT change is worth stating too, because the sentence above invites the question:
+// which button each press used, which keys were held across what, and the routine stopping at the
+// first action that did not happen.
 func (r Rebuild) Caution() string {
 	if r != RebuildSimplifyTyping {
 		return ""
 	}
-	return "This folds each run of typing into one step, which removes the pauses " +
-		"between those keystrokes — up to a second of them. Everything else is " +
-		"unchanged: waits outside a typed run, which button each press used, which " +
-		"keys were held across what, and the routine stopping at the first action " +
-		"that did not happen."
+	return "This takes the waiting out: each run of typing becomes one step, and " +
+		"every other pause is shortened to a quarter of a second. It is how a " +
+		"routine that took half a minute to demonstrate runs in seconds. Marco " +
+		"cannot tell when a screen will catch up, so if this one presses before a " +
+		"menu has appeared, keep the version you have. Nothing else changes: which " +
+		"button each press used, which keys were held across what, and the routine " +
+		"stopping at the first action that did not happen."
 }
 
 // draftFor is a draft of one stored demonstration, under one of the two sets of rules.
@@ -1406,9 +1421,20 @@ func (d Deps) draftFor(kind Rebuild, name string, events []recorder.RecordedEven
 	// explain. See Draft.Basis.
 	basis := Rebuild("")
 	if kind == RebuildSimplifyTyping {
-		// THE ONE OPTION THE CHOICE CHANGES, set here rather than taken from a
+		// THE TWO OPTIONS THE CHOICE CHANGES, set here rather than taken from a
 		// caller: see Rebuild.
 		opts.TypingRhythmMs = simplify.AggressiveTypingRhythmMs
+		// AND AFTER `learnOptionsFor`, DELIBERATELY, BECAUSE IT OVERRIDES IT.
+		//
+		// That call sets no cap at all for a routine stating `coordinates`, which is
+		// ADR-254 and is right for every path that is not this one: nothing is asked
+		// of the application, so the recorded gap is the only waiting there is. This
+		// path is a person asking for the routine to be shorter, with both versions
+		// in front of them. On a recording of clicks the waits ARE the length —
+		// folding typed runs left a 19.6-second demonstration 19.6 seconds long —
+		// so a simplification that would not touch them was no simplification.
+		// See simplify.SimplifiedMaxWaitMs.
+		opts.MaxWaitMs = simplify.SimplifiedMaxWaitMs
 		basis = kind
 	}
 	steps, refused := simplify.Simplify(events, opts)

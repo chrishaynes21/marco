@@ -289,3 +289,23 @@ that offers one — Studio records coordinates because that is what the path *is
 somebody picked it from a list. A surface that let a person choose would need a second mode worth
 choosing, which is the anchor stack, which is the open question `cvOff()` names and which needs an
 experiment rather than a dropdown.
+
+## Amended 2026-10-31 — Simplify may cap, because a person asked it to
+
+The rule above — **a routine stating `coordinates` keeps every recorded gap** — has one exception
+now, and it is worth being precise about what the exception is, because the sentence it looks like
+it contradicts is the whole point of this decision.
+
+What this ADR forbids is the ENVIRONMENT deciding. `$MARCO_CV=on` capping every gap at save time,
+invisibly, in a process that captured no anchor to wait on, is a routine quietly acquiring
+different timing because of a variable it inherited. That is unchanged and still enforced: an
+ordinary save and `RebuildCurrent` keep the gaps exactly, and
+`TestAStatedCoordinateModeSurvivesSimplifyingWithVisionOn` still holds the `RebuildCurrent` half
+under `$MARCO_CV=on`.
+
+What is now allowed is a PERSON deciding, in front of the result. Simplify clamps every remaining
+wait to a quarter of a second, with a caution that says it may press before a screen has caught
+up, and both versions on screen before anything is written. It was doing nothing at all on a
+recording of clicks: measured on a real routine, 17 waits and 19.6 seconds of somebody's reaction
+time that folding typed runs could not touch. See
+[[ADR-280-simplify-takes-the-waiting-out]].
