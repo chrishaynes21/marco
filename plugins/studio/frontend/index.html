@@ -2456,6 +2456,13 @@
    $('askBtn').disabled = true
    $('askSaid').textContent = 'asking...'
    $('askWho').textContent = ''
+   // AND ANY PROPOSAL FROM THE LAST REQUEST GOES NOW, BEFORE THIS ONE IS ASKED.
+   //
+   // A proposal is a reading of ONE request. Left standing, a second request that
+   // happened to name the same routine would arrive with the first one's text already
+   // in the boxes, and somebody would be confirming words they said a minute ago about
+   // something else.
+   forgetProposals()
    // DIRECTOR ANSWERS THIS, NOT THIS WINDOW. The scope policy, the library and the
    // candidate labels are all its; what arrives is a route identity and a sentence.
    // See plugins/studio/resolve.go.
@@ -2479,6 +2486,13 @@
        '  ·  ' + (a.offered || 0) + ' routine(s) offered  ·  ' +
        (a.source || '?') + '  ·  ' + (a.resolver || '')
      if (a.kind === 'run' && a.id) {
+       // AND WHAT THE REQUEST ALREADY SAID ABOUT ITS ARGUMENTS, kept as a PROPOSAL.
+       //
+       // Shown in the boxes below, where it can be corrected, and sent back beside
+       // whatever is in them when Play is pressed - so the contract can tell a
+       // proposal that was left alone from one the person fixed. Nothing here is a
+       // supply: the confirmation is still the confirmation.
+       takeProposals(a)
        // SELECTED, NOT RUN. Exactly what clicking the card does.
        chosenRoutine = a.id; shownRoutines = ''; drawRoutines()
        const card = $('routine-' + a.id.replace(/[^a-z0-9]+/gi, '-'))
@@ -3430,12 +3444,86 @@
  // `argNeeds` is what the backend last said the chosen routine needs; `argValues` is what
  // has been typed into the boxes, by argument name; `willType` is the prepared invocation.
  //
- // THE VALUES LIVE HERE AND NOWHERE DURABLE. Nothing writes them anywhere, nothing
- // prefills them, and choosing another routine drops them -- text somebody typed once for
- // one run is not a property of the routine.
+ // THE VALUES LIVE HERE AND NOWHERE DURABLE. Nothing writes them anywhere and choosing
+ // another routine drops them -- text somebody typed once for one run is not a property of
+ // the routine.
+ //
+ // A PROPOSAL MAY FILL A BOX, AND THAT IS NOT THE THING THE LAST SLICE REFUSED. What it
+ // refused was REMEMBERING: a value from a previous run reappearing, which would be a
+ // property of the routine and would get confirmed by somebody who never typed it. This is
+ // a reading of the request IN FRONT OF THEM, put where they can see and change it, and it
+ // lives exactly as long as that request does -- `forgetProposals` runs before the next
+ // one is asked.
  let argNeeds = null
  let argValues = {}
  let willType = null
+ // argProposed is what the current request proposed, by argument name; argProposedFor is
+ // the routine it was proposed for; argProposedAt is the digest of the revision those
+ // names were read from, which travels so a routine saved since can be refused.
+ let argProposed = {}
+ let argProposedFor = ''
+ let argProposedAt = ''
+
+ // forgetProposals drops the current request's reading, and the boxes that came OF it.
+ //
+ // THE BOXES TOO, AND ONLY THOSE. A box whose text was prefilled -- or is that prefill after
+ // somebody corrected it -- holds text that belongs to the request it was read from, so a new
+ // request must not arrive with it still standing: they would be confirming words they said a
+ // minute ago about something else.
+ //
+ // A box they filled in THEMSELVES with no reading in play is theirs, and is left alone. That
+ // is the same rule the last slice settled, from the other side: what gets dropped is what
+ // this window put there, never what a person typed.
+ function forgetProposals(){
+   if (argProposedFor) {
+     Object.keys(argProposed).forEach(name => { delete argValues[name] })
+   }
+   // AND THE CARD GOES WHATEVER WAS ON IT. A confirmation prepared before this request
+   // was asked is a confirmation of something else, and it carries a token somebody
+   // could still press.
+   //
+   // REPAINTED, NOT JUST FORGOTTEN. Dropping `willType` on its own left the card on
+   // screen with a live Run button on it: the state was right and nothing was redrawn
+   // from it, which is the gap between a rule and a window obeying it. The claim sat in
+   // this comment and nothing held it until a mutation asked.
+   willType = null
+   drawWillType()
+   argProposed = {}
+   argProposedFor = ''
+   argProposedAt = ''
+ }
+
+ // takeProposals keeps what one answer proposed, or nothing at all.
+ function takeProposals(a){
+   forgetProposals()
+   const vs = a.values || []
+   if (!vs.length) { return }
+   argProposedFor = a.id
+   // THE REVISION THE NAMES CAME FROM, forwarded as it arrived. An answer without one is
+   // kept without one, and the contract then treats it as an ordinary press rather than
+   // this window inventing a version it cannot know.
+   argProposedAt = a.sourceAt || ''
+   vs.forEach(v => { if (v && v.name) { argProposed[v.name] = v.value || '' } })
+   // AND THE BOXES ARE NOT TOUCHED HERE. `forgetProposals` above has already dropped the
+   // ones that came of the LAST reading, which is the whole of what belongs to a request;
+   // clearing them all, as this did at first, would have destroyed text somebody typed
+   // themselves into a field no reading has ever proposed for. The two clears disagreed
+   // and a mutation found it: one of them carefully kept a person's own typing and the
+   // other threw it away a line later.
+ }
+
+ // proposalsHere is what was proposed for the routine now chosen, or {}.
+ //
+ // KEYED ON THE ROUTINE, because an answer proposes values for the routine it selected and
+ // somebody can click a different card afterwards. Values read for one routine's arguments
+ // must not appear beside another's, however alike the names.
+ function proposalsHere(id){
+   return (id && argProposedFor === id) ? argProposed : {}
+ }
+
+ function wasProposed(id, name){
+   return Object.prototype.hasOwnProperty.call(proposalsHere(id), name)
+ }
 
  function loadArgNeeds(){
    const r = routineWith(chosenRoutine)
@@ -3466,7 +3554,14 @@
    // REDRAWN ONLY WHEN THE FIELDS THEMSELVES CHANGE. The poll comes round every few
    // hundred milliseconds, and rebuilding an input somebody is typing into would take
    // the caret with it.
-   const sig = a.id + '\u0000' + a.fields.map(f => f.name + ':' + f.secret).join('|')
+   // THE PROPOSAL IS PART OF THE SIGNATURE, or a reading that arrives after the fields
+   // were drawn never reaches the boxes: the rebuild below is skipped when the signature
+   // is unchanged, and the fields themselves do not change when a request proposes
+   // something for them. It changes only when a request is answered, never while
+   // somebody types, so no caret is taken.
+   const sig = a.id + '\u0000' + a.fields.map(f => f.name + ':' + f.secret).join('|') +
+     '\u0000' + a.fields.map(f => wasProposed(a.id, f.name)
+       ? f.name + '=' + proposalsHere(a.id)[f.name] : '').join('|')
    if (list.dataset.sig !== sig) {
      list.dataset.sig = sig
      list.innerHTML = ''
@@ -3489,14 +3584,51 @@
          box.type = 'text'
          box.style.flex = '1'
          box.id = 'routineArg-' + f.name
-         box.value = ''
+         // FILLED FROM THE PROPOSAL, AND THE VALUE IS TAKEN AS SUPPLIED.
+         //
+         // Both, together: a box that LOOKED filled while nothing stood behind it
+         // would leave Play dead with the text in front of somebody, which is the
+         // defect the signature comment above records in its other form.
+         if (wasProposed(a.id, f.name)) {
+           argValues[f.name] = proposalsHere(a.id)[f.name]
+         }
+         box.value = Object.prototype.hasOwnProperty.call(argValues, f.name)
+           ? argValues[f.name] : ''
          box.oninput = () => { argValues[f.name] = box.value; paintRoutinePlay() }
          row.appendChild(box)
+         // WHERE THE TEXT CAME FROM, repainted as somebody types rather than rebuilt.
+         const from = document.createElement('span')
+         from.className = 'muted'
+         from.id = 'routineArgFrom-' + f.name
+         row.appendChild(from)
        }
        list.appendChild(row)
      })
    }
    paintRoutinePlay()
+ }
+
+ // drawArgFrom says beside each box where its text came from.
+ //
+ // A VALUE SOMEBODY TYPED GETS NOTHING. They are reading their own words back, and a line
+ // telling them they typed it is noise in the one place that has to be easy to check. The
+ // two that do get a clause are the two they could mistake for their own: a reading of
+ // their request, and that reading after they corrected it.
+ //
+ // The contract derives the same three answers from the same two facts and seals its own
+ // into the confirmation -- this is the field label, not the authority. See
+ // orchestrator.howItArrived.
+ function drawArgFrom(a){
+   if (!a) { return }
+   a.fields.forEach(f => {
+     const mark = $('routineArgFrom-' + f.name)
+     if (!mark) { return }
+     if (f.secret || !wasProposed(a.id, f.name)) { text(mark, ''); return }
+     const was = proposalsHere(a.id)[f.name]
+     const now = Object.prototype.hasOwnProperty.call(argValues, f.name)
+       ? argValues[f.name] : ''
+     text(mark, was === now ? 'read out of what you said' : 'as you corrected it')
+   })
  }
 
  // suppliedArgs is whether every text field has been GIVEN a value.
@@ -3519,7 +3651,12 @@
    const r = routineWith(chosenRoutine)
    if (!r) { return }
    $('routinePlayBtn').disabled = true
-   acts.ReviewPlay(r.id, argValues).then(v => {
+   // WHAT WAS OFFERED AND WHAT CAME BACK, BOTH, so the contract can tell a proposal that
+   // was left alone from one the person fixed -- and the revision the names were read
+   // from, so a routine saved since refuses rather than being run with text nobody
+   // proposed for what it now does.
+   acts.ReviewPlay(r.id, argValues, proposalsHere(r.id),
+       argProposedFor === r.id ? argProposedAt : '').then(v => {
      willType = v
      drawWillType()
      paintRoutinePlay()
@@ -3530,7 +3667,19 @@
    const r = routineWith(chosenRoutine)
    const have = !!(willType && r && willType.id === r.id)
    showing($('routineWillType'), have)
-   if (!have) { return }
+   if (!have) {
+     // AND A HIDDEN CARD IS AN EMPTY ONE, WITH A DEAD BUTTON.
+     //
+     // Hiding the container on its own left the last confirmation's lines inside it
+     // and its Run button still enabled -- out of reach behind the hidden parent, so
+     // not a press anybody could make, but state that comes back the moment anything
+     // shows the container again. A card that is not up should hold nothing and offer
+     // nothing.
+     $('routineWillTypeRows').innerHTML = ''
+     text($('routineWillTypeWhy'), '')
+     $('routineConfirmBtn').disabled = true
+     return
+   }
    text($('routineWillTypeName'), willType.name
      ? 'Run \u201c' + willType.name + '\u201d?' : 'Run it?')
    const rows = $('routineWillTypeRows')
@@ -3581,6 +3730,10 @@
  // stands" is a window telling somebody off for pressing what it offered them.
  function paintRoutinePlay(){
    const r = routineWith(chosenRoutine)
+   // WHERE EACH BOX'S TEXT CAME FROM, REPAINTED RATHER THAN REBUILT. This runs on every
+   // keystroke, and a clause that only appeared when the fields were rebuilt would go on
+   // saying a model read the sentence while somebody typed over it.
+   drawArgFrom((argNeeds && r && argNeeds.id === r.id && argNeeds.needs) ? argNeeds : null)
    // AND NOT WITHOUT A WINDOW TO PRESS IN. Studio does not Play into whatever is in
    // front: with this window in front, that is this window. Dead rather than
    // live-and-then-refused, because the refusal would arrive after the decision.

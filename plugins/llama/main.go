@@ -45,6 +45,10 @@ type request struct {
 	// Which, when present, asks WHICH OF THE CONTROLS ON SCREEN the request meant. The
 	// only question that is told what is in front of the person. See which.go.
 	Which *whichRequest `json:"which"`
+	// Extract, when present, asks WHICH WORDS OF THE REQUEST are which argument's value.
+	// Selected by its field like the two above, so an older plugin never sees it and a
+	// newer one answers the questions it knows. See extract.go.
+	Extract *extractRequest `json:"extract"`
 }
 
 type response struct {
@@ -80,6 +84,12 @@ func main() {
 	// like the one above, so a plugin that does not know it simply never sees it.
 	if req.Which != nil {
 		emitChoice(which(ctx, cfg, req.Input, req.Which.Application, req.Which.Controls))
+		return
+	}
+	// WHICH WORDS ARE THIS ARGUMENT'S VALUE. Told the sentence and a list of names, and
+	// nothing else — not the screen, and not what the routine does with them.
+	if req.Extract != nil {
+		emitValues(extract(ctx, cfg, req.Input, req.Extract.Names))
 		return
 	}
 	if req.Mode == "converse" {

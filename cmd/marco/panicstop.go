@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -255,7 +256,8 @@ func take(d orchestrator.Deps, rt routes.Route, named map[string]string,
 	}
 	if why := routes.CheckArgs(string(src), named, positional); why != nil {
 		mlog.Info("run: refused", "route", rt.Slug, "why", why.Error())
-		s.refused = fmt.Sprintf("%q: %v", plays.Pretty(rt.Slug), why)
+		s.refused = fmt.Sprintf("%q: %v%s", plays.Pretty(rt.Slug), why,
+			whereToReviewIt(why, expect))
 		s.did = ran{Digest: routes.DigestOf(string(src)), Contract: contractUnstated}
 		return s
 	}
@@ -267,6 +269,42 @@ func take(d orchestrator.Deps, rt routes.Route, named map[string]string,
 		Mode:       string(orchestrator.ModeOf(s.filled)),
 		Generation: gen.Declared, GenerationRead: string(gen.Reading)}
 	return s
+}
+
+// whereToReviewIt is the clause added when a routine needs text and nothing could review it.
+//
+// # The surfaces that cannot show a proposal, saying so
+//
+// A request can already say what to type — *write a note saying hello there* — and Director reads
+// which words those are. But a PROPOSAL is only useful where somebody can see it and correct it
+// before anything is typed, and three entrances have no field and no confirmation step: the CLI,
+// a hotkey, and the overlay's command line (which the voice path reaches it through). For those,
+// a routine that needs text and was given none has three possible behaviours: run with a guess,
+// fail quietly, or EXPLAIN.
+//
+// The first is what every boundary in this slice exists to prevent and the second is worse than a
+// refusal — so this is the third. The refusal already names the argument; this says what to do
+// about it.
+//
+// # And it is gated on whether anything CONFIRMED, not on which surface asked
+//
+// `expect` is the digest of the routine an invocation was authorised against, and
+// `invoke.Request.Expect` already says what empty means: *the CLI, a hotkey and the overlay pin
+// nothing because nothing was confirmed to them*. So an empty `expect` IS "nothing reviewed this",
+// which is exactly the condition, read off the request rather than off a list of surface names
+// that would have to be kept right. Studio sends one, so Studio is never told to open Studio.
+//
+// `Request.Source` is deliberately not consulted: it is recorded and never read, and this is not
+// the place to start.
+//
+// See [[ADR-277-a-request-may-propose-the-text-a-routine-types]].
+func whereToReviewIt(why error, expect string) string {
+	var needed *routes.ValuesNeeded
+	if !errors.As(why, &needed) || expect != "" {
+		return ""
+	}
+	return ". This request needs text values reviewed before running. Open it in Studio, " +
+		"or supply the value with the request"
 }
 
 // runRoute performs a snapshot: the source already read, with its args already substituted into

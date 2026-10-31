@@ -12300,3 +12300,77 @@ artifact cannot prove what the card displayed and nobody has reported reading it
 "said, never silent" half of
 [[ADR-274-the-way-out-of-a-window-is-not-part-of-the-demonstration]], and without it the trim is
 silent.
+
+### 2026-10-30 — a request may propose the text a routine types
+
+The third question on the one plugin boundary, after
+[[ADR-276-a-routine-may-be-told-what-to-type]] made a routine able to accept text and Studio able
+to supply it. Director asks the configured resolver which words of a request are which argument's
+value, and gets back a PROPOSAL: shown, confirmable, correctable, and acting on nothing. The thing
+that runs a routine is still the confirmation.
+
+The plugin answers in OFFSETS and never in text, because `resolver.Span` has no field for a value —
+so an invented, paraphrased or tidied value is not refused by this boundary, it is inexpressible on
+it, and Marco copies the words out of its own copy of the request. A secret is LEFT OUT of the
+question rather than filtered out of the answer. A proposal carries the digest of the revision its
+names were read from, so one prepared against a routine that was then saved again can be refused
+rather than crossed into.
+
+`plugins/llama` answers it by asking the model to QUOTE THE WORDS and then locating them, because a
+3B model asked for byte offsets answers with numbers that are confidently wrong.
+
+Three findings from the gate rather than from a failing test: two guards I had written could not
+fire and came out (the rule rides the chosen candidate now), and one of my tests had never reached
+the arm it named, because `dispatch.Decide` rejects a chat or a clarification with nothing to say.
+
+**Nothing reads the proposals yet** — the confirmation path and Studio's box are increments 2 and
+3, and R8 (a surface that cannot show a proposal explaining itself rather than guessing) is
+unbuilt. No desktop. The live probe got `message=hello there` back from a real local model,
+verbatim, which is a connection and not a measurement of comprehension. See
+[[ADR-277-a-request-may-propose-the-text-a-routine-types]].
+
+### 2026-10-30 — the proposal reaches a confirmation, and Studio's box
+
+Increments 2 and 3 of [[ADR-277-a-request-may-propose-the-text-a-routine-types]].
+`orchestrator.PrepareProposed` seals a proposed value with the route, the source and the
+provenance; Studio prefills an editable box from Director's answer, says beside it where the text
+came from, and sends back what it offered as well as what came back.
+
+**The provenance is DERIVED from those two facts, not asserted by the surface.** Left alone is
+`extracted`, changed is `edited`, never proposed is `typed` — because a window that prefilled a box
+and forgot to relabel it would tell somebody a model read their sentence correctly when they are the
+one who fixed it. Tested on PRESENCE, so clearing a prefilled box is a correction. And a proposal
+cannot be confirmed against a routine saved since, compared on the digest and never the names.
+
+A reading belongs to ONE routine and ONE request: another routine's field of the same name stays
+empty, and a new request drops the boxes that came OF the last reading while leaving a person's own
+typing alone.
+
+**Four defects came from the mutation gate rather than from a failing test**, all of them a rule
+stated and not held: two page clears that disagreed a line apart (one kept hand-typed values, the
+other threw them away), a confirmation card left on screen with a live Run button after the state
+behind it was dropped, a hidden card keeping its old lines and an enabled button, and a test
+asserting an argument COUNT as a proxy for what was actually sent.
+
+**R8 is still unbuilt** — the overlay, voice and `marco do` explaining that they cannot show a
+proposal rather than guessing — and none of this has been exercised on a desktop.
+
+### 2026-10-30 — and the surfaces that cannot review one say so
+
+R8 of [[ADR-277-a-request-may-propose-the-text-a-routine-types]]. The CLI, a hotkey and the
+overlay's command line — which voice arrives through — have no field and no confirmation step, so a
+routine that needs text and was given none is refused with a sentence that names the argument and
+says where to settle it: *This request needs text values reviewed before running. Open it in
+Studio, or supply the value with the request.*
+
+One site, because the overlay and voice both spawn `marco` and stream its output — no second copy
+of the rule in a surface, and a test in each module holding the two together. Recognised by the
+refusal's TYPE and not its wording, and gated on whether anything CONFIRMED rather than on a list
+of surface names.
+
+A value supplied explicitly still runs, and a routine that takes nothing is an ordinary routine.
+The mutation gate found one real gap: the clause belongs to ONE of the four things `CheckArgs`
+says, and nothing had checked that a misspelt argument is not sent to Studio to have its text
+reviewed.
+
+**The slice is complete at R1 to R9.** Nothing in it has been exercised on a desktop.

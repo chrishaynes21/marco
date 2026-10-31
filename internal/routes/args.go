@@ -155,6 +155,35 @@ type Argument struct {
 	Secret bool
 }
 
+// How a value for an argument ARRIVED. Four words, and they are the only four.
+//
+// # Why this is written down rather than described per surface
+//
+// `resolveroute.ResolverSentence` exists because "the configured resolver answered this" about a
+// free offline match is the false impression that whole sentence was written to prevent. With one
+// value read out of a phrase by a grammar and another proposed by a model, ONE sentence about the
+// request would be that same false impression per argument — so each value says how it arrived,
+// and a person can see which of the two it is before they press anything.
+//
+// Here rather than in either package that needs them, because `internal/orchestrator` and
+// `internal/resolveroute` do not import one another and both import this: a vocabulary kept in two
+// places is two vocabularies the first time either changes.
+//
+// AND NONE OF THESE WORDS CARRIES THE VALUE. The provenance says where a value came from; the
+// confirmation says what it is. `internal/director/values/provenance.go` is the shape being
+// followed, being *designed to be safe rather than redacted to be safe*.
+const (
+	// FromTyped is a value given as a flag or typed into a field.
+	FromTyped = "typed"
+	// FromParsed is a value the deterministic grammar read out of a phrase.
+	FromParsed = "parsed"
+	// FromExtracted is a value a model proposed by naming a span of the request.
+	FromExtracted = "extracted"
+	// FromEdited is a proposal the person corrected, which is THEIRS now and must not go
+	// on being credited to the model.
+	FromEdited = "edited"
+)
+
 // Arguments is what a routine accepts, with each one's kind.
 //
 // The same order `ArgNames` has always reported — placeholders first, then route-qualified secret
@@ -191,6 +220,31 @@ func zipPositional(src string, positional []string) map[string]string {
 		}
 	}
 	return out
+}
+
+// ValuesNeeded is the refusal that a routine types text and nobody supplied it.
+//
+// # Why this one refusal has a type
+//
+// Every other thing `CheckArgs` says is the same wherever it is said: a name the routine does not
+// take is wrong at every entrance, and so is a value with a line break in it. THIS one has an
+// answer that depends on WHERE THE REQUEST CAME FROM. A surface that can show what a routine would
+// type before typing it asks the person for the value; one that cannot has to say so and send them
+// somewhere that can — and neither of those sentences belongs in this package, which knows about
+// routines and nothing about windows.
+//
+// So the refusal is recognisable rather than re-worded. Matching on the sentence would work until
+// somebody improved the wording, and the thing that broke would be a surface going quiet.
+//
+// The NAMES are carried and the values are not, for the reason the whole of `CheckArgs` gives.
+type ValuesNeeded struct {
+	// Names is the arguments nothing supplied a value for, in the routine's own order.
+	Names []string
+}
+
+func (e *ValuesNeeded) Error() string {
+	return fmt.Sprintf("this routine types text that has to be supplied, and no value "+
+		"was given for %s", joinArgs(e.Names))
 }
 
 // CheckArgs says why a routine cannot be run with these values, or nil when it can.
@@ -283,8 +337,7 @@ func CheckArgs(src string, named map[string]string, positional []string) error {
 		missing = append(missing, a.Name)
 	}
 	if len(missing) > 0 {
-		return fmt.Errorf("this routine types text that has to be supplied, and no value "+
-			"was given for %s", joinArgs(missing))
+		return &ValuesNeeded{Names: missing}
 	}
 	return nil
 }

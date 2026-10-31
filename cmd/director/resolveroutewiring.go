@@ -41,6 +41,7 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/director/service"
 	"github.com/chaynes-simpleclouds/marco/internal/dispatch"
 	"github.com/chaynes-simpleclouds/marco/internal/orchestrator"
+	"github.com/chaynes-simpleclouds/marco/internal/resolver"
 	"github.com/chaynes-simpleclouds/marco/internal/resolveroute"
 	"github.com/chaynes-simpleclouds/marco/internal/routes"
 )
@@ -55,7 +56,15 @@ const resolveTimeout = 30 * time.Second
 // ResolveRoute answers which saved routine a request named.
 func (r *Runtime) ResolveRoute(p service.ResolveRoutePayload) service.ResolveRouteResponse {
 	reg := learnedRegistry()
-	resolver := resolveroute.Resolver{Reg: reg, Advisor: dispatch.Default()}
+	// NAMED FOR WHAT IT RESOLVES, because the package that asks the plugin is called
+	// `resolver` and a local of that name hid it.
+	routeResolver := resolveroute.Resolver{Reg: reg, Advisor: dispatch.Default(),
+		// AND THE THIRD QUESTION ON THE SAME BOUNDARY. One executable named by
+		// $MARCO_RESOLVER answers which routine a request meant and, now, which
+		// words of it are which argument's value. Not $MARCO_INTERPRETER: that is
+		// the shadow-mode question about a control on screen, and
+		// `internal/director/meaning` stays its only reader.
+		Extract: resolver.Extract}
 	where := r.whereToRead(p.Target)
 
 	library := theLibrary(reg)
@@ -74,7 +83,7 @@ func (r *Runtime) ResolveRoute(p service.ResolveRoutePayload) service.ResolveRou
 	ctx, cancel := context.WithTimeout(context.Background(), resolveTimeout)
 	defer cancel()
 	out := service.ResolveRouteResponse{
-		Answer: resolver.Resolve(ctx, p.Request, library, where),
+		Answer: routeResolver.Resolve(ctx, p.Request, library, where),
 	}
 	// ── AND A LIBRARY THAT IS NOT THE CALLER'S IS NAMED ──
 	//
@@ -130,6 +139,12 @@ func theLibrary(reg routes.Registry) []resolveroute.Candidate {
 			Scope:    string(orchestrator.ScopeAlreadyOf(rt)),
 			Runnable: !cannot[id],
 			Answers:  answers,
+			// AND WHAT IT TAKES, read from the same bytes its name was
+			// read from, with the digest of those bytes beside it. One
+			// read, so the names and the version cannot be of different
+			// revisions.
+			Takes:    routes.Arguments(string(raw)),
+			SourceAt: routes.DigestOf(string(raw)),
 		})
 	}
 	return out

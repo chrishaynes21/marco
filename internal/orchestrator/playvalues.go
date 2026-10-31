@@ -57,6 +57,15 @@ type Invocation struct {
 	// Values is what will be typed, by argument name, and it is a COPY of what was
 	// offered. Carried so the confirmation can show it and the run can be given it.
 	Values map[string]string `json:"values,omitempty"`
+	// From is how each carried value arrived, by argument name: typed, parsed, extracted
+	// or edited.
+	//
+	// DERIVED HERE AND NEVER TAKEN ON TRUST. A surface says what was PROPOSED and what
+	// will RUN, and this package compares them — so a value the person corrected cannot
+	// be credited to the model by a surface that forgot to relabel its own field, which
+	// is the one mislabelling that matters: it tells somebody a model read their sentence
+	// correctly when what actually happened is that they fixed it.
+	From map[string]string `json:"from,omitempty"`
 	// Says is the confirmation, one line per argument, naming the argument and the text.
 	//
 	// THE ONE PLACE A VALUE IS REPEATED, and it is not a diagnostic: it is on a screen,
@@ -99,6 +108,37 @@ func (i Invocation) Needs() bool {
 // Writes nothing and performs nothing. The values are copied; the token seals them with the
 // source as it now stands.
 func (d Deps) PrepareInvocation(rt routes.Route, values map[string]string) (Invocation, error) {
+	return d.PrepareProposed(rt, values, nil, "")
+}
+
+// PrepareProposed is PrepareInvocation for values a REQUEST proposed, in whole or in part.
+//
+//	values     what will run, by argument name
+//	proposed   what the request proposed, by argument name
+//	proposedAt the digest of the routine those proposals were read from, or "" for none
+//
+// # The provenance is derived from the two maps
+//
+// A name in `proposed` whose value is unchanged is `extracted`; one that differs is `edited`,
+// because the person corrected it and it is theirs now; a name that was never proposed is
+// `typed`. A surface therefore cannot mislabel a value by forgetting to relabel a field it
+// prefilled — it says what it offered and what came back, and the comparison is here.
+//
+// # And a proposal cannot outlive the revision it was made for
+//
+// The argument names a request was read against came from ONE revision of ONE routine. If the
+// routine has been saved since, this REFUSES — **even when the new version declares the same
+// names**, because the same name in a rewritten routine may be typed somewhere else entirely, and
+// a value that crossed into a routine nobody proposed it for is text going to a place nobody
+// proposed it for. Compared on the DIGEST and never on the names, which is the whole point: a
+// comparison of names would pass exactly the case this exists to refuse.
+//
+// Asked BEFORE `CheckArgs`, because a proposal for an old revision must be reported as a routine
+// that was saved again rather than as an argument nobody declared — the names may well have
+// changed, and that refusal would send somebody looking for a typo.
+func (d Deps) PrepareProposed(rt routes.Route, values, proposed map[string]string,
+	proposedAt string) (Invocation, error) {
+
 	if rt.Slug == "" {
 		return Invocation{}, fmt.Errorf("an invocation needs a routine")
 	}
@@ -123,6 +163,12 @@ func (d Deps) PrepareInvocation(rt routes.Route, values map[string]string) (Invo
 	// again THERE because this is a review and that is the authority. Neither is the
 	// other's substitute: the whole of ADR-273's surface lesson is that a dead button
 	// proves nothing about a backend that would have obliged.
+	if proposedAt != "" && i.SourceAt != proposedAt {
+		i.Why = fmt.Sprintf("%q has been saved again since those values were read "+
+			"out of what you said, so nothing has been proposed for what it now "+
+			"does — say it again", i.Name)
+		return i, nil
+	}
 	if why := routes.CheckArgs(src, values, nil); why != nil {
 		i.Why = why.Error()
 		return i, nil
@@ -144,11 +190,37 @@ func (d Deps) PrepareInvocation(rt routes.Route, values map[string]string) (Invo
 			if i.Values == nil {
 				i.Values = map[string]string{}
 			}
-			i.Values[strings.ToLower(k)] = v
+			name := strings.ToLower(k)
+			i.Values[name] = v
+			if i.From == nil {
+				i.From = map[string]string{}
+			}
+			i.From[name] = howItArrived(name, v, proposed)
 		}
 	}
-	i.Says = whatItWillType(i.Arguments, i.Values)
+	i.Says = whatItWillType(i.Arguments, i.Values, i.From)
 	return i.sealed(), nil
+}
+
+// howItArrived compares what will run with what was proposed.
+//
+// NOT A CLAIM A SURFACE MAKES. The three answers are the three things that can have happened to a
+// prefilled box: nobody proposed anything for it, the proposal was left alone, or the person
+// changed it. A changed proposal is the person's own value and saying otherwise would tell them a
+// model read their sentence correctly when they are the one who fixed it.
+//
+// `routes.FromParsed` is not produced here: that is the deterministic grammar reading a phrase, one
+// door along, and a value that reached this function had already been read by whatever read it.
+func howItArrived(name, value string, proposed map[string]string) string {
+	was, ok := proposed[name]
+	switch {
+	case !ok:
+		return routes.FromTyped
+	case was == value:
+		return routes.FromExtracted
+	default:
+		return routes.FromEdited
+	}
 }
 
 // ConfirmInvocation says why a confirmed invocation may no longer be run, or "" when it may.
@@ -197,11 +269,17 @@ func (i Invocation) sealed() Invocation {
 	sort.Strings(keys)
 	parts := []string{i.ID, i.SourceAt}
 	for _, k := range keys {
-		// THE NAME AND THE VALUE, LENGTH-DELIMITED. Joining them plainly would let
-		// one pair of values digest the same as another — `a=bc` and `ab=c` — which
-		// is a collision somebody could choose.
-		parts = append(parts, fmt.Sprintf("%d:%s=%d:%s", len(k), k, len(i.Values[k]),
-			i.Values[k]))
+		// THE NAME, THE VALUE AND WHERE IT CAME FROM, LENGTH-DELIMITED. Joining them
+		// plainly would let one pair of values digest the same as another — `a=bc`
+		// and `ab=c` — which is a collision somebody could choose.
+		//
+		// The PROVENANCE is in here because a label changed after the confirmation
+		// was read is the same class of thing as a value changed after it: what the
+		// struct says it showed is not what it now holds. And it matters more than
+		// it looks, because that label is the only thing telling somebody whether a
+		// model or they themselves produced the text they are about to send.
+		parts = append(parts, fmt.Sprintf("%d:%s=%d:%s@%d:%s", len(k), k,
+			len(i.Values[k]), i.Values[k], len(i.From[k]), i.From[k]))
 	}
 	i.Token = routes.DigestOf(strings.Join(parts, "\x00"))
 	return i
@@ -211,22 +289,42 @@ func (i Invocation) sealed() Invocation {
 //
 // Every argument, including the ones the credential store answers, because a person deciding
 // whether to press is owed the whole list rather than the half that happens to be typed here.
-func whatItWillType(args []routes.Argument, values map[string]string) []string {
+func whatItWillType(args []routes.Argument, values, from map[string]string) []string {
 	out := []string{}
 	for _, a := range args {
 		if a.Secret {
 			out = append(out, fmt.Sprintf("%s — from the credential store", a.Name))
 			continue
 		}
-		v := values[strings.ToLower(a.Name)]
+		name := strings.ToLower(a.Name)
+		v := values[name]
 		if v == "" {
 			// AN EMPTY VALUE SOMEBODY GAVE ON PURPOSE, said as what it is rather
 			// than as a blank nobody can tell from a mistake.
-			out = append(out, fmt.Sprintf("%s — nothing (it will type no text)",
-				a.Name))
+			out = append(out, fmt.Sprintf("%s — nothing (it will type no text)%s",
+				a.Name, saidWhere(from[name])))
 			continue
 		}
-		out = append(out, fmt.Sprintf("%s — %q", a.Name, v))
+		out = append(out, fmt.Sprintf("%s — %q%s", a.Name, v, saidWhere(from[name])))
 	}
 	return out
+}
+
+// saidWhere is the clause naming where a value came from, or "" for one somebody typed.
+//
+// A VALUE SOMEBODY TYPED GETS NO CLAUSE, because they are reading their own text back and a line
+// telling them they typed it is noise in the one place that must be easy to check. The two that
+// DO get one are the two a person could otherwise mistake for their own: a value read out of
+// their sentence by a model, and the same value after they corrected it.
+func saidWhere(from string) string {
+	switch from {
+	case routes.FromExtracted:
+		return " (read out of what you said)"
+	case routes.FromEdited:
+		return " (as you corrected it)"
+	case routes.FromParsed:
+		return " (read out of the words you used)"
+	default:
+		return ""
+	}
 }

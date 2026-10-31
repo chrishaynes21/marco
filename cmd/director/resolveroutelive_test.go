@@ -52,6 +52,7 @@ package main
 // machine where nothing was asked.
 
 import (
+	"context"
 	"net"
 	"os"
 	"path/filepath"
@@ -61,6 +62,7 @@ import (
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/service"
 	"github.com/chaynes-simpleclouds/marco/internal/dispatch"
+	"github.com/chaynes-simpleclouds/marco/internal/resolver"
 	"github.com/chaynes-simpleclouds/marco/internal/resolveroute"
 )
 
@@ -159,4 +161,77 @@ func TestAParaphraseReachesTheResolverThroughDirector(t *testing.T) {
 		t.Errorf("the request was read against %+v", a.Context)
 	}
 	t.Logf("asked %q -> %s (%s) via %s", asked, a.ID, a.Scope, a.Resolver)
+}
+
+// AND THE REAL PLUGIN ANSWERS THE EXTRACTION QUESTION WITH SPANS THAT VALIDATE.
+//
+// # What this establishes, and the much larger thing it does not
+//
+// ONE THING: that the third question on this protocol reaches the plugin on this machine, that
+// the plugin reaches the model, and that what comes back is a span Marco accepts. That is a
+// CONNECTION PROBE. Every rule about what a span may be is held without a model, in
+// `internal/resolver` and `internal/resolveroute`, and Director's own reach is held in the default
+// suite by `TestDirectorsOwnHandlerReachesTheExtractionQuestion`, which asks a plugin this
+// repository builds.
+//
+// IT IS NOT A COMPREHENSION BENCHMARK AND MUST NOT BE REPORTED AS ONE. Whether a model reads
+// sentences WELL is a measurement with a corpus and a denominator — see
+// [[Experiment-069-rewording-closes-the-spelling-gap-and-not-the-meaning-gap]], which is what that
+// kind of claim costs. One sentence answered correctly is the most misleading possible evidence
+// about it: the route half of this same plugin reads a second paraphrase as a request to teach a
+// new command, three times out of three, and that is the model's reach rather than a defect in
+// anything here.
+//
+// # Why the route question is not in the way
+//
+// It asks `resolver.Extract` directly rather than through `Runtime.ResolveRoute`, on purpose. A
+// request carrying a value can never be an exact match, so going through Director would put the
+// model's ROUTE reading in front of the thing being probed — and a probe that fails because a 3B
+// model offered to teach a new command has established nothing about extraction either way.
+func TestTheRealPluginAnswersTheExtractionQuestion(t *testing.T) {
+	plugin := theRealResolverPlugin(t)
+	if plugin == "" {
+		t.Skip("plugins/llama/llama.exe is not built, so the real resolver cannot be asked")
+	}
+	if !aModelServerIsAnswering() {
+		t.Skip("no model server is answering on the plugin's default address, so the " +
+			"real resolver cannot be asked")
+	}
+	t.Setenv("MARCO_LLM_TIMEOUT_MS", "60000")
+	t.Setenv("MARCO_RESOLVER", plugin)
+	if !resolver.ExtractorConfigured() {
+		t.Fatalf("no extractor is configured although %s was set", plugin)
+	}
+	// A GENEROUS CAP for the same reason the test above has one: a cold model load is most
+	// of a first call, and this is about the connection and not about latency.
+	was := resolver.ExtractTimeout
+	resolver.ExtractTimeout = 90 * time.Second
+	t.Cleanup(func() { resolver.ExtractTimeout = was })
+
+	// CHOSEN TO BE EASY, and said so: the value is at the end, after a word that introduces
+	// it, in the shape a person would actually type. Making it hard would turn this into
+	// the benchmark it must not be.
+	const asked = "write a note saying hello there"
+	spans, ok := resolver.Extract(context.Background(), asked, []string{"message"})
+	if !ok {
+		t.Fatalf("the plugin was asked %q and nothing usable came back — either it "+
+			"did not reach the model, or the model answered with words that are "+
+			"not in the sentence", asked)
+	}
+	var got []string
+	for _, sp := range spans {
+		v := sp.Value(asked)
+		got = append(got, sp.Name+"="+v)
+		// THE VALUE IS THE REQUEST'S OWN WORDS. Structurally true — the span has no
+		// field for text — and asserted anyway, because this is the one test where
+		// the words on the other side of the boundary are a model's.
+		if !strings.Contains(asked, v) {
+			t.Errorf("%q is not in the request", v)
+		}
+		if strings.TrimSpace(v) == "" {
+			t.Errorf("%s came back as whitespace", sp.Name)
+		}
+	}
+	t.Logf("asked %q -> %v (a connection probe, not a measurement of comprehension)",
+		asked, got)
 }

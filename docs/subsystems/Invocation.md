@@ -106,6 +106,25 @@ routine with arguments is confirmed before it presses. See
 [[ADR-276-a-routine-may-be-told-what-to-type]] and
 [[Text-arguments-proposal-2026-10-30]].
 
+**AND A REQUEST MAY PROPOSE THAT TEXT, which is not the same as supplying it.** Director asks the
+configured resolver a THIRD question on the one plugin boundary, after it has already selected a
+routine: which words of the request are which argument's value. The plugin answers in OFFSETS and
+never in text — `resolver.Span` has no field for a value — so Marco copies the words out of its own
+copy of the request, verbatim, and a value nobody said is not something the boundary refuses but
+something it cannot express. What travels back is a `resolveroute.Proposal` to be shown, confirmed
+or corrected, carrying WHICH ARM supplied it and the DIGEST OF THE REVISION its names were read
+from; nothing acts on it, and the thing that runs a routine is still the confirmation above. A
+SECRET IS LEFT OUT OF THE QUESTION rather than filtered out of the answer.
+
+A surface shows the proposal in the field it would have asked for, where it can be CORRECTED, and
+sends back BOTH what it offered and what came back. The provenance is then DERIVED rather than
+asserted — left alone is `extracted`, changed is `edited`, never proposed is `typed` — so a window
+that prefilled a box and forgot to relabel it cannot credit somebody's own correction to a model;
+and the revision travels too, so a proposal cannot be confirmed against a routine saved since. The
+provenance is sealed with the values, because the label is the only thing saying whose words these
+are. See [[ADR-277-a-request-may-propose-the-text-a-routine-types]] and
+[[Extracting-argument-values-proposal-2026-10-30]].
+
 Arguments follow identity. A Binding carries its own (`` `e = enter freeplay with 3 ``) and a
 clicked Run carries none; only a phrase has to be read for them. Re-reading a phrase that carried
 none, over cargo that did, would silently drop arguments somebody supplied.
@@ -405,6 +424,7 @@ configured resolver was absent, answered, or asked and silent. See
 - [[Service]] — the Director's command registry, which a performance now enters
 - [[Visibility]] — the one account of what Marco is doing
 - [[34F-legacy-marco-product-audit]] — §13 counted the deciders; §22 Phase 2 is this note
+- [[ADR-277-a-request-may-propose-the-text-a-routine-types]] — a proposal is never a supply
 - [[ADR-083-one-invocation-intake]] · [[ADR-084-a-plays-identity-is-its-subject]] ·
   [[ADR-085-a-performance-is-a-registry-command]]
 - [[ADR-029-resolution-is-not-permission]] · [[ADR-066-stop-is-a-product-event]] ·

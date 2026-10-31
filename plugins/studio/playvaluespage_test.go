@@ -78,8 +78,13 @@ window.go = {main: {
     },
     ReviewPlay: (...args) => {
       window.pvReviewed = (window.pvReviewed || 0) + 1
+      // THE WHOLE CALL, not its arity. A count of arguments was what this
+      // recorded when the review took two, and a count cannot say that an
+      // ordinary press proposes nothing and names no revision -- which is the
+      // claim worth holding now that it can carry both.
       window.pvSent = (window.pvSent || []).concat(
-        args.length + ':' + JSON.stringify(args[1]))
+        args.length + ':' + JSON.stringify(args[1]) + ':' +
+        JSON.stringify(args[2]) + ':' + JSON.stringify(args[3]))
       if (window.pvReviewed === 1) {
         return Promise.resolve({id: args[0], name: 'write a note',
           why: 'the value given for "message" runs over more than one line, and ' +
@@ -198,7 +203,8 @@ setTimeout(() => {
     ' saidsecret=' + (pvSaid.includes('credential store') ? 1 : 0) +
     ' runlive=' + pvRunLive +
     ' sent=' + ((window.pvSent || []).join(',') ===
-      '2:{"message":"hello there"},2:{"message":"hello there"}' ? 1 : 0) +
+      '4:{"message":"hello there"}:{}:"",' +
+      '4:{"message":"hello there"}:{}:""' ? 1 : 0) +
     ' confirmed=' + ((window.pvConfirmed || []).join(',') ===
       '2:tok-run:4660:77' ? 1 : 0) +
     ' played=' + (window.pvPlayed ? 1 : 0) +
@@ -301,9 +307,15 @@ func TestARefusedPlayReviewIsShownAndCannotBeRun(t *testing.T) {
 
 // THE PAGE SENDS THE VALUES IT WAS GIVEN, AND CONFIRMS BY TOKEN AND WINDOW ALONE.
 //
-// Two arguments to the review and two to the confirm: the values go up once, and what comes back
-// down is a token. A page that handed the values back at confirm time would be a page that could
-// hand back different ones.
+// The values go up once and what comes back down is a token: a page that handed the values back
+// at confirm time would be a page that could hand back different ones. Two arguments to the
+// confirm, and FOUR to the review — the values, what a request proposed, and the revision those
+// proposals were read from.
+//
+// AND AN ORDINARY PRESS PROPOSES NOTHING AND NAMES NO REVISION, which is what the empty third and
+// fourth say here. Nobody asked for this routine in words; the text in the box is the person's,
+// and a window that sent a proposal it never made would have the contract label their own typing
+// as a model's reading of a sentence they never said.
 func TestThePageSendsValuesOnceAndConfirmsByToken(t *testing.T) {
 	title, n := aRenderedPlayValuesPage(t)
 	if n("sent") != 1 {

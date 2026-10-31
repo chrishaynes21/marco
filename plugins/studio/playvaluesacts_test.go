@@ -78,7 +78,7 @@ func TestPlayRefusesARoutineThatNeedsTextAndSaysWhereToPutIt(t *testing.T) {
 // AND REVIEWING SAYS WHAT IT WOULD TYPE, AND HANDS BACK A TOKEN.
 func TestReviewingAPlaySaysWhatItWouldType(t *testing.T) {
 	a, r := aRoutineThatNeedsText(t)
-	got := a.ReviewPlay(r.ID, map[string]string{"message": "hello there"})
+	got := a.ReviewPlay(r.ID, map[string]string{"message": "hello there"}, nil, "")
 	if got.Why != "" {
 		t.Fatalf("the review was refused: %s", got.Why)
 	}
@@ -93,7 +93,7 @@ func TestReviewingAPlaySaysWhatItWouldType(t *testing.T) {
 // AND A MISSING VALUE IS REFUSED WITH NO TOKEN, in the contract's own words.
 func TestReviewingWithoutAValueOffersNothingToConfirm(t *testing.T) {
 	a, r := aRoutineThatNeedsText(t)
-	got := a.ReviewPlay(r.ID, nil)
+	got := a.ReviewPlay(r.ID, nil, nil, "")
 	if got.Token != "" {
 		t.Fatal("an invocation with no value for its text could be confirmed")
 	}
@@ -108,7 +108,7 @@ func TestReviewingWithoutAValueOffersNothingToConfirm(t *testing.T) {
 // it, and the confirmation says the routine will type no text.
 func TestAnEmptyValueIsConfirmableFromTheWindow(t *testing.T) {
 	a, r := aRoutineThatNeedsText(t)
-	got := a.ReviewPlay(r.ID, map[string]string{"message": ""})
+	got := a.ReviewPlay(r.ID, map[string]string{"message": ""}, nil, "")
 	if got.Token == "" {
 		t.Fatalf("an empty value somebody gave on purpose was refused: %s", got.Why)
 	}
@@ -123,7 +123,7 @@ func TestOnlyATokenThisWindowPreparedCanBeConfirmed(t *testing.T) {
 	if why := a.ConfirmPlay("tok-nobody-minted", ""); why == "" {
 		t.Error("a token this window never prepared was accepted")
 	}
-	got := a.ReviewPlay(r.ID, map[string]string{"message": "hello"})
+	got := a.ReviewPlay(r.ID, map[string]string{"message": "hello"}, nil, "")
 	if got.Token == "" {
 		t.Fatalf("the review was refused: %s", got.Why)
 	}
@@ -138,7 +138,7 @@ func TestOnlyATokenThisWindowPreparedCanBeConfirmed(t *testing.T) {
 // AND A ROUTINE SAVED SINCE THE CONFIRMATION REFUSES, through the window.
 func TestARoutineSavedSinceTheConfirmationIsRefusedInStudio(t *testing.T) {
 	a, r := aRoutineThatNeedsText(t)
-	got := a.ReviewPlay(r.ID, map[string]string{"message": "hello"})
+	got := a.ReviewPlay(r.ID, map[string]string{"message": "hello"}, nil, "")
 	if got.Token == "" {
 		t.Fatalf("the review was refused: %s", got.Why)
 	}
@@ -218,7 +218,7 @@ func TestThePlayFieldsHoldOffWhileRecording(t *testing.T) {
 	if got := a.PlayNeeds(r.ID); got.Why == "" {
 		t.Errorf("the fields were offered during a recording: %+v", got)
 	}
-	if got := a.ReviewPlay(r.ID, map[string]string{"message": "x"}); got.Token != "" {
+	if got := a.ReviewPlay(r.ID, map[string]string{"message": "x"}, nil, ""); got.Token != "" {
 		t.Error("a run was prepared during a recording")
 	}
 }
@@ -252,7 +252,7 @@ func aHeldRecorder() func() recorder.Recorder {
 func TestAMisspeltValueIsRefusedByTheWindow(t *testing.T) {
 	a, r := aRoutineThatNeedsText(t)
 	got := a.ReviewPlay(r.ID, map[string]string{
-		"message": "the text I meant", "mesage": "the one I mistyped"})
+		"message": "the text I meant", "mesage": "the one I mistyped"}, nil, "")
 	if got.Token != "" {
 		t.Fatal("a misspelt argument was dropped and the run was offered anyway")
 	}
@@ -274,7 +274,7 @@ func TestAMisspeltValueIsRefusedByTheWindow(t *testing.T) {
 // version somebody actually confirmed.
 func TestTheWindowHandsTheConfirmedVersionToTheChild(t *testing.T) {
 	a, r := aRoutineThatNeedsText(t)
-	got := a.ReviewPlay(r.ID, map[string]string{"message": "hello"})
+	got := a.ReviewPlay(r.ID, map[string]string{"message": "hello"}, nil, "")
 	if got.Token == "" {
 		t.Fatalf("the review was refused: %s", got.Why)
 	}
@@ -309,7 +309,7 @@ func TestTheWindowHandsTheConfirmedVersionToTheChild(t *testing.T) {
 // very thing the pin exists to catch.
 func TestAConfirmedRunIsPinnedToTheVersionItWasSealedWith(t *testing.T) {
 	a, r := aRoutineThatNeedsText(t)
-	got := a.ReviewPlay(r.ID, map[string]string{"message": "hello there"})
+	got := a.ReviewPlay(r.ID, map[string]string{"message": "hello there"}, nil, "")
 	if got.Token == "" {
 		t.Fatalf("the review was refused: %s", got.Why)
 	}

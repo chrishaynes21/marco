@@ -136,12 +136,30 @@ func fieldSays(arg routes.Argument) string {
 }
 
 // ReviewPlay prepares the run and says what it would type, without running anything.
-func (a *Acts) ReviewPlay(id string, values map[string]string) PlayConfirm {
+//
+// # What `proposed` and `proposedAt` are for
+//
+// A request can already have said what to type — *write a note saying hello there* — and Director
+// answers which words those are. The page puts them in the boxes, where they can be corrected,
+// and sends BOTH what it offered and what came back. The contract compares them, so a value the
+// person changed is labelled as theirs rather than as a model's reading: a window that prefilled a
+// box and forgot to relabel it would tell somebody the model read their sentence correctly when
+// they are the one who fixed it.
+//
+// `proposedAt` is the revision those names were read from. A routine saved since REFUSES, even
+// when it declares the same names, because the same name in a rewritten routine may be typed
+// somewhere else entirely. Both are empty for an ordinary press, which is exactly
+// `PrepareInvocation`.
+//
+// See [[ADR-277-a-request-may-propose-the-text-a-routine-types]].
+func (a *Acts) ReviewPlay(id string, values, proposed map[string]string,
+	proposedAt string) PlayConfirm {
+
 	got, d, chosen, ok := a.playFor(id)
 	if !ok {
 		return PlayConfirm{ID: id, Why: got.Why}
 	}
-	i, err := d.PrepareInvocation(chosen.route(), values)
+	i, err := d.PrepareProposed(chosen.route(), values, proposed, proposedAt)
 	if err != nil {
 		return PlayConfirm{ID: id, Name: got.Name, Why: err.Error()}
 	}

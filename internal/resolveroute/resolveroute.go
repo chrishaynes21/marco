@@ -40,6 +40,7 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/dispatch"
 	"github.com/chaynes-simpleclouds/marco/internal/nlu"
 	"github.com/chaynes-simpleclouds/marco/internal/plays"
+	"github.com/chaynes-simpleclouds/marco/internal/resolver"
 	"github.com/chaynes-simpleclouds/marco/internal/routes"
 )
 
@@ -68,6 +69,18 @@ type Candidate struct {
 	// They are not a second kind of candidate. A label is a way of naming ONE routine,
 	// and the identity that travels back is the routine's.
 	Answers []string
+	// Takes is the arguments this routine declares, in the order its source declares them.
+	//
+	// WHAT A VALUE MAY BE PROPOSED FOR, and nothing more: a name that is not here is a
+	// name `routes.CheckArgs` would refuse at the door anyway.
+	Takes []routes.Argument
+	// SourceAt is the digest of the source `Takes` was read from.
+	//
+	// THE NAMES CAME FROM ONE REVISION OF ONE ROUTINE, and it travels with the proposal so
+	// that a routine saved again before the confirmation is prepared refuses — even when
+	// the new version declares the same names, because the same name in a rewritten
+	// routine may be typed somewhere else entirely.
+	SourceAt string
 }
 
 // Slug, App and Focus are the route's, read through the candidate so the policy below reads as
@@ -126,6 +139,25 @@ type Context struct {
 	Says string `json:"says,omitempty"`
 }
 
+// Proposal is one argument's value, as something read it out of the request.
+//
+// # The provenance is per argument, and it is not decoration
+//
+// `ResolverSentence` exists because "the configured resolver answered this" about a free offline
+// match is the false impression that whole sentence was written to prevent. With one value read
+// out of a phrase by a grammar and another proposed by a model, ONE sentence about the request
+// would be that same false impression one layer in — so each value says how it arrived, and a
+// surface can show the person which of the two it is before they press anything.
+//
+// The four words are `routes.FromTyped`, `routes.FromParsed`, `routes.FromExtracted` and
+// `routes.FromEdited`, kept there because the package that seals an invocation needs the same
+// four and neither package imports the other. Only `extracted` is produced here.
+type Proposal struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
+	From  string `json:"from"`
+}
+
 // Answer is what a resolution came to.
 //
 // The field names are the ones Studio's page already reads, so moving the policy here did not
@@ -158,6 +190,18 @@ type Answer struct {
 	// Library is the route library this was resolved against. A surface compares it with
 	// its own and NAMES a mismatch rather than selecting from somewhere else.
 	Library string `json:"library"`
+	// Values is what the request already said about the routine's arguments, PROPOSED and
+	// never supplied: nothing here has been authorised and nothing acts on it. A surface
+	// shows them in its fields, the person confirms or corrects them, and the value that
+	// runs is sealed with the route and the source at that point.
+	//
+	// Only present for a run, and cleared with the identity when the answer turns out to
+	// be a question — a value carried beside a routine nobody picked is a value waiting
+	// for a routine to attach itself to.
+	Values []Proposal `json:"values,omitempty"`
+	// SourceAt is the digest of the routine source those names were read from. See
+	// Candidate.SourceAt for why a proposal cannot outlive the revision it was made for.
+	SourceAt string `json:"sourceAt,omitempty"`
 }
 
 // Resolver answers one request against one library.
@@ -166,6 +210,14 @@ type Resolver struct {
 	Reg routes.Registry
 	// Advisor is the configured resolver plugin, or nil. A test substitutes it.
 	Advisor dispatch.Advisor
+	// Extract asks which words of a request are which argument's value, or nil when
+	// nothing may be asked. Production is `resolver.Extract`; a test substitutes it.
+	//
+	// IT ANSWERS IN SPANS AND NEVER IN TEXT, which is the whole safety of the question:
+	// `resolver.Span` has no field for a value, so the words come out of Marco's own copy
+	// of the request through `Span.Value` below, and a value nobody said is not something
+	// this boundary refuses — it is something it cannot express.
+	Extract func(ctx context.Context, input string, names []string) ([]resolver.Span, bool)
 }
 
 // Resolve reads one request against the eligible routines and answers which one it meant.
@@ -197,6 +249,9 @@ func (r Resolver) Resolve(ctx context.Context, request string, cs []Candidate,
 	said.Resolver = ResolverSentence(r.Advisor, dec.Advisor)
 	said.Reply = dec.Reply
 
+	// chosen is the routine this answer offers, and the ZERO CANDIDATE when it offers
+	// none — which is what carries "a question gets no proposals" below.
+	var chosen Candidate
 	switch dec.Intent {
 	case dispatch.IntentRun:
 		// THE LABEL IS A KEY INTO THE MAP AND IS NOT RESOLVED AGAIN. A name is not
@@ -214,6 +269,10 @@ func (r Resolver) Resolve(ctx context.Context, request string, cs []Candidate,
 		if said.Reply == "" {
 			said.Reply = fmt.Sprintf("%s — %s", c.Name, c.Scope)
 		}
+		// AND WHICH ROUTINE IT WAS, kept for the argument question at the end. The
+		// label is a key into the map and is not resolved again, so what is kept is
+		// the candidate itself rather than anything to look it up by.
+		chosen = c
 	case dispatch.IntentClarify:
 		// A NEAR MISS NAMES NOTHING TO PRESS. A question with the answer already
 		// filled in is not a question.
@@ -232,7 +291,91 @@ func (r Resolver) Resolve(ctx context.Context, request string, cs []Candidate,
 		said.Name, said.Scope, said.App, said.Slug, said.Focus = "", "", "", "", false
 		said.Reply, said.Candidates = whichOnesAnswerTo(request, eligible)
 	}
+
+	// ── AND WHAT THE REQUEST ALREADY SAID ABOUT THE ROUTINE'S ARGUMENTS ──
+	//
+	// Asked at ONE place, after the last thing that can take an identity away, and asked
+	// about the routine this answer actually offers. A value beside a question is a value
+	// waiting for a routine to attach itself to: whichever one the person then picked
+	// would arrive carrying text that was read for a different one's argument.
+	//
+	// AND WHAT HOLDS THAT IS `chosen` ITSELF, not a condition in front of this line. An
+	// answer that offers no routine carries the zero Candidate, which declares no
+	// arguments, so there is nothing to ask about and nothing to propose — and the
+	// nothing is produced by the same value the proposals would be read from, rather than
+	// by a test of some other field that happens to agree with it today.
+	//
+	// THIS REPLACED TWO GUARDS THAT COULD NOT FIRE, and the reason is worth keeping: both
+	// a clearing in the block above and a `Kind == run` test here were written as rules,
+	// and neither was reachable, because the ambiguity re-check only runs when the answer
+	// was NOT a run and so can never be undoing a run's values. A mutation deleting either
+	// one survived the whole suite. An unreachable guard reads exactly like an enforced
+	// rule, to a reader and to a test alike, which makes it worse than the absence of one.
+	//
+	// What that leaves standing on the shape of this function rather than on an assertion:
+	// if a later edit reads a value before the re-check, or lets `said.Kind` change after
+	// the switch, this decision needs making again rather than extending.
+	said.Values, said.SourceAt = r.proposals(ctx, request, chosen)
 	return said
+}
+
+// proposals is what the request already said about one routine's arguments.
+//
+// # Secrets are never asked about, and that is the first rule here
+//
+// A secret argument resolves from the credential store at run time — `do OS's Secret …` — and the
+// whole reason for that is that a password must not pass through a routine, a recording or a
+// diagnostic on its way to being typed. A request is none of those things and is worse than all
+// of them: it would send somebody's password to a model, carry it back on an Answer, and put it
+// in a field on a card. So a secret is not among the names offered, and a span that named one
+// anyway is dropped by `Extract` for naming something nobody asked about.
+//
+// # And nothing else widens either
+//
+// It proposes values for a routine that was already selected and already eligible. It cannot make
+// a routine runnable, cannot change which one answered, cannot turn a question into a run and
+// cannot add a name the routine does not declare. An absent plugin, a plugin that only knows
+// routes, a timeout and a refusal are one answer: no proposals, and the person says what they
+// meant in the fields that are already there.
+func (r Resolver) proposals(ctx context.Context, request string, c Candidate) ([]Proposal, string) {
+	if r.Extract == nil {
+		return nil, ""
+	}
+	var ask []string
+	for _, a := range c.Takes {
+		if a.Secret {
+			continue
+		}
+		ask = append(ask, a.Name)
+	}
+	if len(ask) == 0 {
+		return nil, ""
+	}
+	spans, ok := r.Extract(ctx, request, ask)
+	if !ok {
+		return nil, ""
+	}
+	// IN THE ORDER THE ROUTINE DECLARES THEM, which is the order its fields are shown in,
+	// rather than the order an answer happened to arrive in.
+	found := map[string]resolver.Span{}
+	for _, s := range spans {
+		found[s.Name] = s
+	}
+	var out []Proposal
+	for _, n := range ask {
+		s, ok := found[n]
+		if !ok {
+			continue
+		}
+		// THE VALUE COMES INTO EXISTENCE HERE, out of Marco's own copy of the
+		// request — the same string the spans were validated against.
+		out = append(out, Proposal{Name: n, Value: s.Value(request),
+			From: routes.FromExtracted})
+	}
+	if len(out) == 0 {
+		return nil, ""
+	}
+	return out, c.SourceAt
 }
 
 // Eligible is the routines a request may be answered with, given the context and its provenance.
