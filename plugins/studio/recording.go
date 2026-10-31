@@ -117,6 +117,16 @@ type capture struct {
 
 	// saved is where it went, once Save has written it. Empty until then.
 	saved string
+	// partial is the sentence for a save that WROTE THE ROUTINE and could not write the
+	// step account beside it, and "" for every other outcome.
+	//
+	// Its own field and not a refusal, because the two have opposite consequences. A
+	// refusal means nothing is on disk and the card goes on offering Save and Replace; this
+	// means the routine is there, runs, and cannot have its steps edited until it is
+	// rebuilt. Returned as a refusal it would have sent the card to ask what was in the
+	// way — and what is in the way is the routine this save just wrote, so the window
+	// would have offered to replace it. See orchestrator.ErrStepsNotWritten.
+	partial string
 }
 
 // Recording is what the page shows about a recorder-first recording, during and after.
@@ -225,6 +235,11 @@ type Recording struct {
 	Failed  bool   `json:"failed,omitempty"`
 	// Saved is the path the routine went to, once Save has written one.
 	Saved string `json:"saved,omitempty"`
+	// Partial says the routine IS saved and runs, and that the steps were not written
+	// down beside it — so it cannot be step-edited until it has been rebuilt. The third
+	// answer a save has, and rendered as a problem rather than as a success. See
+	// capture.partial and orchestrator.ErrStepsNotWritten.
+	Partial string `json:"partial,omitempty"`
 	// Incomplete says some press here asked to be checked against the window it was
 	// made in and a measurement it needs is missing, so a routine saved from this will
 	// REFUSE to press rather than press somewhere nobody checked.
@@ -680,9 +695,9 @@ func (a *Acts) Recording() Recording {
 		return out
 	}
 	a.mu.Lock()
-	dr, saved := c.draft, c.saved
+	dr, saved, partial := c.draft, c.saved, c.partial
 	a.mu.Unlock()
-	out.Saved = saved
+	out.Saved, out.Partial = saved, partial
 	if dr == nil {
 		out.Failed = true
 		out.Said = "nothing was recorded"

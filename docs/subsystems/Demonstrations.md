@@ -618,6 +618,30 @@ bound on what a recording may capture. All three are built now, and they remain 
 promises: the check is about a press at play time, the harness is about what a run may send, and
 this is about what a demonstration contains.
 
+## A simplified save keeps its own basis
+
+What makes a saved routine editable afterwards is the STEP ACCOUNT beside it, or the absence of
+one. No account licenses rendering the demonstration and treating the result as what the file is —
+true of an ordinary save by construction, because its source came from that same rendering.
+
+It was false of a SIMPLIFIED save, whose source was folded harder than a rebuild folds, and the
+consequence sat in the middle of the journey: the review card offers Simplify directly above Save,
+and the panel it drops you on offers *Edit its steps*, which refused with a sentence about the
+saved source and the demonstration no longer agreeing. Nobody had done anything wrong.
+
+A draft now carries the rules it was rendered under when those are not today's (`Draft.Basis`,
+set by `draftFor` for `RebuildSimplifyTyping` alone), and `Deps.write` writes the account after the
+source, the assets and the demonstration — with both digests read back from where the save put
+them, never computed from what went in. The sweep of any older account stays and is not weakened.
+A plain save still writes nothing, so every routine already on disk is still edited by rebuilding
+from its own demonstration.
+
+**A failed account is not a failed save.** The routine runs — execution reads only the `.marco` —
+so `orchestrator.ErrStepsNotWritten` is a third outcome that every surface saving a draft tells
+apart from a refusal. Reported as a refusal it was actively wrong: both surfaces answer a refused
+save by asking what is already there and offering to replace it, and what is already there is the
+routine the save just wrote. See [[ADR-279-a-simplified-save-keeps-its-own-basis]].
+
 ## A recording that could not be stopped, and the two workers that outlive it
 
 `Stop` is BOUNDED — a shutdown that cannot complete says so and returns, because a run that

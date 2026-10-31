@@ -161,15 +161,21 @@ too. The review keeps the ORIGINAL rather than the previous version, because sim
 still leaves one thing a person wants to return to and it is what they did. Nothing is written by
 either button; Save writes whichever version is on screen, which is the rule it already followed.
 
-**A known limitation, recorded rather than hidden:** a routine saved from a SIMPLIFIED draft cannot
-be step-edited afterwards. The panel edits only a routine whose source is what its own account
-renders, a fresh save writes no account, so the panel re-derives from the demonstration — which a
-plain save matches by construction and a simplified one does not. It is not new (the terminal
-review has been able to save a simplified routine for far longer than the panel has existed) but
-this is the first surface where both are reachable in one sitting. The fix is for a save to write
-its own step account, which is a change to the save path every surface shares.
-`TestASimplifiedSaveCannotBeStepEditedYet` holds it and says to delete itself when it starts
-failing.
+**A known limitation, recorded rather than hidden — and fixed on 2026-10-31:** a routine saved
+from a SIMPLIFIED draft could not be step-edited afterwards. The panel edits only a routine whose
+source is what its own account renders, a fresh save wrote no account, so the panel re-derived from
+the demonstration — which a plain save matches by construction and a simplified one does not. It
+was not new (the terminal review has been able to save a simplified routine for far longer than the
+panel has existed) but this was the first surface where both were reachable in one sitting, and a
+UI audit found it in the middle of the journey rather than at the end of a test file.
+
+The fix named here is the one that was made: a save writes its own step account, in the save path
+every surface shares. A simplified draft carries the rules it was rendered under and the save puts
+them on disk beside the routine; a plain save still writes nothing, so every routine already in a
+library is still edited by rebuilding from its own demonstration. See
+[[ADR-279-a-simplified-save-keeps-its-own-basis]].
+`TestASimplifiedSaveCanBeStepEditedAndSavedAgain` walks Simplify → Save → Edit → Save again
+through the window's own entrances; it is the renamed test that used to assert the refusal.
 
 ## Two things declined rather than written
 

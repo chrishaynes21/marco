@@ -463,3 +463,11 @@ exactly the markup this pass moved.
 
 **NOT ESTABLISHED: no desktop.** Every screen here is a headless render of stubbed state. The
 window itself has not been rebuilt or opened since.
+
+### What comes after the layout
+
+The window was rebuilt at `21dcf87` and the journey was audited again, this time against what a
+new person can FIND rather than how it is arranged:
+[[Studio-journey-discoverability-2026-10-31]]. Its three findings are all sentences — one of them
+a statement the product makes about itself that stopped being true when
+[[ADR-268-record-only-the-chosen-window]] landed.

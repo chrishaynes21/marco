@@ -60,17 +60,21 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/routes"
 )
 
-// ErrStepsNotWritten is the answer when an edit's SOURCE landed and its account did not.
+// ErrStepsNotWritten is the answer when a routine's SOURCE landed and its account did not.
 //
-// A DISTINCT OUTCOME AND THEREFORE A DISTINCT ANSWER. The routine on disk is the edited one and it
-// runs exactly as the person asked, because execution reads only the `.marco`; what failed is the
-// explanation beside it, so further editing is blocked until the routine is rebuilt. A surface
-// that reported this as "nothing was written" would be telling somebody their edit did not happen,
-// and one that reported it as success would leave them to discover the refusal later.
+// A DISTINCT OUTCOME AND THEREFORE A DISTINCT ANSWER. The routine on disk is the one the person
+// asked for and it runs exactly as they asked, because execution reads only the `.marco`; what
+// failed is the explanation beside it, so further editing is blocked until the routine is rebuilt.
+// A surface that reported this as "nothing was written" would be telling somebody their save did
+// not happen, and one that reported it as success would leave them to discover the refusal later.
+//
+// TWO WRITERS NOW, which is why the sentence says nothing about an edit. A step edit lands here,
+// and so does a SAVE of a draft that carries its own basis — the simplified one, whose account is
+// the whole of what makes it editable afterwards. Each caller supplies the clause saying what was
+// saved; this says what did not happen to it.
 //
 // Wrapped, so the sentence naming the routine and the reason travels with it.
-var ErrStepsNotWritten = errors.New("the routine was saved with the edit and its steps were " +
-	"not written down beside it")
+var ErrStepsNotWritten = errors.New("its steps were not written down beside it")
 
 // EditOp is one of the three things an edit can do; see the note above.
 type EditOp string
@@ -895,8 +899,9 @@ func (d Deps) SaveEdit(e EditReview) error {
 		// swallowed, in the shape `SaveWithOrigin` already uses for exactly this:
 		// the edit happened, the routine runs, and the next edit will refuse
 		// because the file and the stored steps no longer match.
-		return fmt.Errorf("%q: %w, so it cannot be edited again until it has been "+
-			"rebuilt from its demonstration (%v)", e.Name, ErrStepsNotWritten, err)
+		return fmt.Errorf("%q was saved with the edit and %w, so it cannot be "+
+			"edited again until it has been rebuilt from its demonstration "+
+			"(%v)", e.Name, ErrStepsNotWritten, err)
 	}
 	mlog.Info("edit: saved from its own step list", "route", e.Route.Slug,
 		"edits", len(e.Edits), "steps", len(e.steps),

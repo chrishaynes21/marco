@@ -41,6 +41,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"image"
 	"image/draw"
@@ -464,6 +465,18 @@ func (d Deps) keepWhatWasShown(dr *Draft) error {
 		rt, err := d.Keep(dr, scope, "", Consent{})
 		if err == nil {
 			d.saidKept(dr, scope, rt, "Learned")
+			return nil
+		}
+		// ── IT IS SAVED, AND WHAT FAILED IS THE ACCOUNT BESIDE IT ──
+		//
+		// Before the collision question below, which would otherwise be asked
+		// about the routine this save just wrote: `Collision` would find it,
+		// report it as taken, and offer to replace it. Saying "Learned" and then
+		// the caveat is the whole answer — the routine runs, and the sentence
+		// says what will refuse later and why. See ErrStepsNotWritten.
+		if errors.Is(err, ErrStepsNotWritten) {
+			d.saidKept(dr, scope, rt, "Learned")
+			fmt.Fprintf(d.Out, "%s\n", err)
 			return nil
 		}
 		// ── ALREADY THERE, AND THE QUESTION NAMES EXACTLY WHAT WOULD GO ──

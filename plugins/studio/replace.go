@@ -30,6 +30,7 @@ package main
 // out loud.
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -171,11 +172,23 @@ func (a *Acts) keep(cp *capture, dr *orchestrator.Draft, scope, app string,
 	// button that names one routine.
 	d := orchestrator.Deps{Reg: a.reg(), Out: &strings.Builder{}}
 	rt, err := d.Keep(dr, want, app, consent)
+	// ── THREE OUTCOMES, AND THE THIRD IS NOT A REFUSAL ──
+	//
+	// `ErrStepsNotWritten` means the routine is on disk and runs, and the account beside
+	// it is not — which it needs to be step-edited, and which only a draft carrying its
+	// own basis asks for. Returned as a refusal this would have left the card offering
+	// Save and then asking `Collision` what was in the way: the answer would have been
+	// the routine this save just wrote, and the window would have offered to replace it.
+	partial := ""
+	if errors.Is(err, orchestrator.ErrStepsNotWritten) {
+		partial, err = err.Error(), nil
+	}
 	if err != nil {
 		return err.Error()
 	}
 	a.mu.Lock()
 	cp.saved = a.reg().Path(rt)
+	cp.partial = partial
 	where := cp.saved
 	a.mu.Unlock()
 	kept := "Saved"
@@ -192,6 +205,14 @@ func (a *Acts) keep(cp *capture, dr *orchestrator.Draft, scope, app string,
 	if why := whyItWillNotRun(dr.Steps); why != "" {
 		note += ". " + why
 		next = "Record it again — this one will refuse to press."
+	}
+	// AND WHEN THE ACCOUNT DID NOT LAND, THE JOURNAL SAYS SO TOO. The routine runs as
+	// saved; what will refuse is the next step edit, and the note is where somebody
+	// reading back what happened finds out why.
+	if partial != "" {
+		note += ". " + partial
+		next = "It runs as saved. Rebuild it from its demonstration before editing " +
+			"its steps."
 	}
 	a.trial.recorded(dr.Name, note, next, false, Pictured{})
 	return ""

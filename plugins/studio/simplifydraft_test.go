@@ -442,25 +442,29 @@ func TestSaveWritesTheVersionOnScreen(t *testing.T) {
 	}
 }
 
-// AND A ROUTINE SAVED FROM A SIMPLIFIED DRAFT CANNOT BE STEP-EDITED YET.
+// SIMPLIFY, SAVE, EDIT, SAVE AGAIN — THE WHOLE OF IT, THROUGH THE WINDOW'S OWN ENTRANCES.
 //
-// RECORDED RATHER THAN HIDDEN, because it is a real consequence of making this reachable and it
-// would otherwise be found by somebody trying to use the two features together.
+// This test used to be called `TestASimplifiedSaveCannotBeStepEditedYet`, and it asserted the
+// refusal. The dead end was real and it was in the middle of the one journey this window is for:
+// the review card puts Simplify directly above Save, and the next thing it offers is editing the
+// steps — which refused, with a sentence about the file and the demonstration no longer agreeing.
+// Nobody had done anything wrong. They pressed the two buttons in the order they were offered.
 //
-// The step panel edits only a routine whose saved source is exactly what its own account renders
-// today, and a fresh save writes NO step account — so the panel re-derives from the demonstration.
-// A plain save matches that by construction, because its source came from the same re-derivation.
-// A SIMPLIFIED save does not: its source was rendered with typing folded harder, which the
-// demonstration no longer renders to. So the panel says the file and the demonstration no longer
-// agree, and points at a rebuild.
+// WHY IT REFUSED, which is the thing the fix had to change rather than explain. A fresh save wrote
+// no step account, and no account LICENSES rendering the demonstration and treating the result as
+// what the file is. True of every ordinary save, because its source came from that same rendering.
+// False of a simplified one: its source was folded harder than a rebuild folds, so the two
+// disagreed by construction and `basisFor` reported the disagreement as what it looks like from
+// there — which reads like file damage.
 //
-// It is NOT NEW — `marco learn`'s review has been able to save a simplified routine for far
-// longer than the step panel has existed — but this is the first surface where somebody can reach
-// both in one sitting. The fix is for a save to write its own step account; that is a change to
-// the save path every surface shares, and it is not this slice.
+// So a simplified draft now carries its basis (`orchestrator.Draft.Basis`) and the save writes it
+// down beside the routine. Nothing is simplified on the way past, the demonstration is stored
+// exactly as it was, and a plain save still writes no account at all.
 //
-// IF THIS TEST STARTS FAILING, the limitation has been fixed and this should be deleted.
-func TestASimplifiedSaveCannotBeStepEditedYet(t *testing.T) {
+// THROUGH THE PRODUCTION ENTRANCES, every step: the same methods the page is bound to, in the
+// order the card offers them. A test that reached into the orchestrator would be a test of the
+// repair rather than of the journey it was for.
+func TestASimplifiedSaveCanBeStepEditedAndSavedAgain(t *testing.T) {
 	a := aRecordingUnderReview(t, "say hello", slowTypingIntoNotepad())
 	if why := a.SimplifyDraft(); why != "" {
 		t.Fatalf("simplifying refused: %s", why)
@@ -468,23 +472,96 @@ func TestASimplifiedSaveCannotBeStepEditedYet(t *testing.T) {
 	if why := a.SaveDraft("app", ""); why != "" {
 		t.Fatalf("saving refused: %s", why)
 	}
-	e := a.StepEditing(a.Routines()[0].ID)
-	if e.Why == "" {
-		t.Fatal("a simplified save can now be step-edited — the limitation this " +
-			"records has been fixed, so delete this test and the paragraph in " +
-			"the ADR beside it")
+	// AND THE SAVE WAS WHOLE. The third answer is a routine that is on disk with no
+	// account beside it, which is the state this test exists to rule out — and it is
+	// reported rather than thrown away, so a test that only asked whether Save returned
+	// a refusal would pass on exactly the thing that used to be wrong.
+	if r := a.Recording(); r.Partial != "" {
+		t.Fatalf("the routine was saved without its steps beside it: %s", r.Partial)
 	}
-	if !strings.Contains(e.Why, "demonstration") {
-		t.Errorf("it refused for some other reason: %q", e.Why)
+	id := a.Routines()[0].ID
+	e := a.StepEditing(id)
+	if e.Why != "" {
+		t.Fatalf("a routine saved from a simplified draft cannot be edited: %s", e.Why)
 	}
-	// AND A PLAIN SAVE IS STILL EDITABLE, which is what makes this about the
-	// simplification rather than about saving from this window.
+	// AND THE LIST IS THE SIMPLIFIED ONE, not a rebuild of the demonstration. The whole
+	// of what the account is for: with none beside it, the panel would be listing the
+	// five separate keystrokes somebody asked to have folded, and a save from that list
+	// would quietly undo the simplification.
+	typing := []StepRow{}
+	for _, row := range e.Rows {
+		if row.Types {
+			typing = append(typing, row)
+		}
+	}
+	if len(typing) != 1 {
+		t.Fatalf("the panel lists %d typing steps, so it is not showing the "+
+			"simplified version: %v", len(typing), e.Rows)
+	}
+	if !strings.Contains(typing[0].Says, "hello") {
+		t.Errorf("the one typing step is not the folded run: %q", typing[0].Says)
+	}
+	// ── AND THE THING THE JOURNEY ASKS FOR NEXT: ASK ME FOR IT ──
+	p := a.ReviewStepEdit(id, e.Basis, []StepChange{
+		{Op: "argument", At: typing[0].At, Name: "message"}})
+	switch {
+	case p.Why != "":
+		t.Fatalf("the edit could not be reviewed: %s", p.Why)
+	case p.Refused != "":
+		t.Fatalf("the edit was refused: %s", p.Refused)
+	case !p.Savable:
+		t.Fatalf("there is nothing to save after making the typed step supplied: %v",
+			p.Doing)
+	}
+	done := a.SaveStepEdit(p.Token)
+	switch {
+	case done.Why != "":
+		t.Fatalf("saving the edit refused: %s", done.Why)
+	case done.Partial:
+		t.Fatalf("the edit was saved without its steps beside it: %s", done.Says)
+	case !done.Saved:
+		t.Fatal("the edit reports neither a save nor a reason")
+	}
+	// AND THE ROUTINE IT LEAVES BEHIND TAKES THE TEXT, which is the end of the journey:
+	// the step that typed `hello` now asks for it.
+	rt := a.Routines()[0]
+	if !strings.Contains(rt.Source, "message") {
+		t.Errorf("the saved routine does not take the supplied text:\n%s", rt.Source)
+	}
+	// AND IT CAN BE EDITED AGAIN. A save that wrote the source and not the account
+	// leaves a routine that runs and refuses the next edit, which is a state somebody
+	// reaches by doing nothing unusual twice.
+	if again := a.StepEditing(id); again.Why != "" {
+		t.Errorf("the edited routine cannot be edited again: %s", again.Why)
+	}
+}
+
+// AND A PLAIN SAVE STILL WRITES NO ACCOUNT, which is what keeps the rule above a narrow one.
+//
+// The sweep in `Deps.write` is right: what lands there is a rendering of a recording, and an
+// account from before describes a demonstration that is gone. A simplified draft is the exception
+// and says so on the draft; everything else must still be editable BY REBUILDING from its own
+// demonstration, which is the inference `routes.StepsNone` licenses. A save that started writing
+// an account for every draft would make that inference unreachable and would be a second, quieter
+// claim about every routine in somebody's library.
+func TestAPlainSaveIsEditedFromItsDemonstration(t *testing.T) {
 	b := aRecordingUnderReview(t, "say plainly", slowTypingIntoNotepad())
 	if why := b.SaveDraft("app", ""); why != "" {
 		t.Fatalf("the plain save refused: %s", why)
 	}
-	if plain := b.StepEditing(b.Routines()[0].ID); plain.Why != "" {
-		t.Errorf("a plain save cannot be step-edited either, so this is not about "+
-			"simplifying: %s", plain.Why)
+	if r := b.Recording(); r.Partial != "" {
+		t.Fatalf("a plain save reported a partial write: %s", r.Partial)
+	}
+	rt := b.Routines()[0]
+	if plain := b.StepEditing(rt.ID); plain.Why != "" {
+		t.Errorf("a plain save cannot be step-edited: %s", plain.Why)
+	}
+	// NOTHING WAS WRITTEN BESIDE IT. Read through the same registry the window writes to,
+	// because "it can be edited" is true of both answers and only one of them is this.
+	if _, state := (routes.Registry{Dir: routesDirOf(t, b)}).Steps(
+		routes.Route{Slug: rt.Slug, App: rt.App}); state != routes.StepsNone {
+		t.Errorf("a plain save left a step account beside the routine (%s), so the "+
+			"basis a simplified draft needs is being written for every save",
+			state)
 	}
 }

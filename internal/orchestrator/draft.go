@@ -99,6 +99,26 @@ type Draft struct {
 	App string
 	// StoppedBy says how the capture ended, which review may want to show.
 	StoppedBy string
+	// Basis is the rules these steps were rendered under, when they are NOT the rules
+	// rendering this demonstration today would use. Empty for an ordinary recording.
+	//
+	// # Why a save has to know
+	//
+	// Because `StepsNone` — no account beside a routine — licenses rendering the
+	// demonstration and treating the result as what the file is. That inference is true of
+	// every routine written from a recording and FALSE of one written from a simplified
+	// draft: the steps were folded harder than today's rules fold them, so the rebuild
+	// comes back different, and `basisFor` reports the difference as what it looks like
+	// from there — the saved source and the demonstration no longer agreeing. A person who
+	// pressed Simplify and then Save, which is the order the review card puts them in, met
+	// that sentence at the next thing they tried to do, and it reads like file damage.
+	//
+	// So a draft that was rendered under other rules says so, and `write` puts an account
+	// beside it. Nothing else changes: the demonstration is stored exactly as it was, the
+	// routine runs from its `.marco` as before, and a draft with no basis still sweeps any
+	// account at its route. See Deps.write and
+	// [[ADR-279-a-simplified-save-keeps-its-own-basis]].
+	Basis Rebuild
 	// Unrepresentable is why this recording cannot be saved, or "" when it can.
 	//
 	// A REFUSAL CARRIED ON THE DRAFT RATHER THAN RETURNED INSTEAD OF IT. The person is
@@ -554,6 +574,61 @@ func (d Deps) write(dr *Draft, mode scopeMode, app string, rt routes.Route, over
 	}
 	mlog.Info("draft: saved", "route", dr.Name, "app", app, "steps", len(dr.Steps),
 		"path", d.Reg.Path(rt))
+	// ── AND A DRAFT RENDERED UNDER OTHER RULES LEAVES ITS BASIS BEHIND ──
+	//
+	// The sweep above is right and stays: what lands here is a rendering of a recording,
+	// and an account from before describes a demonstration that is gone. A SIMPLIFIED
+	// draft is the case where that is not the whole story — the steps are a rendering of
+	// this demonstration, under rules a plain rebuild does not use — so the account goes
+	// back immediately afterwards rather than the sweep being weakened to let an old one
+	// survive. Nothing else here changes: same source, same assets, same demonstration.
+	//
+	// AFTER THE SOURCE, AND READ BACK FROM WHERE THIS PUT IT. The digests describe files,
+	// so there is nothing to describe until they are on disk — and digesting the bytes
+	// that went IN would bind the account to bytes nobody read out. One representation
+	// change in `recorder` apart, such an account would read `adrift` the instant it was
+	// written. `Deps.Resave` does the same thing for the same reason.
+	return d.accountFor(dr, rt)
+}
+
+// accountFor writes the step account a draft's basis calls for, or nothing when it has none.
+//
+// Split out of `write` because it is the one part of a save that can fail with the routine
+// already in force, and the answer to that is its own outcome rather than a failed save: see
+// ErrStepsNotWritten, which every surface that saves a draft now has to be able to tell apart
+// from a refusal. The routine runs either way; what is missing is the explanation beside it.
+func (d Deps) accountFor(dr *Draft, rt routes.Route) error {
+	if dr.Basis == "" {
+		return nil
+	}
+	steps, err := json.Marshal(dr.Steps)
+	if err != nil {
+		return fmt.Errorf("%q was saved and %w: its steps could not be written "+
+			"down (%v)", dr.Name, ErrStepsNotWritten, err)
+	}
+	src, rerr := os.ReadFile(d.Reg.Path(rt))
+	rec, haveRec := d.Reg.LoadRecording(rt)
+	switch {
+	case rerr != nil:
+		return fmt.Errorf("%q was saved and %w, because it could not be read back "+
+			"(%v)", dr.Name, ErrStepsNotWritten, rerr)
+	case !haveRec:
+		// THE DEMONSTRATION IS SAVED BEST-EFFORT ABOVE, and an account that cannot
+		// name one would be an unbound account — the single thing `SaveSteps`
+		// exists to refuse. Reported rather than written without its binding.
+		return fmt.Errorf("%q was saved and %w, because its demonstration is not "+
+			"beside it to bind them to", dr.Name, ErrStepsNotWritten)
+	}
+	if err := d.Reg.SaveSteps(rt, routes.StoredSteps{
+		Source:        routes.DigestOf(string(src)),
+		Demonstration: routes.DigestOf(string(rec)),
+		Steps:         steps}); err != nil {
+		return fmt.Errorf("%q was saved and %w, so its steps cannot be edited until "+
+			"it has been rebuilt from its demonstration (%v)", dr.Name,
+			ErrStepsNotWritten, err)
+	}
+	mlog.Info("draft: saved with its own basis", "route", rt.Slug,
+		"basis", string(dr.Basis), "steps", len(dr.Steps))
 	return nil
 }
 
@@ -1323,10 +1398,18 @@ func (d Deps) draftFor(kind Rebuild, name string, events []recorder.RecordedEven
 	base, argNames := routes.SplitArgs(name)
 	opts := d.learnOptionsFor(mode)
 	opts.ArgNames = argNames
+	// AND THE BASIS IS WHATEVER MAKES THE RESULT DIFFER FROM A PLAIN RENDER.
+	//
+	// `RebuildCurrent` renders the demonstration under today's rules, which is what a
+	// reader with no account does, so it needs none. This one folds harder and does not —
+	// and a draft that did not carry the difference was saved as a routine nothing could
+	// explain. See Draft.Basis.
+	basis := Rebuild("")
 	if kind == RebuildSimplifyTyping {
 		// THE ONE OPTION THE CHOICE CHANGES, set here rather than taken from a
 		// caller: see Rebuild.
 		opts.TypingRhythmMs = simplify.AggressiveTypingRhythmMs
+		basis = kind
 	}
 	steps, refused := simplify.Simplify(events, opts)
 	// AND THE ANCHORS ARE RE-LABELLED, because rebuilding from raw events loses the text
@@ -1336,7 +1419,7 @@ func (d Deps) draftFor(kind Rebuild, name string, events []recorder.RecordedEven
 	d.enrichAnchors(steps)
 	return &Draft{Name: base, Args: argNames,
 		Steps: steps, Events: events, Unrepresentable: reasonOf(refused),
-		App: app, StoppedBy: stoppedBy, Mode: mode}
+		App: app, StoppedBy: stoppedBy, Mode: mode, Basis: basis}
 }
 
 // reasonOf is a refusal as the sentence a draft carries, and "" for no refusal.

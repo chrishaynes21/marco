@@ -892,6 +892,14 @@
       <button class="stop" onclick="cancelCapture()">Cancel</button>
       <span class="muted" id="capSaveNote"></span>
     </div>
+    <!-- THE SAVE'S THIRD ANSWER, which is neither success nor refusal.
+         The routine is on disk and runs; the step account beside it is not, so editing its
+         steps will refuse until it has been rebuilt. A banner rather than the muted note
+         above, because somebody has to know why the next thing they try says no — and NOT
+         a refusal, because the thing a refusal sends this card to do is ask what is in the
+         way and offer to replace it, and what is in the way is the routine this save just
+         wrote. See orchestrator.ErrStepsNotWritten. -->
+    <div class="banner bad hide" style="margin-top:10px" id="capPartial"></div>
     <!-- SOMETHING IS ALREADY SAVED UNDER THIS NAME, so Save refused and these are the two
          ways on. Hidden until that happens, and never a default: the ordinary button above
          cannot reach either of them. See replace.go. -->
@@ -2376,6 +2384,12 @@
      showing($('capEverywhere'), !!r.everywhere)
      // SAID ONCE, BESIDE RECORD. See the element for why review does not repeat it.
      text($('capReviewCaptures'), '')
+     // AND A SAVE THAT WROTE THE ROUTINE AND NOT ITS ACCOUNT SAYS SO, from the poll
+     // rather than from the button's own answer: the fact outlives the click, and a
+     // sentence that lived in `capSaveNote` would be gone the next time anything else
+     // wrote there. See the element.
+     text($('capPartial'), r.partial || '')
+     showing($('capPartial'), !!r.partial)
      showing($('capCaptures'), !!r.captures)
      // WHICH ROUTINE THIS IS A SECOND RECORDING OF, in both cards, on every poll.
      //
