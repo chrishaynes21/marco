@@ -1621,6 +1621,34 @@ pass alone and NOT that the overlap was their cause rather than their occasion.
 What it offers this item is a mechanism to check — shared state in and around `cmd/director` —
 and nothing about the failure above, which was a DIFFERENT test during a solo run.
 
+**THIRD OCCURRENCE OF THIS TEST, 2026-10-31, `go run ./cmd/gate` at `585f7f2`** — the screen-free
+stage, run solo, immediately after the Studio alpha UI slice landed. The same test and the same
+assertion, word for word:
+
+> `demonstratedplay_acceptance_test.go:369: the second interaction was put to the person 1 time(s)
+> after the run was cancelled`
+
+`gate: failed — 1 failure(s), 0 finding(s), 30 tolerated skip(s), in 5m14s`. Everything else
+passed, including `plugins/studio` with 0 skipped.
+
+**It is recorded here and NOT re-run for green.** What is established about attribution, and it is
+narrowing rather than conclusive:
+
+- **The same tree passed it minutes earlier.** `go test ./internal/... ./cmd/...` over the same
+  working tree reported no failures; the gate then failed on it. One pass and one fail of one
+  tree is the shape of a race, not of a defect the commit introduced.
+- **8 of 8 at `585f7f2` and 8 of 8 at `20786e2`**, the parent of the whole slice, in a worktree —
+  `go test -count=8 -run <the test> ./cmd/director/`. Both pass alone, which says they pass alone
+  and nothing about the gate's conditions.
+- **`cmd/director` uses four symbols from `internal/orchestrator`** — `Deps`, `NameIn`,
+  `RouteID`, `ScopeAlreadyOf` — and the slice changed none of them. What it changed there is
+  `prepareMove`, `PrepareRename`, `pointedit.go` and `applyEdits`'s `EditPoint` branch, none of
+  which a demonstrated play reaches. That narrows an interaction; it does not rule one out, which
+  is the same thing this item says about the Rescope work above it.
+
+So it is the third solo observation of this test in this family, and the second of this exact
+assertion. No verdict is attached and the failure is kept.
+
 **What the work is:** establishing whether the sentence is missing because the screen genuinely
 could not be established and the run stayed silent — which is a product defect in the account a
 run gives of itself — or because the precondition is environmental and the test should state its
