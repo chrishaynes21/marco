@@ -294,6 +294,26 @@ func (d Deps) argKeyHint(argNames []string) string {
 	return fmt.Sprintf(" (tap %s where a value should be an argument)", strings.ToUpper(k))
 }
 
+// ArgKeyFor resolves the reserved demonstration key for "an argument goes here" from an
+// override — $MARCO_ARG_KEY as a binary read it — and answers "" when there is none.
+//
+// ONE READING OF ONE OVERRIDE, because two readings is a defect this product has already
+// shipped. The STOP key was parsed at one site and passed raw at another, so an unset
+// $MARCO_STOP_KEY read as "there is no shortcut" on Studio's record card and as F12 in its
+// recording band, three rows apart, about the same keyboard. `learnOptionsFor` resolves this
+// one for the recorder that consumes it; a surface that has to tell somebody the key exists
+// asks here rather than reading the variable a second time and getting the fallback wrong.
+//
+// The empty answer means the key is OFF, which is a thing to say nothing about rather than a
+// thing to apologise for: a window with no arg key has no arg key to offer.
+func ArgKeyFor(override string) string {
+	k := Deps{ArgKey: override}.learnOptionsFor(Unstated).ArgKey
+	if k == "off" {
+		return ""
+	}
+	return k
+}
+
 // anchorKeyHint is the recording prompt's note about the anchor key (or "" when
 // off): tap it, then click a moving target (a menu item) to match that click by
 // image at run time, with the recorded coordinate as fallback.

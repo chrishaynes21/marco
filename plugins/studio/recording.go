@@ -61,6 +61,7 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/macroir"
 	"github.com/chaynes-simpleclouds/marco/internal/orchestrator"
 	"github.com/chaynes-simpleclouds/marco/internal/recorder"
+	"github.com/chaynes-simpleclouds/marco/internal/routes"
 	"github.com/chaynes-simpleclouds/marco/internal/winctx"
 )
 
@@ -231,6 +232,18 @@ type Recording struct {
 	// a recording, because the card that holds it while one is running is behind the
 	// application being demonstrated in. There is always one: see stopLabel.
 	StopKey string `json:"stop_key,omitempty"`
+	// ArgKey names the key that marks a value the routine should ASK FOR rather than type,
+	// and ArgSays is what to do with it. Empty when the key is off.
+	//
+	// BESIDE THE STOP KEY BECAUSE IT IS THE SAME KIND OF FACT and was missing for the same
+	// reason: a reserved key that works, that nothing on screen mentions. A routine taking
+	// an argument was reachable three ways and announced none of them, so the capability
+	// was indistinguishable from an absent one — which is how it was reported. Said
+	// BEFORE Record as well as during a recording: the band is behind the application being
+	// demonstrated in, so the card is the only surface somebody can read the key on in time
+	// to use it. See argSentence.
+	ArgKey  string `json:"arg_key,omitempty"`
+	ArgSays string `json:"arg_says,omitempty"`
 	Said    string `json:"said,omitempty"`
 	Failed  bool   `json:"failed,omitempty"`
 	// Saved is the path the routine went to, once Save has written one.
@@ -640,10 +653,17 @@ func (a *Acts) Recording() Recording {
 		// AND THE STOP KEY BEFORE THERE IS A RECORDING TO STOP. It was reported only
 		// once one was running, which is the state where the card holding it is
 		// behind whatever somebody is demonstrating in. See everywhereSentence.
+		//
+		// AND THE ARG KEY, WHICH IS ONLY USEFUL HERE. It is pressed during the
+		// demonstration, which means it has to be known before Record — and
+		// the name field it refers to is two rows above this sentence, so this
+		// is the one card where both halves can be acted on at once.
 		return Recording{Mode: string(studioCaptures),
 			StopKey:    stopLabel(),
 			Captures:   capturesSentence(studioCaptures),
-			Everywhere: everywhereSentence(stopLabel())}
+			Everywhere: everywhereSentence(stopLabel()),
+			ArgKey:     argKeyLabel(),
+			ArgSays:    argSentence(argKeyLabel(), nil)}
 	}
 	out := Recording{Name: c.name, StopKey: stopLabel()}
 	// WHAT IT IS CAPTURING, FROM THE CAPTURE AND NOT FROM THIS WINDOW'S INTENTIONS.
@@ -663,6 +683,16 @@ func (a *Acts) Recording() Recording {
 	// has never done. A field the page may ask for in any state is worth answering in any
 	// state; what is not worth doing is saying where it appears and being wrong.
 	out.Everywhere = everywhereSentence(out.StopKey)
+	// AND THE ARG KEY, NAMING THE VALUES THIS RECORDING DECLARED.
+	//
+	// From the name the person typed, split the same way `Deps.Begin` splits it
+	// (`routes.SplitArgs`) rather than by looking for " with " here — one reading of
+	// one phrase, or the band lists arguments the recorder is not filling. The order is the
+	// whole point of saying it: the Nth press of the key fills the Nth name, and nothing
+	// afterwards can tell that two of them went the wrong way round.
+	out.ArgKey = argKeyLabel()
+	_, declared := routes.SplitArgs(c.name)
+	out.ArgSays = argSentence(out.ArgKey, declared)
 	// AND WHICH ROUTINE THIS IS A SECOND RECORDING OF, when it is one.
 	if g := c.again; g != nil {
 		out.Again, out.AgainName, out.AgainScope = g.id, g.name, g.scope
@@ -1159,6 +1189,56 @@ func (a *Acts) Resave(id string) string {
 func everywhereSentence(stopKey string) string {
 	return "Records actions in the window you choose. Recording pauses outside it. " +
 		"Return to Studio and press Stop, or press " + stopKey + "."
+}
+
+// argKeyLabel is the configured "an argument goes here" key, as a person would read it, or ""
+// when there is none.
+//
+// From `orchestrator.ArgKeyFor` and NOT from `$MARCO_ARG_KEY`, for the reason `stopLabel` below
+// is written the way it is: an unset override is not "no key", it is F9
+// (`simplify.DefaultArgKey`), and a window that read the variable raw would go silent about the
+// key in the default installation, which is every installation. That exact bug shipped here once
+// already, about the stop key, three rows further up the same card.
+func argKeyLabel() string {
+	return strings.ToUpper(orchestrator.ArgKeyFor(os.Getenv("MARCO_ARG_KEY")))
+}
+
+// argSentence is how to mark a value the routine should ASK FOR instead of typing, said on the
+// card where a person can still act on it.
+//
+// # Why this is a release requirement and not a nicety
+//
+// Because the capability was COMPLETE AND INVISIBLE, which is the shape this repository keeps
+// finding. A routine can take arguments three ways: name it `cloud pull stone with item` and the
+// phrase declares one; press the reserved key during the demonstration and a placeholder is
+// dropped where the value goes (`simplify.go`, the `argKey` branch); or turn a typed step into a
+// supplied one afterwards. Studio wires all three — `Deps.Begin` splits the name through
+// `routes.SplitArgs`, `Deps.ArgKey` is passed from the environment and falls back to F9, and the
+// step edit has been there since [[ADR-273-a-routine-writes-down-what-it-does]] — and said
+// nothing about any of them anywhere. `marco learn` prints the key in its prompt
+// (`orchestrator.argKeyHint`); the window that has a Record button did not, so the owner of this
+// repository looked for the feature and concluded it did not exist.
+//
+// # Two states, two sentences, one field
+//
+// Before a recording there is no name yet, so the card says what the key is FOR and how to name
+// the value — the `with` clause, which is the other half nobody could find. While one is
+// running the name is known, so the band names the values in the order the key will fill them,
+// which is the only thing that stops a second press going to the wrong argument. The same field
+// in both, like `Everywhere` above: a page with two sentences of its own is a page that chooses
+// which state it is in.
+func argSentence(key string, argNames []string) string {
+	switch {
+	case key == "":
+		return ""
+	case len(argNames) > 0:
+		return "Press " + key + " where each value goes, in order: " +
+			strings.Join(argNames, ", ") + "."
+	default:
+		return "Press " + key + " during the demonstration where the routine " +
+			"should ask for a value instead of typing it. Add " +
+			"“with item” to the name above and the value is called item."
+	}
 }
 
 // stopLabel is the configured stop gesture, as a person would read it.

@@ -703,6 +703,25 @@
     <div class="muted" style="margin-top:6px">Open it first if it is not in the list.</div>
     <div class="row" style="margin-top:10px"><label style="width:7em" for="capName">call it</label>
       <input type="text" id="capName" placeholder="what you will ask Marco for"></div>
+    <!-- AND HOW TO MAKE A VALUE SOMETHING YOU SUPPLY, UNDER THE FIELD IT IS ABOUT.
+         A routine can take arguments, and nothing on this view said so. Three ways in,
+         all of them wired here, none of them mentioned: the name declares one when it
+         ends `with item`, the reserved key drops a placeholder where the value goes
+         during the demonstration, and a typed step can be turned into a supplied one
+         afterwards. `marco learn` prints the key in its prompt; the window with the
+         Record button did not, so the owner of this repository went looking for the
+         feature and concluded it was missing.
+
+         UNDER `capName` BECAUSE THAT IS THE CONTROL IT ASKS FOR SOMETHING FROM — the
+         `with` clause is typed into the field directly above this line. And it is on
+         THIS card because the key is pressed during the demonstration: the band that
+         names it while one is running is behind the application being demonstrated in,
+         which is the same reason the stop key is said here too.
+
+         From the backend, like every other sentence on this card, so the key is the
+         configured one and an unset override is F9 rather than silence. See
+         argSentence. -->
+    <div class="muted hide" style="margin-top:6px" id="capArgSays"></div>
     <div class="row" style="margin-top:10px">
       <button class="go" id="capBtn" onclick="startCapture()">Record</button>
       <button onclick="hideRecord()">Cancel</button>
@@ -764,6 +783,12 @@
          button under it says. The 21-word instruction that used to stand here told
          somebody to press the button in front of them, and this is not that coming
          back: journeypage_test holds that line. -->
+    <!-- AND THE ARG KEY, WHILE IT CAN STILL BE PRESSED.
+         The same sentence the record card carries, from the same field, and here it
+         names the values this recording declared in the order the key will fill them —
+         because the Nth press fills the Nth name and nothing afterwards can tell that
+         two of them went the wrong way round. See argSentence. -->
+    <div class="muted hide" style="margin-top:8px" id="capArgBand"></div>
     <div class="muted" style="margin-top:12px">Switch back to this window whenever you
       are done — getting here and back is left out of what you are teaching.</div>
     <div class="row" style="margin-top:10px">
@@ -2382,6 +2407,15 @@
      // the thing" — the card is `hide`d four lines below. See the element.
      text($('capEverywhere'), r.everywhere || '')
      showing($('capEverywhere'), !!r.everywhere)
+     // AND HOW TO MARK A VALUE THE ROUTINE SHOULD ASK FOR. In both places, on every
+     // poll, from one backend field — which says one thing before a recording (what
+     // the key is for, and how the name declares a value) and another during one (the
+     // values this recording declared, in the order the key fills them). Hidden when
+     // the key is off, because a window with no arg key has no arg key to offer.
+     text($('capArgSays'), r.arg_says || '')
+     showing($('capArgSays'), !!r.arg_says)
+     text($('capArgBand'), r.arg_says || '')
+     showing($('capArgBand'), !!r.arg_says)
      // SAID ONCE, BESIDE RECORD. See the element for why review does not repeat it.
      text($('capReviewCaptures'), '')
      // AND A SAVE THAT WROTE THE ROUTINE AND NOT ITS ACCOUNT SAYS SO, from the poll

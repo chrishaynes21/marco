@@ -466,6 +466,102 @@ func TestThePageOffersBothRebuildChoicesAndSaysWhichMadeTheReview(t *testing.T) 
 	}
 }
 
+// THE RENDERED PAGE SAYS HOW TO MAKE A VALUE SOMETHING YOU SUPPLY.
+//
+// RENDERED, for the reason the disclosure above it is: the backend returning a sentence and the
+// page having an element for it are two facts, and only something that runs the page joins them.
+// A guard reading the source would pass on a page that wrote the text into a div it never shows,
+// which is indistinguishable — from where a person is standing — from the silence this
+// closes. `Recording.ArgSays` is held by `TestTheWindowSaysHowToMakeAValueSomethingYouSupply`;
+// this holds that somebody can read it.
+//
+// AND THAT IT GOES AWAY. The second render answers the other half: with the arg key off the
+// backend says nothing, and an element left on screen holding the previous poll's sentence would
+// name a key that does nothing. Hidden rather than empty, because an empty muted div is a gap in
+// a card that otherwise has none.
+func TestTheRenderedPageSaysHowToMakeAValueSomethingYouSupply(t *testing.T) {
+	browser := aBrowser()
+	if browser == "" {
+		t.Skip("no headless Chromium on this machine to render the page in")
+	}
+	harness := func(argSays string) string {
+		return `
+window.go = {main: {
+  Backend: {
+    Loaded: () => Promise.resolve(),
+    SuggestRoutine: () => Promise.resolve({answer: {kind: 'none'}}),
+  },
+  Acts: {
+    SuggestTargets: () => Promise.resolve([]),
+    SuggestRoutine: () => Promise.resolve({kind: 'none'}),
+    Demonstrations: () => Promise.resolve([]),
+    Saved: () => Promise.resolve([]),
+    Applications: () => Promise.resolve([]),
+    Pictures: () => Promise.resolve([]),
+    Picture: () => Promise.resolve(''),
+    Learning: () => Promise.resolve({active: false}),
+    Watch: () => Promise.resolve({act: '', active: false, transcript: null}),
+    History: () => Promise.resolve([]),
+    Unrunnable: () => Promise.resolve([]),
+    Library: () => Promise.resolve({dir: 'C:/x/routes'}),
+    PlaybackTarget: () => Promise.resolve({chosen: '4660:77',
+      windows: [{id: '4660:77', label: 'a window',
+        says: 'Play brings a window to the front and presses there.'}]}),
+    Routines: () => Promise.resolve([]),
+    Recording: () => Promise.resolve({active: false, stop_key: 'F12',
+      captures: 'Where you press and how long you pause.',
+      everywhere: 'Records actions in the window you choose.',
+      arg_key: 'F9', arg_says: ` + "`" + argSays + "`" + `}),
+  },
+}}
+setTimeout(() => {
+  const el = document.getElementById('capArgSays')
+  const hidden = !el || el.classList.contains('hide')
+  const said = hidden ? '' : el.textContent
+  document.title =
+    ' shown=' + (hidden ? 0 : 1) +
+    ' key=' + (said.includes('F9') ? 1 : 0) +
+    ' asks=' + (said.includes('ask for a value') ? 1 : 0) +
+    ' names=' + (said.includes('with item') ? 1 : 0) +
+    ' undef=' + (said.includes('undefined') ? 1 : 0)
+}, 2500)
+`
+	}
+	n := func(title, key string) int {
+		m := regexp.MustCompile(`\b` + key + `=(\d+)`).FindStringSubmatch(title)
+		if m == nil {
+			t.Fatalf("no %s in %q", key, title)
+		}
+		v, _ := strconv.Atoi(m[1])
+		return v
+	}
+
+	title := renderForCounters(t, browser, harness(
+		"Press F9 where the routine should ask for a value instead of typing "+
+			"what you typed. Call it “name with item” and the value "+
+			"is called item."))
+	if n(title, "shown") != 1 {
+		t.Fatalf("nothing on the record card says a routine can ask for a value: %q", title)
+	}
+	for _, c := range []struct{ key, what string }{
+		{"key", "which key marks a value"},
+		{"asks", "what pressing it does"},
+		{"names", "how the name declares the value"},
+	} {
+		if n(title, c.key) != 1 {
+			t.Errorf("the rendered sentence does not say %s: %q", c.what, title)
+		}
+	}
+	if n(title, "undef") != 0 {
+		t.Errorf("the sentence rendered as `undefined`: %q", title)
+	}
+
+	// ── AND NOTHING WHEN THERE IS NO KEY ──
+	if off := renderForCounters(t, browser, harness("")); n(off, "shown") != 0 {
+		t.Errorf("the card still offers an arg key the backend did not name: %q", off)
+	}
+}
+
 // kindsAsked is the choices the page handed to the backend, in order.
 func kindsAsked(t *testing.T, title string) string {
 	t.Helper()
