@@ -138,7 +138,8 @@ Slices 1 and 2 touch no saved routine. 3 and 4 do.
 
 ## See also
 
-- [[ADR-283-the-alpha-offers-one-journey-and-the-window-explains-itself]]
+- [[ADR-283-the-alpha-offers-one-journey-and-the-window-explains-itself]] — slice 1
+- [[ADR-284-the-step-editor-is-a-list-of-rows]] — slice 2
 - [[Studio-journey-discoverability-2026-10-31]]
 - [[Studio-UI-audit-2026-10-29]]
 - [[ADR-282-a-run-of-steps-can-be-said-to-be-typed-text]]

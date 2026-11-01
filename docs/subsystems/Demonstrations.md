@@ -941,6 +941,17 @@ everything. The recording section says what the recorder does: Marco records ONE
 WINDOW IS CHOSEN. See [[ADR-283-the-alpha-offers-one-journey-and-the-window-explains-itself]] and
 [[Studio-alpha-UI-slice-2026-10-31]].
 
+**And the step editor is a list of rows** — number, action, value, controls. The split uses the
+page's own `stepVerbs` table, the one `TestEveryStepSentenceTheBackendWritesHasAVerb` already held
+against `oneStep` for every kind; the verb column is FIXED, because each row is its own grid and
+an `auto` column would start the values in a different place on every line. A removed row strikes
+out its value and NOT the box containing the warning that a second step goes with it: `.pair` was
+a child of the struck element, and `text-decoration` propagates through the box tree and cannot be
+refused by a descendant — so the sentence somebody has to read before pressing was struck through
+in the one state where it appears. The paragraph above the list is in Help now; the refusals, the
+pair warning, what has been asked and what a typed-run declaration costs all stay on the panel.
+Every control on a row names its step. See [[ADR-284-the-step-editor-is-a-list-of-rows]].
+
 ## Known gaps
 
 See the *Known gaps* section of [[director-demonstrations]].

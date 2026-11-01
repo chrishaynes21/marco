@@ -159,6 +159,8 @@ func (a *Acts) Help() Help {
 
 	editing := []string{
 		"Change a wait, remove a step, or say a run of steps is text you typed.",
+		"Make the text a step types something you supply each time — all of that " +
+			"step’s text, not part of it.",
 		"Nothing is written until you review the change and save it — the version " +
 			"you would get is shown beside the one you have.",
 		"The routine is written again from the list, so removing one half of a " +

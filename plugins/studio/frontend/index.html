@@ -246,7 +246,27 @@
  .steprows .n{font:400 12px var(--mach);color:var(--dim);text-align:right}
  .steprows .what{font:400 13px var(--mach);color:var(--ink);overflow-wrap:anywhere}
  .steprows .pair{display:block;font:400 12px var(--sans);color:var(--warn)}
- .steprows .gone .what{text-decoration:line-through;color:var(--dim)}
+
+ /* NUMBER · ACTION · VALUE · CONTROLS, for the lists somebody EDITS.
+    A fixed column for the verb rather than `auto`, because each row is its own grid
+    and `auto` would size every one of them to its own content - so the values would
+    start in a different place on every line and the thing a person is scanning for
+    would be the thing that moves. The longest verb this page knows is `Middle-click`.
+    The other two `.steprows` lists on this page - the arguments and the phrases a
+    routine answers to - are not steps and keep the three-column shape. */
+ .steprows .sr.four{grid-template-columns:28px 7.5em 1fr auto}
+ .steprows .act{font:400 12px var(--mach);color:var(--dim);white-space:nowrap;
+   text-transform:lowercase}
+ .steprows .lbl{font:400 12px var(--mach);color:var(--dim)}
+
+ /* AND ONLY THE ACTION AND THE VALUE ARE STRUCK OUT.
+    This was `.gone .what`, and `.pair` - the sentence saying that removing this row
+    removes a second one - is a CHILD of `.what`. `text-decoration` reaches every
+    descendant and cannot be taken off one, so the warning about what else is about to
+    go was itself struck through: the row said, in the typeface of a thing already
+    deleted, that something else would be deleted. */
+ .steprows .gone .said{text-decoration:line-through;color:var(--dim)}
+ .steprows .gone .act{text-decoration:line-through;color:var(--dim)}
  .steprows input[type=number]{width:6.5em}
  /* THE CONTROLS STAY ON THE STEP THEY BELONG TO. `.row` wraps, which is right for a
     card's own rows and wrong inside a grid cell: on a typing step `name it` landed on
@@ -1318,8 +1338,11 @@
            half -- before the press rather than in the review afterwards, since that is a
            removal of two steps and somebody is owed the second one. -->
       <div class="card hide" id="routineSteps" style="margin-top:10px">
+        <!-- THE LINK IS ON THE DEED ROW ABOVE, beside the button that opens this
+             list, where it is also reachable BEFORE the list is open. Two of them
+             on one screen, six lines apart and reading the same words, is one
+             question asked twice. -->
         <h3>Its steps, as Marco performs them</h3>
-        <div class="muted" id="routineStepsNote"></div>
         <div id="routineStepRows" class="steprows" style="margin-top:8px"></div>
         <div class="muted hide" style="margin-top:8px" id="routineStepAsked"></div>
         <!-- AND A RUN OF THOSE STEPS CAN BE SAID TO BE TYPED TEXT.
@@ -3446,10 +3469,11 @@
    const have = !!(stepList && r && stepList.id === r.id)
    showing($('routineSteps'), have)
    if (!have) { return }
-   text($('routineStepsNote'), 'Change a wait, remove a step, or make the text a step ' +
-     'types something you supply each time \u2014 all of that step\u2019s text, not part ' +
-     'of it. The routine is written again from this list, so removing a press removes the ' +
-     'whole of it, and the waits around it stay as they are until you change them too.')
+   // THE FIFTY-WORD PARAGRAPH THAT USED TO BE HERE IS IN HELP NOW, under `Editing
+   // what a routine does`, with a link to it in the markup beside the heading. What
+   // stays on this panel is what somebody is about to act on: the refusals, the
+   // warning that a removal takes a second step with it, what has been asked so far,
+   // and what declaring a typed run costs.
    // AND THE RUNS A PERSON COULD DECLARE TYPED TEXT, from the backend, with the range in
    // the option’s value because a run has two ends and a single number would make the
    // page reconstruct the other.
@@ -3474,15 +3498,32 @@
    stepList.rows.forEach(row => {
      const asked = changeAt(row.at)
      const div = document.createElement('div')
-     div.className = 'sr' + (asked && asked.op === 'remove' ? ' gone' : '')
+     div.className = 'sr four' + (asked && asked.op === 'remove' ? ' gone' : '')
      const n = document.createElement('span')
      n.className = 'n'
      n.textContent = (row.at + 1) + '.'
+     // THE ACTION AND THE VALUE IN THEIR OWN COLUMNS, through the SAME table the
+     // review list splits on. The backend writes a step as one sentence and the page
+     // opens it on a closed list of prefixes, which `journeypage_test.go` holds
+     // against `oneStep` over a step of every kind - so a kind with no verb here keeps
+     // its whole sentence in the value column rather than losing the front of it to a
+     // prefix that happened to fit. See stepVerbs.
+     const act = document.createElement('span')
+     act.className = 'act'
      const what = document.createElement('span')
      what.className = 'what'
-     what.textContent = row.says
+     // THE PART THAT IS STRUCK OUT WHEN THE STEP IS GOING, and only that part.
+     const said = document.createElement('span')
+     said.className = 'said'
+     const cut = verbOf(row.says)
+     if (cut) { act.textContent = cut[0]; said.textContent = cut[1] }
+     else { said.textContent = row.says }
+     what.appendChild(said)
      if (row.pairs) {
        // THE OTHER HALF, ON THE ROW, BEFORE ANYTHING IS PRESSED.
+       //
+       // BESIDE `.said` AND NOT INSIDE IT, which is the whole of the fix above: a
+       // warning nested in the struck-out part is struck out with it.
        const pair = document.createElement('span')
        pair.className = 'pair'
        pair.textContent = row.pair_says
@@ -3495,9 +3536,15 @@
        ms.type = 'number'
        ms.id = 'routineStepMs-' + row.at
        ms.min = '0'
+       // WHAT THIS BOX IS AND WHICH STEP IT IS ON. A number with no name beside it
+       // is a number read out as "edit text, 250" and nothing else; on a list of
+       // nine rows carrying one box each, the step is half of what it means.
+       ms.setAttribute('aria-label', 'Wait on step ' + (row.at + 1) +
+         ', in milliseconds')
        ms.value = String(asked && asked.op === 'wait' ? asked.to : row.ms)
        const set = document.createElement('button')
        set.id = 'routineStepSet-' + row.at
+       set.setAttribute('aria-label', 'Set the wait on step ' + (row.at + 1))
        set.textContent = 'Set'
        set.onclick = () => askStepChange({op: 'wait', at: row.at,
          to: Math.max(0, parseInt(ms.value, 10) || 0)})
@@ -3520,6 +3567,8 @@
        name.type = 'text'
        name.id = 'routineStepArgName-' + row.at
        name.placeholder = 'name it'
+       name.setAttribute('aria-label', 'What to call the value step ' +
+         (row.at + 1) + ' asks for')
        name.style.width = '7em'
        name.value = asked && asked.op === 'argument' ? asked.name : ''
        const ask = document.createElement('button')
@@ -3552,14 +3601,18 @@
        already.textContent = 'you supply this (' + row.named + ')'
        controls.appendChild(already)
      }
-     const cut = document.createElement('button')
-     cut.id = 'routineStepCut-' + row.at
-     cut.textContent = asked && asked.op === 'remove' ? 'Keep it' : 'Remove'
-     cut.onclick = () => asked && asked.op === 'remove'
+     const rm = document.createElement('button')
+     rm.id = 'routineStepCut-' + row.at
+     rm.textContent = asked && asked.op === 'remove' ? 'Keep it' : 'Remove'
+     // AND WHICH STEP IT REMOVES. Nine rows each with a button reading `Remove` is
+     // nine controls with the same name; the number is the part that tells them apart.
+     rm.setAttribute('aria-label', (asked && asked.op === 'remove'
+       ? 'Keep step ' : 'Remove step ') + (row.at + 1))
+     rm.onclick = () => asked && asked.op === 'remove'
        ? dropStepChange(row.at)
        : askStepChange({op: 'remove', at: row.at})
-     controls.appendChild(cut)
-     div.append(n, what, controls)
+     controls.appendChild(rm)
+     div.append(n, act, what, controls)
      box.appendChild(div)
    })
    drawStepAsked()
@@ -3707,14 +3760,21 @@
    box.innerHTML = ''
    ;(v.rows || []).forEach(row => {
      const div = document.createElement('div')
-     div.className = 'sr'
+     div.className = 'sr four'
      const n = document.createElement('span')
      n.className = 'n'
      n.textContent = (row.at + 1) + '.'
+     // THE SAME SHAPE AS THE LIST IT CAME FROM. A review drawn differently from the
+     // list somebody read their changes off is a second thing to parse at the moment
+     // they are deciding whether to save.
+     const act = document.createElement('span')
+     act.className = 'act'
      const what = document.createElement('span')
      what.className = 'what'
-     what.textContent = row.says
-     div.append(n, what, document.createElement('span'))
+     const cut = verbOf(row.says)
+     if (cut) { act.textContent = cut[0]; what.textContent = cut[1] }
+     else { what.textContent = row.says }
+     div.append(n, act, what, document.createElement('span'))
      box.appendChild(div)
    })
    text($('routineStepEditNote'), '')
