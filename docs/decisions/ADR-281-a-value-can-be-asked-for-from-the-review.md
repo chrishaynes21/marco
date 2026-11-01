@@ -159,6 +159,15 @@ a card warning about a mark that is gone, only quieter.
 - **The reserved key.** Still there, still F9, and now said out loud. It costs nothing while your
   hands are in the other window; the review costs no foreknowledge. Both on purpose.
 
+## Amended 2026-10-31 — the advice names a second way out
+
+The caption told somebody with a per-character list to press **Simplify**, which was the only
+route from a typed run to one step. It is no longer the only one, and on a run typed with rollover
+it never worked at all: see
+[[ADR-282-a-run-of-steps-can-be-said-to-be-typed-text]]. The sentence now names both, and the
+control that declares a run typed text sits directly above this one, in the order the two are used
+in.
+
 ## Not done, and why
 
 **A button in the recording band that drops a placeholder mid-demonstration.** Asked for, and

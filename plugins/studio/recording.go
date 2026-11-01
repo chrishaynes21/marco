@@ -254,6 +254,19 @@ type Recording struct {
 	// different routines. Held by TestTheReviewOffersTheStepsItIsShowing.
 	Supply     []SupplyChoice `json:"supply,omitempty"`
 	SupplySays string         `json:"supply_says,omitempty"`
+	// TypedRuns is the runs of steps that could be declared TYPED TEXT, and TypedSays is
+	// what that costs. See typeddraft.go for the defect it exists for.
+	TypedRuns []TypedChoice `json:"typed_runs,omitempty"`
+	TypedSays string        `json:"typed_says,omitempty"`
+	// Basis is a term for the step list below, handed back with any operation against it.
+	//
+	// POSITIONS ALONE ARE NOT CONSENT. Simplify re-derives this list, going back to the
+	// original replaces it, and each of the two edit controls changes it — so a press
+	// that arrives after one of them refers to steps that have moved. The saved routine’s
+	// panel has refused on a moved list since step editing existed; this card did not,
+	// until the second edit control made it obvious that the window is the other writer.
+	// See orchestrator.Draft.Shown.
+	Basis string `json:"basis,omitempty"`
 	// StopKey names the stop gesture, so the button is not the only way out and the other
 	// way is written where somebody can see it — which is BEFORE Record as well as during
 	// a recording, because the card that holds it while one is running is behind the
@@ -797,6 +810,15 @@ func (a *Acts) Recording() Recording {
 	// control is one row under the list rather than a box on every step.
 	out.Supply = supplyChoices(dr.Steps)
 	out.SupplySays = supplyCaption(dr.Steps, c.supplied)
+	// AND WHICH RUNS OF THEM COULD BE DECLARED TYPED TEXT, from the same list in the same
+	// call, for the same reason: a range the chooser offers is a range of the steps on
+	// screen.
+	out.TypedRuns = typedChoices(dr.Steps)
+	out.TypedSays = typedCaption(out.TypedRuns)
+	// AND THE TERM FOR THE LIST ALL THREE OF THEM COUNT AGAINST. Taken here, beside the
+	// steps it describes, so the page cannot be holding a term for one list and positions
+	// into another.
+	out.Basis = dr.Shown()
 	// AND A GESTURE THAT CANNOT BE WRITTEN DOWN IS SAID HERE, BESIDE THE STEPS.
 	//
 	// Before the pressable check, because it is the more specific statement about the same

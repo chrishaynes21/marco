@@ -869,6 +869,45 @@ recorder event kind of its own, because `Draft.Events` carries no markers at all
 re-derives from what is stored. Making it an ordinary `EvKey` would be simulating a human press
 into a recording. See [[ADR-281-a-value-can-be-asked-for-from-the-review]].
 
+## A run of steps can be said to be typed text
+
+Typing is written down as HELD KEYS whenever the next key goes down before the last one comes up,
+which is most typing. Measured on the owner's own `cloud pull stone` recording — presses of
+93–149ms overlapping the next by 12–56ms — the word saved as
+
+```
+KeyDown "s" · KeyDown "t" · KeyUp "s" · KeyDown "o" · KeyUp "t" · KeyDown "n" · KeyUp "o" · Key "e" · KeyUp "n"
+```
+
+Both typing-fold passes need a step carrying TEXT and a hold carries none, so **Simplify did
+nothing** and no value could be asked for either, a value the routine asks for having to be one
+step.
+
+**The classifier is not changed.** `s↓ t↓ s↑ t↑` typed and `q↓ e↓ q↑ e↑` held in a game render
+identically — `hold Q, press E, release Q`, the canonical game gesture — and no key name or
+duration tells them apart. A containment rule was built, measured and reverted for exactly that
+reason.
+
+**So a person says.** `orchestrator.TypedRunsIn` proposes the runs, `typedRun` is the one validator
+both ways in ask, and `Deps.TypedInDraft` applies one to the recording under review — an EDIT to
+the list, with the steps visible before and after and nothing written until Save. The chooser
+offers the gameplay gesture as readily as the typing, because the window cannot tell and a chooser
+that hid one would have guessed. A long press converts when it is declared and the control says
+beforehand what that costs: the keys in the run stop being held, the waits inside it go, the waits
+outside it are untouched. A repeat is kept exactly.
+
+Refused: a key that types nothing, an unbalanced hold, anything that is not typing, text the
+routine already asks for, and a key held ACROSS the whole range — whose hold the conversion would
+shorten by the waits it removes.
+
+**And positions alone are not consent.** `Draft.Shown` is a term for the list the card drew, and
+both draft operations refuse one counted against a list that has moved. One window holding a draft
+means no second process, not no second writer: Simplify, going back to the original and each edit
+all move the positions.
+
+A declared run sets `Draft.Changed`, so the save writes the step account that keeps it through the
+edit panel and a rebuild. See [[ADR-282-a-run-of-steps-can-be-said-to-be-typed-text]].
+
 ## Known gaps
 
 See the *Known gaps* section of [[director-demonstrations]].

@@ -124,8 +124,8 @@ func supplyCaption(steps []macroir.Step, marked []string) string {
 	} else if perCharacterTyping(steps) {
 		say = append(say, "This recording types one step per character, as you typed "+
 			"it, and a value the routine asks for has to be one step. Press "+
-			"Simplify first — it folds a typed run into one step — and then you "+
-			"can ask for it.")
+			"Simplify — it folds a typed run into one step — or say below which "+
+			"steps are typed text, and then you can ask for it.")
 	}
 	if len(marked) > 0 {
 		say = append(say, "Simplify re-derives the steps from your demonstration, so "+
@@ -136,17 +136,24 @@ func supplyCaption(steps []macroir.Step, marked []string) string {
 
 // SupplyDraftText makes the text at `at` something the person supplies, and writes nothing.
 //
-// `at` is a position in the step list the card is showing, which is this draft’s own list: a draft
-// is held in memory by the one window reviewing it, so there is no second writer to mint a basis
-// against. That is the whole difference between this contract and the saved routine’s, and it is a
-// fact about drafts rather than a relaxation.
-func (a *Acts) SupplyDraftText(at int, name string) string {
+// `at` is a position in the step list the card was drawing and `shown` is that list
+// (`Recording.Basis`), which is REFUSED when it is no longer the draft’s.
+//
+// THAT TERM WAS NOT HERE AT FIRST, and the reasoning it replaced was wrong in a way worth keeping
+// a record of: a draft is held in memory by the one window reviewing it, so there is no second
+// PROCESS to race — which was read as there being no second writer at all. The window is the other
+// writer. Simplify re-derives the list, going back to the original replaces it, this operation and
+// the typed-text one beside it each change it, and every one of those moves or re-means the
+// positions the page last drew. A press that arrived after any of them would have supplied a step
+// nobody pointed at, and the result is a working routine that types a placeholder somewhere else.
+// See orchestrator.Draft.Shown.
+func (a *Acts) SupplyDraftText(shown string, at int, name string) string {
 	dr, cp, why := a.draftToSave()
 	if why != "" {
 		return why
 	}
 	d := orchestrator.Deps{Reg: a.reg(), Out: &strings.Builder{}}
-	next, said, err := d.SuppliedInDraft(dr, at, name)
+	next, said, err := d.SuppliedInDraft(dr, shown, at, name)
 	if err != nil {
 		return err.Error()
 	}

@@ -693,6 +693,276 @@ func declaredFor(name string, steps []macroir.Step) (string, []string) {
 	return base, append(args, suppliedIn(steps, args)...)
 }
 
+// TypedRun is one range of a step list that could be declared typed text, and what it would say.
+//
+// The range is INCLUSIVE at both ends and counted from zero, which is how every other operation
+// in this package counts and how both surfaces list steps. `Text` is what the range would become,
+// so a surface offering it can name the result rather than the positions — "steps 3 to 11 type
+// \"stone\"" is a proposal somebody can check, and "steps 3 to 11" is a number they have to trust.
+type TypedRun struct {
+	From int
+	To   int
+	Text string
+}
+
+// TypedRunsIn is every maximal range of these steps that could be declared typed text.
+//
+// # Why the orchestrator proposes them and not the window
+//
+// Because `typedRun` is the rules, and a surface that worked out which runs were eligible would be
+// a second reading of them — free to offer a range the validator then refuses, which is a control
+// whose refusal arrives after somebody presses it. Every proposal here is validated by the same
+// function that applies it, so an offer is a promise.
+//
+// # Maximal, and what that costs
+//
+// A run is extended as far as the vocabulary allows and then its leading and trailing waits are
+// trimmed, because a `type` step cannot hold them and a run that began or ended with one would
+// silently swallow a pause that belongs to the steps around it. Two words separated by a long
+// pause are therefore proposed as ONE run, which is greedier than somebody may want. That is a
+// known limit rather than a judgement: splitting them would need a threshold on what counts as a
+// gap between words, and this whole feature exists because thresholds cannot tell typing from a
+// game. The saved routine's editor takes an explicit range, which is where a narrower selection
+// is made.
+//
+// A run whose text is a single character is not proposed. It would be a `key` step becoming a
+// `type` step and nothing else, and the chooser is for turning a rollover-shredded word back into
+// a word. `typedRun` still allows it, because what may be ASKED FOR explicitly is a different
+// question from what is worth offering.
+func TypedRunsIn(steps []macroir.Step) []TypedRun {
+	var out []TypedRun
+	for i := 0; i < len(steps); {
+		if !couldBeTyping(steps[i]) {
+			i++
+			continue
+		}
+		j := i
+		for j+1 < len(steps) && couldBeTyping(steps[j+1]) {
+			j++
+		}
+		next := j + 1
+		// TRIMMED OF ITS OUTER WAITS, which belong to whatever is on either side.
+		from, to := i, j
+		for from <= to && steps[from].Kind == macroir.StepWait {
+			from++
+		}
+		for to >= from && steps[to].Kind == macroir.StepWait {
+			to--
+		}
+		if from <= to {
+			if text, err := typedRun(steps, from, to); err == nil &&
+				len([]rune(text)) > 1 {
+				out = append(out, TypedRun{From: from, To: to, Text: text})
+			}
+		}
+		i = next
+	}
+	return out
+}
+
+// couldBeTyping is whether a step is in the vocabulary a typed run can be made of.
+//
+// THE SHAPE ONLY, and not whether the run is valid: balance, what is held across it and what each
+// key produces are `typedRun`'s, asked of the whole range. This is what decides where a candidate
+// range ENDS, so it has to answer for one step with nothing around it.
+func couldBeTyping(s macroir.Step) bool {
+	switch s.Kind {
+	case macroir.StepWait, macroir.StepKeyDown, macroir.StepKeyUp:
+		return true
+	case macroir.StepKey:
+		return s.Text != ""
+	case macroir.StepType:
+		return routes.Arguments(s.Text) == nil
+	}
+	return false
+}
+
+// typedRun is the text a range of steps would become when somebody declares it typed, or why it
+// cannot be declared.
+//
+// ONE VALIDATOR, BECAUSE THERE ARE TWO WAYS IN. [EditTyped] asks it of a SAVED routine's list and
+// [Deps.TypedInDraft] asks it of a recording nobody has kept yet, which is the reason
+// `suppliedName` below is one function too. The saved routine matters here and is not a
+// convenience: the recording that exposed this defect is already on disk, and a repair reachable
+// only from the review would mean re-recording it.
+//
+// # What this is for, and what it deliberately does not know
+//
+// A key is recorded as a HOLD when another key goes down before it comes up, and that is what
+// typing rollover IS: `s` down, `t` down, `s` up. Measured on the owner's own recording — reduced
+// below in the fixtures — the presses are 93–149ms and overlap by 12–56ms, so the word `stone`
+// was saved as four KeyDown/KeyUp pairs and one tap, and neither typing-fold pass can touch it
+// because a hold carries no text.
+//
+// THE CLASSIFIER IS NOT WRONG AND IS NOT CHANGED. `s↓ t↓ s↑ t↑` and a brief two-key gameplay
+// combination `q↓ e↓ q↑ e↑` are the same shape, and nothing in the events says which one somebody
+// meant — not the key names, because Q and E are printable, and not the durations, because a
+// person can type slowly and press a game key briefly. So this does not guess. A PERSON SAYS, by
+// selecting the steps, and what follows is an EDIT to the list rather than a different reading of
+// the demonstration. `markHolds` is untouched, an ordinary save of that same recording still
+// produces the holds, and so does a rebuild of a routine nobody has edited.
+//
+// # The order is the order the keys went DOWN
+//
+// Which is the one thing rollover makes non-obvious: the steps read
+// `s↓ t↓ s↑ o↓ t↑ n↓ o↑ e n↑`, and the word is `stone` only if each character is taken at its
+// PRESS. Taking them in step order would read `stsotnoen`.
+//
+// # What it refuses, and why each one is a refusal rather than a best effort
+//
+//   - A key that is not one printable character — `esc`, `tab`, an f-key, a modifier on its own.
+//     Somebody has selected a chord or a game key, and typing its name is not what they asked
+//     for.
+//   - An unbalanced hold inside the range: a `keydown` whose `keyup` is outside it, or the other
+//     way round. Replacing it would leave a routine holding a key it never releases.
+//   - A key held ACROSS the whole range, from before it to after it. The range looks clean from
+//     inside — both halves of that hold are outside and untouched — and converting it would still
+//     change that gesture, because the conversion removes the WAITS inside the range and the hold
+//     is as long as what it spans. A 600ms charge-hold would quietly become as long as typing two
+//     letters. Mouse buttons cannot be in this state: `macroir` has no step for a button held
+//     across other steps — a click is one step and a drag is one step — so there is nothing here
+//     to check for them, which is why this says so rather than pretending to.
+//   - Anything else in the range: a click, an activate, a loop, a drag. A loop could in principle
+//     be expanded and is refused on purpose, because a representation this cannot reproduce
+//     exactly must not be flattened into an approximation of itself.
+//   - Text that is already supplied. A `{{name}}` swallowed into a literal would make the routine
+//     type the braces.
+//
+// # And a repeat is kept, exactly
+//
+// `macroir` folds a key pressed several times into one step with a `Count`, and a declaration that
+// dropped it would turn `aaa` into `a` — the quietest possible way to change what a routine types.
+// A repeated character is legitimate here and the "two distinct characters" rule is NOT applied:
+// that rule belongs to automatic coalescing, where it exists to keep game key-spam out of typed
+// text, and it has no business overruling somebody who has said what the steps are. A `Count` on
+// anything this cannot expand that way is refused rather than ignored.
+func typedRun(steps []macroir.Step, from, to int) (string, error) {
+	switch {
+	case from < 0 || from >= len(steps) || to < 0 || to >= len(steps):
+		return "", fmt.Errorf("there is no range of steps %d to %d in a routine of %d "+
+			"steps", from+1, to+1, len(steps))
+	case to < from:
+		return "", fmt.Errorf("steps %d to %d is not a range", from+1, to+1)
+	}
+	// ── NOTHING MAY BE HELD WHEN THE RANGE BEGINS ──
+	//
+	// Read off the steps BEFORE it, which is the only place it can be seen: a key held
+	// across the whole selection appears nowhere inside it. See the note above for why
+	// this is a refusal.
+	held := map[string]int{}
+	for i := 0; i < from; i++ {
+		switch steps[i].Kind {
+		case macroir.StepKeyDown:
+			held[steps[i].Key] = i
+		case macroir.StepKeyUp:
+			delete(held, steps[i].Key)
+		}
+	}
+	for k, at := range held {
+		return "", fmt.Errorf("%q is still held from step %d, across the steps you "+
+			"picked — converting them would shorten that hold by the waits inside "+
+			"it, so the gesture it is part of has to be dealt with first", k, at+1)
+	}
+	var b strings.Builder
+	open := map[string]bool{}
+	for i := from; i <= to; i++ {
+		s := steps[i]
+		switch s.Kind {
+		case macroir.StepWait:
+			// DROPPED, AND SAID SO ON THE CONTROL. The rhythm of somebody's
+			// typing is not something a `type` step can hold, and the caption
+			// names it before anybody presses. Waits OUTSIDE the range are
+			// untouched.
+		case macroir.StepType:
+			if routes.Arguments(s.Text) != nil {
+				return "", fmt.Errorf("step %d is already something the routine "+
+					"asks for, so it cannot be folded into typed text", i+1)
+			}
+			b.WriteString(s.Text)
+		case macroir.StepKey:
+			c, err := oneCharacter(s, i)
+			if err != nil {
+				return "", err
+			}
+			n := s.Count
+			if n < 1 {
+				n = 1
+			}
+			b.WriteString(strings.Repeat(c, n))
+		case macroir.StepKeyDown:
+			c, err := oneCharacter(s, i)
+			if err != nil {
+				return "", err
+			}
+			if s.Count > 1 {
+				return "", fmt.Errorf("step %d holds %q %d times, which is not "+
+					"something typed text can say", i+1, s.Key, s.Count)
+			}
+			// THE CHARACTER IS TAKEN AT THE PRESS. See the note above.
+			open[s.Key] = true
+			b.WriteString(c)
+		case macroir.StepKeyUp:
+			if !open[s.Key] {
+				return "", fmt.Errorf("step %d releases %q, which was not held "+
+					"inside the steps you picked — a held key goes in whole "+
+					"or stays out", i+1, s.Key)
+			}
+			delete(open, s.Key)
+		default:
+			return "", fmt.Errorf("step %d is not typing — typed text can only be "+
+				"made out of key presses, held keys and the waits between "+
+				"them", i+1)
+		}
+	}
+	for k := range open {
+		return "", fmt.Errorf("%q is held inside the steps you picked and released "+
+			"after them — a held key goes in whole or stays out", k)
+	}
+	if b.Len() == 0 {
+		return "", fmt.Errorf("steps %d to %d type nothing", from+1, to+1)
+	}
+	return b.String(), nil
+}
+
+// oneCharacter is the character a key step types, or why that step is not typing.
+//
+// # Two sources, and the order matters
+//
+// `Text` first, because it is what the recorder read off the keystroke and the only thing that
+// knows what the key PRODUCED: `shift`+`t` is `T` and the key is still `t`. A tap carries it.
+//
+// `Key` second, for a HELD key, because a held key carries no text at all — which is the same fact
+// both typing-fold passes trip on, and the reason this operation has to exist. A key name that is
+// itself one character is that character, and the standard being met is NOT "what the person's
+// fingers did" but "what this step types when the routine runs": `do OS's KeyDown with "s"`
+// followed by its `KeyUp` types a lowercase `s`, and so does `do OS's Type with "s"`. The
+// conversion is faithful to the routine.
+//
+// WHICH MEANS A CAPITAL TYPED WITH ROLLOVER COMES OUT LOWER CASE, and that is already true before
+// anything here runs. Measured: `shift` held across `s` and `t` typed with overlap renders as
+// `keydown "s"` — no text, no shift — beside `key "t"` carrying `"T"`, because `markHolds` leaves a
+// modifier out of a hold and only the tap reaches the chord fold. So the `S` was lost when the
+// recording was written down, not when it was declared. That is an adjacent defect in how a held
+// key is REPRESENTED and it is not this slice's; naming it here is what stops the next reader
+// concluding this function introduced it.
+//
+// A key that is neither — `esc`, `tab`, `f5`, a modifier on its own, a multi-character text — is
+// not typing, and a representation this build does not produce is refused rather than guessed at.
+func oneCharacter(s macroir.Step, at int) (string, error) {
+	if s.Text != "" {
+		if len([]rune(s.Text)) != 1 {
+			return "", fmt.Errorf("step %d types %q, which is not one character",
+				at+1, s.Text)
+		}
+		return s.Text, nil
+	}
+	if len([]rune(s.Key)) == 1 {
+		return s.Key, nil
+	}
+	return "", fmt.Errorf("step %d presses %q, which types nothing — typed text cannot "+
+		"be made out of it", at+1, s.Key)
+}
+
 // suppliedName is the name the text at `at` would be supplied under, or why it cannot be.
 //
 // ONE SET OF RULES, BECAUSE THERE ARE TWO WAYS IN NOW. [EditArgument] asks it of a SAVED

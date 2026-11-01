@@ -1358,6 +1358,110 @@ func (d Deps) SimplifiedDraft(dr *Draft) *Draft {
 		dr.StoppedBy, dr.Mode)
 }
 
+// Shown is a term for the step list this draft is showing, handed back by a surface with an
+// operation against it and refused when it no longer describes the draft.
+//
+// # Why a position is not consent
+//
+// Because the list a person is looking at is not necessarily the list this draft holds. Simplify
+// re-derives it, going back to the original replaces it, an earlier mark changes a step in it, and
+// a second recording replaces the draft outright — and every one of those moves or re-means the
+// positions the page last drew. An operation carrying only a number would then be applied to
+// whatever is at that number now, which is the quietest kind of wrong: a perfectly good routine
+// that changes a step nobody pointed at.
+//
+// THE SAVED ROUTINE HAS HAD THIS SINCE STEP EDITING DID — `EditReview.Basis`, three digests over
+// the three files — and the draft had nothing, because a draft is held in memory by the one window
+// reviewing it and there is no second writer. There does not have to be: the window itself is the
+// other writer, through the controls beside the one being pressed.
+//
+// The NAME travels with the steps because `declaredFor` can change it, so a list that looks
+// identical under a different set of declarations is a different thing to render. An
+// unmarshalable draft answers "", which every comparison refuses — see `agreesWith`.
+func (dr *Draft) Shown() string {
+	if dr == nil {
+		return ""
+	}
+	b, err := json.Marshal(dr.Steps)
+	if err != nil {
+		return ""
+	}
+	return routes.DigestOf(nameWithArgs(dr) + "\x00" + string(b))
+}
+
+// agreesWith is whether `shown` is this draft's list, with an EMPTY term refusing.
+//
+// Empty is not "state nothing and go ahead", which is what the saved routine's first call means by
+// it (`PrepareEditOf`, where there is nothing to have been shown yet). Here every operation is
+// against a list the page has drawn, so a missing term is a caller that has not been changed to
+// send one — and defaulting that to consent would leave the rule present and doing nothing.
+func (dr *Draft) agreesWith(shown string) bool {
+	now := dr.Shown()
+	return shown != "" && now != "" && shown == now
+}
+
+// staleDraft is the one sentence both draft operations refuse with, because it is one situation.
+func staleDraft() error {
+	return errors.New("this recording has been changed since those steps were listed, so the " +
+		"steps you picked are not the ones that would change — look at it again and ask " +
+		"once more")
+}
+
+// TypedInDraft replaces a range of a draft's steps with the text somebody says they typed, and
+// writes nothing.
+//
+// # Why a person has to say it
+//
+// Because the recording cannot. A key is written down as a HOLD when another key goes down before
+// it is released, which is exactly what typing rollover is, and a brief two-key gameplay
+// combination has the same shape — so the word `stone` came off the owner's keyboard as four
+// KeyDown/KeyUp pairs and one tap, and no reading of those events can tell it from `q↓ e↓ q↑ e↑`.
+// `typedRun` carries the whole argument.
+//
+// So this changes nothing about how a recording is read. `markHolds` is untouched, an ordinary
+// save of the same demonstration still produces the holds, and a rebuild under today's rules of a
+// routine nobody has edited still re-derives them. What this does is EDIT the list, and the edit
+// is recorded where every other edit to a list is recorded.
+//
+// # The three things it needs, and the one it produces
+//
+// `shown` is the list the page drew (see [Draft.Shown]) and a stale one is refused, because a
+// range of positions means nothing against a list that has moved since. The range is inclusive at
+// both ends, as both surfaces list them. What comes back is a copy with one [macroir.StepType] in
+// place of the range, exactly as [Deps.SuppliedInDraft] returns a copy — so the window swaps the
+// draft under review and whoever kept the old one still has it.
+//
+// The WAITS INSIDE THE RANGE GO, because a `type` step has nowhere to put them, and the waits
+// outside it are untouched. The control says so before it is pressed.
+//
+// AND THE STEPS NEED WRITING DOWN AFTERWARDS: see [Draft.Changed], which is what makes the save
+// leave an account beside the routine so this survives the edit panel and a rebuild.
+func (d Deps) TypedInDraft(dr *Draft, shown string, from, to int) (*Draft, string, error) {
+	if dr == nil {
+		return nil, "", errors.New("there is no recording under review")
+	}
+	if !dr.agreesWith(shown) {
+		return nil, "", staleDraft()
+	}
+	text, err := typedRun(dr.Steps, from, to)
+	if err != nil {
+		return nil, "", err
+	}
+	next := *dr
+	next.Steps = make([]macroir.Step, 0, len(dr.Steps))
+	next.Steps = append(next.Steps, dr.Steps[:from]...)
+	next.Steps = append(next.Steps, macroir.Step{Kind: macroir.StepType, Text: text})
+	next.Steps = append(next.Steps, dr.Steps[to+1:]...)
+	// AND THE NAME IS READ AGAIN, for the reason SuppliedInDraft reads it: a placeholder
+	// inside a step is what declares it, and a range that swallowed one is refused — but a
+	// range BESIDE one has moved its position, and `declaredFor` is the one reading of
+	// what a render of these steps has to declare.
+	next.Name, next.Args = declaredFor(nameWithArgs(dr), next.Steps)
+	next.Changed = true
+	return &next, fmt.Sprintf("steps %d to %d become one step that types %q, and the "+
+		"waits between them are gone", from+1, to+1, text), nil
+}
+
 // SuppliedInDraft makes the text a draft step types into something the person supplies, and
 // writes nothing.
 //
@@ -1397,9 +1501,17 @@ func (d Deps) SimplifiedDraft(dr *Draft) *Draft {
 // `{{item}}` with nothing declaring `item` would render a routine that types whatever is in the
 // credential store under that word. `declaredFor` is the reading that answers it, the same one
 // the saved edit and the rebuild use.
-func (d Deps) SuppliedInDraft(dr *Draft, at int, name string) (*Draft, string, error) {
+func (d Deps) SuppliedInDraft(dr *Draft, shown string, at int, name string) (*Draft, string, error) {
 	if dr == nil {
 		return nil, "", errors.New("there is no recording under review")
+	}
+	// AND THE POSITION IS AGAINST THE LIST THAT WAS DRAWN. Added with the second draft
+	// operation, because the hazard was always here and one operation made it easy to
+	// miss: Simplify, going back to the original and a mark all move the positions, and a
+	// press that arrives after one of them would supply a step nobody pointed at. See
+	// Draft.Shown.
+	if !dr.agreesWith(shown) {
+		return nil, "", staleDraft()
 	}
 	arg, err := suppliedName(dr.Steps, at, name)
 	if err != nil {

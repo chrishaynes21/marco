@@ -109,6 +109,14 @@ hold carries no `Text`, and both typing-fold passes require one. The hold rule i
 (`hold Q, click, release Q`) and wrong for typing, and the discriminator is not obvious, because Q
 and E are printable too. Left open deliberately.
 
+**Amended 2026-10-31.** Closed, and not by changing the classifier.
+[[ADR-282-a-run-of-steps-can-be-said-to-be-typed-text]] has the measurement from the actual
+recording and the reason the discriminator cannot be found in the events: `q` down, `e` down, `q`
+up, `e` up is a brief gameplay combination and renders exactly as the first two letters of `stone`
+do. A containment rule was built, measured and reverted for that reason. A person now says which
+runs are text, and `markHolds` is untouched — so the sentence above still describes what an
+ordinary save of that recording does.
+
 ## Enforced by
 
 - `internal/orchestrator` `TestAStatedCoordinateModeSurvivesSimplifyingWithVisionOn` — now a

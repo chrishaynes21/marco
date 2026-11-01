@@ -857,6 +857,31 @@
 
          Hidden when no step types anything, which is most recordings of a game: a control
          whose only answer is a refusal is worse than no control. -->
+    <!-- AND A RUN OF STEPS CAN BE SAID TO BE TYPED TEXT.
+         Typing is recorded as HELD KEYS whenever the next key goes down before the last
+         one comes up, which is most typing: the owner’s `stone` was saved as four
+         KeyDown/KeyUp pairs and one tap. Neither typing-fold pass can touch that, because
+         both need a step carrying text and a hold carries none — so Simplify left the
+         word alone and no value could be asked for, a value having to be one step.
+
+         A PERSON SAYS, AND NOTHING GUESSES. `s—down t—down s—up t—up` typed and
+         `q—down e—down q—up e—up` held in a game are the same shape, and no key
+         name or duration tells them apart — so this is an EDIT to the list, not a
+         different reading of the recording. See typeddraft.go.
+
+         ABOVE THE SUPPLY CONTROL, because that is the order the two are used in: a run
+         becomes one step here and the step can be asked for below. The caption carries
+         what the conversion costs, which is the condition it was allowed under. -->
+    <div class="hide" style="margin-top:12px" id="capTypedBox">
+      <div class="muted" id="capTypedSays"></div>
+      <div class="row hide" style="margin-top:8px" id="capTypedRow">
+        <label style="width:7em" for="capTypedAt">typed text</label>
+        <select id="capTypedAt" style="flex:1"></select>
+        <button onclick="typedDraft()">That is text I typed</button>
+      </div>
+      <div class="no hide" style="margin-top:6px" id="capTypedWhy"></div>
+    </div>
+
     <div class="hide" style="margin-top:12px" id="capSupplyBox">
       <div class="muted" id="capSupplySays"></div>
       <!-- AND THE CONTROL IS WITHDRAWN WHILE THE CAPTION STILL SPEAKS.
@@ -2372,13 +2397,42 @@
      return
    }
    const name = $('capSupplyName').value
-   acts.SupplyDraftText(at, name).then(why => {
+   // AND THE LIST THE POSITION WAS READ OFF, handed back so the backend can refuse it.
+   // `capBasis` is taken from the same poll that drew the options. See
+   // orchestrator.Draft.Shown.
+   acts.SupplyDraftText(capBasis, at, name).then(why => {
      text($('capSupplyWhy'), why || '')
      showing($('capSupplyWhy'), !!why)
      if (!why) { $('capSupplyName').value = '' }
      pollCapture()
    })
  }
+ // SAYING A RUN OF STEPS IS TEXT SOMEBODY TYPED. Beside the three above because it swaps the
+ // draft under review and writes nothing; Save still writes whichever version is on screen.
+ //
+ // The range comes back from the backend as one option, both ends in it, so the page never
+ // works out which steps are typing — a second reading of that would offer a run the
+ // press then refuses.
+ function typedDraft(){
+   const chosen = $('capTypedAt').value
+   const ends = chosen.split(':')
+   const from = parseInt(ends[0], 10)
+   const to = parseInt(ends[1], 10)
+   if (!Number.isInteger(from) || !Number.isInteger(to)) {
+     text($('capTypedWhy'), 'choose the run of steps that is text you typed')
+     showing($('capTypedWhy'), true)
+     return
+   }
+   acts.TypedDraftText(capBasis, from, to).then(why => {
+     text($('capTypedWhy'), why || '')
+     showing($('capTypedWhy'), !!why)
+     pollCapture()
+   })
+ }
+ // capBasis is the term for the step list the review card last drew, handed back with every
+ // operation against those steps so the backend can refuse one counted against a list that has
+ // moved. Empty whenever no recording is under review, which every operation refuses on.
+ let capBasis = ''
  // taken is the routine Save refused to replace, held so Replace can name the exact one somebody
  // agreed to. Cleared the moment anything is written or the panel goes away.
  let taken = null
@@ -2549,11 +2603,17 @@
      // buttons and the line beside them are drawn inside this guard, and a
      // simplification with nothing left to fold would produce the same steps and
      // otherwise leave the card saying nothing had happened.
+     // THE TERM FOR THE LIST ON SCREEN, KEPT OUTSIDE THE REDRAW GUARD. Every operation
+     // against these steps hands it back, and holding it only when something was
+     // redrawn would leave the page sending a term for a list it had stopped showing.
+     capBasis = r.basis || ''
      const sig = r.name + '\u0000' + (r.said || '') + '\u0000' + (r.missing || '')
        + '\u0000' + (r.exit || '') + '\u0000' + (r.steps || []).join('|')
        + '\u0000' + (r.simplified ? 1 : 0) + (r.original ? 1 : 0)
        + '\u0000' + (r.supply_says || '')
        + '\u0000' + (r.supply || []).map(c => c.at + ':' + c.label).join('|')
+       + '\u0000' + (r.typed_says || '')
+       + '\u0000' + (r.typed_runs || []).map(c => c.from + '-' + c.to).join('|')
      if (sig === shownCapture) { return }
      shownCapture = sig
      // THE WAY BACK APPEARS ONLY ONCE THERE IS SOMETHING TO GO BACK TO, and the line
@@ -2625,6 +2685,30 @@
      // above, from the backend, so the page never counts steps itself — a page that
      // worked out which steps type text would be a second reading of the draft, and
      // the one that matters is the one Save writes.
+     // AND WHICH RUNS OF THEM COULD BE DECLARED TYPED TEXT, drawn the same way and for
+     // the same reasons: the box follows the sentence, the row follows the options, the
+     // selection survives a redraw, and a refusal from the last attempt does not.
+     //
+     // THE OPTION VALUE CARRIES BOTH ENDS, `from:to`, because a run is a range and a
+     // single number would make the page reconstruct the other end.
+     const typedRuns = r.typed_runs || []
+     showing($('capTypedBox'), !!r.typed_says)
+     showing($('capTypedRow'), typedRuns.length > 0)
+     text($('capTypedSays'), r.typed_says || '')
+     const typedPick = $('capTypedAt')
+     const chosenRun = typedPick.value
+     typedPick.innerHTML = ''
+     typedRuns.forEach(c => {
+       const o = document.createElement('option')
+       o.value = c.from + ':' + c.to
+       o.textContent = c.label
+       typedPick.appendChild(o)
+     })
+     if (typedRuns.some(c => (c.from + ':' + c.to) === chosenRun)) {
+       typedPick.value = chosenRun
+     }
+     text($('capTypedWhy'), '')
+     showing($('capTypedWhy'), false)
      const supply = r.supply || []
      // THE BOX FOLLOWS THE SENTENCE AND THE ROW FOLLOWS THE OPTIONS, which are two
      // different facts: a recording that types text has something to be told even when

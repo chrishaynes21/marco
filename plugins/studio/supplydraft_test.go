@@ -150,7 +150,7 @@ func TestTheReviewOffersToAskForTextItWouldType(t *testing.T) {
 		t.Errorf("the caption does not say what happens: %q", was.SupplySays)
 	}
 
-	if why := a.SupplyDraftText(was.Supply[0].At, "item"); why != "" {
+	if why := a.SupplyDraftText(was.Basis, was.Supply[0].At, "item"); why != "" {
 		t.Fatalf("marking refused: %s", why)
 	}
 	now := a.Recording()
@@ -187,7 +187,7 @@ func TestASuppliedValueSavesAsSomethingTheRoutineAsksFor(t *testing.T) {
 	if len(was.Supply) == 0 {
 		t.Fatal("nothing to mark")
 	}
-	if why := a.SupplyDraftText(was.Supply[0].At, "item"); why != "" {
+	if why := a.SupplyDraftText(was.Basis, was.Supply[0].At, "item"); why != "" {
 		t.Fatalf("marking refused: %s", why)
 	}
 	if why := a.SaveDraft("app", ""); why != "" {
@@ -230,7 +230,7 @@ func TestADraftValueCannotBeCalledSomethingTheGeneratorReadsFromTheStore(t *test
 		t.Fatal("nothing to mark")
 	}
 
-	why := a.SupplyDraftText(was.Supply[0].At, "password")
+	why := a.SupplyDraftText(was.Basis, was.Supply[0].At, "password")
 	if why == "" {
 		t.Fatal("a value was named after a credential the generator reads from the " +
 			"store, so the routine would type whatever is saved there")
@@ -254,7 +254,7 @@ func TestADraftValueNeedsAName(t *testing.T) {
 	at := a.Recording().Supply[0].At
 
 	for _, bad := range []string{"", "   ", "the item", "item!"} {
-		if why := a.SupplyDraftText(at, bad); why == "" {
+		if why := a.SupplyDraftText(a.Recording().Basis, at, bad); why == "" {
 			t.Errorf("a value was named %q", bad)
 		}
 	}
@@ -276,7 +276,7 @@ func TestSimplifyingTakesTheSuppliedMarksOffAndSaidSoFirst(t *testing.T) {
 	if len(was.Supply) == 0 {
 		t.Fatal("nothing to mark")
 	}
-	if why := a.SupplyDraftText(was.Supply[0].At, "item"); why != "" {
+	if why := a.SupplyDraftText(was.Basis, was.Supply[0].At, "item"); why != "" {
 		t.Fatalf("marking refused: %s", why)
 	}
 
@@ -313,7 +313,7 @@ func TestSimplifyingTakesTheSuppliedMarksOffAndSaidSoFirst(t *testing.T) {
 // somebody the demonstration they gave plus three things they did afterwards.
 func TestTheOriginalComesBackWithNoSuppliedMarksOnIt(t *testing.T) {
 	a := typedAndFolded(t, "say hello")
-	if why := a.SupplyDraftText(a.Recording().Supply[0].At, "item"); why != "" {
+	if why := a.SupplyDraftText(a.Recording().Basis, a.Recording().Supply[0].At, "item"); why != "" {
 		t.Fatalf("marking refused: %s", why)
 	}
 	if why := a.UseOriginalDraft(); why != "" {
@@ -345,7 +345,7 @@ func TestARecordingThatTypesNothingIsOfferedNoValueToAskFor(t *testing.T) {
 		t.Errorf("a recording that types nothing is told %q", got.SupplySays)
 	}
 	// AND ASKING ANYWAY IS REFUSED RATHER THAN APPLIED SOMEWHERE.
-	if why := a.SupplyDraftText(0, "item"); why == "" {
+	if why := a.SupplyDraftText(a.Recording().Basis, 0, "item"); why == "" {
 		t.Error("a step that types nothing was made to supply text")
 	}
 }
@@ -381,7 +381,7 @@ func TestAMarkedOrdinaryRecordingCanStillBeEditedAndRebuilt(t *testing.T) {
 		t.Fatalf("a run typed at typing speed offers %d steps to ask for, so this "+
 			"cannot reach the state it is about: %v", len(was.Supply), was.Steps)
 	}
-	if why := a.SupplyDraftText(was.Supply[0].At, "item"); why != "" {
+	if why := a.SupplyDraftText(was.Basis, was.Supply[0].At, "item"); why != "" {
 		t.Fatalf("marking refused: %s", why)
 	}
 	if why := a.SaveDraft("app", ""); why != "" {
@@ -461,7 +461,7 @@ func TestAMarkedOrdinaryRecordingCanStillBeEditedAndRebuilt(t *testing.T) {
 func TestTheOriginalOfAMarkedRecordingComesBackWithItsMarkDescribed(t *testing.T) {
 	a := aRecordingUnderReview(t, "cloud pull stone", briskTypingIntoNotepad())
 	at := a.Recording().Supply[0].At
-	if why := a.SupplyDraftText(at, "item"); why != "" {
+	if why := a.SupplyDraftText(a.Recording().Basis, at, "item"); why != "" {
 		t.Fatalf("marking refused: %s", why)
 	}
 	if why := a.SimplifyDraft(); why != "" {
