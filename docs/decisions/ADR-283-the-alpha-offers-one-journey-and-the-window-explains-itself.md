@@ -68,16 +68,18 @@ open onto a surface the alpha cannot carry is worse than a visible one.
 Guarded in `loadActs` and `loadDemos` themselves rather than at their six call sites, because a
 seventh added later would not know to ask.
 
-`pollLearning` is **not** stopped, and this is the one place the ruling *"must not keep unnecessary
-polling active"* is answered with something other than a stop. That poll paints two things, and
-only one of them is on the Scenes view. The other is the rail's **build stamp** — which build this
-window is, and which build is doing the recording — and CLAUDE.md records what the invisible
-version of that cost: *"It cost the owner a day of recordings."* So it keeps running and the
-CADENCE goes: two and a half times a second exists for a recording in flight, and there can be none
-while the surface that starts one is withheld. Ten seconds instead.
+`pollLearning` was **not** stopped here, and this was the one place the ruling *"must not keep
+unnecessary polling active"* was answered with something other than a stop. That poll paints two
+things, and only one of them is on the Scenes view. The other is the rail's **build stamp** — which
+build this window is, and which build is doing the recording — and CLAUDE.md records what the
+invisible version of that cost: *"It cost the owner a day of recordings."* So it kept running and
+the CADENCE went from two and a half times a second to once per ten seconds.
 
-Separating the build stamp from the recorder's state is a change to what the rail knows, and it
-does not belong in a slice about navigation.
+**That was a disclosed interim compromise, and the Architect ruled it was not completion.** The
+split is made in [[ADR-288-the-rail-keeps-its-build-stamp-when-scenes-is-withheld]]: the rail's
+question is `Acts.BuildStatus`, asked on its own slow timer whatever is offered, and
+`pollLearning` is back to four hundred milliseconds, started only when Scenes is offered, and
+stopped dead — no reschedule — when it is not.
 
 ## Help
 
@@ -125,6 +127,7 @@ demonstration went.
 - It does not move any prose out of the step editor. That is slice 2.
 - It does not give the flags a control in the window.
 - It does not separate the rail's build stamp from the recorder's state.
+  [[ADR-288-the-rail-keeps-its-build-stamp-when-scenes-is-withheld]] does.
 
 ## Enforced by
 

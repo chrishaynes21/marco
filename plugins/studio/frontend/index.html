@@ -1998,9 +1998,13 @@
    acts.Features().then(f => {
      offered = (f.views || []).length ? f.views : offered
      show(view)
-     loadActs(); loadDemos()
+     // AND THE READS THAT BELONG TO A VIEW, started only once it is known to be
+     // offered. Each is guarded in itself as well -- six call sites and a seventh
+     // added later would not know to ask -- and starting them here means a withheld
+     // view costs not even the first call.
+     loadActs(); loadDemos(); pollLearning()
    })
-   poll(); pollLearning(); pollCapture(); pollRepairs(); pollRoutines()
+   poll(); pollBuild(); pollCapture(); pollRepairs(); pollRoutines()
    pollAskTargets()
    $('askBtn').onclick = askForRoutine
    $('askBox').onkeydown = (e) => {
@@ -2082,6 +2086,25 @@
    showing($('view-run'), onRun)
  }
  function leaveRun(){ onRun = false; paintViews(); loadHistory() }
+
+ // ── WHICH BUILD THIS WINDOW IS, AND WHICH BUILD IS RECORDING ───────────────
+ //
+ // THE RAIL'S OWN READ, and it runs whatever is offered. It used to be two fields of
+ // the Scenes view's poll, so withholding Scenes was a choice between a poll running two
+ // and a half times a second for a surface nobody can reach and a rail that stops saying
+ // which build is recording. Studio spawns the director beside ITSELF, so a stale one is
+ // invisible without this; CLAUDE.md records that it cost the owner a day of recordings.
+ //
+ // Ten seconds, because the answer changes only when a recording starts or ends and the
+ // call is a pair of strings. The Scenes card keeps its own sentence about the same two
+ // builds, from the same two readings, so the two cannot disagree.
+ function pollBuild(){
+   acts.BuildStatus().then(b => {
+     text($('build'), (b.build || '') +
+       (b.recorder && b.recorder !== b.build ? '  recorder ' + b.recorder : ''))
+     $('build').className = 'muted mach' + (b.mismatched ? ' no' : '')
+   }).finally(() => setTimeout(pollBuild, 10000))
+ }
 
  // ── HELP ───────────────────────────────────────────────────────────────────
 
@@ -4982,6 +5005,10 @@
  // THE RECORDING, POLLED. Its own poll because it is its own lifecycle: a recording is not
  // a run, nothing is authorised by it, and nothing it does can press anything.
  function pollLearning(){
+   // NOT AT ALL WHEN SCENES IS NOT OFFERED, and no reschedule either: this is the
+   // Scenes view's own read, and every element it paints but one is on that view. The
+   // one that is not -- the rail's build stamp -- has its own read now. See pollBuild.
+   if (!offers('scenes')) { return }
    acts.Learning().then(l => {
      showing($('recording'), !!l.active)
      showing($('learnCard'), !l.active)
@@ -5006,12 +5033,10 @@
      // is the reading count, which is what makes a wait legible instead of a guess;
      // once the answer is in and empty it is why.
      text($('learnWhy'), l.active ? (l.missing || '') : '')
-     // AND WHICH BUILDS ARE INVOLVED. Both values, never a yes/no: "they differ" is
-     // what somebody acts on and the two revisions are what tell them which to
-     // rebuild.
-     text($('build'), (l.build || '') + (l.recorder && l.recorder !== l.build
-       ? '  recorder ' + l.recorder : ''))
-     $('build').className = 'muted mach' + (l.mismatched ? ' no' : '')
+     // AND THE MISMATCH BANNER ON THIS CARD. The RAIL's stamp is `pollBuild`'s
+     // now: it is not on this view, it has to be right whether or not this view is
+     // offered, and painting it from two polls at two rates would be two answers to
+     // one question.
      showing($('learnBuild'), !!l.mismatched)
      // Somebody who pressed "That's it" a moment too early and then waited should not
      // have to press anything: the thing they were waiting for arrived.
@@ -5091,7 +5116,7 @@
    // owner's recordings. So it keeps running; what goes is the two-and-a-half-times-a-
    // second cadence, which exists for a recording in flight and there can be none while
    // the surface that starts one is withheld.
-   }).finally(() => setTimeout(pollLearning, offers('scenes') ? 400 : 10000))
+   }).finally(() => setTimeout(pollLearning, 400))
  }
 
  // ── WHAT IT LOOKED LIKE ────────────────────────────────────────────────────

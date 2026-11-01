@@ -62,6 +62,9 @@ window.go = {main: {
     // whose rail never paints. See help.go.
     Features: () => Promise.resolve({acts: true, scenes: true,
       views: ['routines', 'acts', 'scenes', 'history', 'help']}),
+    // THE RAIL'S BUILD STAMP, which is its own read now rather than two
+    // fields of the Scenes view's poll. See buildstatus.go.
+    BuildStatus: () => Promise.resolve({build: 'abc1234'}),
     Help: () => Promise.resolve({sections: [{key: 'editing',
       title: 'Editing what a routine does', lines: ['nothing is written yet']}]}),
     Recording: () => Promise.resolve({active: false}),
@@ -516,6 +519,9 @@ window.go = {main: {
     // whose rail never paints. See help.go.
     Features: () => Promise.resolve({acts: true, scenes: true,
       views: ['routines', 'acts', 'scenes', 'history', 'help']}),
+    // THE RAIL'S BUILD STAMP, which is its own read now rather than two
+    // fields of the Scenes view's poll. See buildstatus.go.
+    BuildStatus: () => Promise.resolve({build: 'abc1234'}),
     Help: () => Promise.resolve({sections: [{key: 'editing',
       title: 'Editing what a routine does', lines: ['nothing is written yet']}]}),
     PlaybackTarget: () => Promise.resolve({chosen: '4660:77',
@@ -641,6 +647,9 @@ window.go = {main: {
     // whose rail never paints. See help.go.
     Features: () => Promise.resolve({acts: true, scenes: true,
       views: ['routines', 'acts', 'scenes', 'history', 'help']}),
+    // THE RAIL'S BUILD STAMP, which is its own read now rather than two
+    // fields of the Scenes view's poll. See buildstatus.go.
+    BuildStatus: () => Promise.resolve({build: 'abc1234'}),
     Help: () => Promise.resolve({sections: [{key: 'editing',
       title: 'Editing what a routine does', lines: ['nothing is written yet']}]}),
     // THE WINDOW A RUN WOULD PRESS IN. Studio does not Play without one, so a

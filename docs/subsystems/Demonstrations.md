@@ -927,9 +927,14 @@ of it, after a demonstration.
 The rail BUTTONS and the view SECTIONS stay in the document whatever is offered; only the list
 narrows (`Features.Views`). `paintViews` used one hardcoded array as both the rail and its own
 element lookup, so deleting an entry threw mid-paint and stopped the window rendering altogether.
-`show` refuses a view that is not offered — a hidden button is not a closed door — and the two
-reads a withheld view would want are guarded in `loadActs` and `loadDemos` themselves. The
-recorder's state keeps being read, slowly, because it also paints the rail's **build stamp**.
+`show` refuses a view that is not offered — a hidden button is not a closed door — and the reads a
+withheld view would want are guarded in `loadActs`, `loadDemos` and `pollLearning` themselves, the
+last of which returns without rescheduling. The rail's **build stamp** has its own read,
+`Acts.BuildStatus`, on its own slow timer whatever is offered: it was two fields of the Scenes
+view's poll, which made withholding Scenes a choice between a poll nobody could reach and a rail
+that stops saying which build is recording. Both answers come from the same two readings, so they
+cannot disagree — and a recorder whose stream this build cannot parse is a mismatch there, which it
+was not before. See [[ADR-288-the-rail-keeps-its-build-stamp-when-scenes-is-withheld]].
 
 **And Help is one section, composed by the backend.** `Acts.Help` reuses `everywhereSentence`,
 `stopLabel` and `argKeyLabel`, because two of its sentences name a CONFIGURED key and a page that

@@ -28,7 +28,8 @@ import (
 // It COUNTS the two reads that belong to the withheld views, and the one that is shared — the
 // recorder's state, which also paints the rail's build stamp and therefore does not stop.
 const theAlphaBackend = `
-window.__saved = 0; window.__demos = 0; window.__learning = 0; window.__help = 0
+window.__saved = 0; window.__demos = 0; window.__learning = 0
+window.__help = 0; window.__build = 0
 window.go = {main: {
   Backend: {
     Loaded: () => Promise.resolve(),
@@ -40,7 +41,12 @@ window.go = {main: {
     Demonstrations: () => { window.__demos++; return Promise.resolve([]) },
     Saved: () => { window.__saved++; return Promise.resolve([]) },
     Learning: () => { window.__learning++
-      return Promise.resolve({active: false, build: 'abc1234'}) },
+      return Promise.resolve({active: false}) },
+    // THE RAIL'S OWN READ. It answers whatever is offered, and it is NOT the
+    // Scenes view's poll with two fields taken off it.
+    BuildStatus: () => { window.__build++
+      return Promise.resolve({build: 'abc1234', recorder: 'def5678',
+        mismatched: true}) },
     Applications: () => Promise.resolve([]),
     Pictures: () => Promise.resolve([]),
     Picture: () => Promise.resolve(''),
@@ -113,7 +119,11 @@ setTimeout(() => {
     ' helpSecs=' + helpSecs + ' helpOpen=' + helpOpen +
     ' helpAt=' + (helpAt === 'help' ? 1 : 0) +
     ' saved=' + window.__saved + ' demos=' + window.__demos +
-    ' learning=' + window.__learning + ' help=' + window.__help
+    ' learning=' + window.__learning + ' help=' + window.__help +
+    ' build=' + window.__build +
+    ' stamp=' + (document.getElementById('build').textContent
+      .indexOf('recorder def5678') >= 0 ? 1 : 0) +
+    ' red=' + (document.getElementById('build').className.indexOf('no') >= 0 ? 1 : 0)
 }, 5200)`)
 	if !strings.Contains(title, "painted=") {
 		t.Fatalf("the page never reported its counters: %q", title)
@@ -152,18 +162,30 @@ setTimeout(() => {
 		t.Errorf("%d reads of the demonstrations for a view that is not offered: %q",
 			n("demos"), title)
 	}
-	// THE RECORDER'S STATE IS NOT ONE OF THEM. It paints the rail's build stamp as
-	// well as the Scenes card, and that stamp is the only thing in this window that
-	// makes a stale director visible — CLAUDE.md records that the invisible version
-	// of it cost the owner a day of recordings. So it keeps running, slowly: once
-	// at startup and roughly once per ten seconds, against five seconds of page.
-	if l := n("learning"); l == 0 {
-		t.Errorf("the recorder's state is never read, so the rail cannot say which "+
-			"build is recording: %q", title)
-	} else if l > 2 {
-		t.Errorf("%d reads of the recorder's state in five seconds with the view "+
-			"that starts one withheld — the fast poll is still running: %q",
-			l, title)
+	// AND THE SCENES VIEW'S OWN READ IS NOT MADE AT ALL.
+	//
+	// It used to paint the rail's build stamp as well as the Scenes card, so
+	// withholding Scenes was a choice between a poll running for a surface nobody
+	// can reach and a rail that stops saying which build is recording. The stamp has
+	// its own read now.
+	if l := n("learning"); l != 0 {
+		t.Errorf("%d read(s) of the Scenes view's state for a view that is not "+
+			"offered: %q", l, title)
+	}
+	// ── AND THE RAIL STILL SAYS WHICH BUILD IS RECORDING ──
+	//
+	// Studio spawns the director beside ITSELF, so a stale one is invisible without
+	// this; CLAUDE.md records that it cost the owner a day of recordings.
+	if n("build") == 0 {
+		t.Fatalf("the rail's build stamp is never read, so a stale director is "+
+			"invisible: %q", title)
+	}
+	if n("stamp") != 1 {
+		t.Errorf("the rail does not name the recorder's build beside its own: %q",
+			title)
+	}
+	if n("red") != 1 {
+		t.Errorf("the rail does not mark a build mismatch: %q", title)
 	}
 	// AND HELP IS ASKED FOR ONCE. None of it changes while the window is open.
 	if h := n("help"); h != 1 {
@@ -196,7 +218,8 @@ setTimeout(() => { show('acts'); viewA = seen('view-acts') }, 1500)
 setTimeout(() => { show('scenes'); viewS = seen('view-scenes') }, 1800)
 setTimeout(() => {
   document.title = 'railA=' + railA + ' railS=' + railS + ' viewA=' + viewA +
-    ' viewS=' + viewS + ' saved=' + window.__saved + ' demos=' + window.__demos
+    ' viewS=' + viewS + ' saved=' + window.__saved + ' demos=' + window.__demos +
+    ' learning=' + window.__learning + ' build=' + window.__build
 }, 5200)`)
 	n := func(key string) int {
 		m := regexp.MustCompile(`\b` + key + `=(-?\d+)`).FindStringSubmatch(title)
@@ -214,5 +237,17 @@ setTimeout(() => {
 	}
 	if n("saved") == 0 || n("demos") == 0 {
 		t.Errorf("the views are offered and nothing fills them: %q", title)
+	}
+	// AND THE SCENES VIEW'S OWN READ IS RUNNING, which is the converse of the alpha
+	// test's claim: withholding Scenes suppresses it, and offering Scenes must start
+	// it. Fast, because it paints a recording in flight.
+	if l := n("learning"); l < 3 {
+		t.Errorf("%d read(s) of the Scenes view's state in five seconds with Scenes "+
+			"offered, so a recording in flight would be narrated from a stale "+
+			"answer: %q", l, title)
+	}
+	// AND THE RAIL'S OWN READ IS STILL ITS OWN, whichever views are offered.
+	if n("build") == 0 {
+		t.Errorf("the rail's build stamp is never read: %q", title)
 	}
 }

@@ -159,6 +159,8 @@ Slices 1 and 2 touch no saved routine. 3 and 4 do.
 - [[ADR-284-the-step-editor-is-a-list-of-rows]] — slice 2
 - [[ADR-285-a-routine-can-be-called-something-else]] — slice 3
 - [[ADR-286-a-press-can-be-moved]] — slice 4
+- [[ADR-287-a-re-render-keeps-the-credential-it-was-reading]] — the correction slice 3 found
+- [[ADR-288-the-rail-keeps-its-build-stamp-when-scenes-is-withheld]] — the polling split slice 1 deferred
 - [[Studio-journey-discoverability-2026-10-31]]
 - [[Studio-UI-audit-2026-10-29]]
 - [[ADR-282-a-run-of-steps-can-be-said-to-be-typed-text]]

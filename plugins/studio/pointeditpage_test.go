@@ -54,6 +54,9 @@ window.go = {main: {
     Library: () => Promise.resolve({dir: 'C:/x/routes'}),
     Features: () => Promise.resolve({acts: false, scenes: false,
       views: ['routines', 'history', 'help']}),
+    // THE RAIL'S BUILD STAMP, which is its own read now rather than two fields of
+    // the Scenes view's poll. See buildstatus.go.
+    BuildStatus: () => Promise.resolve({build: 'abc1234'}),
     Help: () => Promise.resolve({sections: []}),
     Routines: () => Promise.resolve([{id: 'notepad/focus/address', name: 'address',
       slug: 'address', app: 'notepad', scope: 'app-focus', contract: 'legacy',
