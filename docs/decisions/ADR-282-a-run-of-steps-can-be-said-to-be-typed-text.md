@@ -162,11 +162,36 @@ third direction.
   change rather than Simplify. The first version of that test asserted a basis change that never
   happened.
 
-## Not here yet
+## And the saved routine's panel, which is the second increment
 
-**The saved routine's panel**, which is the second of two increments and uses the same validator.
-It matters and is not optional: the recording that exposed this is already on disk, and a repair
-reachable only from the review would mean re-recording it. This ADR is amended when it lands.
+Landed, through the same validator, because the recording that exposed this is ALREADY ON DISK: a
+repair reachable only from the recording review would mean asking somebody to redo a demonstration
+because of how it was filed.
+
+`orchestrator.EditTyped` is the operation, `TypedRunsIn` proposes the runs off the list the panel
+is showing, and `typedRun` decides — the same function, so a range that is not typing is not
+typing in either place. It goes through `ReviewStepEdit` and `SaveStepEdit` like every other
+change: nothing written until both sources have been seen.
+
+**It is reviewed ON ITS OWN, and that is the one thing about it worth arguing.** Every other
+operation here keeps the list the same length, which is why they can be collected against the
+positions the caller was shown and applied together (`applyEdits`). This one makes the list
+shorter, so every position after the run moves — and nothing says whether a position somebody
+asked about was read before or after it. Translating them would be guessing on their behalf about
+their own routine, so a review holding a declaration holds nothing else and says so. The page
+clears what was collected BEFORE it sends, rather than sending it to be refused, and says that in
+the line where the refusal would have gone.
+
+`Upto` is its own term on `StepEdit` rather than reusing `To`, which is a duration. A field meaning
+milliseconds for one operation and a step number for another is a field whose meaning a reader has
+to hold in their head, in the one struct where a wrong number changes somebody's routine quietly.
+
+### What it closes
+
+`cloud pull stone`, as saved on the owner's disk on 30 October, with its word written down as four
+held keys and a tap: declare the run, save, and the routine types `stone`. Then ask for it — the
+value is one step now — and the Play card asks for `item`. Both through the panel, on a routine
+nobody has to record again.
 
 ## Enforced by
 
@@ -211,3 +236,26 @@ reachable only from the review would mean re-recording it. This ADR is amended w
   `TestAReviewWithNothingToDeclareHasNoTypedBox` — rendered in headless Edge, including that the
   option's VALUE carries both ends of the range: a label that is right over a value that is one
   number would declare the wrong steps, and no assertion on visible text would notice.
+- `plugins/studio` `TestASavedRolloverCanBeDeclaredTypedText` — the panel offers the run, the
+  review shows a version that types the word and holds no keys, nothing is written until Save, and
+  the save is not a partial one. One mutation, killed: reading the range off `To` instead of
+  `Upto`.
+- `plugins/studio` `TestARepairedRoutineCanBeAskedForItsValue` — **the journey from a routine
+  that was already filed**: held keys on disk → declared → saved → the panel asked again (which
+  needs the account the save left) → the word made something the routine asks for → the Play card
+  asking for `item` → and a rebuild under today's rules keeping both.
+- `plugins/studio` `TestADeclarationAskedWithAnotherChangeIsRefused` — refused with the reason,
+  and nothing written. One mutation, killed: dropping the exclusivity guard from `applyEdits`.
+- `plugins/studio` `TestASavedDeclarationObeysTheSameRules` — a range holding an activate is
+  refused here in the same words the review refuses it in, which is what sharing `typedRun` is
+  for.
+- `plugins/studio` `TestThePanelDeclaresATypedRunOnItsOwn` — rendered: the control is on the
+  panel, the range survives the option and the call, and the press CLEARS what was collected
+  before it sends one operation carrying the basis. One mutation, killed: deleting the clear —
+  and it survived the first version of the assertion, which read the asked box 300ms later, by
+  which time the stub's refusal had re-listed and cleared it anyway. The read is now in the same
+  tick as the click.
+
+Splitting `stepEditBackend` out of `stepeditpage_test.go`'s harness belongs to this slice too: that
+const held the stub AND that file's sequence of presses, so a second test appending its own driver
+ran both at once. A harness that carries a script is not a harness.

@@ -1303,6 +1303,26 @@
         <div class="muted" id="routineStepsNote"></div>
         <div id="routineStepRows" class="steprows" style="margin-top:8px"></div>
         <div class="muted hide" style="margin-top:8px" id="routineStepAsked"></div>
+        <!-- AND A RUN OF THOSE STEPS CAN BE SAID TO BE TYPED TEXT.
+             The same operation the recording review offers, here because the recording
+             that exposed the defect is ALREADY SAVED: typing comes back as held keys
+             whenever the next key went down before the last came up, and a repair
+             reachable only from the review would mean recording it again.
+
+             ITS OWN BUTTON, NOT A CHANGE IN THE LIST ABOVE. Every change collected there
+             keeps the list the same length, so they can be applied together against the
+             positions on screen; this one makes it shorter and moves every position after
+             it. The contract refuses it alongside anything else and says so, and a
+             control that let somebody build that combination would be a control whose
+             refusal arrives at the review. See orchestrator.EditTyped. -->
+        <div class="hide" style="margin-top:10px" id="routineTypedBox">
+          <div class="muted" id="routineTypedSays"></div>
+          <div class="row hide" style="margin-top:8px" id="routineTypedRow">
+            <label style="width:7em" for="routineTypedAt">typed text</label>
+            <select id="routineTypedAt" style="flex:1"></select>
+            <button onclick="reviewTypedRun()">That is text I typed</button>
+          </div>
+        </div>
         <div class="row" style="margin-top:10px">
           <button id="routineStepReviewBtn"
             onclick="reviewStepEdit()">Review these changes</button>
@@ -3309,6 +3329,25 @@
      'types something you supply each time \u2014 all of that step\u2019s text, not part ' +
      'of it. The routine is written again from this list, so removing a press removes the ' +
      'whole of it, and the waits around it stay as they are until you change them too.')
+   // AND THE RUNS A PERSON COULD DECLARE TYPED TEXT, from the backend, with the range in
+   // the option’s value because a run has two ends and a single number would make the
+   // page reconstruct the other.
+   const typedRuns = (stepList.typed_runs || [])
+   showing($('routineTypedBox'), !!stepList.typed_says)
+   showing($('routineTypedRow'), typedRuns.length > 0)
+   text($('routineTypedSays'), stepList.typed_says || '')
+   const typedPick = $('routineTypedAt')
+   const chosenRun = typedPick.value
+   typedPick.innerHTML = ''
+   typedRuns.forEach(c => {
+     const o = document.createElement('option')
+     o.value = c.from + ':' + c.to
+     o.textContent = c.label
+     typedPick.appendChild(o)
+   })
+   if (typedRuns.some(c => (c.from + ':' + c.to) === chosenRun)) {
+     typedPick.value = chosenRun
+   }
    const box = $('routineStepRows')
    box.innerHTML = ''
    stepList.rows.forEach(row => {
@@ -3450,6 +3489,45 @@
    }
    text(box, 'Asked: ' + stepChanges.map(saysChange).join('; ') +
      '. Nothing is written until you review and save it.')
+ }
+
+ // DECLARING A RUN TYPED TEXT GOES THROUGH THE SAME REVIEW as every other change, so it is
+ // nothing written, both sources shown, and a Save afterwards.
+ //
+ // ON ITS OWN, because the contract refuses it beside anything else: it changes how many steps
+ // there are, which moves every position the other changes were read off. Whatever somebody had
+ // collected is dropped first and the sentence says so, rather than being sent along to be
+ // refused.
+ function reviewTypedRun(){
+   const r = routineWith(chosenRoutine)
+   if (!r || !stepList) { return }
+   const ends = $('routineTypedAt').value.split(':')
+   const from = parseInt(ends[0], 10)
+   const to = parseInt(ends[1], 10)
+   if (!Number.isInteger(from) || !Number.isInteger(to)) {
+     text($('routineStepsWhy'), 'choose the run of steps that is text you typed')
+     return
+   }
+   if (stepChanges.length) {
+     stepChanges = []
+     drawStepAsked()
+     text($('routineStepsWhy'), 'the other changes were cleared — saying which steps ' +
+       'are typed text changes how many steps there are, so it is reviewed on its own')
+   } else {
+     text($('routineStepsWhy'), '')
+   }
+   acts.ReviewStepEdit(r.id, stepList.basis,
+     [{op: 'typed', at: from, upto: to, to: 0, name: ''}]).then(v => {
+     if (!v || v.why) {
+       stepReview = null
+       showing($('routineStepEdit'), false)
+       text($('routineStepsWhy'), (v && v.why) || 'that could not be prepared')
+       stepEditingAgain()
+       return
+     }
+     stepReview = v
+     drawStepEdit()
+   })
  }
 
  // PREPARING AN EDIT WRITES NOTHING, and it is the only way to reach `SaveStepEdit`.

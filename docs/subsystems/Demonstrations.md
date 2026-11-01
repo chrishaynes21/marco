@@ -906,7 +906,14 @@ means no second process, not no second writer: Simplify, going back to the origi
 all move the positions.
 
 A declared run sets `Draft.Changed`, so the save writes the step account that keeps it through the
-edit panel and a rebuild. See [[ADR-282-a-run-of-steps-can-be-said-to-be-typed-text]].
+edit panel and a rebuild.
+
+**And the saved routine's panel offers it too** (`orchestrator.EditTyped`), because the recording
+that exposed this is already on disk and a repair reachable only from the review would mean
+recording it again. It is reviewed ON ITS OWN: it is the one operation that changes how many steps
+there are, so every position the other changes were read off moves under it, and nothing says
+whether a position was read before or after the run. See
+[[ADR-282-a-run-of-steps-can-be-said-to-be-typed-text]].
 
 ## Known gaps
 

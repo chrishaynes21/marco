@@ -105,6 +105,22 @@ const (
 	// ([[ADR-277-a-request-may-propose-the-text-a-routine-types]]). Nothing downstream needed
 	// changing, which is the whole reason this is three lines of IR and not a feature.
 	EditArgument EditOp = "argument"
+	// EditTyped replaces a RANGE of steps with one step that types the text they typed,
+	// because somebody has said that is what they are.
+	//
+	// THE ONLY OPERATION HERE THAT IS NOT ABOUT ONE STEP, and the reason it needs a
+	// second position: typing comes back from a recording as held keys whenever the next
+	// key went down before the last came up, so the thing being declared is a run. See
+	// `typedRun`, which is also what the recording review asks
+	// ([Deps.TypedInDraft]), and [[ADR-282-a-run-of-steps-can-be-said-to-be-typed-text]].
+	//
+	// IT IS REVIEWED ON ITS OWN. Every other operation keeps the list the same length, so
+	// they can be collected against the positions the caller was shown and applied
+	// together; this one makes it shorter, which moves every position after it. Rather
+	// than translate the others — which cannot be done honestly, because nothing says
+	// whether a position was read before or after the run — a review holding this holds
+	// nothing else, and says so.
+	EditTyped EditOp = "typed"
 )
 
 // argName is what a placeholder's name may be: exactly what `routes` own pattern will read back.
@@ -128,6 +144,14 @@ type StepEdit struct {
 	At int `json:"at"`
 	// To is the new duration in milliseconds, for EditWait. Ignored otherwise.
 	To int `json:"to"`
+	// Upto is the LAST position of the range, for EditTyped, with `At` the first and both
+	// ends in it. Ignored otherwise.
+	//
+	// Its own term rather than `To`, which is a duration: a field meaning milliseconds for
+	// one operation and a step number for another is a field whose meaning a reader has to
+	// hold in their head, in the one struct where a wrong number changes somebody's
+	// routine quietly.
+	Upto int `json:"upto"`
 	// Name is what the supplied text is called, for EditArgument. Ignored otherwise.
 	//
 	// LOWERCASED when it is applied, because every reader downstream compares these
@@ -528,6 +552,39 @@ func applyEdits(steps []macroir.Step, edits []StepEdit) ([]macroir.Step, []strin
 	waits := map[int]int{}
 	args := map[int]string{}
 	var says []string
+	// ── A DECLARATION THAT A RUN IS TYPED TEXT IS REVIEWED ON ITS OWN ──
+	//
+	// Because it is the one operation that changes the LENGTH of the list, and every
+	// position in this review was read off the list as it stands. Collecting it with the
+	// others would mean deciding whether each of them referred to a position before or
+	// after the run, which nothing says. So it arrives alone or it is refused, before
+	// anything is applied. See EditTyped.
+	for _, ed := range edits {
+		if ed.Op != EditTyped {
+			continue
+		}
+		if len(edits) != 1 {
+			return nil, nil, "", nil, fmt.Errorf("saying which steps are typed " +
+				"text changes how many steps there are, so it is the only " +
+				"thing one set of changes can do — ask for it on its own, " +
+				"and for the rest afterwards")
+		}
+		text, terr := typedRun(steps, ed.At, ed.Upto)
+		if terr != nil {
+			return nil, nil, "", nil, terr
+		}
+		out := make([]macroir.Step, 0, len(steps))
+		out = append(out, steps[:ed.At]...)
+		out = append(out, macroir.Step{Kind: macroir.StepType, Text: text})
+		out = append(out, steps[ed.Upto+1:]...)
+		// AND IT DECLARES NO ARGUMENT, which is not an omission: `typedRun` refuses a
+		// range holding text the routine already asks for, so a placeholder cannot be
+		// inside what this produces. The names the ROUTINE already declares are the
+		// caller's to carry, as they are for every other operation here.
+		return out, []string{fmt.Sprintf("steps %d to %d become one step that types "+
+			"%q, and the waits between them are gone", ed.At+1, ed.Upto+1,
+			text)}, "", nil, nil
+	}
 	for _, ed := range edits {
 		if ed.At < 0 || ed.At >= len(steps) {
 			return nil, nil, "", nil, fmt.Errorf("there is no step %d in a routine of %d "+

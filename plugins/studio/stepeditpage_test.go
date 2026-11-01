@@ -31,7 +31,13 @@ import (
 // It refuses twice on purpose — once at Review with a moved basis, once at Save with a routine
 // saved since — because both refusals have to leave the panel on the screen with the way forward
 // beside it, and neither is reachable from a backend test.
-const stepEditHarness = `
+// stepEditBackend is the stub and the little helpers, WITHOUT a driver.
+//
+// Split out because `stepEditHarness` below is this file's stub AND this file's sequence of
+// presses, and a second test that appended its own driver to it ran both at once: two reviews, a
+// re-listed basis, and counters that made no sense. Found by writing that second test. A harness
+// that carries a script is not a harness.
+const stepEditBackend = `
 window.go = {main: {
   Backend: {
     Loaded: () => Promise.resolve(),
@@ -64,6 +70,10 @@ window.go = {main: {
       window.listed = (window.listed || 0) + 1
       return Promise.resolve({id: id, name: 'address', editable: true,
         basis: window.listed === 1 ? 'basis-one' : 'basis-two',
+        typed_runs: [{from: 1, to: 3, label: 'steps 2 to 4 - types \"stone\"'}],
+        typed_says: 'If a run of steps is text you typed, say so and it becomes ' +
+          'one step: the keys in it stop being held and the waits between ' +
+          'them go. Waits outside the run are left alone.',
         rows: [
           {at: 0, says: 'bring notepad to the front'},
           {at: 1, says: 'wait 2500ms', wait: true, ms: 2500},
@@ -162,6 +172,10 @@ const listShown = () =>
   !document.getElementById('routineSteps').classList.contains('hide')
 const editShown = () =>
   !document.getElementById('routineStepEdit').classList.contains('hide')
+`
+
+// stepEditHarness is that stub with THIS file's driver on it.
+const stepEditHarness = stepEditBackend + `
 let rows = 0, rowText = '', waitBox = 0, pressBox = 1, cutEvery = 0
 let addBtn = 1, deadBtn = 1, askedText = '', liveBtn = 0
 let staleWhy = '', staleList = 0, staleAsked = 'x', staleRows = 0

@@ -102,6 +102,10 @@ type StepChange struct {
 	At int    `json:"at"`
 	// To is the new duration in milliseconds, for a wait.
 	To int `json:"to"`
+	// Upto is the last position of the range, for a "typed" change, with `At` the first
+	// and both ends in it. Its own term rather than `To`, which is a duration: see
+	// orchestrator.StepEdit.Upto.
+	Upto int `json:"upto"`
 	// Name is what the supplied text is called, for an "argument" change.
 	Name string `json:"name"`
 }
@@ -125,6 +129,15 @@ type StepEditing struct {
 	// Editable is whether anything can be asked at all, which is `Why` being empty and
 	// there being steps to ask about.
 	Editable bool `json:"editable,omitempty"`
+	// TypedRuns is the runs of these steps that could be declared TYPED TEXT, and
+	// TypedSays is what declaring one costs.
+	//
+	// HERE AS WELL AS ON THE RECORDING REVIEW, and not as a convenience: the recording
+	// that exposed this defect is already saved, and a repair reachable only from the
+	// review would mean recording it again. Same proposals, same validator — the
+	// orchestrator’s `TypedRunsIn`, asked of the list this panel is showing.
+	TypedRuns []TypedChoice `json:"typed_runs,omitempty"`
+	TypedSays string        `json:"typed_says,omitempty"`
 }
 
 // StepPreview is one reviewed edit, before anything is written.
@@ -211,8 +224,11 @@ func (a *Acts) StepEditing(id string) StepEditing {
 			Why: err.Error()}
 	}
 	rows := stepRows(e)
+	// AND WHICH RUNS OF THEM A PERSON COULD DECLARE TYPED TEXT, off the same list the
+	// rows came from so a range the chooser offers is a range of the rows on screen.
+	runs := typedChoices(e.Steps())
 	return StepEditing{ID: id, Name: e.Name, Basis: e.Basis, Rows: rows,
-		Editable: len(rows) > 0}
+		Editable: len(rows) > 0, TypedRuns: runs, TypedSays: typedCaption(runs)}
 }
 
 // stepRows is a review's step list as the panel shows it.
@@ -291,7 +307,7 @@ func (a *Acts) ReviewStepEdit(id, basis string, changes []StepChange) StepPrevie
 		// the one `routes` own pattern will read back.
 		edits = append(edits, orchestrator.StepEdit{
 			Op: orchestrator.EditOp(strings.TrimSpace(c.Op)), At: c.At, To: c.To,
-			Name: c.Name})
+			Upto: c.Upto, Name: c.Name})
 	}
 	d := orchestrator.Deps{Reg: a.reg(), Out: &strings.Builder{}}
 	e, err := d.PrepareEditOf(chosen.route(), basis, edits)
