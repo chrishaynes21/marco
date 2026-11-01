@@ -952,6 +952,31 @@ in the one state where it appears. The paragraph above the list is in Help now; 
 pair warning, what has been asked and what a typed-run declaration costs all stay on the panel.
 Every control on a row names its step. See [[ADR-284-the-step-editor-is-a-list-of-rows]].
 
+**And a routine can be called something else**, as a reviewed move. `PrepareRescope`'s body is
+`prepareMove` now and `PrepareRename` is its second entrance: a move changes an IDENTITY, and an
+identity has two halves — where the routine works and what it is called. Everything the move
+engine guarantees is the same one, including that the destination is read back before the
+original is removed and that a destination written with the original still there is reported as
+two routines.
+
+Three things are the rename's own. The box edits the NAME: the `with …` clause is shown beside it
+as a chip, read out of the SOURCE because a saved header does not carry one — the declaration
+lives in the steps, as `{{item}}` in the text of a step that types. A COLLISION IS REFUSED with
+nothing to agree to, so `RenameRoutine` takes the token alone and the page draws no consent row.
+And a routine whose source reads a credential qualified by its own name — `<slug>:password`, which
+is what `codegen` writes for a declared secret — is REFUSED, because a rename re-renders and the
+qualifier would move with the name, sending the routine to the credential store under a name
+nobody stored anything under. Nothing is read from the store and nothing is migrated into it.
+
+The rename tests found a defect in the move engine that is **not** about renaming: `codegen` is
+told which argument names are declared, and an undeclared `{{name}}` is not a placeholder to it —
+`splitSecrets` turns it into `do OS's Secret with "name"`. The declared set came from the routine's
+NAME alone, which carries no clause, so every move of a routine that asked for a value produced
+one that read the credential store for it instead. Fixed in the shared path with `suppliedIn`.
+STILL OPEN, and ruled on by nobody yet: the secret QUALIFIER is lost on every re-render of a saved
+routine, so a rescope or a step edit turns `<slug>:password` into `password`. See
+[[ADR-285-a-routine-can-be-called-something-else]].
+
 ## Known gaps
 
 See the *Known gaps* section of [[director-demonstrations]].

@@ -121,7 +121,16 @@ type Routine struct {
 	// Source is the saved Marco. Shown on request, always available: a routine is legal
 	// Marco so that somebody can read what they kept and recognise it — the same reason
 	// an Act shows its play.
-	Source  string `json:"source,omitempty"`
+	Source string `json:"source,omitempty"`
+	// Clause is what this routine asks for, written the way a name declares it —
+	// `with item` — and "" when it asks for nothing.
+	//
+	// FOR THE RENAME BOX, which edits the NAME and keeps the values. It is read out of
+	// the source, because a saved routine's header does not carry the clause: the
+	// declaration lives in the steps, as `{{item}}` in the text of a step that types. A
+	// page that built this out of the name would say every routine in the library asks
+	// for nothing. See rename.go.
+	Clause  string `json:"clause,omitempty"`
 	SavedAt string `json:"saved_at,omitempty"`
 	Path    string `json:"path,omitempty"`
 	// Generation is which of the four readings the saved source gives for the generation
@@ -242,7 +251,7 @@ func (a *Acts) Routines() []Routine {
 		// to what somebody called their own routine.
 		r := Routine{ID: routeID(rt), Name: orchestrator.NameIn(src, rt.Slug),
 			Slug: rt.Slug, App: rt.App, Focus: rt.Focus, Scope: scopeWord(rt),
-			Source: src, Path: path}
+			Source: src, Path: path, Clause: clauseOf(src)}
 		if st, serr := os.Stat(path); serr == nil {
 			r.SavedAt = st.ModTime().Local().Format("2006-01-02 15:04")
 		}

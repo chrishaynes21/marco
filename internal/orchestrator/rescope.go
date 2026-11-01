@@ -71,8 +71,12 @@ type Rescoping struct {
 	From, To routes.Route
 	// Want is the scope asked for, as a word a person chose.
 	Want Scope
-	// Name is what the routine calls itself, out of its own header.
+	// Name is what the routine calls itself NOW, out of its own header.
 	Name string
+	// Renaming is what it would be called instead, and "" for a move that is not a
+	// rename. A move changes an identity, and the identity has two halves: where the
+	// routine works and what it is called. See PrepareRename.
+	Renaming string
 	// Was is the source as it stands — hand edits and all — and Now the source a move
 	// would write at the destination. Both in full: a list of differences is an
 	// interpretation, and the file is the thing that will run.
@@ -212,6 +216,24 @@ func (d Deps) PrepareRescope(rt routes.Route, want Scope, app string) (Rescoping
 		return Rescoping{}, fmt.Errorf("%q already works there, so there is nothing "+
 			"to move", NameOf(d.Reg, rt))
 	}
+	return d.prepareMove(rt, want, app, "")
+}
+
+// prepareMove is the whole of a move, for both of the things a move can change.
+//
+// A MOVE IS A CHANGE OF IDENTITY, and a routine's identity has two halves: the scope it works
+// under and the name it is called by. `PrepareRescope` changes the first and `PrepareRename` the
+// second, and everything between the two of them is the same work — read the source, read the
+// demonstration, believe the step account only while it still describes both files, carry the
+// phrases, render for the destination, and look at what is already there.
+//
+// `renaming` is the new name, or "" for a move that keeps the name. It is the BASE name only:
+// the `with …` clause that declares the arguments is taken off the routine's current name and
+// put back, here, because the name is where an argument is DECLARED and a free-text rename is
+// otherwise a way to drop one without being told.
+//
+// IT WRITES NOTHING, like the entrances to it.
+func (d Deps) prepareMove(rt routes.Route, want Scope, app, renaming string) (Rescoping, error) {
 	path := d.Reg.Path(rt)
 	raw, err := os.ReadFile(path)
 	if err != nil {
@@ -293,6 +315,53 @@ func (d Deps) PrepareRescope(rt routes.Route, want Scope, app string) (Rescoping
 		m.Refused = why
 		return m.sealed(), nil
 	}
+	// ── AND THE OTHER HALF OF THE IDENTITY, WHEN THAT IS WHAT IS MOVING ──
+	//
+	// The slug is derived HERE and not taken from a caller, through the same
+	// `routes.Slug` every other writer uses, because a destination somebody else spelled
+	// is a destination this flow cannot promise anything about.
+	//
+	// And the `with …` clause is carried: the name DECLARES the arguments, so a rename
+	// that took the caller's words whole would be a way to drop one silently. The draft
+	// is renamed with it, so the source the review shows is the source the new name
+	// renders to — a review of a file written under the old name would be a review of
+	// something nobody is about to save.
+	if renaming != "" {
+		full, why := renamedTo(m.Name, renaming, rt)
+		if why != "" {
+			m.Refused = why
+			return m.sealed(), nil
+		}
+		m.Renaming = full
+		to.Slug = routes.Slug(full)
+		if dr != nil {
+			dr.Name, dr.Args = routes.SplitArgs(full)
+		}
+	}
+	// ── AND THE VALUES THE ROUTINE ASKS FOR, WHICH ARE NOT IN ITS NAME ──
+	//
+	// THIS IS A DEFECT IN THE MOVE ENGINE AND IT IS NOT ABOUT RENAMING. It was found by
+	// the rename tests and it is older than them: a move RE-RENDERS, and `codegen` is
+	// told which argument names are declared. An UNDECLARED `{{name}}` is not a plain
+	// placeholder to it — `splitSecrets` turns it into `do OS's Secret with "name"`, a
+	// read of the person's CREDENTIAL STORE. So moving a routine that asks for a value
+	// produced a routine that asks the credential store for it instead, and the move
+	// review showed that as the version it would write.
+	//
+	// The declared set came from `routes.SplitArgs(m.Name)` alone, and a SAVED routine's
+	// header does not carry the `with …` clause: the declaration lives in the steps, as
+	// `{{item}}` in the text of a `StepType`. Every other re-render in this package reads
+	// it that way — `declaredFor`, which is `SplitArgs` plus `suppliedIn` — and this one
+	// did not.
+	//
+	// `suppliedIn` leaves a name that MEANS a secret alone (`password`, `pin`, `token`),
+	// so a genuine credential is still rendered as one and stays route-qualified.
+	//
+	// Measured: a routine whose step typed `{{item}}` rendered as
+	// `do OS's Secret with "item"` on the other side of a move.
+	if dr != nil {
+		dr.Args = append(dr.Args, suppliedIn(dr.Steps, dr.Args)...)
+	}
 	m.To, m.TakenID = to, RouteID(to)
 
 	switch {
@@ -329,6 +398,16 @@ func (d Deps) PrepareRescope(rt routes.Route, want Scope, app string) (Rescoping
 		return m.sealed(), nil
 	}
 	m.Now, m.assets = now, assets
+	// ── AND A CREDENTIAL THE NEW NAME WOULD LOOK FOR SOMEWHERE ELSE ──
+	//
+	// Nothing is read from the credential store here and nothing is migrated into it.
+	// See secretsWouldMove, which is the whole of this question.
+	if m.Renaming != "" {
+		if why := secretsWouldMove(m.Was, m.Now); why != "" {
+			m.Refused = why
+			return m.sealed(), nil
+		}
+	}
 	// ── AND WHAT IS ALREADY THERE, WHICH IS A SEPARATE QUESTION FROM THIS ROUTINE ──
 	m.toSourceAt, m.toRecordingAt = d.versionAt(to)
 	if m.toSourceAt != "" {
@@ -789,6 +868,10 @@ func (m Rescoping) sealed() Rescoping {
 		m.From.Slug, m.From.App, fmt.Sprint(m.From.Focus),
 		m.To.Slug, m.To.App, fmt.Sprint(m.To.Focus),
 		m.library, string(m.Want),
+		// AND WHAT IT WOULD BE CALLED, which is the other half of the identity a
+		// move writes: two preparations of the same routine into the same scope
+		// under two different names must not share a token.
+		m.Renaming,
 	))
 	return m
 }

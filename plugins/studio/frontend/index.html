@@ -457,6 +457,12 @@
    border-bottom:1px dotted var(--spot)}
  .hint:focus-visible{outline:2px solid var(--spot);outline-offset:2px}
 
+ /* WHAT A CONTROL KEEPS, shown beside it and not in it. A chip rather than text,
+    because it is a fact about the thing being edited rather than part of the edit. */
+ .chip{font:600 10.5px var(--sans);letter-spacing:.04em;text-transform:uppercase;
+   padding:2px 6px;border-radius:999px;background:var(--spot-bg);color:var(--spot);
+   white-space:nowrap}
+
  .hide{display:none!important}
 </style>
 
@@ -1420,6 +1426,35 @@
         <div id="routineWhereChoices"></div>
       </div>
 
+      <!-- CALLING IT SOMETHING ELSE, WHICH IS A MOVE TO ANOTHER NAME.
+           It goes through the SAME review panel below: a rename re-renders, both
+           sources are shown, and nothing is written until the button under them.
+
+           THE BOX HOLDS THE NAME AND NOT WHAT THE ROUTINE ASKS FOR. The values live
+           in the steps as placeholders, and the clause beside the box is what a name
+           would declare them as -- shown so that somebody retyping a name can see the
+           part they are not being asked to retype. A box holding the whole phrase is a
+           way to drop a value by retyping, and the routine would then type the literal
+           text of the demonstration the next time it ran. See rename.go. -->
+      <div class="deed" id="routineRenameRow">
+        <div class="row">
+          <button id="routineRenameBtn" onclick="revealRename()">Rename it</button>
+        </div>
+        <div class="muted">It keeps where it works, what it asks for, the phrases it
+          answers to, your demonstration and the steps you edited. Nothing is written
+          until you review it.</div>
+        <div class="row hide" style="margin-top:8px" id="routineRenameForm">
+          <label for="routineRenameBox" style="width:7em">new name</label>
+          <input type="text" id="routineRenameBox" placeholder="what to call it"
+            style="flex:1;min-width:0">
+          <span class="chip hide" id="routineRenameClause"></span>
+          <button class="go" id="routineRenameGo" onclick="reviewRename()"
+            >Review the rename</button>
+          <button id="routineRenameCancel" onclick="hideRename()">Cancel</button>
+        </div>
+        <div class="no hide" style="margin-top:6px" id="routineRenameWhy"></div>
+      </div>
+
       <!-- THE MOVE ITSELF: BOTH SOURCES, WHAT IS IN THE WAY, AND ONE BUTTON.
            NOT in a collapsed detail, for the reason the rebuild review is not: its
            caution, its refusal and the consent it needs have to be readable.
@@ -1449,7 +1484,7 @@
             <pre id="routineMoveWas"></pre>
           </details>
           <details style="flex:1;min-width:0">
-            <summary>What a move would write
+            <summary><span id="routineMoveWrites">What a move would write</span>
               (<span id="routineMoveTo"></span>)</summary>
             <pre id="routineMoveNow"></pre>
           </details>
@@ -3934,6 +3969,55 @@
    })
  }
 
+ // ── CALLING IT SOMETHING ELSE ──────────────────────────────────────────────
+ //
+ // The box is revealed rather than open, like the record form: a text field sitting
+ // under every routine with its name already in it reads as something to edit.
+
+ function revealRename(){
+   const r = routineWith(chosenRoutine)
+   if (!r) { return }
+   showing($('routineRenameForm'), true)
+   $('routineRenameBox').value = r.name || ''
+   text($('routineRenameWhy'), '')
+   showing($('routineRenameWhy'), false)
+   // WHAT IT ASKS FOR, BESIDE THE BOX. From the backend, which reads it out of the
+   // routine's own steps: the saved header does not carry the clause, so a page that
+   // built this out of the name would say every routine asks for nothing.
+   text($('routineRenameClause'), r.clause || '')
+   showing($('routineRenameClause'), !!r.clause)
+   $('routineRenameBox').focus()
+ }
+
+ function hideRename(){
+   showing($('routineRenameForm'), false)
+   showing($('routineRenameWhy'), false)
+   text($('routineRenameWhy'), '')
+ }
+
+ // PREPARING A RENAME WRITES NOTHING, and it is the only way to reach `RenameRoutine`.
+ //
+ // A refusal with no review -- an empty name, the name it already has, a clause typed
+ // into the box -- lands beside the box, where the thing to change is. A refusal WITH a
+ // review, which is a collision or a credential that cannot follow the name, lands in
+ // the review panel beside the two sources.
+ function reviewRename(){
+   const r = routineWith(chosenRoutine)
+   if (!r) { return }
+   acts.ReviewRename(r.id, $('routineRenameBox').value || '').then(v => {
+     if (!v || v.why) {
+       moving = null
+       showing($('routineMove'), false)
+       text($('routineRenameWhy'), (v && v.why) || 'the rename could not be prepared')
+       showing($('routineRenameWhy'), true)
+       return
+     }
+     showing($('routineRenameWhy'), false)
+     moving = v
+     drawMove()
+   })
+ }
+
  function drawMove(){
    const v = moving
    showing($('routineMove'), !!v)
@@ -3941,10 +4025,20 @@
    // BOTH IDENTITIES, BECAUSE THE MOVE IS BETWEEN TWO. A refused preparation can have
    // no destination at all -- a routine about no application, with none named -- and
    // naming one would be a sentence about a place that does not exist.
-   text($('routineMoveMeans'), v.to
-     ? 'From ' + v.from + ' to ' + v.to + '. There it ' + v.where + ', and is ' +
-       v.asked + '.'
-     : 'From ' + v.from + '. There is nowhere for it to go yet.')
+   // A RENAME IS A MOVE AND IT IS NOT THE SAME SENTENCE. Both change an identity,
+   // and what somebody is checking is different: a rescope is about where the routine
+   // works, and a rename is about what it would be called and what it keeps.
+   text($('routineMoveMeans'), v.renaming
+     ? (v.to
+          ? 'It would be called \u201c' + v.renaming + '\u201d, and filed at ' +
+            v.to + '. Where it works, what it asks for, the phrases it answers ' +
+            'to and your demonstration all come with it.'
+          : 'It would be called \u201c' + v.renaming + '\u201d. There is nowhere ' +
+            'for it to go yet.')
+     : (v.to
+          ? 'From ' + v.from + ' to ' + v.to + '. There it ' + v.where + ', and is ' +
+            v.asked + '.'
+          : 'From ' + v.from + '. There is nowhere for it to go yet.'))
    text($('routineMoveRefused'), v.refused || '')
    showing($('routineMoveRefused'), !!v.refused)
    text($('routineMoveTaken'), v.taken_says || '')
@@ -3957,12 +4051,19 @@
    // identical to the file still moves: it goes to another folder, which is the whole
    // point. Saying `nothing would change` there would describe the one thing that does.
    text($('routineMoveSays'), v.refused
-     ? 'There is nothing to move: the reason is above.'
-     : (v.changes
+     ? 'Nothing has been written: the reason is above.'
+     : v.renaming
+       ? 'The routine is written under the new name and removed from the old one.'
+       : (v.changes
           ? 'It would be re-rendered from its own demonstration as well as moved, so ' +
             'the two differ. The left-hand pane is the routine you have now.'
           : 'The same source would be written at the new place and removed from the ' +
             'old one.'))
+   // AND THE PANE IS NAMED FOR THE OPERATION. "What a move would write" over a
+   // rename is this window describing something other than what the button under
+   // it does.
+   text($('routineMoveWrites'), v.renaming ? 'What a rename would write'
+                                           : 'What a move would write')
    text($('routineMoveWas'), v.was || '')
    text($('routineMoveNow'), v.now || '')
    text($('routineMoveFrom'), v.from || '')
@@ -3980,7 +4081,11 @@
    if (!v) { return }
    $('routineMoveBtn').disabled = !v.movable ||
      !!(v.taken && !$('routineMoveConsent').checked)
-   text($('routineMoveBtn'), v.taken ? 'Move it, replacing what is there' : 'Move it')
+   // AND A RENAME NEVER OFFERS TO REPLACE ANYTHING. A collision comes back REFUSED
+   // from the backend, so `taken` is never set on one and there is no press here that
+   // could agree to lose the routine that is in the way.
+   text($('routineMoveBtn'), v.renaming ? 'Rename it'
+     : (v.taken ? 'Move it, replacing what is there' : 'Move it'))
  }
 
  // CANCEL WRITES NOTHING, BECAUSE NOTHING WAS WRITTEN. It lets go of the preparation the
@@ -4006,7 +4111,12 @@
    // with nothing written.
    const replace = !!(v.taken && $('routineMoveConsent').checked)
    $('routineMoveBtn').disabled = true
-   acts.MoveRoutine(v.token, replace).then(done => {
+   // ONE OF TWO CALLS, AND THE RENAME TAKES THE TOKEN ALONE. Not `MoveRoutine` with
+   // `false`: a rename has no second yes to give, and a call that could carry one is
+   // a call a later change could start carrying.
+   const run = v.renaming ? acts.RenameRoutine(v.token)
+                          : acts.MoveRoutine(v.token, replace)
+   run.then(done => {
      if (!done || done.why) {
        // THE REFUSAL STAYS ON THE SCREEN WITH THE REVIEW, which names what moved
        // or what is in the way -- and the way forward is to look again, which needs
@@ -4019,6 +4129,7 @@
      choices = null
      showing($('routineMove'), false)
      showing($('routineWhere'), false)
+     hideRename()
      moveSaid = {id: done.to, says: done.says || '', left: done.left || '',
        copied: !!done.copied}
      // AND THE AFFECTED IDENTITIES ARE READ AGAIN AT ONCE, rather than at the next

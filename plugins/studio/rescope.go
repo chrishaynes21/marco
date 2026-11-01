@@ -94,6 +94,14 @@ type Move struct {
 	// a window can hold two and the page can be showing either. Empty when `Why` is set.
 	Token string `json:"token,omitempty"`
 	Name  string `json:"name"`
+	// Renaming is what the routine would be CALLED, for a move that is a rename, and
+	// Clause the `with …` part of the name it has now — which a rename KEEPS, and which
+	// the page shows BESIDE the box rather than in it. The name is where an argument is
+	// declared, so a box holding the whole name is a way to drop one by retyping.
+	//
+	// Both empty for a move between scopes, which changes neither. See rename.go.
+	Renaming string `json:"renaming,omitempty"`
+	Clause   string `json:"clause,omitempty"`
 	// Scope is the word asked for, Where what it means for a run, and Asked where the
 	// routine could then be asked for by name. The same three fields a `ScopeChoice`
 	// carries, and the same sentences, because the review is of the choice that was made.
