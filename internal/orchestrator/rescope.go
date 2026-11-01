@@ -360,7 +360,8 @@ func (d Deps) prepareMove(rt routes.Route, want Scope, app, renaming string) (Re
 	// Measured: a routine whose step typed `{{item}}` rendered as
 	// `do OS's Secret with "item"` on the other side of a move.
 	if dr != nil {
-		dr.Args = append(dr.Args, suppliedIn(dr.Steps, dr.Args)...)
+		_, args := renderArgsFor(nameWithArgs(dr), m.Was, dr.Steps)
+		dr.Args = args
 	}
 	m.To, m.TakenID = to, RouteID(to)
 
@@ -402,11 +403,13 @@ func (d Deps) prepareMove(rt routes.Route, want Scope, app, renaming string) (Re
 	//
 	// Nothing is read from the credential store here and nothing is migrated into it.
 	// See secretsWouldMove, which is the whole of this question.
+	doing := "moving it"
 	if m.Renaming != "" {
-		if why := secretsWouldMove(m.Was, m.Now); why != "" {
-			m.Refused = why
-			return m.sealed(), nil
-		}
+		doing = "renaming it"
+	}
+	if why := secretsKept(m.Was, m.Now, doing); why != "" {
+		m.Refused = why
+		return m.sealed(), nil
 	}
 	// ── AND WHAT IS ALREADY THERE, WHICH IS A SEPARATE QUESTION FROM THIS ROUTINE ──
 	m.toSourceAt, m.toRecordingAt = d.versionAt(to)

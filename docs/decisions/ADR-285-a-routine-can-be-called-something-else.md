@@ -123,24 +123,28 @@ deliberately for the other caller.
 - It does not change the scope, the application, the recording, the step account or the phrases.
 - It does not rename an Act, a Scene or a demonstration.
 
-**A finding for the Architect, out of scope here.** The secret qualifier is lost on *every*
-re-render of a saved routine, not only a rename — a rescope and a step-edit both re-render with
-`declaredFor`, which deliberately leaves secret names out of the declared set, so a routine
-holding `<slug>:password` comes back holding `password`. That is a different credential. A rename
-now refuses that case; a rescope and a step edit still perform it silently. Making the declared
-set carry secret names through a re-render is a change to `declaredFor` and to what the step
-editor may offer, which is broader backend work than this slice was given.
+**A finding for the Architect, out of scope here — AND SINCE CORRECTED.** The secret qualifier
+was lost on *every* re-render of a saved routine, not only a rename: a rescope and a step edit
+both re-rendered with `declaredFor`, which leaves secret names out of the declared set, so a
+routine holding `<slug>:password` came back holding `password`. A different credential. Rename
+refused that case from this slice onwards; the other two performed it silently.
+
+The Architect ruled it the next bounded correction, and it is made:
+[[ADR-287-a-re-render-keeps-the-credential-it-was-reading]]. The identifier is now PRESERVED
+through a step edit, a rebuild under today's rules and a move, and REFUSED where it cannot be —
+a rename and a re-simplification. `secretsWouldMove`, which this slice wrote, is `secretsKept`
+there, and the reader it needed is `codegen.SecretsIn` beside the composer.
 
 ## Enforced by
 
 - `internal/orchestrator` `TestAMoveKeepsTheValuesTheRoutineAsksFor` — over a **rescope**,
   because that is the operation that has been shipping: the review and the moved file both carry
   `{{item}}` and neither reads the credential store.
-- `internal/orchestrator` `TestAMoveKeepsACredentialACredentialAndLosesItsRouteQualifier` — the
-  other side of that fix, in two halves. The RULE: a credential is never turned into text
-  somebody types, which the widened declared set must not do and which would put a password into
-  a route's source. The FINDING, pinned as an assertion so that fixing it fails loudly and brings
-  somebody back here: the route qualifier does NOT survive a move.
+- `internal/orchestrator` `TestAMoveKeepsTheCredentialItWasReading` — the other side of that fix.
+  It was written for this slice under another name, in two halves: the RULE that a credential is never turned into text somebody types, and the
+  FINDING below pinned as an assertion that would fail loudly the day it was fixed. It did. The
+  test now holds the correction — see
+  [[ADR-287-a-re-render-keeps-the-credential-it-was-reading]].
 - `internal/orchestrator` `TestARenameOntoAnOccupiedNameIsRefusedWithNothingToAgreeTo` — `Taken`
   is cleared, so `ConsentToReplace` is empty and a consent a caller assembled by hand is still
   refused at the write; the routine in the way is byte for byte what it was.

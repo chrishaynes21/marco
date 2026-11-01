@@ -454,6 +454,21 @@ func (d Deps) PrepareEditOf(rt routes.Route, shown string, edits []StepEdit) (Ed
 	// `codegen` is trusted everywhere else in this package because its input came from a
 	// recorder. After an edit it did not, so the one compile gate is asked — here, where
 	// a refusal is a review somebody reads, rather than at the moment of writing.
+	// ── AND NO COMPARISON OF THE CREDENTIALS, WHICH IS A DECISION ──
+	//
+	// The other three re-renders compare the names they read before and after and refuse
+	// when one moved (`secretsKept`). This one does not, for two reasons that point the
+	// same way.
+	//
+	// It CANNOT FIRE for the defect: `renderArgsFor` above preserves the identifiers, and
+	// the check thirty lines up already renders the untouched steps and refuses unless
+	// they reproduce the file byte for byte — so a routine whose credential this cannot
+	// preserve never reaches an edit at all.
+	//
+	// And it WOULD fire for something legitimate: removing the step that types the
+	// password is an edit somebody may well want, and it leaves a routine that reads no
+	// credential. The other three change nothing about the steps, so a lost credential
+	// there is always an accident; here it can be the request.
 	if cerr := d.checkSource(now); cerr != nil {
 		e.Refused = fmt.Sprintf("the edited routine would not compile, so it cannot "+
 			"be saved: %v", cerr)
@@ -494,7 +509,15 @@ func (d Deps) basisFor(rt routes.Route, src string, rec []byte) (basis, string, 
 			return basis{}, "its stored steps contain nothing that can be " +
 				"performed", nil
 		}
-		base, args := declaredFor(name, steps)
+		// WHAT A RENDER OF THESE STEPS HAS TO DECLARE, which is not only what
+		// the NAME declares and not only the placeholders an edit put there: a
+		// credential this source reads under its ROUTE-QUALIFIED name has to be
+		// declared or the render writes the bare name, which is a different
+		// entry in somebody's credential store. That is why this routine could
+		// not be edited at all — the check below renders the steps and compares
+		// them against the file, and an unqualified credential made them differ.
+		// See secretkeep.go.
+		base, args := renderArgsFor(name, src, steps)
 		return basis{steps: steps, name: base, args: args, mode: ModeOf(src),
 			mismatch: "its saved source is not what its stored steps render " +
 				"to under today's rules, so the two no longer agree — " +

@@ -973,9 +973,17 @@ told which argument names are declared, and an undeclared `{{name}}` is not a pl
 `splitSecrets` turns it into `do OS's Secret with "name"`. The declared set came from the routine's
 NAME alone, which carries no clause, so every move of a routine that asked for a value produced
 one that read the credential store for it instead. Fixed in the shared path with `suppliedIn`.
-STILL OPEN, and ruled on by nobody yet: the secret QUALIFIER is lost on every re-render of a saved
-routine, so a rescope or a step edit turns `<slug>:password` into `password`. See
-[[ADR-285-a-routine-can-be-called-something-else]].
+CORRECTED SINCE, and it was wider than renaming: the secret QUALIFIER was lost on EVERY re-render
+of a saved routine, so a rescope or a step edit turned `<slug>:password` into `password` — a
+different entry in the credential store — and the step editor refused to open such a routine at
+all, because it renders the stored steps and compares them against the file. `renderArgsFor` reads
+the SOURCE and declares exactly the credentials it already reads under their qualified name, which
+preserves the identifier through an edit, a rebuild under today's rules and a move; `secretsKept`
+refuses the two that cannot preserve it — a rename, whose route name changes by construction, and
+a re-simplification, which renders the demonstration and the demonstration never held the
+placeholder. The composer and the reader are both `codegen`'s. Nothing reads, copies or migrates a
+credential. See [[ADR-285-a-routine-can-be-called-something-else]] and
+[[ADR-287-a-re-render-keeps-the-credential-it-was-reading]].
 
 **And a press can be moved.** A click recorded inside a window is written down twice — a point on
 the screen and an offset inside that window — and the two were measured AT THE SAME INSTANT, so

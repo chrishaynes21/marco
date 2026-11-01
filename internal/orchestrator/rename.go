@@ -23,14 +23,14 @@ package orchestrator
 //
 // # Two: a declared secret is qualified by the routine's own name
 //
-// `codegen.typeSentence` writes `do OS's Secret with "<route>:password"` for a declared secret
-// argument, where `<route>` is `fileBase(name)` — the routine's name, slugged. Its own comment
-// says what a disagreement about that costs: *looking up a secret nobody stored.*
+// `codegen` writes a declared secret argument under a ROUTE-QUALIFIED name — and the route is the
+// routine's own name, slugged. A rename re-renders, so the identifier moves with the name, and
+// the routine goes to the credential store under a name nobody has ever saved anything under.
 //
-// Renaming re-renders, so the qualifier would move, and the routine would go to the credential
-// store under a name nobody has ever saved anything under. That is not a rename anybody asked
-// for, and the alternative — moving the credential — is this window reaching into somebody's
-// credential store, which it will not do. So the case is REFUSED, by name, and nothing is read.
+// It is the one re-render that cannot be preserved, by construction: every other one keeps the
+// route name and can reproduce the identifier. So a rename REFUSES that case, through the one
+// check all four re-renders share — see secretkeep.go. Nothing is read from the store and
+// nothing is migrated into it.
 //
 // # Three: a collision is refused and never replaced
 //
@@ -43,7 +43,6 @@ package orchestrator
 
 import (
 	"fmt"
-	"regexp"
 	"strings"
 
 	"github.com/chaynes-simpleclouds/marco/internal/routes"
@@ -121,81 +120,4 @@ func renamedTo(now, base string, rt routes.Route) (string, string) {
 		return base, ""
 	}
 	return base + " with " + strings.Join(args, ", "), ""
-}
-
-// secretRe finds every credential name a routine reads, as the generator writes them.
-//
-// `do OS's Secret with "<name>"` — the NAME, never the value: a secret's value never enters a
-// route's source at all, which is the whole of why `OS's Secret` exists. See
-// `codegen.typeSentence` and the secrets invariant in CLAUDE.md.
-var secretRe = regexp.MustCompile(`OS's Secret with "([^"]*)"`)
-
-// secretNames is every credential name in a source, in order, de-duplicated.
-func secretNames(src string) []string {
-	seen := map[string]bool{}
-	var out []string
-	for _, m := range secretRe.FindAllStringSubmatch(src, -1) {
-		if !seen[m[1]] {
-			seen[m[1]] = true
-			out = append(out, m[1])
-		}
-	}
-	return out
-}
-
-// secretsWouldMove is why this rename cannot be made, when it would send the routine to the
-// credential store under a name nothing has been stored under.
-//
-// # Why it compares the two SOURCES rather than deriving the qualifier
-//
-// Because deriving it would be a second copy of a rule that lives in `codegen`, and the two
-// would disagree the first time either changed — and disagreeing here means a rename that looks
-// like it worked and a routine that cannot sign in. The question is not "how is a secret name
-// built"; it is "does this routine ask for a different credential after the rename than before
-// it", and both sources are right here.
-//
-// A name present before and absent after is the defect. A name that is the same in both is
-// preserved by construction, which is the ordinary case: an UNQUALIFIED secret — a plain typed
-// `{{password}}` — carries no route in it and is untouched by a rename.
-//
-// NOTHING IS READ FROM THE CREDENTIAL STORE and nothing is written to it. This is a comparison
-// of two pieces of generated text.
-func secretsWouldMove(was, now string) string {
-	after := map[string]bool{}
-	for _, n := range secretNames(now) {
-		after[n] = true
-	}
-	var moved []string
-	for _, n := range secretNames(was) {
-		if !after[n] {
-			moved = append(moved, n)
-		}
-	}
-	if len(moved) == 0 {
-		return ""
-	}
-	which := "a password"
-	if len(moved) > 1 {
-		which = "passwords"
-	}
-	return fmt.Sprintf("it reads %s from your credential store, under %s — and that "+
-		"name is made out of the routine's own name, so renaming it would look "+
-		"for something nobody stored. Nothing has been renamed and nothing was "+
-		"read from the store. Rename is not available for this routine",
-		which, quotedList(moved))
-}
-
-// quotedList is the names in a sentence, each in quotes.
-func quotedList(names []string) string {
-	out := make([]string, 0, len(names))
-	for _, n := range names {
-		out = append(out, fmt.Sprintf("%q", n))
-	}
-	switch len(out) {
-	case 1:
-		return out[0]
-	case 2:
-		return out[0] + " and " + out[1]
-	}
-	return strings.Join(out[:len(out)-1], ", ") + " and " + out[len(out)-1]
 }

@@ -296,11 +296,17 @@ func (d Deps) Prepare(rt routes.Route, kind Rebuild) (Prepared, error) {
 		// NAME declares: a placeholder an edit put into the steps is declared by being
 		// there, or this renders a credential-store read as the version it offers to
 		// replace the routine with. See declaredFor.
-		base, args := declaredFor(p.Name, steps)
+		// AND THE CREDENTIALS IT READS, under the names this source reads them
+		// under. See secretkeep.go.
+		base, args := renderArgsFor(p.Name, src, steps)
 		now, assets, rerr := d.render(&Draft{Name: base, Args: args, Steps: steps,
 			Mode: ModeOf(src)}, scope.mode(), rt.App, rt)
 		if rerr != nil {
 			p.Refused = rerr.Error()
+			return p.sealed(), nil
+		}
+		if why := secretsKept(src, now, "rebuilding it"); why != "" {
+			p.Refused = why
 			return p.sealed(), nil
 		}
 		p.fromAccount, p.accountToWrite = true, stored.Steps
@@ -347,6 +353,20 @@ func (d Deps) Prepare(rt routes.Route, kind Rebuild) (Prepared, error) {
 		// stopped at, which is a thing a person needs to read rather than a thing
 		// this should translate.
 		p.Refused = err.Error()
+		return p.sealed(), nil
+	}
+	// ── AND IT READS THE SAME CREDENTIALS THE ROUTINE READS NOW ──
+	//
+	// THIS IS THE ARM WHERE PRESERVATION CANNOT HELP. It renders the DEMONSTRATION, and
+	// a demonstration never held the placeholder: a secret's value does not enter a
+	// recording, which is the whole of why `OS's Secret` exists. So a routine that reads
+	// a credential rebuilds into one that reads none — it would compile, run, and type
+	// nothing into the password field.
+	//
+	// Refused with the name it reads now in the sentence, rather than offered. The
+	// alternative is moving the credential, which this does not do. See secretkeep.go.
+	if why := secretsKept(src, now, "rebuilding it"); why != "" {
+		p.Refused = why
 		return p.sealed(), nil
 	}
 	p.Now, p.assets, p.NowGeneration = now, assets, GenerationOf(now)

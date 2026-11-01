@@ -78,39 +78,26 @@ func TestAMoveKeepsTheValuesTheRoutineAsksFor(t *testing.T) {
 	}
 }
 
-// AND A CREDENTIAL IS NEVER TURNED INTO TEXT SOMEBODY TYPES — BUT ITS NAME DOES NOT SURVIVE.
+// AND A MOVE KEEPS THE CREDENTIAL IT WAS READING, UNDER THE NAME IT WAS READING IT UNDER.
 //
-// # The half that is a rule
+// # This test recorded the defect and now holds the correction
 //
-// A placeholder whose name MEANS a secret stays `do OS's Secret`. It must: the fix above widens
-// the declared set, and a widening that turned `{{password}}` into a box somebody types into
-// would put a password on a screen and into a route's source, which the secrets invariant forbids
-// outright.
+// It was written as a pinned FINDING: a move re-rendered `sign-in:password` as the bare
+// `password`, which is a different entry in somebody's credential store, and the half of this
+// test that said so was written to fail loudly the day it was fixed. It did. See
+// [[ADR-287-a-re-render-keeps-the-credential-it-was-reading]].
 //
-// # The half that is a FINDING, and is not a rule
-//
-// The route QUALIFIER does not survive a move. `codegen.typeSentence` writes
-// `<route>:password` for a DECLARED secret, and the declared set comes from the routine's name —
-// which, for a saved routine, carries no `with …` clause at all. So a move re-renders
-// `type-my-address:password` as plain `password`, and those are two different entries in somebody's
-// credential store: the routine signs in with a credential nobody saved.
-//
-// It is pinned here rather than fixed because fixing it means changing what `declaredFor` returns
-// and therefore what the step editor may offer, which is broader than the slice this was found
-// in. [[ADR-285-a-routine-can-be-called-something-else]] records it for the Architect, and RENAME
-// refuses the case outright — `secretsWouldMove` compares the two sources, so it catches this as
-// readily as it catches the qualifier moving WITH the name.
-//
-// IF THE SECOND HALF OF THIS TEST FAILS, the defect has been fixed: delete that half, and go and
-// look at whether rename still needs to refuse.
-func TestAMoveKeepsACredentialACredentialAndLosesItsRouteQualifier(t *testing.T) {
+// THE ASSERTION IS THE IDENTIFIER AND NOT THE WORD `Secret`. A routine that still says `Secret`
+// and says it about another name signs in with nothing, and every review of it looks right.
+func TestAMoveKeepsTheCredentialItWasReading(t *testing.T) {
 	d, rt := aRoutineAskingFor(t, "password")
 	before, err := os.ReadFile(d.Reg.Path(rt))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(before), `:password"`) {
-		t.Fatalf("the fixture's credential name is not route-qualified:\n%s", before)
+	want := `OS's Secret with "type-my-address:password"`
+	if !strings.Contains(string(before), want) {
+		t.Fatalf("the fixture does not read a route-qualified credential:\n%s", before)
 	}
 
 	m, err := d.PrepareRescope(rt, ScopeEverywhere, "")
@@ -120,20 +107,90 @@ func TestAMoveKeepsACredentialACredentialAndLosesItsRouteQualifier(t *testing.T)
 	if m.Refused != "" {
 		t.Fatalf("the move was refused: %s", m.Refused)
 	}
-	// ── THE RULE ──
-	if !strings.Contains(m.Now, `OS's Secret`) {
-		t.Fatalf("a move turned a credential into text somebody types, which puts a "+
-			"password in a route's source:\n%s", m.Now)
+	// ── THE REVIEW, which is where somebody would have had to notice ──
+	if !strings.Contains(m.Now, want) {
+		t.Fatalf("the version a move would write does not read the credential it "+
+			"reads now (%s):\n%s", want, m.Now)
 	}
-	if strings.Contains(m.Now, "{{password}}") {
-		t.Errorf("the moved routine carries the password as a placeholder:\n%s", m.Now)
+
+	if _, err := d.Rescope(m, Consent{}); err != nil {
+		t.Fatalf("moving: %v", err)
 	}
-	// ── THE FINDING ──
-	if strings.Contains(m.Now, `:password"`) {
-		t.Error("the route-qualified credential name survived a move. That is the " +
-			"RIGHT behaviour and is not what this build does — so the defect " +
-			"ADR-285 records has been fixed. Delete this half of the test, and " +
-			"check whether rename still needs to refuse the case.")
+	after, err := os.ReadFile(d.Reg.Path(m.To))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(after), want) {
+		t.Fatalf("the moved routine reads a different credential:\n%s", after)
+	}
+	// AND IT IS STILL A CREDENTIAL, not a value somebody types into a box.
+	if strings.Contains(string(after), "{{password}}") {
+		t.Errorf("the moved routine carries the password as a placeholder:\n%s", after)
+	}
+}
+
+// AND AN OPERATION THAT CANNOT KEEP THE CREDENTIAL REFUSES, RATHER THAN REDIRECTING IT.
+//
+// A RE-SIMPLIFICATION RENDERS THE DEMONSTRATION, and the demonstration never held the
+// placeholder — a secret's value does not enter a recording, which is the whole of why
+// `OS's Secret` exists. So there is nothing for preservation to reproduce the credential from,
+// and the version this would write reads no credential at all.
+//
+// The routine would compile, run, and type nothing into the password field. Refused instead,
+// with the name it reads now in the sentence.
+func TestARebuildThatCannotKeepTheCredentialIsRefused(t *testing.T) {
+	d, rt := aRoutineAskingFor(t, "password")
+	before, err := os.ReadFile(d.Reg.Path(rt))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `OS's Secret with "type-my-address:password"`
+	if !strings.Contains(string(before), want) {
+		t.Fatalf("the fixture does not read a route-qualified credential:\n%s", before)
+	}
+
+	p, err := d.Prepare(rt, RebuildSimplifyTyping)
+	if err != nil {
+		t.Fatalf("preparing the rebuild: %v", err)
+	}
+	if p.Refused == "" {
+		t.Fatalf("a re-simplification dropped the credential the routine reads, and "+
+			"would write:\n%s", p.Now)
+	}
+	for _, say := range []string{"type-my-address:password", "credential store",
+		"Nothing has been changed"} {
+		if !strings.Contains(p.Refused, say) {
+			t.Errorf("the refusal does not say %q: %q", say, p.Refused)
+		}
+	}
+	if p.Replaceable() {
+		t.Error("the refused rebuild is still replaceable")
+	}
+	now, err := os.ReadFile(d.Reg.Path(rt))
+	if err != nil || string(now) != string(before) {
+		t.Error("the refused rebuild changed the routine")
+	}
+}
+
+// AND A REBUILD UNDER TODAY'S RULES KEEPS IT, because it renders the STORED STEPS, which do hold
+// the placeholder.
+//
+// The two halves of the same question, and they have different answers: what a rebuild can
+// preserve depends on what it is rendering FROM.
+func TestARebuildUnderTodaysRulesKeepsTheCredential(t *testing.T) {
+	d, rt := aRoutineAskingFor(t, "password")
+	want := `OS's Secret with "type-my-address:password"`
+
+	p, err := d.Prepare(rt, RebuildCurrent)
+	if err != nil {
+		t.Fatalf("preparing the rebuild: %v", err)
+	}
+	if p.Refused != "" {
+		t.Fatalf("the rebuild was refused: %s", p.Refused)
+	}
+	if !strings.Contains(p.Now, want) {
+		t.Fatalf("the version a rebuild would write does not read the credential it "+
+			"reads now (%s):\n%s", want, p.Now)
 	}
 }
 
@@ -313,7 +370,16 @@ func aRoutineAskingFor(t *testing.T, name string) (Deps, routes.Route) {
 		t.Fatalf("saving the fixture: %v", err)
 	}
 	// AND ITS DEMONSTRATION, which a move will not go without.
-	rec := []byte("[]")
+	//
+	// A REAL ONE, because a re-simplification renders THIS rather than the stored steps
+	// — and what it cannot render is the placeholder, which was never in a recording:
+	// a secret's value does not enter one. That is the operation preservation cannot
+	// help, and it has to be reachable.
+	events, merr := json.Marshal(aPlainDemonstration("a"))
+	if merr != nil {
+		t.Fatal(merr)
+	}
+	rec := events
 	if err := d.Reg.SaveRecording(rt, rec); err != nil {
 		t.Fatalf("writing the fixture's demonstration: %v", err)
 	}

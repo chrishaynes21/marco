@@ -244,7 +244,12 @@ func TestARoutineThatReadsACredentialUnderItsOwnNameRefusesToBeRenamed(t *testin
 			"store under a name nobody stored anything under")
 	}
 	said := m.Refused + m.Why
-	for _, want := range []string{"credential store", "nobody stored", "Nothing has been"} {
+	// THE NAME IT READS NOW, what it would read instead, and that nothing was done.
+	// This fixture's credential is written onto the SOURCE and is not in its steps,
+	// so a re-render drops it entirely rather than renaming it — which the sentence
+	// says, and which is still a routine that would sign in with nothing.
+	for _, want := range []string{"type-my-address:password", "credential store",
+		"no credential at all", "Nothing has been changed"} {
 		if !strings.Contains(said, want) {
 			t.Errorf("the refusal does not say %q: %q", want, said)
 		}

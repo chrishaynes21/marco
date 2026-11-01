@@ -1097,7 +1097,10 @@ func (g *gen) typeSentence(seg segment) string {
 	if seg.secret {
 		name := seg.text
 		if seg.qualified {
-			name = g.base + ":" + seg.text
+			// THE ONE COMPOSER. See secretname.go: the orchestrator has to ask
+			// the same question when it preserves a lookup across a re-render,
+			// and two places composing this is two places to disagree.
+			name = secretName(g.base, seg.text)
 		}
 		return fmt.Sprintf("OS's Secret with \"%s\"", escape(name))
 	}
