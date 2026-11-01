@@ -174,6 +174,19 @@ there, and the reader it needed is `codegen.SecretsIn` beside the composer.
   review lands beside the box, a refusal with one lands in the panel, the button is dead and
   nothing was written.
 
+## And it was unfindable where it was put
+
+The owner, looking at this window the morning after it landed:
+
+> there's aliasing, but no straight rename
+
+It was there. It was a deed row below the step editor, below the box that adds another phrase a
+routine answers to, and below the scope row — and somebody looking for a way to change a
+routine's name meets the alias box first, which answers a neighbouring question convincingly
+enough to end the search. [[ADR-289-the-panel-says-less-and-play-is-bigger]] moves the control
+onto the identity row beside the name it changes. Nothing here changed: not what a rename
+preserves, not what it refuses, not the review.
+
 ## See also
 
 - [[Studio-alpha-UI-slice-2026-10-31]]

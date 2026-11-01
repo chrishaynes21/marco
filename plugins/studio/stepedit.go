@@ -111,13 +111,12 @@ type StepRow struct {
 	// X and Y are the pair, in the basis InWindow names. NOT omitempty: a press at the
 	// very corner of a window is at 0, and a field that vanished would reach the page as
 	// nothing and be drawn as an empty box.
+	//
+	// AND NOTHING ELSE. There was a `Terms` beside them — the button — which the row
+	// drew after the numbers, while the same button was already at the front of the
+	// row in the action column, where `Says` puts it. See orchestrator.MovablePoint.
 	X int `json:"x"`
 	Y int `json:"y"`
-	// Terms are the machine facts beside the pair — the button, and the window the press
-	// is checked against. They are what the edit KEEPS, which is why they are shown: two
-	// editable numbers and nothing else leaves somebody to find out afterwards whether
-	// moving a press also changed what it was checked against.
-	Terms string `json:"terms,omitempty"`
 }
 
 // StepChange is one operation the page asks for, against a position in the list it was shown.
@@ -291,7 +290,7 @@ func stepRows(e orchestrator.EditReview) []StepRow {
 		// somebody has typed into it.
 		if p := orchestrator.PointIn(steps, i); p.Is {
 			r.Point, r.Movable, r.PointWhy = true, p.Movable, p.Why
-			r.InWindow, r.X, r.Y, r.Terms = p.InWindow, p.X, p.Y, p.Terms
+			r.InWindow, r.X, r.Y = p.InWindow, p.X, p.Y
 		}
 		if partner := e.PairedWith(i); partner >= 0 {
 			r.Pairs, r.PairsAt = true, partner

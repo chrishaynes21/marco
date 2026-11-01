@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/chaynes-simpleclouds/marco/internal/macroir"
+	"github.com/chaynes-simpleclouds/marco/internal/orchestrator"
 )
 
 // THE ORDER OF THE CONTROLS ON THE JOURNEY IS THE CLAIM, so it is the thing held.
@@ -44,13 +45,22 @@ func TestTheJourneyPutsTheQuestionFirstAndPlayUnderWhatIsSelected(t *testing.T) 
 		}
 	}
 
-	// ── and inside the selected panel, which is where Play was buried ──
+	// ── and inside the panel that opens under the routine's own name ──
+	//
+	// PLAY IS NOT IN THIS MARKUP ANY MORE, and that is the change rather than a gap.
+	// It is drawn onto the ROW by `drawRoutines`, which is where the Architect put it:
+	// *keep Play on the collapsed row ... keep a single primary Play button per
+	// routine*. So what this panel holds is everything a run NEEDS, in the order a
+	// person meets it, and the two collapsed things last. That Play comes before all of
+	// it is now a fact about the rendered page and is held by
+	// TestARoutineOpensWhereItIsAndPlayStaysOnItsRow.
 	chosen := between(t, routines, `id="routineChosen"`, `<h2>`)
 	order := []string{
-		`id="routineIdentity"`, // what is selected
+		`id="routineLeaving"`,  // what leaving this routine would throw away
 		`id="routineChecks"`,   // whether its presses are checked
 		`id="routineWhy"`,      // and why it cannot run, when it cannot
-		`id="routinePlayBtn"`,  // PLAY
+		`id="routineIntoRow"`,  // the window a run would press in
+		`id="routineArgsBox"`,  // and the text it asks for
 		`id="routineSource"`,   // what it will do, collapsed
 		`id="routineMaintain"`, // rebuild and re-record, collapsed
 	}
@@ -59,6 +69,11 @@ func TestTheJourneyPutsTheQuestionFirstAndPlayUnderWhatIsSelected(t *testing.T) 
 			t.Errorf("%s must come before %s in the selected routine's panel",
 				order[i], order[i+1])
 		}
+	}
+	// AND THE PANEL IS NOT A SECOND PLACE FOR PLAY. One per routine, on its row.
+	if strings.Contains(chosen, `id="routinePlayBtn"`) {
+		t.Error(`id="routinePlayBtn" is in the panel's markup as well as on the ` +
+			`row, which is the duplicate Play the ruling names`)
 	}
 }
 
@@ -361,6 +376,9 @@ func TestEveryStepSentenceTheBackendWritesHasAVerb(t *testing.T) {
 		{"typed text", macroir.Step{Kind: macroir.StepType, Text: "hello"}, false},
 		{"a wait", macroir.Step{Kind: macroir.StepWait, Ms: 250}, false},
 		{"a drag", macroir.Step{Kind: macroir.StepDrag, X: 1, Y: 2, X2: 3, Y2: 4}, false},
+		{"a bare cursor move", macroir.Step{Kind: macroir.StepMove, X: 1, Y: 2}, false},
+		{"a cursor move inside the window", macroir.Step{Kind: macroir.StepMove,
+			X: 1, Y: 2, WinRel: true, RelX: 3, RelY: 4}, false},
 		{"an application switch", macroir.Step{Kind: macroir.StepActivate,
 			Text: "Discord"}, false},
 		// AND THE ONES WITH NO SENTENCE, which `oneStep` renders as their own name.
@@ -404,9 +422,12 @@ func TestASecondLookAtARoutineIsOfferedWithoutOpeningADetail(t *testing.T) {
 		t.Errorf("the simplification review is inside a collapsed <details> (%q), "+
 			"which is where nobody found it", d)
 	}
-	if !before(page, `id="routinePlayBtn"`, `id="routineSimplifyBtn"`) {
-		t.Error("the second look comes before Play, which is the one thing this " +
-			"panel is for")
+	// AFTER THE THINGS A RUN NEEDS. Play itself is on the row above this panel now,
+	// so what this orders against is the window a run presses in -- the first control
+	// in the panel and the one immediately under the button.
+	if !before(page, `id="routineIntoRow"`, `id="routineSimplifyBtn"`) {
+		t.Error("the second look comes before the window a run would press in, " +
+			"which is the one thing this panel is for")
 	}
 	// AND IT SAYS IT WRITES NOTHING, beside the button rather than after the press.
 	// A control that shows a comparison and one that rewrites somebody's routine must
@@ -592,6 +613,73 @@ func TestSaveAnywayIsOfferedOnlyWhereSavingIsAllowed(t *testing.T) {
 	if !regexp.MustCompile(`id="capReplaceBtn"[^>]*>Replace<`).MatchString(thePage(t)) {
 		t.Error("the replacement button no longer says `Replace`")
 	}
+}
+
+// AND EVERY KIND THAT PRESSES SOMEWHERE HAS A VERB — all of them, not a list written here.
+//
+// # Why this is a second test
+//
+// The one above asks whether the page can OPEN each sentence the backend writes, and a kind with
+// no sentence is allowed to fall through to its own name and be rendered whole. That tolerance is
+// right for a row of text and wrong for a press, because the step editor draws a press
+// differently: it REPLACES the value half of the row with the two boxes somebody moves it by. So
+// the only part of the sentence left on the row is the verb, and a sentence with no verb leaves a
+// number, a badge, two fields and nothing saying what happens at that place.
+//
+// `move` was exactly that. `orchestrator.PointIn` has always offered a bare cursor move the same
+// edit a click gets, and `oneStep` had no sentence for it — so it fell through to the word `move`,
+// which the page then threw away. Nobody could have read that row.
+//
+// The kinds are read out of `macroir`'s own const block rather than listed here, because the next
+// one of these is a twelfth kind that presses somewhere.
+func TestEveryKindThatPressesSomewhereHasAVerb(t *testing.T) {
+	kinds := stepKindsInTheEngine(t)
+	if len(kinds) < 10 {
+		t.Fatalf("only %d step kinds were read out of macroir, so this is checking "+
+			"almost nothing: %v", len(kinds), kinds)
+	}
+	verbs := stepVerbsInThePage(t)
+	pressing := 0
+	for _, k := range kinds {
+		// EVERY FIELD A POSITION COULD COME FROM, because what is being asked is
+		// whether this KIND presses anywhere, not whether this particular step does.
+		s := macroir.Step{Kind: k, X: 100, Y: 200, X2: 300, Y2: 400, Count: 2,
+			Ms: 250, Key: "down", Text: "hello"}
+		if !orchestrator.PointIn([]macroir.Step{s}, 0).Is {
+			continue
+		}
+		pressing++
+		line := oneStep(s)
+		if verb, _ := openedBy(verbs, line); verb == "" {
+			t.Errorf("a %q step presses somewhere, so the editor replaces what its "+
+				"sentence says about where it is with two boxes — and %q is "+
+				"not a sentence the page has a verb for, so the row ends up "+
+				"saying nothing at all about what it does there.", k, line)
+		}
+	}
+	if pressing < 3 {
+		t.Fatalf("only %d of %d kinds press anywhere, and a click, a move and a drag "+
+			"all do — so this test is not reaching the thing it is about",
+			pressing, len(kinds))
+	}
+}
+
+// stepKindsInTheEngine reads the kind names out of macroir's own const block.
+//
+// By the module's replace directive the engine is at `../..`, which is also how the page's own
+// file is found. A list written here instead would be a list that silently stops being complete.
+func stepKindsInTheEngine(t *testing.T) []macroir.StepKind {
+	t.Helper()
+	src, err := os.ReadFile(filepath.Join("..", "..", "internal", "macroir", "step.go"))
+	if err != nil {
+		t.Fatalf("the engine's step kinds cannot be read: %v", err)
+	}
+	var out []macroir.StepKind
+	for _, m := range regexp.MustCompile(`StepKind = "([a-z]+)"`).
+		FindAllStringSubmatch(string(src), -1) {
+		out = append(out, macroir.StepKind(m[1]))
+	}
+	return out
 }
 
 // stepVerbsInThePage reads the page's own prefix table, in its own order.

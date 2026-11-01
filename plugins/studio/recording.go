@@ -921,6 +921,19 @@ func oneStep(s macroir.Step) string {
 			button = "left"
 		}
 		return fmt.Sprintf("%s-click at %s%s", button, where, inWindow(s))
+	case macroir.StepMove:
+		// A MOVE IS A PRESS-SHAPED STEP WITH NO BUTTON, and it had no sentence.
+		//
+		// It fell through to its own kind name, `move`, which the page's verb table
+		// does not open -- so the editor drew it as a row of two numbers with an
+		// empty action column, and the one word it did have was thrown away, because
+		// a point row replaces the value half with the boxes. `PointIn` has always
+		// offered it the same edit a click gets.
+		where := fmt.Sprintf("%d, %d", s.X, s.Y)
+		if s.WinRel {
+			where = fmt.Sprintf("%d, %d in the window", s.RelX, s.RelY)
+		}
+		return fmt.Sprintf("move the pointer to %s%s", where, inWindow(s))
 	case macroir.StepDrag:
 		return fmt.Sprintf("drag from %d, %d to %d, %d", s.X, s.Y, s.X2, s.Y2)
 	case macroir.StepKey:

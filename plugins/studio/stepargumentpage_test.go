@@ -106,8 +106,16 @@ let namedSent = 'unset', namedAsked = ''
 let undone = 'unset'
 
 setTimeout(() => {
-  const card = document.getElementById('routine-notepad-focus-say-hello')
-  if (card) { card.click() }
+  // A ROUTINE IS OPENED BY ITS DISCLOSURE, which is the only control that
+  // toggles the row -- every other press inside it belongs to the routine.
+  const card = document.getElementById('routineOpen-notepad-focus-say-hello')
+  if (!card) { return }
+  card.click()
+  // AND LEAVING A ROUTINE SOMEBODY HAS TYPED INTO ASKS FIRST. These tests are
+  // about what happens once that is agreed to, and the press that agrees is the
+  // same press -- so this opens it and answers, which is what a person does.
+  const warn = document.getElementById('routineLeaving')
+  if (warn && !warn.classList.contains('hide')) { card.click() }
 }, 900)
 setTimeout(() => { press('routineStepsBtn') }, 1400)
 setTimeout(() => {

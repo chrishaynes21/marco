@@ -180,6 +180,33 @@ func (a *Acts) Help() Help {
 		"A press Marco finds by its picture is not moved at all: the coordinate is " +
 			"a position inside that picture, so moving it would aim the " +
 			"picture somewhere else.",
+		// WHAT A CHANGE KEEPS, SAID ONCE. This was on every press row in the
+		// editor, as the window's size and scale printed beside each pair of
+		// numbers. It is the same promise for every row, so it is made here.
+		"Changing a press keeps everything else about it: which button it uses, any " +
+			"keys held down with it, and the window, size and scale it is " +
+			"checked against.",
+	}
+
+	// WHAT A ROUTINE CHECKS, WHICH THE CARD USED TO ENUMERATE. The guarded sentence sat
+	// above Play reading "Checks the program, window size and scale before each press.
+	// Stops if a check fails." — true, and three measurements a person does not need
+	// named at the moment they are deciding whether to press a button. The card is silent
+	// for the ordinary case now and links here; what is left on the card is the two
+	// contracts that are a warning. See `checksSentence` and ADR-251.
+	checks := []string{
+		"A routine recorded in a window checks three things before every press: that " +
+			"the program is the one it was recorded in, that the window is the " +
+			"size it was recorded at, and that it is drawn at the same scale.",
+		"If any of them has changed it stops, rather than pressing somewhere it was " +
+			"never shown.",
+		"Beside Play you are told which window the run will bring forward, and whether " +
+			"its presses are checked against it.",
+		"A routine saved before Marco measured windows checks nothing: every press " +
+			"happens at the point it was recorded at, whatever is there now. Its " +
+			"card says so.",
+		"A recording that measured only some of those terms refuses every press, and " +
+			"its card says which measurement is missing. Record it again.",
 	}
 
 	where := []string{
@@ -193,6 +220,7 @@ func (a *Acts) Help() Help {
 		{Key: "arguments", Title: "Asking for a value each time", Lines: asking},
 		{Key: "editing", Title: "Editing what a routine does", Lines: editing},
 		{Key: "measured", Title: "Where a press is measured", Lines: measured},
+		{Key: "checks", Title: "What a routine checks before it presses", Lines: checks},
 		{Key: "scope", Title: "Where a routine works", Lines: where},
 	}}
 }

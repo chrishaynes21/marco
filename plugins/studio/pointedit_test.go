@@ -59,10 +59,38 @@ func TestAMeasuredPressCanBeMovedAndKeepsWhatItIsCheckedAgainst(t *testing.T) {
 		t.Fatalf("the pair offered is %d, %d, and the OFFSET recorded was 120, 90",
 			row.X, row.Y)
 	}
-	for _, want := range []string{"left", "1280×800", "96 dpi", "notepad.exe"} {
-		if !strings.Contains(row.Terms, want) {
-			t.Errorf("the row does not show %q beside the numbers, which is what "+
-				"the edit keeps: %q", want, row.Terms)
+	// THE BUTTON IS AT THE FRONT OF THE ROW, AND IT IS WRITTEN ONCE.
+	//
+	// This asserted `Terms` — a second field carrying `left`, drawn AFTER the numbers.
+	// It began as `left · of 1280×800, 96 dpi, notepad.exe`, so that a row of two
+	// editable numbers and nothing else did not leave somebody to find out afterwards
+	// whether moving a press also changes what it is checked against. The reasoning
+	// stands; the answer was repeating three measurements down every row to make one
+	// promise that is the same for all of them. It is made once, in Help, and the
+	// assertion for it is below.
+	//
+	// What was left was the button, and the button was never missing: the row splits
+	// this sentence into an action column and a value column, so `Left-click` was
+	// already the first thing on it. One fact in two places, with the quiet copy in the
+	// column a person scans. So the field is gone and this is the assertion it leaves
+	// behind — the sentence opens with the button, which is what puts it in that column.
+	if !strings.HasPrefix(row.Says, "left-click at ") {
+		t.Errorf("the row is written as %q. The editor replaces everything after the "+
+			"verb with the boxes, so a sentence that does not OPEN with what "+
+			"the press does is a row of two numbers and nothing else",
+			row.Says)
+	}
+	// AND THE PROMISE IS WHERE IT WENT, in the section the row's own link opens.
+	help := ""
+	for _, sec := range a.Help().Sections {
+		if sec.Key == "measured" {
+			help = strings.ToLower(strings.Join(sec.Lines, " "))
+		}
+	}
+	for _, want := range []string{"button", "scale", "checked against"} {
+		if !strings.Contains(help, want) {
+			t.Errorf("Help does not say that a change keeps %q, and the row no "+
+				"longer says it either", want)
 		}
 	}
 

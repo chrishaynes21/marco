@@ -199,14 +199,69 @@
 
  /* A ROUTINE IS A ROW. Hairlines between, so the names carry the list. */
  .card.pick{background:none;border:0;border-top:1px solid var(--line);
-        border-radius:0;padding:13px 10px;margin:0;cursor:pointer;box-shadow:none;
+        border-radius:0;padding:13px 10px;margin:0;box-shadow:none;
         transition:background .12s}
- .card.pick:hover{background:var(--sink)}
  .card.pick:last-child{border-bottom:1px solid var(--line)}
  .card.pick h3{font:600 17px/1.25 var(--display);letter-spacing:-.012em;margin:0}
- /* THE ROW'S OWN LINE: name and where on the left, one status word on the right. */
- .rowline{display:flex;gap:10px 16px;align-items:center;justify-content:space-between}
+ /* THE ROW'S OWN LINE: the way in on the left, one status word, then Play. */
+ .rowline{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;
+        justify-content:space-between}
  .rowline > div{min-width:0}
+
+ /* ── A ROUTINE OPENS WHERE IT IS ──────────────────────────
+    THE DISCLOSURE IS A BUTTON AND IT IS THE ONLY THING THAT TOGGLES. The whole
+    row used to carry the handler, which is why this is structural rather than a
+    `stopPropagation` in each control: with the routine's own panel INSIDE the
+    row, every press in it -- Rename, a step's Remove, a character typed into an
+    argument box -- would have bubbled to the row and closed the thing being
+    used. A handler that sits only on the disclosure cannot do that, and no
+    control added later has to remember to stop anything.
+
+    It is a real button, so Enter and Space work and `aria-expanded` says which
+    state it is in. `all:unset` takes the chrome off; the two lines inside are
+    laid out as they always were. */
+ .disclose{all:unset;cursor:pointer;display:flex;align-items:center;gap:11px;
+        flex:1 1 14em;min-width:0}
+ .disclose:focus-visible{outline:2px solid var(--spot);outline-offset:4px;
+        border-radius:var(--r-sm)}
+ .disclose:hover h3{color:var(--spot)}
+ /* THE CHEVRON TURNS RATHER THAN BEING SWAPPED: one glyph, one state, and no
+    second character to keep in step with `aria-expanded`. */
+ .chev{flex:none;width:11px;color:var(--faint);font-size:10px;line-height:1;
+        transition:transform .14s,color .14s}
+ .disclose[aria-expanded="true"] .chev{transform:rotate(90deg);color:var(--spot)}
+ /* WHAT OPENS BENEATH THE NAME. Empty for every row but one, and it takes no
+    space at all until the panel is carried into it. */
+ .here:not(:empty){margin-top:16px}
+ /* AND WHAT THE ROW HAS TO SAY FOR ITSELF -- the short reason its Play is dark, or
+    how a run is getting on -- on a line of its OWN under the name.
+    Beside the button it was another thing taking width from the name, and the name
+    is what a list is scanned by: with a refusal in it the meta line wrapped mid-date.
+    Empty, it is not a line at all. */
+ .rowsays{flex:1 0 100%;text-align:left}
+ .rowsays:empty{display:none}
+
+ /* NARROW ── and it is the whole window, not just the row.
+    The rail is 214px and `main` pads by up to 56px a side, so at 460 the column a
+    routine is read in was 182px wide. That is not a tight layout; the disclosure
+    shrank to zero and the row had a name on it that could not be seen.
+
+    So the rail narrows to the width of its longest word, the gutter goes to 16px,
+    and the row's controls WRAP UNDER the name rather than taking width from it: a
+    list is found by reading its names, and a name crushed to two words by three
+    buttons beside it is a list that cannot be scanned. */
+ @media (max-width:760px){
+   #rail{width:132px;flex:0 0 132px}
+   main{padding:26px 16px 70px}
+   /* THE WRAPPED CONTROLS SIT TOGETHER. `space-between` spreads every line it
+      makes, so the status word went left and Play went to a line of its own with
+      nothing beside it -- three lines of chrome under one name. */
+   .rowline{align-items:flex-start;justify-content:flex-start}
+   .disclose{flex:1 1 100%}
+   .card.pick{padding:13px 4px}
+   /* The step editor's own narrow rules are at the END of this stylesheet, with
+      the reason they had to be. */
+ }
 
  /* A STATUS IS A WORD. The sentence it stands for is in the panel below, once,
     about the routine somebody actually chose — not three times down a list. */
@@ -258,17 +313,34 @@
  .steprows .act{font:400 12px var(--mach);color:var(--dim);white-space:nowrap;
    text-transform:lowercase}
  .steprows .lbl{font:400 12px var(--mach);color:var(--dim)}
- .steprows input[type=number].xy{width:5em}
+ .steprows input[type=number].xy{width:4em}
  /* A POINT ROW LAYS ITS PARTS OUT; a row of text does not.
     Only the point rows become a flex container: everything else in this column is one
     run of text, and making THAT an anonymous flex item changes how a long sentence
-    wraps for no reason at all. */
- .steprows .said.pt{display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap}
+    wraps for no reason at all.
+
+    AND IT IS ONE LINE AT AN ORDINARY WIDTH: action, where it presses, controls. It
+    wrapped before because it was allowed to and it had run out of room -- `x` sat at
+    the end of one line with the number it names on the next, which is two controls
+    called nothing. `nowrap` makes the stacking a DECISION, taken in the narrow block
+    at the end of this sheet rather than by whatever width the window happens to be. */
+ .steprows .said.pt{display:inline-flex;gap:6px;align-items:center;flex-wrap:nowrap}
+ /* AND A LABEL TRAVELS WITH ITS BOX. Whatever this row does at any width, `x` and the
+    field it names move together, because separately they mean nothing. */
+ .steprows .xyp{display:inline-flex;gap:5px;align-items:center;white-space:nowrap;
+   flex:none}
 
  /* WHAT A PRESS IS MEASURED AGAINST, as a badge rather than a sentence.
     The two survive different things -- an offset inside a window still means the same
     place after the window has moved, and a point on the desktop does not -- so the
-    word has to be beside the numbers rather than at the end of a line. */
+    word has to be beside the numbers rather than at the end of a line.
+
+    ONE WORD, because it is a label on the pair it sits in front of: `WINDOW x 120
+    y 90`. It read `IN THE WINDOW`, which is 117 pixels of a cell that is 238 wide at
+    an ordinary window size -- half the room the numbers needed, spent on two words
+    that say nothing the one word does not. The full phrase is still what each box is
+    NAMED (`x of the press at step 2, inside the window`), which is what a screen
+    reader says and what a badge could not carry anyway. */
  .steprows .basis{font:600 10.5px var(--sans);letter-spacing:.04em;
    text-transform:uppercase;padding:2px 6px;border-radius:999px;
    background:var(--sink);color:var(--dim);border:1px solid var(--line);
@@ -342,8 +414,8 @@
     untouched; what it adds is the boundary those claims never described. */
  .deed{border-top:1px solid var(--line);margin-top:15px;padding-top:15px}
  .deed > .muted{margin-top:4px}
- #routineChosen{margin-top:26px}
- #routineIdentity{font:600 20px/1.25 var(--display);letter-spacing:-.014em;margin:0}
+ /* IT IS INSIDE A ROW NOW, and `.here` is what spaces it off the name. */
+ #routineChosen{margin-top:0}
  /* AND THE FIELDS A ROUTINE ASKS FOR ARE A FORM, NOT A TABLE. They share a class
     with three lists of values -- the phrases, the steps, the step edit -- and those
     want the frame; a label beside a box does not, and the box fills the row it is in
@@ -392,6 +464,16 @@
  button.go:hover:not(:disabled){background:var(--ink);border-color:var(--ink)}
  button.go:disabled{background:var(--raise);color:var(--dim);
         border-color:var(--line)}
+ /* AND THE ONE ON THE ROUTINE PANEL IS BIGGER THAN A PRIMARY.
+    Play is what most visits to this window end in, and at `--ctl` it was the same
+    size as `Refresh` beside it and `Rename` above it -- one of several controls of
+    one height, which is the thing `--ctl` is for and the wrong answer for this one.
+
+    SIZE AND NOT COLOUR. The three tiers still mean what they meant: a bigger target
+    with more air around its label, not a louder fill, because the fill is already the
+    loudest thing on the panel. */
+ button.go.big{font:600 15.5px var(--text);padding:12px 30px;min-height:46px;
+        border-radius:var(--r)}
  /* Stop is live for the whole of a run and must never be the quietest thing on
     screen, nor loud enough to invite a press. */
  button.stop{background:none;border-color:var(--no);color:var(--no);font-weight:600}
@@ -464,6 +546,39 @@
  @media (prefers-reduced-motion:reduce){
    *,*::before{transition:none!important;animation:none!important}
  }
+
+ /* ── THE STEP EDITOR BELOW THE WIDTH IT NEEDS, AND IT HAS TO BE DOWN HERE ─────────
+    Three lines instead of four columns: number and verb on the first, what the step
+    does on the second, its controls on the third -- so the value keeps a whole line
+    to wrap in and the buttons keep their labels. Placed by POSITION, because
+    `.four` IS the contract: number, action, value, controls, in that order.
+
+    AND IT IS AT THE END BECAUSE A MEDIA QUERY IS NOT MORE SPECIFIC THAN ANYTHING.
+    `.steprows .sr.four` inside one and `.steprows .sr.four` outside it weigh the
+    same, so the one written LATER wins -- and the four-column rule is ninety lines
+    below where the rest of the narrow block sits. Written up there, this fired and
+    did nothing: at 470px the editor still had four columns, the controls cell was
+    squeezed to ZERO and what the step does wrapped inside fifty-three pixels.
+    Measured, not reasoned about. */
+ @media (max-width:960px){
+   .steprows{padding:0 8px}
+   .steprows .sr.four{grid-template-columns:28px 1fr;row-gap:5px}
+   /* MEASURED, NOT GUESSED. The four columns cost 28px for the number, 7.5em for
+      the action and whatever Set and Remove need -- about 302px before the value
+      has anywhere to go. In a 1000px window the cell left over is 238px and the
+      press row needs 206 of it, which is why one line is the ordinary case; every
+      hundred pixels off the window takes ninety-one off that cell, so a little
+      under 960 is where it stops fitting and this block takes over. It used to
+      begin at 760, where the cell is 35 pixels wide and long past arguing about.
+      Measured at ten widths, not reasoned about. */
+   .steprows .sr.four > :nth-child(1){grid-area:1/1}
+   .steprows .sr.four > :nth-child(2){grid-area:1/2}
+   .steprows .sr.four > :nth-child(3){grid-area:2/2}
+   .steprows .sr.four > :nth-child(4){grid-area:3/2;justify-self:start}
+   /* AND HERE THE ROW STACKS, on purpose. The pairs stay whole and come down
+      together under the basis they are measured in. */
+   .steprows .said.pt{flex-wrap:wrap}
+ }
  /* LAST, AND IT WINS. Everything on this page is shown or hidden by toggling this
     one class, and a rule above that sets a display would otherwise un-hide a
     whole view. */
@@ -473,6 +588,11 @@
  .hint{all:unset;cursor:pointer;font:600 11px var(--sans);color:var(--spot);
    border-bottom:1px dotted var(--spot)}
  .hint:focus-visible{outline:2px solid var(--spot);outline-offset:2px}
+ /* AND TWO OF THEM IN A ROW ARE TWO. The dotted underline runs the whole width of
+    each one, so `What can be changed` and `Where a press is measured`, separated by
+    the single space between two tags, rendered as one underlined phrase that goes to
+    one place. Found by rendering the panel and looking at it. */
+ .hint + .hint{margin-left:14px}
 
  /* WHAT A CONTROL KEEPS, shown beside it and not in it. A chip rather than text,
     because it is a fact about the thing being edited rather than part of the edit. */
@@ -1103,19 +1223,51 @@
     <div id="routineList" style="margin-top:12px"></div>
     <div class="muted hide" id="routineNone">Nothing has been recorded yet. Record one
       above and it appears here.</div>
+    <!-- WHERE THE PANEL WAITS WHILE NO ROUTINE IS OPEN.
+         ONE PANEL, CARRIED, AND NEVER REBUILT. Every routine is a row that opens
+         where it is, and what opens is this one set of elements moved into that
+         row -- not a copy made per routine. Three reasons, and the first is the
+         Architect's:
+
+           Preserve unsaved inputs when clicking Rename, Play or other controls
+
+         Moving a node keeps everything a rebuild throws away: the text in the
+         argument boxes, the name typed into the rename field, which source panes
+         are open, the step changes collected against a list. A panel rendered per
+         row would lose all of it on every poll that changed anything.
+
+         The second is that an `id` is unique and every function in this file
+         reaches these elements by name. A panel per routine is eleven
+         `routinePlayBtn`s.
+
+         And the third is that ONE panel IS "open one routine at a time": there is
+         no second place for a second one to be, so the two cannot disagree. -->
+    <div id="routinePark"></div>
     <!-- AND IT IS SET APART FROM THE LIST IT BELONGS TO. It opened flush under the
          last row with the same 17px heading the rows use, so the panel about the
          selected routine read as a fourth entry in the list. Space above it and a
          heading a size up; the row it is about is already marked. -->
     <div class="hide" id="routineChosen">
+      <!-- AND WHAT LEAVING THIS ROUTINE WOULD THROW AWAY, BEFORE IT IS THROWN.
+           The Architect: *if switching routines would discard pending edits, make
+           that explicit*. One panel is carried from row to row, so opening another
+           routine is leaving this one -- and the step changes collected against this
+           step list, the text typed into its argument boxes and a name half typed
+           into the rename field all belong to it and go with it.
+
+           IT ASKS BY REFUSING ONCE. Not a `confirm()`: a modal in a webview is a
+           dialog this window does not otherwise own, it cannot be read by a test
+           that renders the page, and headless browsers answer it themselves. The
+           first press names what would be lost and does nothing; the same press
+           again goes. The names are the person's own words -- the arguments they
+           typed into, the count of changes they collected -- rather than "unsaved
+           changes", which is a sentence that could be about anything. -->
+      <div class="banner bad hide" id="routineLeaving"></div>
       <!-- WHAT IS SELECTED, BEFORE ANYTHING ABOUT IT.
            The list above marks the chosen card, and that was already true. What was not
            is this panel saying which routine it is about: it opened with three lines of
            provenance, and the name and application were only up in the list. See
            [[Studio-UI-audit-2026-10-29]]. -->
-      <h3 id="routineIdentity"></h3>
-      <div class="muted" id="routineIdentityWhere"></div>
-
       <!-- AND WHERE YOU CAN ASK FOR IT, which is a different question from where it works
            and is the one nothing in this window answered.
            A routine saved to work in place is offered BY NAME only while its application
@@ -1126,12 +1278,50 @@
            by `askedFor`. -->
       <div class="muted" style="margin-top:4px" id="routineAskedFor"></div>
 
-      <!-- WHETHER ITS PRESSES ARE CHECKED, BEFORE PLAY RATHER THAN AFTER.
-           Three states and one of them is a promise: a guarded routine stops at the first
-           press it cannot check, a legacy one presses where it was recorded having checked
-           nothing, and an incomplete one refuses. Reading it here is what saves somebody a
-           minute of watching refusals. See ADR-251. -->
-      <div class="muted" style="margin-top:8px" id="routineChecks"></div>
+      <!-- CALLING IT SOMETHING ELSE. The button that reveals this is on the ROW,
+           beside the name it changes; the form is here because it holds typed text
+           and this panel is the thing that is carried from row to row intact.
+
+           THE BOX HOLDS THE NAME AND NOT WHAT THE ROUTINE ASKS FOR. The values live in
+           the steps as placeholders, and the chip beside the box is what a name would
+           declare them as -- shown so that somebody retyping a name can see the part
+           they are not being asked to retype. A box holding the whole phrase is a way
+           to drop a value by retyping, and the routine would then type the literal text
+           of the demonstration the next time it ran.
+
+           WHAT A RENAME KEEPS IS SAID ON THE REVIEW, not here. This row carried a
+           four-line sentence listing the scope, the arguments, the phrases, the
+           demonstration and the edited steps -- all of which the review panel says
+           again, in front of both sources, at the moment it matters. -->
+      <div class="row hide" style="margin-top:8px" id="routineRenameForm">
+        <label for="routineRenameBox" style="width:7em">new name</label>
+        <input type="text" id="routineRenameBox" placeholder="what to call it"
+          style="flex:1;min-width:0">
+        <span class="chip hide" id="routineRenameClause"></span>
+        <button class="go" id="routineRenameGo" onclick="reviewRename()"
+          >Review the rename</button>
+        <button id="routineRenameCancel" onclick="hideRename()">Cancel</button>
+      </div>
+      <div class="no hide" style="margin-top:6px" id="routineRenameWhy"></div>
+
+      <!-- WHETHER ITS PRESSES ARE CHECKED, AND ONLY WHEN THAT IS A WARNING.
+           Three contracts, and the guarded one -- which is every routine recorded since
+           Marco measured windows -- now says NOTHING here. It read "Checks the program,
+           window size and scale before each press. Stops if a check fails.", a few lines
+           above the press-in row that says the same thing about the window the run will
+           actually raise: one fact twice, and the half that enumerates the measurements
+           is machine detail in front of somebody deciding whether to press a button.
+
+           What is left is the two contracts that are a warning: a legacy routine presses
+           where it was recorded having checked nothing, and an incomplete one refuses
+           (its sentence is in `routineWhy`, which is also the reason it cannot run).
+           WHAT is checked is Help, linked from here whatever the contract, because
+           somebody asking that question is asking it about Marco and not about this
+           routine. Written by `checksSentence`. See ADR-251. -->
+      <div class="row" style="margin-top:8px">
+        <span class="muted" id="routineChecks"></span>
+        <button class="hint" onclick="helpOn('checks')">What is checked</button>
+      </div>
       <!-- AND THE REASON IT CANNOT RUN, when there is one. OUTSIDE every collapsed detail
            on purpose: a refusal nobody can see is a Play button that does nothing for a
            reason somebody has to go looking for. -->
@@ -1178,22 +1368,23 @@
         <h3 style="margin:0 0 8px">Text this routine needs</h3>
         <div id="routineArgsList" class="steprows"></div>
       </div>
-      <div class="row" style="margin-top:12px">
-        <button class="go" id="routinePlayBtn" onclick="playRoutine()">Play</button>
-        <span class="muted" id="routineNote"></span>
-        <!-- AND THE ONE REASON PLAY IS DARK THAT THE PERSON CAN FIX FROM HERE.
-             Four conditions disable the button and three already have a sentence on the
-             card: not runnable is `routineWhy`, no window is `routineIntoWhy`, a run in
-             flight writes `routineNote`. A field with nothing in it yet had none — so
-             arriving at a routine that types supplied text was arriving at an empty box
-             and a dead button, with nothing joining the two.
+      <!-- PLAY IS NOT IN HERE. IT IS ON THE ROW.
+           The Architect:
 
-             ITS OWN ELEMENT, not a second writer of `routineNote`. That span carries a
-             run's progress and its errors; a requirement that cleared it would wipe
-             `starting "x"...` the moment somebody typed, and one that did not clear it
-             would leave a stale ask over a finished run. See paintRoutinePlay. -->
-        <span class="muted hide" id="routineWants"></span>
-      </div>
+             keep Play on the collapsed row, with the chevron and routine name on the
+             left, Play on the right ... keep a single primary Play button per
+             routine -- don't duplicate it inside the expanded section
+
+           So `routinePlayBtn`, `routineNote` and `routineWants` are drawn by
+           `drawRoutines` onto the OPEN row, with the same ids they always had, and
+           every other row carries its own `routinePlay-<key>` beside its own name.
+           One button per routine and never two for one, which is why there is
+           nothing here: a second Play under the fields it waits on would be the
+           duplicate that ruling names.
+
+           WHAT STAYS is everything a run NEEDS -- the window it presses in above,
+           the text it asks for above that, and the read-back below. Those are
+           inputs to the button on the row, and they are immediately under it. -->
 
       <!-- AND WHAT IT WOULD TYPE, READ BACK BEFORE IT TYPES IT.
            The one place a value is repeated, and it is not a diagnostic: it is on a
@@ -1344,8 +1535,10 @@
           <button id="routineWhereBtn" onclick="scopeChoices()">Change where it
             works</button>
         </div>
-        <div class="muted">Shows all three choices, and why any of them is unavailable.
-          Nothing is written until you move it.</div>
+        <!-- ONE PROMISE, NOT A DESCRIPTION OF THE BUTTON. It also said "Shows all
+             three choices, and why any of them is unavailable", which is what pressing
+             it does and is answered by pressing it. -->
+        <div class="muted">Nothing is written until you move it.</div>
       </div>
       <!-- WHAT A MOVE DID, AND MOVED IS NOT COPIED.
            A destination written with the original gone is a move; one written with the
@@ -1443,35 +1636,6 @@
           <button id="routineWhereAgainBtn" onclick="scopeChoices()">Ask again</button>
         </div>
         <div id="routineWhereChoices"></div>
-      </div>
-
-      <!-- CALLING IT SOMETHING ELSE, WHICH IS A MOVE TO ANOTHER NAME.
-           It goes through the SAME review panel below: a rename re-renders, both
-           sources are shown, and nothing is written until the button under them.
-
-           THE BOX HOLDS THE NAME AND NOT WHAT THE ROUTINE ASKS FOR. The values live
-           in the steps as placeholders, and the clause beside the box is what a name
-           would declare them as -- shown so that somebody retyping a name can see the
-           part they are not being asked to retype. A box holding the whole phrase is a
-           way to drop a value by retyping, and the routine would then type the literal
-           text of the demonstration the next time it ran. See rename.go. -->
-      <div class="deed" id="routineRenameRow">
-        <div class="row">
-          <button id="routineRenameBtn" onclick="revealRename()">Rename it</button>
-        </div>
-        <div class="muted">It keeps where it works, what it asks for, the phrases it
-          answers to, your demonstration and the steps you edited. Nothing is written
-          until you review it.</div>
-        <div class="row hide" style="margin-top:8px" id="routineRenameForm">
-          <label for="routineRenameBox" style="width:7em">new name</label>
-          <input type="text" id="routineRenameBox" placeholder="what to call it"
-            style="flex:1;min-width:0">
-          <span class="chip hide" id="routineRenameClause"></span>
-          <button class="go" id="routineRenameGo" onclick="reviewRename()"
-            >Review the rename</button>
-          <button id="routineRenameCancel" onclick="hideRename()">Cancel</button>
-        </div>
-        <div class="no hide" style="margin-top:6px" id="routineRenameWhy"></div>
       </div>
 
       <!-- THE MOVE ITSELF: BOTH SOURCES, WHAT IS IN THE WAY, AND ONE BUTTON.
@@ -3241,30 +3405,50 @@
        // proposal that was left alone from one the person fixed. Nothing here is a
        // supply: the confirmation is still the confirmation.
        takeProposals(a)
-       // SELECTED, NOT RUN. Exactly what clicking the card does.
-       chosenRoutine = a.id; shownRoutines = ''; drawRoutines()
-       const card = $('routine-' + a.id.replace(/[^a-z0-9]+/gi, '-'))
-       if (card) { card.scrollIntoView({block:'nearest'}) }
+       // OPENED, NOT RUN. Exactly what pressing the row does, through the same
+       // door: an answer from the resolver is still somebody leaving whatever
+       // routine they had open, and if that would lose work it says so and stays.
+       if (leaveRoutine(a.id)) {
+         const card = $('routine-' + routineKey(a.id))
+         if (card) { card.scrollIntoView({block:'nearest'}) }
+       }
      }
    }).finally(() => { asking = false; $('askBtn').disabled = false })
  }
 
  let shownRoutines = ''
+
+ // EVERYTHING THE LIST SHOWS, IN ONE STRING, INCLUDING WHICH ROW IS OPEN.
+ function routinesSig(){
+   return routines.map(r => [r.id, r.name, r.contract, r.mode, r.runnable,
+     r.saved_at, r.generation, r.declared_generation, r.update,
+     r.rebuildable].join('\u0001')).join('\u0000') + '\u0000' + chosenRoutine
+ }
+
  function pollRoutines(){
    acts.Routines().then(rs => {
      routines = rs || []
      if (chosenRoutine && !routines.some(r => r.id === chosenRoutine)) {
        chosenRoutine = ''
      }
-     const sig = routines.map(r => [r.id, r.name, r.contract, r.mode, r.runnable,
-       r.saved_at, r.generation, r.declared_generation, r.update,
-       r.rebuildable].join('\u0001')).join('\u0000') + '\u0000' + chosenRoutine
-     if (sig !== shownRoutines) { shownRoutines = sig; drawRoutines() }
+     if (routinesSig() !== shownRoutines) { drawRoutines() }
    }).finally(() => setTimeout(pollRoutines, 2500))
  }
 
+ // THE ADDRESS OF A ROW, from the route's whole identity. That identity is unique by
+ // construction -- `settings` saved for two applications under two scopes is two
+ // routines -- so it is also what anything outside this window uses to find exactly one.
+ function routineKey(id){ return id.replace(/[^a-z0-9]+/gi, '-') }
+
  function drawRoutines(){
    const list = $('routineList')
+   // THE PANEL IS CARRIED OUT BEFORE THE LIST IS EMPTIED.
+   //
+   // It is inside one of these rows, and `innerHTML = ''` on the list would delete
+   // it -- with the text somebody has typed into an argument box, the name they are
+   // part way through typing, the step changes they have collected and the source
+   // panes they have opened. Parked first, put back last, and never rebuilt.
+   $('routinePark').appendChild($('routineChosen'))
    list.innerHTML = ''
    showing($('routineNone'), routines.length === 0)
    routines.forEach(r => {
@@ -3281,16 +3465,7 @@
      // identity, which is already unique by construction — `settings` saved for two
      // applications under two scopes is two routines and two ids — so it is also the
      // address anything outside this window can use to find exactly one card.
-     card.id = 'routine-' + r.id.replace(/[^a-z0-9]+/gi, '-')
-     card.setAttribute('role', 'button')
-     card.tabIndex = 0
-     const choose = () => {
-       chosenRoutine = r.id; shownRoutines = ''; drawRoutines()
-     }
-     card.onclick = choose
-     card.onkeydown = (e) => {
-       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); choose() }
-     }
+     card.id = 'routine-' + routineKey(r.id)
      // WHERE IT WORKS AND WHEN IT WAS KEPT. Both, because a person who has just
      // recorded the same thing twice tells them apart by the clock and nothing else.
      // ONE WORD PER ROW, and the sentence it stands for once, in the panel below,
@@ -3309,14 +3484,186 @@
      // Held by TestAStatusWordNeverClaimsAnOutcomeWasVerified.
      const status = !r.runnable ? ['no', "Won't run"]
        : r.contract === 'guarded' ? ['ok', 'Window-checked'] : ['un', 'Unchecked']
-     card.innerHTML = '<div class="rowline"><div>' +
-       '<h3>' + esc(r.name) + '</h3>' +
-       '<div class="muted">' + esc(whereItWorks(r)) +
-       (r.saved_at ? '  ·  ' + esc(r.saved_at) : '') + '</div></div>' +
-       '<span class="pill ' + status[0] + '">' + esc(status[1]) + '</span></div>'
+     const key = routineKey(r.id)
+     const open = r.id === chosenRoutine
+     // THE OPEN ROW CARRIES THE IDS THE REST OF THIS FILE KNOWS.
+     //
+     // `routinePlayBtn`, `routineNote` and `routineWants` were in the panel and are
+     // on the row now, and they keep their names because one routine is open at a
+     // time -- so exactly one element answers to each of them, which is what an id
+     // means. Every other row has a Play of its own under its own key: one primary
+     // Play per routine, and never two for one.
+     const playId = open ? 'routinePlayBtn' : 'routinePlay-' + key
+     const saysId = open ? 'routineNote' : 'routineSays-' + key
+     card.innerHTML = '<div class="rowline">' +
+       '<button class="disclose" id="routineOpen-' + key + '" type="button"' +
+         ' aria-expanded="' + (open ? 'true' : 'false') + '"' +
+         ' aria-controls="routineHere-' + key + '">' +
+         '<span class="chev" aria-hidden="true">&#9654;</span>' +
+         '<span class="grow"><h3>' + esc(r.name) + '</h3>' +
+         '<div class="muted">' + esc(whereItWorks(r)) +
+         (r.saved_at ? '  ·  ' + esc(r.saved_at) : '') + '</div></span>' +
+       '</button>' +
+       '<span class="pill ' + status[0] + '">' + esc(status[1]) + '</span>' +
+       (open ? '<button id="routineRenameBtn" type="button">Rename</button>' : '') +
+       '<button class="go big" type="button" id="' + playId + '">Play</button>' +
+       '<span class="muted rowsays" id="' + saysId + '"></span>' +
+       (open ? '<span class="muted hide" id="routineWants"></span>' : '') +
+       '</div>' +
+       '<div class="here" id="routineHere-' + key + '"></div>'
      list.appendChild(card)
+     // THE HANDLERS ARE BOUND, NOT WRITTEN INTO THE MARKUP, because a name that
+     // reaches an `onclick` attribute has to survive `esc` and a minifier alike.
+     $('routineOpen-' + key).onclick = () => toggleRoutine(r.id)
+     $(playId).onclick = () => playFrom(r.id)
+     if (open) { $('routineRenameBtn').onclick = () => revealRename() }
+     // AND THE SHORT REASON A SHUT ROW CANNOT BE PLAYED, beside its own Play. The
+     // open one has the whole refusal in `routineWhy`, under the name, where a
+     // second short copy would be the same sentence twice.
+     if (!open && !r.runnable && r.why) {
+       const says = $(saysId)
+       says.className = 'no rowsays'
+       says.textContent = shortWhy(r.why)
+     }
    })
+   // AND THE PANEL GOES BACK INTO WHICHEVER ROW IS OPEN.
+   if (chosenRoutine) {
+     const here = $('routineHere-' + routineKey(chosenRoutine))
+     if (here) { here.appendChild($('routineChosen')) }
+   }
+   // AND THE DRAW IS WHAT RECORDS WHAT WAS DRAWN. Callers used to blank the
+   // signature to force this, which left the next poll comparing against "" and
+   // drawing it all again -- a redraw nobody asked for that moves the panel and
+   // takes focus out of whatever somebody was typing in.
+   shownRoutines = routinesSig()
    renderRoutine()
+   // EVERY ROW'S PLAY IS PAINTED IN ONE PLACE, and it is the place the poll calls
+   // too -- `renderRoutine` returns early when no routine is open, and the shut
+   // rows still have buttons that must go dark while a run is in flight.
+   paintRoutinePlay()
+ }
+
+ // A LIST SOMEBODY READS, not one joined by commas to the end. Two things are joined
+ // by "and"; more than two take commas until the last.
+ function andAll(items){
+   if (items.length < 2) { return items[0] || '' }
+   return items.slice(0, -1).join(', ') + ' and ' + items[items.length - 1]
+ }
+
+ // THE FIRST SENTENCE OF A REFUSAL, for a row. The whole of it is in the panel; what
+ // fits beside a button is the part that says what is wrong.
+ function shortWhy(why){
+   const stop = why.indexOf('. ')
+   return stop > 0 ? why.slice(0, stop + 1) : why
+ }
+
+ // ── OPENING ONE ROUTINE, AND LEAVING THE ONE THAT WAS OPEN ──────────────────
+ //
+ // One at a time, because there is one panel. Everything that changes which routine is
+ // open goes through `leaveRoutine`, which is the one place that can lose somebody's
+ // work and therefore the one place that asks.
+
+ function toggleRoutine(id){
+   leaveRoutine(chosenRoutine === id ? '' : id)
+ }
+
+ // `asking` is the destination a warning has already been shown for. The same press
+ // again goes; a press at a DIFFERENT routine asks again, because what it would lose
+ // is the same but where it is going is not.
+ let leavingTo = null
+
+ function leaveRoutine(to){
+   const pending = chosenRoutine ? pendingEdits() : []
+   if (pending.length && leavingTo !== to) {
+     leavingTo = to
+     const el = $('routineLeaving')
+     el.textContent = (to ? 'Opening another routine' : 'Closing this') +
+       ' discards ' + andAll(pending) + '. Press again to leave it, or carry on here.'
+     showing(el, true)
+     el.scrollIntoView({block: 'nearest'})
+     return false
+   }
+   leavingTo = null
+   // THE CHANGES BELONG TO THE ROUTINE BEING LEFT. They are positions in ITS step
+   // list, and carrying them to the next routine would be somebody's intention
+   // applied to steps that are not there.
+   stepChanges = []
+   chosenRoutine = to
+   drawRoutines()
+   return true
+ }
+
+ // WHAT LEAVING WOULD THROW AWAY, IN THE PERSON'S OWN TERMS.
+ //
+ // Not "unsaved changes", which is a sentence that could be about anything. Only things
+ // somebody TYPED or COLLECTED count: a prepared review writes nothing and is rebuilt by
+ // pressing the same button again, so naming it would be asking about something that is
+ // not lost.
+ function pendingEdits(){
+   const out = []
+   if (stepChanges && stepChanges.length) {
+     out.push(stepChanges.length === 1 ? 'the change you collected to its steps'
+       : 'the ' + stepChanges.length + ' changes you collected to its steps')
+   }
+   // WHAT SOMEBODY TYPED, WHICH IS NOT WHAT A REQUEST PROPOSED FOR THEM. A value
+   // read out of the words of a request arrives in the same box; losing it costs
+   // nobody anything, because asking again produces it again. One that has been
+   // EDITED since is theirs, which is why this compares the value rather than just
+   // the name.
+   const props = proposalsHere(chosenRoutine)
+   const typed = Object.keys(argValues || {}).filter(k => (argValues[k] || '') !== '' &&
+     !(Object.prototype.hasOwnProperty.call(props, k) && props[k] === argValues[k]))
+   if (typed.length) {
+     out.push('the text you typed for ' + typed.map(t => '“' + t + '”').join(' and '))
+   }
+   const box = $('routineRenameBox')
+   const form = $('routineRenameForm')
+   const r = routineWith(chosenRoutine)
+   if (box && form && renamingFor === chosenRoutine &&
+       !form.classList.contains('hide') && box.value &&
+       box.value !== ((r && r.name) || '')) {
+     out.push('the new name you typed')
+   }
+   return out
+ }
+
+ // ── PLAY, FROM A ROW THAT MAY NOT BE OPEN YET ───────────────────────
+ //
+ // The Architect: *if the window and inputs are ready, use the existing Play flow; if
+ // arguments or a window choice are needed, expand the row and focus the first required
+ // field.* A shut row knows neither -- the window list and what the routine asks for are
+ // read when it opens -- so pressing Play opens it and the answer is taken up as soon as
+ // those two reads land, in `paintRoutinePlay`.
+ let wantsPlay = ''
+
+ function playFrom(id){
+   const r = routineWith(id)
+   if (!r || !r.runnable || runActive) { return }
+   if (chosenRoutine !== id) {
+     // OPENING IT IS LEAVING THE OTHER ONE, and that is the same question with the
+     // same answer. A refused leave is a warning on screen and no run.
+     if (!leaveRoutine(id)) { return }
+     wantsPlay = id
+     return
+   }
+   readyOrAsk(r)
+ }
+
+ // WHAT IT IS WAITING FOR, AND THE CURSOR PUT THERE.
+ function readyOrAsk(r){
+   if (!intoWindow) {
+     const sel = $('routineInto')
+     if (sel && !sel.disabled) { sel.focus() }
+     return
+   }
+   if (!suppliedArgs()) {
+     const want = ((argNeeds && argNeeds.fields) || []).filter(f => !f.secret &&
+       !Object.prototype.hasOwnProperty.call(argValues, f.name))[0]
+     const box = want && $('routineArg-' + want.name)
+     if (box) { box.focus() }
+     return
+   }
+   playRoutine()
  }
 
  // BY IDENTITY, which is the only way to find ONE of two routines of the same name. The
@@ -3595,6 +3942,13 @@
      const cut = verbOf(row.says)
      if (cut) { act.textContent = cut[0]; said.textContent = cut[1] }
      else { said.textContent = row.says }
+     // AND A PRESS ALWAYS SAYS WHAT IT DOES. Below, a point row REPLACES the value
+     // half with the two boxes -- so a sentence the table does not open would leave
+     // the row as a number, a badge and two fields, with the one word that said what
+     // happens at that place thrown away. `oneStep` writes a verb for every kind that
+     // presses, which is what makes the ordinary row read `Left-click`; this is what
+     // makes a row that says something else say it anyway.
+     if (row.point && !cut) { act.textContent = row.says }
      what.appendChild(said)
      // ── AND A PRESS SAYS WHERE IT IS, IN THE BASIS IT WAS MEASURED IN ──
      //
@@ -3613,7 +3967,7 @@
        said.classList.add('pt')
        const basis = document.createElement('span')
        basis.className = 'basis' + (row.in_window ? ' win' : '')
-       basis.textContent = row.in_window ? 'in the window' : 'on the screen'
+       basis.textContent = row.in_window ? 'window' : 'screen'
        said.appendChild(basis)
        const placed = asked && asked.op === 'point' ? asked : null
        if (row.movable) {
@@ -3632,7 +3986,10 @@
              (row.at + 1) + (row.in_window ? ', inside the window'
                                            : ', on the screen'))
            box.value = String(placed ? placed[axis] : row[axis])
-           said.append(lab, box)
+           const pair = document.createElement('span')
+           pair.className = 'xyp'
+           pair.append(lab, box)
+           said.appendChild(pair)
            if (axis === 'x') { xBox = box } else { yBox = box }
          }
        } else {
@@ -3640,12 +3997,10 @@
          at.textContent = row.x + ', ' + row.y
          said.appendChild(at)
        }
-       if (row.terms) {
-         const terms = document.createElement('span')
-         terms.className = 'muted mach'
-         terms.textContent = row.terms
-         said.appendChild(terms)
-       }
+       // THE BUTTON IS NOT WRITTEN AGAIN HERE. It used to trail the numbers as a
+       // machine word, and it is already the first thing on the row: `oneStep` writes
+       // `left-click at ...` and the action column is the front of that sentence. One
+       // fact twice, with the quiet copy in the place somebody scans.
        // AND WHY IT CANNOT BE MOVED, ON THE ROW AND OUTSIDE THE STRUCK-OUT PART,
        // for the reason the pair warning is: a reason struck through is a reason
        // somebody reads as already dealt with.
@@ -4105,9 +4460,14 @@
  // The box is revealed rather than open, like the record form: a text field sitting
  // under every routine with its name already in it reads as something to edit.
 
+ // WHICH ROUTINE THE OPEN BOX IS ABOUT. A name half typed belongs to the routine it
+ // was going to rename and to no other.
+ let renamingFor = ''
+
  function revealRename(){
    const r = routineWith(chosenRoutine)
    if (!r) { return }
+   renamingFor = r.id
    showing($('routineRenameForm'), true)
    $('routineRenameBox').value = r.name || ''
    text($('routineRenameWhy'), '')
@@ -4121,6 +4481,7 @@
  }
 
  function hideRename(){
+   renamingFor = ''
    showing($('routineRenameForm'), false)
    showing($('routineRenameWhy'), false)
    text($('routineRenameWhy'), '')
@@ -4146,6 +4507,10 @@
      showing($('routineRenameWhy'), false)
      moving = v
      drawMove()
+     // AND IT IS BROUGHT INTO VIEW. The button that asked for this is up beside the
+     // name now, and the panel it opens is below the whole of the card -- so without
+     // this a press of `Review the rename` looks like a press that did nothing.
+     $('routineMove').scrollIntoView({block: 'nearest'})
    })
  }
 
@@ -4292,7 +4657,6 @@
    acts.Routines().then(rs => {
      routines = rs || []
      if (selectId && routines.some(r => r.id === selectId)) { chosenRoutine = selectId }
-     shownRoutines = ''
      drawRoutines()
    })
  }
@@ -4410,6 +4774,7 @@
    ['middle-click at ', 'Middle-click'],
    ['bring ', 'Bring'],
    ['drag ', 'Drag'],
+   ['move the pointer to ', 'Move'],
    ['press ', 'Press'],
    ['type ', 'Type'],
    ['hold ', 'Hold'],
@@ -4427,11 +4792,18 @@
    const r = routineWith(chosenRoutine)
    showing($('routineChosen'), !!r)
    if (!r) { return }
-   // WHAT IS SELECTED, SAID IN THIS PANEL TOO. The list marks the chosen card; this
-   // panel used to open with provenance and never name the routine it was about.
-   text($('routineIdentity'), r.name || '')
-   text($('routineIdentityWhere'), whereItWorks(r))
+   // THE NAME AND WHERE IT WORKS ARE NOT REPEATED IN HERE. This panel opens directly
+   // underneath the row that carries both, four pixels away, and saying them again was
+   // the same two lines twice. What is left is the question that row does NOT answer:
+   // where the routine can be asked for, which is not where it works.
    text($('routineAskedFor'), askedFor(r))
+   // AND A WARNING ABOUT LEAVING BELONGS TO THE MOMENT SOMEBODY TRIED. Whatever this
+   // panel is being drawn for now, that moment is over.
+   showing($('routineLeaving'), false)
+   // AND SO DOES A HALF-TYPED NAME. The box holds the name of the routine it was
+   // opened for; under another routine's name it is an offer to call THIS one THAT,
+   // which is a different routine that already exists.
+   if (renamingFor && renamingFor !== r.id) { hideRename() }
    // WHAT IT CHECKS, WHEN THAT IS NOT WHAT THE BANNER BELOW SAYS. An incomplete
    // routine's checking and its reason for refusing are one sentence, and the backend
    // sends it as `why` alone rather than in both — so an empty line here is a line that
@@ -4577,6 +4949,10 @@
    willType = null
    drawWillType()
    argProposed = {}
+   // AND THE BOXES THEMSELVES, which is where somebody reads it. Clearing the
+   // values without repainting left the proposal's text in the field under a
+   // clause that had correctly gone.
+   drawArgs()
    argProposedFor = ''
    argProposedAt = ''
  }
@@ -4842,8 +5218,25 @@
    // AND NOT WITHOUT A WINDOW TO PRESS IN. Studio does not Play into whatever is in
    // front: with this window in front, that is this window. Dead rather than
    // live-and-then-refused, because the refusal would arrive after the decision.
-   $('routinePlayBtn').disabled = runActive || !r || !r.runnable || !intoWindow ||
-     !suppliedArgs()
+   // EVERY SHUT ROW'S PLAY, FIRST. It is live whenever the routine can run at all,
+   // because pressing it OPENS the row and puts the cursor in whatever it still needs
+   // -- so the press always does something, which is the condition the open row's
+   // button cannot meet and the reason the two rules differ.
+   routines.forEach(x => {
+     const b = $('routinePlay-' + routineKey(x.id))
+     if (b) { b.disabled = runActive || !x.runnable }
+   })
+   // AND THE OPEN ONE, WHICH HAS THE FIELDS IN FRONT OF IT. Dead rather than
+   // live-and-then-refused: the window and the text are both on screen here, so a
+   // press that could only answer "fill that in" would be answering about something
+   // the person is looking at.
+   //
+   // GUARDED, because there is no open row until somebody opens one -- the list can
+   // be drawn, and this painted, with nothing chosen at all.
+   const btn = $('routinePlayBtn')
+   if (btn) {
+     btn.disabled = runActive || !r || !r.runnable || !intoWindow || !suppliedArgs()
+   }
    // AND THE FIELDS IT IS WAITING ON ARE NAMED, when that is the only thing it waits on.
    //
    // Only then: a routine that cannot be performed at all has a refusal above, and a
@@ -4852,9 +5245,22 @@
    // reads the same predicate — a box somebody has typed into and cleared is a value, and
    // a routine asked to type nothing types nothing.
    const wants = (!runActive && r && r.runnable && intoWindow && !suppliedArgs())
-     ? 'Fill in ' + missingArgs().join(' and ') + ' above to play it.' : ''
-   text($('routineWants'), wants)
-   showing($('routineWants'), !!wants)
+     ? 'Fill in ' + missingArgs().join(' and ') + ' below to play it.' : ''
+   if ($('routineWants')) {
+     text($('routineWants'), wants)
+     showing($('routineWants'), !!wants)
+   }
+   // AND A PLAY PRESSED ON A ROW THAT WAS STILL SHUT IS TAKEN UP HERE.
+   //
+   // Both reads have to have landed for the question to be answerable: `target` says
+   // whether there is a window to press in, and `argNeeds` says what the routine asks
+   // for. Asking before either arrives would focus the first field of a routine that
+   // turns out to need nothing, or start a run with no window chosen.
+   if (wantsPlay && r && wantsPlay === r.id && target &&
+       argNeeds && argNeeds.id === r.id) {
+     wantsPlay = ''
+     readyOrAsk(r)
+   }
    // AND RECORD IT AGAIN IS OFF WHILE ANYTHING IS IN FLIGHT, but NOT because the
    // routine is unrunnable — a routine that refuses every press is the one somebody
    // most needs to record again, and a button greyed out there would be the window

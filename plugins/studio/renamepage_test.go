@@ -107,8 +107,16 @@ const said = (id) => {
   return el.classList.contains('hide') ? '' : el.textContent
 }
 const pick = () => {
-  const c = document.getElementById('routine-arkascended-focus-cloud-pull-stone')
-  if (c) { c.click() }
+  // A ROUTINE IS OPENED BY ITS DISCLOSURE, which is the only control that
+  // toggles the row -- every other press inside it belongs to the routine.
+  const c = document.getElementById('routineOpen-arkascended-focus-cloud-pull-stone')
+  if (!c) { return }
+  c.click()
+  // AND LEAVING A ROUTINE SOMEBODY HAS TYPED INTO ASKS FIRST. These tests are
+  // about what happens once that is agreed to, and the press that agrees is the
+  // same press -- so this opens it and answers, which is what a person does.
+  const warn = document.getElementById('routineLeaving')
+  if (warn && !warn.classList.contains('hide')) { c.click() }
 }
 `
 

@@ -169,7 +169,15 @@ type StepEdit struct {
 	// measured in one, the point on the screen when it was not. `MovablePoint.InWindow`
 	// is what a surface shows beside the box, and it comes from the same reading this
 	// applies against, so the two cannot disagree about which pair somebody typed.
-	X, Y int `json:"x,omitempty"`
+	//
+	// ONE TAG FOR TWO FIELDS IS ONE FIELD. They were declared `X, Y int` under a single
+	// `json:"x,omitempty"`, which names BOTH of them "x" -- so anything that marshalled
+	// one of these would write the horizontal offset twice and lose the vertical one
+	// entirely. Nothing marshals it today (Studio builds these in Go and the orchestrator
+	// reads them in Go), which is exactly why it went unnoticed: `go test` runs a subset
+	// of vet that leaves `structtag` out, so only a deliberate `go vet ./...` says so.
+	X int `json:"x,omitempty"`
+	Y int `json:"y,omitempty"`
 	// Name is what the supplied text is called, for EditArgument. Ignored otherwise.
 	//
 	// LOWERCASED when it is applied, because every reader downstream compares these

@@ -89,6 +89,16 @@ was read off, like everything else in this panel.
 - It does not offer the screen point of a press that was measured in a window. One editable pair,
   and the derived one moves with it.
 - It does not add, remove or alter any guard term.
+- It no longer prints the window's measurements beside every press.
+  [[ADR-289-the-panel-says-less-and-play-is-bigger]] took them off the rows: the terms were put
+  there so that nobody had to find out afterwards whether moving a press also changed what it
+  was checked against, and that is the same promise on every row, so it is made once in Help's
+  `measured` section instead of three measurements deep down a list. The row kept the BUTTON,
+  and [[ADR-291-the-press-row-says-what-it-does]] took that off too — not because it was the
+  wrong thing to say but because it was already being said: a step is written as one sentence
+  and the row splits it into an action column and a value column, so `Left-click` was at the
+  front of the row while `left` trailed the numbers at the end of it. **Nothing about what is
+  preserved changed**, and the test below still reads it off the saved file.
 - It does not touch the recording review's list. A draft is not saved yet and its coordinates are
   still what was demonstrated.
 
@@ -110,14 +120,19 @@ was read off, like everything else in this panel.
   `TestMovingWhatCannotBeMovedSaysWhichOfTheThreeItIs`.
 - `internal/orchestrator` `TestAMoveCollectsWithOtherChangesAndRefusesARemovalOfTheSameStep`.
 - `plugins/studio` `TestAMeasuredPressCanBeMovedAndKeepsWhatItIsCheckedAgainst` — against a real
-  library: the row offers the offset and the window terms, the review shows BOTH numbers moved
-  before anything is written, the saved file still carries all five terms, and the routine can be
-  edited again.
+  library: the row offers the offset, the review shows BOTH numbers moved before anything is
+  written, the saved file still carries all five terms, and the routine can be edited again. It
+  asserted the window terms beside the numbers as well; since
+  [[ADR-289-the-panel-says-less-and-play-is-bigger]] it asserted the row shows the button and
+  NOT the measurements, and since [[ADR-291-the-press-row-says-what-it-does]] it asserts the
+  narrower thing the button being in the action column leaves behind — that the sentence OPENS
+  with what the press does. Help carrying the promise is still asserted here.
 - `plugins/studio` `TestAPressThatCannotBeMovedSaysSoOnItsRow` and
   `TestAMoveCountedAgainstAListThatHasMovedIsRefused`.
 - `plugins/studio` `TestTheEditorOffersThePairAPressWasMeasuredIn` — **rendered in headless
   Edge**: each press shows which pair it is offering, the measured one offers its OFFSET, the
-  window terms are beside the numbers, a press found by its picture has no boxes and says why,
+  action column says what the press does and nothing repeats it beside the numbers, a press
+  found by its picture has no boxes and says why,
   a step that presses nowhere has neither, every box is labelled and names its step and its
   basis, the asked line says where the press would be AND in which basis, and the pair reaches
   the backend against the row it was read off.

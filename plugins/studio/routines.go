@@ -101,12 +101,16 @@ type Routine struct {
 	// legacy, guarded or incomplete. The BASIS is the contract and everything else is a
 	// measurement, so this is a state the saved file is IN. See ADR-251.
 	Contract string `json:"contract"`
-	// Checks is that in a sentence, which is the part a person needs: what is checked
-	// before each press, and what the routine does when a check fails.
+	// Checks is what this routine's contract means for a press, when that needs saying
+	// at all — and for the guarded contract it does not.
 	//
-	// EMPTY WHEN Why SAYS IT. An incomplete routine's account of its own checking IS the
-	// reason it will not run, and the panel renders both lines one under the other — so
-	// for that contract this is left empty and the sentence is in Why. See Routines.
+	// EMPTY FOR TWO DIFFERENT REASONS, and both are deliberate. A GUARDED routine is the
+	// ordinary case and the enumeration of what it checks is in Help, with the fact that
+	// it is checked said beside Play against the window the run will raise. An INCOMPLETE
+	// routine's account of its own checking IS the reason it will not run, and the panel
+	// renders both lines one under the other — so for that contract this is left empty
+	// and the sentence is in Why. What is left here is the legacy warning. See
+	// `checksSentence` and Routines.
 	Checks string `json:"checks,omitempty"`
 	// Mode is what the saved source STATES it was recorded as, and Captures is that in a
 	// sentence. Both absent when it says nothing.
@@ -347,23 +351,31 @@ func scopeWord(rt routes.Route) string {
 
 // checksSentence says what a routine's contract means for pressing Play on it.
 //
-// Three sentences for three states, and the first is the only promise: a legacy routine presses
-// where it was recorded having checked nothing, which is how every routine saved before any of
-// this behaves and is not a fault to report — it is what somebody chose when they saved it. See
-// ADR-251.
+// TWO SENTENCES FOR THREE STATES, AND THE GOOD ONE SAYS NOTHING. A guarded routine is the
+// ordinary state of every routine recorded since Marco measured windows, and this row spent a
+// line of prose on it — "Checks the program, window size and scale before each press. Stops if
+// a check fails." — a few lines above a row that says the same thing about the window the run
+// will actually press in. One fact, said twice, and the half that enumerates the measurements is
+// machine detail in front of somebody about to press Play. The owner, on this panel:
 //
-// SHORT ENOUGH TO BE READ BEFORE PLAY, which is the only moment it is for. The guarded sentence
-// was 32 words naming the three measurements twice over, and ended in a promise that took a
-// clause of its own; the legacy one closed with a sentence about how routines saved before Marco
-// measured windows behave, which is this program's history rather than anything about the
-// routine in front of somebody. What each one has to carry is WHAT IS CHECKED and WHAT HAPPENS
-// WHEN A CHECK FAILS. The incomplete one carries the measurement as well, because which
-// measurement is missing is what decides whether another demonstration would help.
+//	there's still too much text, like we don't need window size and scale checked before each
+//	press, that type of stuff belongs in the help section
+//
+// So silence for the normal case and words for the exceptions. WHAT is checked is Help's `checks`
+// section, linked from this row whatever the contract; THAT this routine's presses are checked is
+// said beside Play by `handoffSays`, where it names the window the run will raise and bears on
+// the press about to happen. Nothing is lost by the silence: `Contract` still carries the state
+// for anything that needs to branch on it.
+//
+// A legacy routine keeps its sentence, because pressing where it was recorded having checked
+// nothing is the surprising case — not a fault to report, it is what somebody chose when they
+// saved it, but not something to find out from where the presses landed. An incomplete one keeps
+// the measurement as well, because which measurement is missing decides whether another
+// demonstration would help. See ADR-251.
 func checksSentence(c orchestrator.Contract, lacks []string) string {
 	switch c {
 	case orchestrator.Guarded:
-		return "Checks the program, window size and scale before each press. Stops " +
-			"if a check fails."
+		return ""
 	case orchestrator.Incomplete:
 		return "The recording is missing " + andAll(saidTerms(lacks)) + ", so every " +
 			"press refuses. Record it again."

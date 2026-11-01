@@ -153,6 +153,58 @@ original-retention guarantees for rename.
 
 Slices 1 and 2 touch no saved routine. 3 and 4 do.
 
+## And what the owner said when they looked at it
+
+Two messages, the morning after the four slices landed:
+
+> add the ability to rename routines. The play button needs to be bigger too, there's still too
+> much text, like we don't need window size and scale checked before each press, that type of
+> stuff belongs in the help section
+
+> there's aliasing, but no straight rename
+
+**Slice 3 was already in the binary they were looking at.** `studio.exe` was written at 08:56:06
+and the window opened at 08:56:10, and the exe contains `routineRenameBox`. What they met before
+it was the box that adds another phrase a routine answers to — four deed rows above it, and a
+convincing enough answer to the question *where do I change what this is called* to end the
+search.
+
+So the finding is not about the rename. It is about this window's third hidden capability, and
+the first one that was **visible the whole time**: Simplify was collapsed in a `<details>` and
+the learn offer was unreachable, which are both the same mistake. This one was expanded, on the
+page, two scrolls down. What decides whether somebody finds a control is not whether it is
+visible but what they meet before it.
+
+The rest is the same complaint as slice 2's, one surface further in: a true sentence in the wrong
+place. The guarded contract's *Checks the program, window size and scale before each press* sat a
+few lines above the press-in row that says the same thing about the window a run will raise, and
+the step editor printed the window's size and scale beside every movable press. Both moved into
+Help; the card is silent for the ordinary case and keeps the two contracts that are a warning.
+
+Taken up in [[ADR-289-the-panel-says-less-and-play-is-bigger]].
+
+And then the Architect replaced the panel itself:
+
+> Replace the separate selected-routine card with an inline accordion. [...] Open one routine at a
+> time. [...] Preserve unsaved inputs when clicking Rename, Play or other controls — those clicks
+> must not toggle the row. If switching routines would discard pending edits, make that explicit.
+
+> keep **Play on the collapsed row** [...] Keep a single primary Play button per routine — don't
+> duplicate it inside the expanded section.
+
+Taken up in [[ADR-290-a-routine-opens-where-it-is]], with the six rendered states it asked for in
+`docs/images/studio-ui/8-rows-*.png`.
+
+And then read them, and found the step editor's press row:
+
+> One visible issue remains in **8-rows-editor-normal.png**: the coordinate row has no action
+> verb, and X/Y split across lines. Keep **Click · window-relative X/Y · controls** readable as
+> one row at normal width; stack the fields deliberately at narrow widths.
+
+Taken up in [[ADR-291-the-press-row-says-what-it-does]], which also records that the missing verb
+in that frame was the render stub's and not the product's — the stub wrote a sentence `oneStep`
+never writes. All six states are re-rendered from a corrected stub.
+
 ## See also
 
 - [[ADR-283-the-alpha-offers-one-journey-and-the-window-explains-itself]] — slice 1
@@ -161,6 +213,9 @@ Slices 1 and 2 touch no saved routine. 3 and 4 do.
 - [[ADR-286-a-press-can-be-moved]] — slice 4
 - [[ADR-287-a-re-render-keeps-the-credential-it-was-reading]] — the correction slice 3 found
 - [[ADR-288-the-rail-keeps-its-build-stamp-when-scenes-is-withheld]] — the polling split slice 1 deferred
+- [[ADR-289-the-panel-says-less-and-play-is-bigger]] — what the owner said when they looked at it
+- [[ADR-290-a-routine-opens-where-it-is]] — and the accordion that replaced the panel
+- [[ADR-291-the-press-row-says-what-it-does]] — and the one row they found in the renders
 - [[Studio-journey-discoverability-2026-10-31]]
 - [[Studio-UI-audit-2026-10-29]]
 - [[ADR-282-a-run-of-steps-can-be-said-to-be-typed-text]]

@@ -129,8 +129,16 @@ const shown = (id) => {
   return el.classList.contains('hide') ? '' : el.textContent
 }
 const pickId = (id) => {
-  const c = document.getElementById('routine-' + id.replace(/[^a-z0-9]+/gi, '-'))
-  if (c) { c.click() }
+  // A ROUTINE IS OPENED BY ITS DISCLOSURE, which is the only control that
+  // toggles the row -- every other press inside it belongs to the routine.
+  const c = document.getElementById('routineOpen-' + id.replace(/[^a-z0-9]+/gi, '-'))
+  if (!c) { return }
+  c.click()
+  // AND LEAVING A ROUTINE SOMEBODY HAS TYPED INTO ASKS FIRST. These tests are
+  // about what happens once that is agreed to, and the press that agrees is the
+  // same press -- so this opens it and answers, which is what a person does.
+  const warn = document.getElementById('routineLeaving')
+  if (warn && !warn.classList.contains('hide')) { c.click() }
 }
 const typeInto = (id, said) => {
   const el = document.getElementById(id)

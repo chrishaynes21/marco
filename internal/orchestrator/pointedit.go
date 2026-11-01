@@ -70,10 +70,25 @@ type MovablePoint struct {
 	InWindow bool
 	// X and Y are the pair a surface offers, in whichever basis `InWindow` names.
 	X, Y int
-	// Terms are the machine facts beside it — the button, and the window it was measured
-	// against when there is one. Shown dim; they are what the edit KEEPS.
-	Terms string
 }
+
+// THERE IS NO `Terms` HERE ANY MORE, and the two steps that took it away are worth
+// keeping together.
+//
+// It began as `left · of 1280×800, 96 dpi, notepad.exe` beside every movable press,
+// so that nobody had to find out afterwards whether moving a press also changed what
+// it was checked against. [[ADR-289-the-panel-says-less-and-play-is-bigger]] cut it to
+// the button alone: the promise is the same promise on every row, so it is made once,
+// in Help's `measured` section.
+//
+// What was left was the button — and the button was never missing. A step is written
+// as a sentence (`left-click at 120, 90 in the window`) and the row splits that
+// sentence into an action column and a value column, so `Left-click` was already at
+// the front of the row while `left` trailed the numbers at the end of it. One fact in
+// two places, with the near-invisible one in the column a person scans.
+//
+// So the action column is where the button lives, and the surface needs nothing from
+// here to put it there. See [[ADR-291-the-press-row-says-what-it-does]].
 
 // PointIn is what can be done with the position of one step.
 func PointIn(steps []macroir.Step, at int) MovablePoint {
@@ -91,7 +106,7 @@ func PointIn(steps []macroir.Step, at int) MovablePoint {
 	default:
 		return MovablePoint{}
 	}
-	out := MovablePoint{Is: true, Terms: pointTerms(s)}
+	out := MovablePoint{Is: true}
 	if why := foundByItsPicture(s); why != "" {
 		out.Why = why
 		return out
@@ -211,31 +226,4 @@ func wholeMeasurement(s macroir.Step) string {
 		return "the program the window belonged to was not recorded"
 	}
 	return ""
-}
-
-// pointTerms are the machine facts beside a press: what it presses with, and the window it is
-// checked against when there is one.
-//
-// SHOWN BECAUSE THEY ARE WHAT THE EDIT KEEPS. A row that showed two editable numbers and nothing
-// else would leave somebody to find out afterwards whether moving a press also changed what it
-// was checked against.
-func pointTerms(s macroir.Step) string {
-	button := s.Button
-	if button == "" && s.Kind == macroir.StepClick {
-		button = "left"
-	}
-	if !s.WinRel || s.WinW <= 0 || s.WinH <= 0 {
-		return button
-	}
-	where := fmt.Sprintf("of %d×%d", s.WinW, s.WinH)
-	if s.Dpi > 0 {
-		where += fmt.Sprintf(", %d dpi", s.Dpi)
-	}
-	if s.Process != "" {
-		where += ", " + s.Process
-	}
-	if button == "" {
-		return where
-	}
-	return button + " · " + where
 }

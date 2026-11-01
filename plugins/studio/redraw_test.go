@@ -33,6 +33,7 @@ package main
 // `studio.exe -evidence` remains the gate that the real webview comes up.
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -358,6 +359,17 @@ func TestTheWindowKeepsPicturesItIsAlreadyShowing(t *testing.T) {
 // renderForCounters runs the page with a stubbed backend and returns what it put in its title.
 func renderForCounters(t *testing.T, browser, stub string) string {
 	t.Helper()
+	return renderForCountersAt(t, browser, 0, 0, stub)
+}
+
+// AND THE SAME AT A STATED WIDTH, for a claim about a narrow window.
+//
+// A layout rule is only a rule at the size it fires at: the row's controls wrap under the name
+// below 760px and squeeze it above, so a harness that only ever renders at the browser's default
+// width cannot tell a working `@media` block from a missing one. Zero is that default, which is
+// what every test that does not care about width gets.
+func renderForCountersAt(t *testing.T, browser string, w, h int, stub string) string {
+	t.Helper()
 	page, err := os.ReadFile(filepath.Join("frontend", "index.html"))
 	if err != nil {
 		t.Fatal(err)
@@ -369,10 +381,14 @@ func renderForCounters(t *testing.T, browser, stub string) string {
 	if err := os.WriteFile(at, []byte(src), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	run := exec.Command(browser, "--headless=new", "--disable-gpu",
+	args := []string{"--headless=new", "--disable-gpu",
 		"--no-first-run", "--no-default-browser-check",
-		"--user-data-dir="+filepath.Join(dir, "profile"),
-		"--virtual-time-budget=6000", "--dump-dom", at)
+		"--user-data-dir=" + filepath.Join(dir, "profile"),
+		"--virtual-time-budget=6000"}
+	if w > 0 && h > 0 {
+		args = append(args, fmt.Sprintf("--window-size=%d,%d", w, h))
+	}
+	run := exec.Command(browser, append(args, "--dump-dom", at)...)
 	done := make(chan struct{})
 	var out []byte
 	var runErr error
@@ -609,16 +625,23 @@ window.go = {main: {
 }}
 // CHOOSE THE SECOND ONE — the namesake that cannot run — by clicking its card the way a
 // person would, and then press Play.
-setTimeout(() => {
-  const cards = document.querySelectorAll('#routineList .card')
-  if (cards.length > 1) { cards[1].click() }
-}, 2000)
+// OPENED BY ITS DISCLOSURE. The row is no longer the control: the routine's own
+// panel is inside it, so only the chevron and the name toggle it.
+const open = (n) => {
+  const cards = document.querySelectorAll('#routineList > .card.pick')
+  if (cards.length <= n) { return }
+  const d = cards[n].querySelector('.disclose')
+  d.click()
+  // AND LEAVING A ROUTINE SOMEBODY HAS TYPED INTO ASKS FIRST. These tests are
+  // about what happens once that is agreed to, and the press that agrees is the
+  // same press -- so this opens it and answers, which is what a person does.
+  const warn = document.getElementById('routineLeaving')
+  if (warn && !warn.classList.contains('hide')) { d.click() }
+}
+setTimeout(() => { open(1) }, 2000)
 // AND THEN THE FIRST ONE, AND PRESS PLAY ON IT. Which routine the button performs is the
 // half of this that no amount of correct rendering covers.
-setTimeout(() => {
-  const cards = document.querySelectorAll('#routineList .card')
-  if (cards.length > 0) { cards[0].click() }
-}, 3000)
+setTimeout(() => { open(0) }, 3000)
 // AND PLAY IS PRESSED ON A LATER TICK, because choosing a routine asks the backend which
 // windows it could be played into and Play is dead until that answers. Clicking both in one
 // tick pressed a disabled button and performed nothing — which is the behaviour working,
@@ -632,7 +655,7 @@ setTimeout(() => {
     const e = document.getElementById(id)
     return e && !e.classList.contains('hide') ? 1 : 0
   }
-  document.title = 'cards=' + document.querySelectorAll('#routineList .card').length +
+  document.title = 'cards=' + document.querySelectorAll('#routineList > .card.pick').length +
     ' chosen=' + vis('routineChosen') +
     ' elsewhere=' + vis('libElsewhere') +
     ' where=' + (document.getElementById('libWhere').textContent.includes('marco/routes')

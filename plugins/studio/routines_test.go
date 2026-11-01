@@ -221,16 +221,30 @@ func TestASavedRoutineIsListedAndReadyToPlay(t *testing.T) {
 	if r.Contract != string(orchestrator.Guarded) {
 		t.Errorf("its contract is %q, want %q", r.Contract, orchestrator.Guarded)
 	}
-	// THE TWO MEANINGS, NOT THE OLD SENTENCE. This asserted the clause "checked against
-	// the window it was recorded in" and the copy pass shortened the sentence to
-	// "Checks the program, window size and scale before each press. Stops if a check
-	// fails." — 14 words for the 32 it replaced, saying the same two things. What a person
-	// needs before Play is WHAT IS CHECKED and WHAT HAPPENS WHEN A CHECK FAILS, so those
-	// are what is held: the three measurements by name, and the stop.
-	for _, want := range []string{"program", "size", "scale", "stop"} {
-		if !strings.Contains(strings.ToLower(r.Checks), want) {
-			t.Errorf("the sentence about its presses does not mention %q: %q",
-				want, r.Checks)
+	// AND IT SAYS NOTHING ABOUT THEM ON THE CARD, WHICH IS THE WHOLE OF THE CHANGE.
+	// This held the three measurements by name — "Checks the program, window size and
+	// scale before each press. Stops if a check fails." — a few lines above the row that
+	// says the same thing about the window a run will actually raise. The owner, on this
+	// panel: "we don't need window size and scale checked before each press, that type of
+	// stuff belongs in the help section".
+	//
+	// The guarded contract is the ordinary case, so silence; the state is still in
+	// `Contract` above, the fact that the presses are checked is still said beside Play
+	// by `handoffSays`, and what is checked is the assertion below.
+	if r.Checks != "" {
+		t.Errorf("the ordinary, guarded contract writes a sentence on the card: %q. "+
+			"What is checked belongs in Help, and that these presses are "+
+			"checked is said beside Play against the window the run raises",
+			r.Checks)
+	}
+	// AND HELP IS WHERE IT WENT. Asserted here rather than only in features_test.go
+	// because this is the test that lost it: a sentence removed from one surface and
+	// not added to another is a sentence nobody can read.
+	help := helpText(newActs(t.TempDir()).Help())
+	for _, want := range []string{"program", "size", "scale", "stops"} {
+		if !strings.Contains(strings.ToLower(help), want) {
+			t.Errorf("Help does not say %q, and the card no longer does either",
+				want)
 		}
 	}
 	// AND THE MARCO IT WAS SAVED AS, because a routine is legal Marco so that somebody

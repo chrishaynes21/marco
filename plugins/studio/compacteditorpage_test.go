@@ -34,12 +34,16 @@ func TestTheStepRowsAreCompactAndTheWarningStaysReadable(t *testing.T) {
 	if browser == "" {
 		t.Skip("no headless Chromium on this machine to render the page in")
 	}
-	title := renderForCounters(t, browser, stepEditBackend+`
+	// AT A STATED WIDTH, because this claim is about one. Left to the browser the
+	// harness rendered at 756px, four pixels under the breakpoint where the editor
+	// stacks into three lines -- so "an ordinary width" was a narrow one, and a
+	// window somebody actually uses was covered by nothing.
+	title := renderForCountersAt(t, browser, 1100, 1400, stepEditBackend+`
 // NOT NAMED acts: the page declares that at top level for its own backend
 // binding, and a second top-level let of the same name in this script is a
 // SyntaxError that takes the whole page with it. Measured: five rows rendered
 // and every counter stayed at its initial value.
-let four = 0, actCol = '', vals = '', whole = 0
+let colCount = 0, four = 0, actCol = '', vals = '', whole = 0
 let strikesSaid = 0, strikesWhat = 0, pairOutside = 0, pairText = 0
 let rmName = '', rmKept = '', msName = '', noteGone = 1, linked = 0
 let revFour = 0, revAct = ''
@@ -92,10 +96,21 @@ setTimeout(() => {
   revFour = rr && rr.classList.contains('four') ? 1 : 0
   revAct = rr ? ((rr.querySelector('.act') || {}).textContent || '-') : '-'
   pairText = (pair && pair.textContent.includes('removes step 5')) ? 1 : 0
+  // AND AT AN ORDINARY WIDTH IT REALLY IS FOUR COLUMNS, laid out side by side.
+  //
+  // The CLASS being four says what the row is meant to be; this says what the
+  // grid does with it. There is a narrow layout that stacks the same four parts
+  // into three lines, and nothing stopped its rule applying at every width --
+  // which would have turned every list in this editor into three lines a step,
+  // with the verbs no longer lining up down the page, and left the class saying
+  // four about it.
+  const any = document.querySelector('#routineStepRows .sr.four')
+  colCount = any
+    ? getComputedStyle(any).gridTemplateColumns.trim().split(/\s+/).length : 0
 }, 1800)
 
 setTimeout(() => {
-  document.title = 'four=' + four + ' whole=' + whole +
+  document.title = 'colCount=' + colCount + ' four=' + four + ' whole=' + whole +
     ' strikesSaid=' + strikesSaid + ' strikesWhat=' + strikesWhat +
     ' pairOutside=' + pairOutside + ' pairText=' + pairText +
     ' noteGone=' + noteGone + ' linked=' + linked +
@@ -115,6 +130,19 @@ setTimeout(() => {
 		}
 		v, _ := strconv.Atoi(m[1])
 		return v
+	}
+	// FOUR COLUMNS, SIDE BY SIDE, AT THE WIDTH THIS IS READ AT.
+	//
+	// Not the class — the grid. ADR-284's reason for a FIXED verb column is that each
+	// row is its own grid, so the values would otherwise start in a different place on
+	// every line and the thing a person scans for would be the thing that moves. A
+	// stacked layout gives up that alignment, which is right in a narrow window and
+	// wrong here; without this, the narrow rule applying at every width changed
+	// nothing any test could see.
+	if n("colCount") != 4 {
+		t.Errorf("a step row is laid out in %d columns at an ordinary width, and "+
+			"the point of a fixed verb column is that the values start in the "+
+			"same place on every line: %q", n("colCount"), title)
 	}
 	if n("four") != 1 {
 		t.Fatalf("the step rows are not the four-column shape: %q", title)

@@ -939,10 +939,10 @@ was not before. See [[ADR-288-the-rail-keeps-its-build-stamp-when-scenes-is-with
 **And Help is one section, composed by the backend.** `Acts.Help` reuses `everywhereSentence`,
 `stopLabel` and `argKeyLabel`, because two of its sentences name a CONFIGURED key and a page that
 wrote F12 and F9 into itself would be wrong in every installation that moved them — which is the
-defect that already shipped on the record card. Five sections, each an ability the audit found
-complete and invisible, each with a stable key so a small link beside Record, beside the argument
-sentence and beside *Edit its steps* opens that section rather than the top of a page of
-everything. The recording section says what the recorder does: Marco records ONE window and THE
+defect that already shipped on the record card. Six sections, each an ability the audit found
+complete and invisible or a question the panel used to answer in prose, each with a stable key so
+a small link beside Record, beside the argument sentence, beside *Edit its steps* and beside the
+row about checking opens that section rather than the top of a page of everything. The recording section says what the recorder does: Marco records ONE window and THE
 WINDOW IS CHOSEN. See [[ADR-283-the-alpha-offers-one-journey-and-the-window-explains-itself]] and
 [[Studio-alpha-UI-slice-2026-10-31]].
 
@@ -1005,8 +1005,72 @@ what Marco can see — the coordinate there is a position INSIDE the thing being
 drag, which has two ends; an incomplete measurement, refused rather than completed, because
 filling a term in would manufacture a guarded point out of a reading nobody took; and an offset
 the window could not contain. `movedPoint` COPIES the step and sets at most four numbers, so the
-button, the modifier, the count and all five guard terms survive. See
-[[ADR-286-a-press-can-be-moved]].
+button, the modifier, the count and all five guard terms survive.
+
+**And the row says what the press DOES, once, in front of the numbers.** The measurements were
+printed beside every pair to promise that moving a press keeps them, and that is the same promise
+on every row, so it is made once in Help. What was left beside the numbers was the button — which
+was already at the front of the row, because a step is written as one sentence and the row splits
+it into an action column and a value column. A `move` had no sentence at all and so no verb, and
+a point row REPLACES its value half with the boxes, so the one word it had was thrown away: the
+guard reads `macroir`'s own kind names, asks `PointIn` which of them press anywhere, and requires
+a verb for each. The row is one line at an ordinary width and stacks whole below 960px, which is
+where it measurably stops fitting rather than where the rest of the page turns narrow. See
+[[ADR-286-a-press-can-be-moved]], [[ADR-289-the-panel-says-less-and-play-is-bigger]] and
+[[ADR-291-the-press-row-says-what-it-does]].
+
+**And the panel says less, with Play bigger and the rename where the name is.** The owner, on the
+window after the four slices: *there's still too much text, like we don't need window size and
+scale checked before each press, that type of stuff belongs in the help section* — and, about a
+capability that had landed the night before, *there's aliasing, but no straight rename*.
+
+It was there, four deed rows down, under the box that adds another phrase a routine answers to.
+That box answers a neighbouring question convincingly enough to end the search, so the way in
+moves onto the identity row beside the name it changes, and `Review the rename` scrolls the review
+into view because what it opens is now a card's length below it. THE THIRD HIDDEN CAPABILITY IN
+THIS WINDOW AND NOT THE SAME MISTAKE: Simplify was collapsed and the learn offer was unreachable,
+while this one was expanded, on screen and still unfindable — what decides whether somebody finds
+a control is not whether it is visible but what they meet before it.
+
+Play is a 46px target with 15.5px lettering, by SIZE and not colour: `--ctl` is one height for
+every control on the page, which is what stops a row of them looking assembled and is the wrong
+answer for the one thing most visits end in. And the guarded contract — every routine recorded
+since Marco measured windows — now says NOTHING on the card about what it checks. It read *Checks
+the program, window size and scale before each press*, a few lines above the press-in row that
+says the same thing about the window a run will actually raise: one fact twice, and the half that
+names three measurements in front of somebody deciding whether to press a button. Silence for the
+ordinary case, words for the two that are a warning, and what is checked is Help. See
+[[ADR-289-the-panel-says-less-and-play-is-bigger]].
+
+**And then the panel went INTO the row.** A routine is a row with a chevron that opens in place;
+the separate selected-routine card is gone, so what somebody is reading and the routine it is
+about are no longer a scroll apart. ONE PANEL, CARRIED, AND NEVER REBUILT: `routineChosen` is
+moved into whichever row is open and parked in an empty div when none is. That is one mechanism
+answering three questions — unsaved inputs survive because moving a node keeps the text in its
+boxes and the step changes collected against a list, `id` stays unique because every function in
+the page reaches these elements by name, and one panel IS *open one routine at a time*, since
+there is nowhere for a second to be.
+
+THE DISCLOSURE IS THE ONLY CONTROL THAT TOGGLES, structurally rather than by stopping an event in
+each control: with the panel inside the row, every press in it would otherwise have bubbled up and
+closed the thing being used. It is a real button with `aria-expanded`, so Enter and Space work.
+
+PLAY IS ON THE ROW, ONCE PER ROUTINE, OPEN OR SHUT. A shut row's Play is live whenever the routine
+can run at all — pressing it OPENS the row and puts the cursor in what it still needs, so the
+press always does something; the open row's keeps the old rule, dead until the window and the
+values are there, because those are on screen in front of the person. And LEAVING is the only
+thing that can lose work, so it is the only thing that asks: it refuses once, naming what would go
+in the person's own terms rather than saying "unsaved changes", and a value a REQUEST proposed is
+excluded because nobody typed it and asking again produces it again.
+
+Four defects were found underneath, all covered by one accident — a draw that did not record what
+it drew, so every selection forced a second redraw 2.5 seconds later. That redraw moved the panel,
+took focus out of whatever was being typed in, wiped the leaving warning two seconds after it
+appeared, and repainted the argument boxes that `forgetProposals` cleared without repainting. The
+rename form also followed the panel to the next routine, holding the previous routine's name. And
+in the stylesheet, the narrow rules for the step editor sat ABOVE the rules they override: a media
+query is not more specific than anything, so they fired and did nothing. See
+[[ADR-290-a-routine-opens-where-it-is]].
 
 ## Known gaps
 

@@ -151,8 +151,18 @@ window.go = {main: {
 }}
 let says = ['', '', '', ''], live = [0, 0, 0, 0], fold = [0, 0, 0, 0]
 const pick = (i) => {
-  const cards = document.querySelectorAll('#routineList .card')
-  if (cards.length > i) { cards[i].click() }
+  // OPENED BY ITS DISCLOSURE, the one control on a row that toggles it: the
+  // routine's own panel is inside the row now, so a press anywhere else in it
+  // belongs to the routine rather than to the row.
+  const cards = document.querySelectorAll('#routineList > .card.pick')
+  if (cards.length <= i) { return }
+  const d = cards[i].querySelector('.disclose')
+  d.click()
+  // AND LEAVING A ROUTINE SOMEBODY HAS TYPED INTO ASKS FIRST. These tests are
+  // about what happens once that is agreed to, and the press that agrees is the
+  // same press -- so this opens it and answers, which is what a person does.
+  const warn = document.getElementById('routineLeaving')
+  if (warn && !warn.classList.contains('hide')) { d.click() }
 }
 // press clicks a control by id, which is what a person does.
 //
@@ -233,7 +243,7 @@ setTimeout(() => {
   press('routineReplaceBtn')
 }, 4200)
 setTimeout(() => {
-  document.title = 'cards=' + document.querySelectorAll('#routineList .card').length +
+  document.title = 'cards=' + document.querySelectorAll('#routineList > .card.pick').length +
     ' current=' + (says[0].includes('which is the generation this build writes') ? 1 : 0) +
     ' currentlive=' + live[0] +
     ' unstated=' + (says[1].includes('does not state which generation') ? 1 : 0) +

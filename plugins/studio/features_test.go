@@ -179,8 +179,10 @@ func TestEverySectionTheWindowLinksToExists(t *testing.T) {
 		}
 		has[s.Key] = true
 	}
-	// The three the page links to today, and the one slice 4's rows will link to.
-	for _, key := range []string{"recording", "arguments", "editing", "measured"} {
+	// Every key a control in this window names. `checks` joined them when the card
+	// stopped enumerating what a guarded routine checks before each press.
+	for _, key := range []string{"recording", "arguments", "editing", "measured",
+		"checks"} {
 		if !has[key] {
 			t.Errorf("nothing in Help answers to %q", key)
 		}
