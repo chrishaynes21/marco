@@ -57,6 +57,13 @@ window.go = {main: {
     History: () => Promise.resolve([]),
     Unrunnable: () => Promise.resolve([]),
     Library: () => Promise.resolve({dir: 'C:/x/routes'}),
+    // WHICH PARTS OF THIS WINDOW ARE OFFERED, AND WHAT IT EXPLAINS.
+    // Both are read once at startup; a stub without them is a page
+    // whose rail never paints. See help.go.
+    Features: () => Promise.resolve({acts: true, scenes: true,
+      views: ['routines', 'acts', 'scenes', 'history', 'help']}),
+    Help: () => Promise.resolve({sections: [{key: 'editing',
+      title: 'Editing what a routine does', lines: ['nothing is written yet']}]}),
     Recording: () => Promise.resolve({active: false}),
     CancelReview: (token) => {
       window.cancelledWith = token
@@ -504,6 +511,13 @@ window.go = {main: {
     History: () => Promise.resolve([]),
     Unrunnable: () => Promise.resolve([]),
     Library: () => Promise.resolve({dir: 'C:/x/routes'}),
+    // WHICH PARTS OF THIS WINDOW ARE OFFERED, AND WHAT IT EXPLAINS.
+    // Both are read once at startup; a stub without them is a page
+    // whose rail never paints. See help.go.
+    Features: () => Promise.resolve({acts: true, scenes: true,
+      views: ['routines', 'acts', 'scenes', 'history', 'help']}),
+    Help: () => Promise.resolve({sections: [{key: 'editing',
+      title: 'Editing what a routine does', lines: ['nothing is written yet']}]}),
     PlaybackTarget: () => Promise.resolve({chosen: '4660:77',
       windows: [{id: '4660:77', label: 'a window',
         says: 'Play brings a window to the front and presses there.'}]}),
@@ -622,6 +636,13 @@ window.go = {main: {
     History: () => Promise.resolve([]),
     Unrunnable: () => Promise.resolve([]),
     Library: () => Promise.resolve({dir: 'C:/x/routes'}),
+    // WHICH PARTS OF THIS WINDOW ARE OFFERED, AND WHAT IT EXPLAINS.
+    // Both are read once at startup; a stub without them is a page
+    // whose rail never paints. See help.go.
+    Features: () => Promise.resolve({acts: true, scenes: true,
+      views: ['routines', 'acts', 'scenes', 'history', 'help']}),
+    Help: () => Promise.resolve({sections: [{key: 'editing',
+      title: 'Editing what a routine does', lines: ['nothing is written yet']}]}),
     // THE WINDOW A RUN WOULD PRESS IN. Studio does not Play without one, so a
     // harness that does not answer this is a page whose Play button is dead.
     PlaybackTarget: () => Promise.resolve({chosen: '4660:77',

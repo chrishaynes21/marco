@@ -915,6 +915,32 @@ there are, so every position the other changes were read off moves under it, and
 whether a position was read before or after the run. See
 [[ADR-282-a-run-of-steps-can-be-said-to-be-typed-text]].
 
+## What the window offers, and what it explains
+
+**The alpha rail is one journey.** Acts and Scenes are behind `$MARCO_STUDIO_ACTS` and
+`$MARCO_STUDIO_SCENES`, read once when the window's backend is made and off by default. Nothing
+underneath them is removed — the views, the bindings and the capabilities are untouched, and
+turning both flags on gives back exactly the rail that shipped. What is withheld is the way in,
+because an alpha that offers a surface it cannot carry makes somebody pay for that at the far end
+of it, after a demonstration.
+
+The rail BUTTONS and the view SECTIONS stay in the document whatever is offered; only the list
+narrows (`Features.Views`). `paintViews` used one hardcoded array as both the rail and its own
+element lookup, so deleting an entry threw mid-paint and stopped the window rendering altogether.
+`show` refuses a view that is not offered — a hidden button is not a closed door — and the two
+reads a withheld view would want are guarded in `loadActs` and `loadDemos` themselves. The
+recorder's state keeps being read, slowly, because it also paints the rail's **build stamp**.
+
+**And Help is one section, composed by the backend.** `Acts.Help` reuses `everywhereSentence`,
+`stopLabel` and `argKeyLabel`, because two of its sentences name a CONFIGURED key and a page that
+wrote F12 and F9 into itself would be wrong in every installation that moved them — which is the
+defect that already shipped on the record card. Five sections, each an ability the audit found
+complete and invisible, each with a stable key so a small link beside Record, beside the argument
+sentence and beside *Edit its steps* opens that section rather than the top of a page of
+everything. The recording section says what the recorder does: Marco records ONE window and THE
+WINDOW IS CHOSEN. See [[ADR-283-the-alpha-offers-one-journey-and-the-window-explains-itself]] and
+[[Studio-alpha-UI-slice-2026-10-31]].
+
 ## Known gaps
 
 See the *Known gaps* section of [[director-demonstrations]].

@@ -72,6 +72,11 @@ type Acts struct {
 	// routes is the library: $MARCO_ROUTES, else `routes` inside the store, resolved by
 	// the one place that answers that for every binary. See internal/marcopaths.
 	routesDir string
+	// features is which optional parts of this window are offered, read ONCE when it was
+	// made. Not behind `mu`: it is written before anything can reach this value and never
+	// written again, which is what "read once at startup" has to mean to be worth saying.
+	// See help.go.
+	features Features
 
 	mu sync.Mutex
 	// busy is the RESERVATION, taken before a child is started and released only once
@@ -276,7 +281,7 @@ func newActs(home string) *Acts {
 	// in `plugins\studio\routes`, where nothing else in the product would ever look, and
 	// the instruction for it was "launch both from the repo root". A library is a place.
 	// See internal/marcopaths.
-	a := &Acts{home: home, routesDir: marcopaths.Routes()}
+	a := &Acts{home: home, routesDir: marcopaths.Routes(), features: featuresFromEnv()}
 	// AND IT WRITES DOWN WHAT A TRIAL OF ITSELF SHOWED, which is the alternative to
 	// asking the owner to watch for four things at once. Nothing is created until there
 	// is something to record; `a.myBuild` rather than `buildid.Revision` so a test's

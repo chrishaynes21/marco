@@ -430,6 +430,13 @@
  /* LAST, AND IT WINS. Everything on this page is shown or hidden by toggling this
     one class, and a rule above that sets a display would otherwise un-hide a
     whole view. */
+ /* A LINK THAT IS A BUTTON, because it goes somewhere in this window rather than to a
+    document: an <a> with no href is not reachable by keyboard, and one with href="#"
+    moves the page. Small, and the colour the rest of the page uses for a way in. */
+ .hint{all:unset;cursor:pointer;font:600 11px var(--sans);color:var(--spot);
+   border-bottom:1px dotted var(--spot)}
+ .hint:focus-visible{outline:2px solid var(--spot);outline-offset:2px}
+
  .hide{display:none!important}
 </style>
 
@@ -441,9 +448,22 @@
        recorder and gave the view two complete ways to start recording. See
        [[Studio-UI-audit-2026-10-29]]. -->
   <button class="railbtn" id="rail-routines" onclick="show('routines')">Routines</button>
-  <button class="railbtn" id="rail-acts" onclick="show('acts')">Acts</button>
-  <button class="railbtn" id="rail-scenes" onclick="show('scenes')">Scenes</button>
+  <!-- AND TWO THAT THE ALPHA DOES NOT OFFER, HIDDEN HERE AND NOT REMOVED.
+       Behind $MARCO_STUDIO_ACTS and $MARCO_STUDIO_SCENES, read once when this window
+       opened. Nothing underneath them is taken away - the views, the bindings and the
+       capabilities are all exactly as they were - and what is withheld is the way IN,
+       because an alpha that supports Routines and offers three equal choices in its rail
+       is telling somebody otherwise.
+
+       The BUTTONS STAY IN THE DOCUMENT and only the class moves: `paintViews` looks each
+       one up by id, and one that was not there threw mid-paint and stopped the window
+       rendering altogether. Hidden in the markup rather than revealed by the first
+       answer, so the default rail is right in the frame before that answer lands. See
+       help.go. -->
+  <button class="railbtn hide" id="rail-acts" onclick="show('acts')">Acts</button>
+  <button class="railbtn hide" id="rail-scenes" onclick="show('scenes')">Scenes</button>
   <button class="railbtn" id="rail-history" onclick="show('history')">Run history</button>
+  <button class="railbtn" id="rail-help" onclick="show('help')">Help</button>
   <!-- STOP, WHEREVER THEY ARE. A run can be stopped from any of the three places, because
        somebody who has navigated away is not somebody who has stopped caring. -->
   <div class="railfoot">
@@ -648,13 +668,10 @@
   <div class="row" id="recordStart">
     <button class="go" id="recordRevealBtn" onclick="revealRecord()"
       >Record something new</button>
-    <details style="flex:1;min-width:0">
-      <summary>how recording works</summary>
-      <div class="muted" style="margin-top:6px">Marco watches the keyboard and the mouse and
-        writes down what you did, in order, with the real pauses. It does not look at the
-        screen, so it works on menus nothing can recognise, and it replays what you showed
-        it. Nothing is saved until you have looked at it and pressed Save.</div>
-    </details>
+    <!-- AND THE EXPLANATION IS A LINK NOW, not forty-five words beside the button.
+         The words are not lost: they are the Recording section of Help, where the
+         sentence about the stop shortcut can be the CONFIGURED one. -->
+    <button class="hint" onclick="helpOn('recording')">How recording works</button>
   </div>
   <div class="card hide" id="captureCard">
     <!-- WHAT IT WILL CAPTURE, SAID BEFORE IT DOES.
@@ -722,6 +739,8 @@
          configured one and an unset override is F9 rather than silence. See
          argSentence. -->
     <div class="muted hide" style="margin-top:6px" id="capArgSays"></div>
+    <div style="margin-top:4px"><button class="hint" onclick="helpOn('arguments')"
+      >Asking for a value each time</button></div>
     <div class="row" style="margin-top:10px">
       <button class="go" id="capBtn" onclick="startCapture()">Record</button>
       <button onclick="hideRecord()">Cancel</button>
@@ -1226,8 +1245,8 @@
         <div class="row">
           <button id="routineStepsBtn" onclick="stepEditing()">Edit its steps</button>
         </div>
-        <div class="muted">Change a wait, remove a step, or ask for the text a step
-          types. Nothing is written until you review it.</div>
+        <div class="muted">Nothing is written until you review it.
+          <button class="hint" onclick="helpOn('editing')">What can be changed</button></div>
       </div>
       <!-- AND WHAT A SAVE DID, WHICH HAS THREE ANSWERS. Saved is a banner; a source that
            landed without its step list is a PROBLEM card, because the routine runs as
@@ -1749,6 +1768,17 @@
   </details>
 </section>
 
+<!-- ─────────────────────────── HELP ─────────────────────────── -->
+<!-- ONE PLACE, AND EVERY WORD OF IT FROM THE BACKEND.
+     Not because a page cannot hold sentences, but because two of these name a key that is
+     CONFIGURED - the stop gesture and the argument key - and this repository has already
+     shipped the defect of a surface that wrote one of them into itself. See help.go. -->
+<section id="view-help" class="hide">
+  <h1>Help</h1>
+  <p class="sub">What this window can do, and the shortcuts this installation is using.</p>
+  <div id="helpSections"></div>
+</section>
+
 <!-- ─────────────────────────── A RUN ────────────────────────── -->
 <section id="view-run" class="hide">
   <h1 id="runTitle">The run</h1>
@@ -1809,6 +1839,26 @@
  // -- and the window used to open on the Act library instead, which is the surface a
  // person reaches for second. Named as a behaviour change rather than a layout one.
  let view = 'routines'
+ // WHICH VIEWS THIS WINDOW OFFERS, answered once by the backend at startup.
+ //
+ // The value here is what the alpha offers, so the rail is right in the frame before the
+ // first answer lands and stays right if that answer never does. See help.go.
+ let offered = ['routines', 'history', 'help']
+ const offers = v => offered.indexOf(v) >= 0
+ // AND EVERY VIEW THIS PAGE HOLDS, WHICH IS NOT THE SAME LIST.
+ //
+ // The sections and the rail buttons are all in the document whatever is offered, and
+ // this is what `paintViews` looks them up by; `offered` is only what can be REACHED.
+ // The two were one hardcoded array that was both the rail AND the lookup, so
+ // withholding an entry threw mid-paint and stopped the window rendering altogether.
+ //
+ // UP HERE WITH THE OTHER TWO, AND NOT BESIDE `show`, for the reason the bootstrap's own
+ // comment gives: `ready` runs SYNCHRONOUSLY when the bindings are already there, part of
+ // the way down this script, and it calls `show`. A `const` declared further down is in
+ // its temporal dead zone at that moment, so reading it throws a ReferenceError that
+ // takes the whole bootstrap with it - silently, because a `-H windowsgui` binary has no
+ // console. Measured: the rail painted the markup's defaults and nothing else ran.
+ const EVERY_VIEW = ['routines', 'acts', 'scenes', 'history', 'help']
  // THE ACTS THIS PAGE IS SHOWING, kept so that pressing Play can say which version of an Act
  // was on screen when it was pressed. See play().
  let listed = []
@@ -1860,8 +1910,19 @@
  ready(() => {
    acts = window.go.main.Acts
    backend = window.go.main.Backend
-   paintLive(); show('routines'); loadActs(); loadDemos(); loadHistory(); loadApps()
-   loadLibrary()
+   paintLive(); show('routines'); loadHistory(); loadApps()
+   loadLibrary(); loadHelp()
+   // WHICH PARTS OF THIS WINDOW ARE OFFERED, ASKED ONCE.
+   //
+   // Before the two reads that only a hidden view would want, and not on a timer: a rail
+   // that could change between two polls is a rail that moves under somebody's cursor.
+   // `show(view)` repaints it with the answer in hand - it is `routines` either way, and
+   // calling it again is how the rail and the sections agree about the new list.
+   acts.Features().then(f => {
+     offered = (f.views || []).length ? f.views : offered
+     show(view)
+     loadActs(); loadDemos()
+   })
    poll(); pollLearning(); pollCapture(); pollRepairs(); pollRoutines()
    pollAskTargets()
    $('askBtn').onclick = askForRoutine
@@ -1914,6 +1975,14 @@
  }
 
  function show(which){
+   // A VIEW THAT IS NOT OFFERED IS NOT ARRIVED AT, whoever asked.
+   //
+   // Not only the rail asks: `show` is called from the bootstrap and from handlers that
+   // send somebody somewhere after a press. A hidden button is not a closed door, and a
+   // door left open onto a surface the alpha cannot carry is worse than a visible one.
+   if (EVERY_VIEW.indexOf(which) < 0 || !offers(which)) {
+     which = offered[0] || 'routines'
+   }
    view = which
    onRun = false
    // A QUESTION NOBODY ANSWERED IS NOT CARRIED TO THE NEXT PLACE. Coming back to a
@@ -1927,17 +1996,67 @@
    if (which === 'history') { loadHistory() }
  }
  function paintViews(){
-   for (const v of ['routines', 'acts', 'scenes', 'history']) {
+   for (const v of EVERY_VIEW) {
      showing($('view-' + v), !onRun && view === v)
-     $('rail-' + v).classList.toggle('on', view === v)
+     const btn = $('rail-' + v)
+     btn.classList.toggle('on', view === v)
+     showing(btn, offers(v))
    }
    showing($('view-run'), onRun)
  }
  function leaveRun(){ onRun = false; paintViews(); loadHistory() }
 
+ // ── HELP ───────────────────────────────────────────────────────────────────
+
+ // WHAT THIS WINDOW CAN EXPLAIN, ASKED ONCE AND WRITTEN NOWHERE HERE.
+ //
+ // Once because none of it changes while the window is open: the shortcuts are read from
+ // the environment when the backend is made. From the backend because two of the sections
+ // NAME those shortcuts, and a page that wrote F12 and F9 into itself would be wrong in
+ // every installation that moved them - which is the exact defect that shipped on the
+ // record card once already. See help.go.
+ function loadHelp(){
+   acts.Help().then(h => {
+     const box = $('helpSections')
+     box.innerHTML = ''
+     ;(h.sections || []).forEach(sec => {
+       const d = document.createElement('details')
+       d.id = 'help-' + sec.key
+       d.className = 'card'
+       const sum = document.createElement('summary')
+       sum.textContent = sec.title
+       d.appendChild(sum)
+       ;(sec.lines || []).forEach(line => {
+         const p = document.createElement('div')
+         p.className = 'muted'
+         p.style.marginTop = '6px'
+         p.textContent = line
+         d.appendChild(p)
+       })
+       box.appendChild(d)
+     })
+   })
+ }
+
+ // AND A LINK BESIDE A CONTROL OPENS THE SECTION ABOUT THAT CONTROL.
+ //
+ // The whole point of moving an explanation out of the way is that somebody can still
+ // reach it from where they were. A link that drops them at the top of a page of
+ // everything has moved the explanation and not kept it.
+ function helpOn(key){
+   show('help')
+   const d = $('help-' + key)
+   if (!d) { return }
+   d.open = true
+   d.scrollIntoView({block: 'nearest'})
+ }
+
  // ── ACTS ───────────────────────────────────────────────────────────────────
 
  function loadActs(){
+   // NOT WHEN ACTS IS NOT OFFERED. Guarded HERE rather than at the call sites, because
+   // there are six of them and a seventh added later would not know to ask.
+   if (!offers('acts')) { return }
    acts.Saved().then(as => {
      listed = as
      const list = $('actList'); list.innerHTML = ''
@@ -2118,6 +2237,8 @@
  // ── SCENES ─────────────────────────────────────────────────────────────────
 
  function loadDemos(){
+   // NOT WHEN SCENES IS NOT OFFERED - guarded here, for the reason `loadActs` is.
+   if (!offers('scenes')) { return }
    acts.Demonstrations().then(ds => {
      const list = $('demos')
      const presses = d => (d.steps || []).filter(s => s.pressable)
@@ -4682,7 +4803,16 @@
        // itself.
        loadDemos()
      }
-   }).finally(() => setTimeout(pollLearning, 400))
+   // AND SLOWLY WHEN SCENES IS NOT OFFERED, RATHER THAN NOT AT ALL.
+   //
+   // This poll paints two things, and only one of them is on the Scenes view. The other
+   // is the RAIL'S BUILD STAMP - which build this window is, and which build is doing the
+   // recording - and that is the one thing in this window that makes a stale director
+   // visible. CLAUDE.md records what the invisible version of it cost: a day of the
+   // owner's recordings. So it keeps running; what goes is the two-and-a-half-times-a-
+   // second cadence, which exists for a recording in flight and there can be none while
+   // the surface that starts one is withheld.
+   }).finally(() => setTimeout(pollLearning, offers('scenes') ? 400 : 10000))
  }
 
  // ── WHAT IT LOOKED LIKE ────────────────────────────────────────────────────

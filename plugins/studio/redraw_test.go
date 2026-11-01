@@ -136,6 +136,13 @@ window.go = {main: {
     CancelPlay: () => {},
     Routines: () => Promise.resolve([]),
     Library: () => Promise.resolve({dir: '/tmp/routes'}),
+    // WHICH PARTS OF THIS WINDOW ARE OFFERED, AND WHAT IT EXPLAINS.
+    // Both are read once at startup; a stub without them is a page
+    // whose rail never paints. See help.go.
+    Features: () => Promise.resolve({acts: true, scenes: true,
+      views: ['routines', 'acts', 'scenes', 'history', 'help']}),
+    Help: () => Promise.resolve({sections: [{key: 'editing',
+      title: 'Editing what a routine does', lines: ['nothing is written yet']}]}),
     Learning: () => Promise.resolve({name: 'trackmania video', application: 'trackmania',
       active: false, over: true, phase: 'ended', learned: D,
       said: 'Saved "trackmania video".', next: 'Build an Act from it.'}),
@@ -267,6 +274,13 @@ window.go = {main: {
         says: 'Play brings a window to the front and presses there.'}]}),
     Routines: () => Promise.resolve([]),
     Library: () => Promise.resolve({dir: '/tmp/routes'}),
+    // WHICH PARTS OF THIS WINDOW ARE OFFERED, AND WHAT IT EXPLAINS.
+    // Both are read once at startup; a stub without them is a page
+    // whose rail never paints. See help.go.
+    Features: () => Promise.resolve({acts: true, scenes: true,
+      views: ['routines', 'acts', 'scenes', 'history', 'help']}),
+    Help: () => Promise.resolve({sections: [{key: 'editing',
+      title: 'Editing what a routine does', lines: ['nothing is written yet']}]}),
     Watch: () => { tick++
       return Promise.resolve({act: 'video act', live: true, reference: 'run-x',
         active: true, transcript: ['authorised by a press of Play'],
@@ -419,6 +433,13 @@ window.go = {main: {
         says: 'Play brings a window to the front and presses there.'}]}),
     Routines: () => Promise.resolve([]),
     Library: () => Promise.resolve({dir: '/tmp/routes'}),
+    // WHICH PARTS OF THIS WINDOW ARE OFFERED, AND WHAT IT EXPLAINS.
+    // Both are read once at startup; a stub without them is a page
+    // whose rail never paints. See help.go.
+    Features: () => Promise.resolve({acts: true, scenes: true,
+      views: ['routines', 'acts', 'scenes', 'history', 'help']}),
+    Help: () => Promise.resolve({sections: [{key: 'editing',
+      title: 'Editing what a routine does', lines: ['nothing is written yet']}]}),
     Recording: () => Promise.resolve({name: 'ark graphics', active: false, review: true,
       application: 'arkascended', stopped_by: 'the Stop button', pressable: 2,
       stop_key: 'F12',
@@ -564,6 +585,13 @@ window.go = {main: {
     Library: () => Promise.resolve({dir: 'C:/Users/x/AppData/Roaming/marco/routes',
       elsewhere: 'D:/Macros/marco/routes',
       says: '3 routine(s) are in D:/Macros/marco/routes, which is not the library above.'}),
+    // WHICH PARTS OF THIS WINDOW ARE OFFERED, AND WHAT IT EXPLAINS.
+    // Both are read once at startup; a stub without them is a page
+    // whose rail never paints. See help.go.
+    Features: () => Promise.resolve({acts: true, scenes: true,
+      views: ['routines', 'acts', 'scenes', 'history', 'help']}),
+    Help: () => Promise.resolve({sections: [{key: 'editing',
+      title: 'Editing what a routine does', lines: ['nothing is written yet']}]}),
     PlayRoutine: (id) => { window.__played = id; return Promise.resolve('') },
   },
 }}
@@ -733,6 +761,13 @@ window.go = {main: {
         says: 'Play brings a window to the front and presses there.'}]}),
     Routines: () => Promise.resolve([]),
     Library: () => Promise.resolve({dir: '/tmp/routes'}),
+    // WHICH PARTS OF THIS WINDOW ARE OFFERED, AND WHAT IT EXPLAINS.
+    // Both are read once at startup; a stub without them is a page
+    // whose rail never paints. See help.go.
+    Features: () => Promise.resolve({acts: true, scenes: true,
+      views: ['routines', 'acts', 'scenes', 'history', 'help']}),
+    Help: () => Promise.resolve({sections: [{key: 'editing',
+      title: 'Editing what a routine does', lines: ['nothing is written yet']}]}),
     Recording: () => Promise.resolve({name: 'ark graphics', active: false, review: true,
       application: 'arkascended', stopped_by: 'the Stop button', pressable: 1,
       stop_key: 'F12', steps: ['bring arkascended to the front',
@@ -842,6 +877,13 @@ window.go = {main: {
     Recording: () => Promise.resolve({active: false}),
     Unrunnable: () => Promise.resolve([]),
     Library: () => Promise.resolve({dir: 'C:/x/routes'}),
+    // WHICH PARTS OF THIS WINDOW ARE OFFERED, AND WHAT IT EXPLAINS.
+    // Both are read once at startup; a stub without them is a page
+    // whose rail never paints. See help.go.
+    Features: () => Promise.resolve({acts: true, scenes: true,
+      views: ['routines', 'acts', 'scenes', 'history', 'help']}),
+    Help: () => Promise.resolve({sections: [{key: 'editing',
+      title: 'Editing what a routine does', lines: ['nothing is written yet']}]}),
     History: () => Promise.resolve([
       {reference: 'run-a', kind: 'routine', routine: 'ark-graphics',
        outcome: 'performed', when: '2026-10-24 16:05', sent: 4, verified: 0,

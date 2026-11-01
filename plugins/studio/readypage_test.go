@@ -64,6 +64,13 @@ window.go = {main: {
     History: () => Promise.resolve([]),
     Unrunnable: () => Promise.resolve([]),
     Library: () => Promise.resolve({dir: 'C:/x/routes'}),
+    // WHICH PARTS OF THIS WINDOW ARE OFFERED, AND WHAT IT EXPLAINS.
+    // Both are read once at startup; a stub without them is a page
+    // whose rail never paints. See help.go.
+    Features: () => Promise.resolve({acts: true, scenes: true,
+      views: ['routines', 'acts', 'scenes', 'history', 'help']}),
+    Help: () => Promise.resolve({sections: [{key: 'editing',
+      title: 'Editing what a routine does', lines: ['nothing is written yet']}]}),
     Ready: () => Promise.resolve(` + answer + `),
   },
 }}
