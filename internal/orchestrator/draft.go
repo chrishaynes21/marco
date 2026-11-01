@@ -41,6 +41,7 @@ package orchestrator
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -119,6 +120,37 @@ type Draft struct {
 	// account at its route. See Deps.write and
 	// [[ADR-279-a-simplified-save-keeps-its-own-basis]].
 	Basis Rebuild
+	// Changed says these steps were CHANGED after they were rendered, so no rules
+	// reproduce them — not today's, and not the other rebuild's either.
+	//
+	// # Why `Basis` could not answer this
+	//
+	// Because `Basis` names which of two rebuilds rendered a list, and a marked list was
+	// not rendered by either: it is a rendering plus an alteration. `Deps.SuppliedInDraft`
+	// rewrites one step's text into `{{name}}`, and after that the demonstration renders
+	// to something else under every set of rules this build has. Saying
+	// `Basis = RebuildCurrent` would have made the field's own sentence false — current
+	// rules are the ones a reader with no account already applies — and would have put
+	// that word in the log beside an account it does not describe.
+	//
+	// # What goes wrong without it
+	//
+	// Exactly what [[ADR-279-a-simplified-save-keeps-its-own-basis]] was about, one step
+	// further along and reached from the other direction. A mark on a draft that had NOT
+	// been simplified left `Basis` empty, so `accountFor` wrote nothing, so the routine
+	// landed with no account beside it — and `StepsNone` licenses rendering the
+	// demonstration and treating the result as what the file is. It is not: the file asks
+	// for a value and the demonstration types one. So the next thing anybody did to that
+	// routine met the mismatch sentence (step editing REFUSED, `basisFor`) or quietly
+	// undid the mark (a rebuild under today's rules re-derived from the events). The save
+	// itself was correct, which is what made it worth a field: the routine ran, asked for
+	// its value, and could not be touched again.
+	//
+	// A draft marked AFTER a simplification was already right, because the simplification
+	// had put a basis on it — which is why this was invisible until a brisk typed run
+	// turned out to fold without Simplify. See `Draft.ownSteps` and
+	// [[ADR-281-a-value-can-be-asked-for-from-the-review]].
+	Changed bool
 	// Unrepresentable is why this recording cannot be saved, or "" when it can.
 	//
 	// A REFUSAL CARRIED ON THE DRAFT RATHER THAN RETURNED INSTEAD OF IT. The person is
@@ -598,7 +630,7 @@ func (d Deps) write(dr *Draft, mode scopeMode, app string, rt routes.Route, over
 // ErrStepsNotWritten, which every surface that saves a draft now has to be able to tell apart
 // from a refusal. The routine runs either way; what is missing is the explanation beside it.
 func (d Deps) accountFor(dr *Draft, rt routes.Route) error {
-	if dr.Basis == "" {
+	if !dr.ownSteps() {
 		return nil
 	}
 	steps, err := json.Marshal(dr.Steps)
@@ -628,9 +660,21 @@ func (d Deps) accountFor(dr *Draft, rt routes.Route) error {
 			ErrStepsNotWritten, err)
 	}
 	mlog.Info("draft: saved with its own basis", "route", rt.Slug,
-		"basis", string(dr.Basis), "steps", len(dr.Steps))
+		"basis", string(dr.Basis), "changed", dr.Changed, "steps", len(dr.Steps))
 	return nil
 }
+
+// ownSteps reports whether a save must leave a step account beside this routine — whether, that
+// is, rendering this demonstration under today's rules would NOT reproduce these steps.
+//
+// ONE QUESTION WITH TWO SOURCES, which is the whole reason it is a function and not a comparison
+// written out at the one place that asks. The first source was a rebuild under other rules
+// (`Basis`); the second is a change made to a rendered list (`Changed`), and it arrived as a
+// defect — `accountFor` asked only the first, so a marked draft that had never been simplified
+// saved with no account and could not be edited afterwards. A third draft operation is a third
+// way to be in this state, and whoever writes it has one sentence to find rather than one
+// condition to remember. See Draft.Changed.
+func (dr *Draft) ownSteps() bool { return dr.Basis != "" || dr.Changed }
 
 // withoutOwner removes the recorder's own window from a demonstration, wherever it appears.
 //
@@ -1312,6 +1356,69 @@ func (d Deps) SimplifiedDraft(dr *Draft) *Draft {
 	}
 	return d.draftFor(RebuildSimplifyTyping, nameWithArgs(dr), dr.Events, dr.App,
 		dr.StoppedBy, dr.Mode)
+}
+
+// SuppliedInDraft makes the text a draft step types into something the person supplies, and
+// writes nothing.
+//
+// # Why this is on the review and not only on the saved routine
+//
+// The same reason [Deps.SimplifiedDraft] is, and the same defect one step further along. A
+// routine can be told to ASK for a value instead of typing one, and until now the only way to
+// get there from a recording was to SAVE it, find it in the panel, edit it, and save again — two
+// writes and a hunt to express something the person knew while they were demonstrating. The one
+// surface where somebody is looking at a demonstration they just made, with the steps in front of
+// them and Save under their hand, could not say "this bit is the item name".
+//
+// It is also the reachable form of the reserved key. The key (F9, `simplify.DefaultArgKey`) marks
+// the value DURING the demonstration, which means knowing about it beforehand and remembering it
+// mid-gesture; this marks it afterwards, from the list, with the text that was typed in front of
+// you. Both exist on purpose: the key costs nothing while your hands are in the other window, and
+// this costs no foreknowledge.
+//
+// # The rules are not this function's, and the position is the list's
+//
+// `suppliedName` is the whole of what may be asked — the step types text, it is not already
+// supplied, the name is a name, and it is NOT a word `codegen` reads from the credential store —
+// and [EditArgument] asks it of a saved routine's list. One set of rules for two ways in.
+//
+// `at` is a position in THIS DRAFT'S step list, which is the list the caller is showing: a draft
+// is held in memory by the window reviewing it, so there is no second writer to mint a basis
+// against, which is the whole of why this is a simpler contract than [Deps.PrepareEditOf].
+//
+// # Nothing is written and the draft is REPLACED rather than edited
+//
+// A copy, like a rebuild, so the draft under review is swapped for the new one by whoever holds
+// it and a caller keeping the old one still has it. The steps are copied too — a shared backing
+// array would make this an edit of the original under another name.
+//
+// AND THE NAME DECLARES IT. `codegen` keeps a `{{name}}` inside a typed literal only when the
+// name is DECLARED, and turns any other one into a credential-store read: a draft whose step says
+// `{{item}}` with nothing declaring `item` would render a routine that types whatever is in the
+// credential store under that word. `declaredFor` is the reading that answers it, the same one
+// the saved edit and the rebuild use.
+func (d Deps) SuppliedInDraft(dr *Draft, at int, name string) (*Draft, string, error) {
+	if dr == nil {
+		return nil, "", errors.New("there is no recording under review")
+	}
+	arg, err := suppliedName(dr.Steps, at, name)
+	if err != nil {
+		return nil, "", err
+	}
+	next := *dr
+	next.Steps = make([]macroir.Step, len(dr.Steps))
+	copy(next.Steps, dr.Steps)
+	was := next.Steps[at].Text
+	next.Steps[at].Text = "{{" + arg + "}}"
+	next.Name, next.Args = declaredFor(nameWithArgs(dr), next.Steps)
+	// AND THE SAVE HAS TO WRITE THE LIST DOWN, because this list is not a rendering of
+	// anything any more. Set here rather than left to the surface: a window that saved a
+	// marked draft without it got a routine that ran, asked for its value, and refused
+	// every edit afterwards with a sentence about its source and its demonstration no
+	// longer agreeing. See Draft.Changed.
+	next.Changed = true
+	return &next, fmt.Sprintf("the text at step %d becomes something you supply, named "+
+		"%q (it was %q)", at+1, arg, was), nil
 }
 
 // ── WHICH RULES A REBUILD IS RENDERED UNDER ───────────────────────────────────

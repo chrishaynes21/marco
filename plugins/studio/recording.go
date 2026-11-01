@@ -109,6 +109,24 @@ type capture struct {
 	// The original rather than the previous version: simplifying twice must still have
 	// one thing to return to, and that thing is what the person did.
 	wasDraft *orchestrator.Draft
+	// wasSupplied is `supplied` as it stood for `wasDraft`, kept WITH it.
+	//
+	// Because a draft can be marked BEFORE it is simplified — a briskly typed run folds
+	// into one step without Simplify, so there is something to pick on an ordinary
+	// recording — and then the thing kept as the way back is a draft with marks ON it.
+	// Restoring the draft and clearing the marks would leave the card silent about
+	// placeholders that are in the steps in front of somebody, which is the same class of
+	// wrongness as warning about a mark that is gone, only quieter. One pair, swapped
+	// together. See Acts.UseOriginalDraft.
+	wasSupplied []string
+	// supplied is the values marked as supplied on the draft under review, in the order
+	// they were marked.
+	//
+	// KEPT SO THE CARD CAN SAY WHAT SIMPLIFY WOULD COST. Simplifying re-derives the steps
+	// from the EVENTS, which throws the marks away — there is no honest way to carry a
+	// position across a list that folded — so the caption names them while they are still
+	// there. Cleared by anything that re-derives. See supplyCaption.
+	supplied []string
 	// simplified is whether the draft under review is a simplification rather than the
 	// recording as it was made. SHOWN, because a person approving a list of steps is owed
 	// the fact that something has been folded since they made it.
@@ -227,6 +245,15 @@ type Recording struct {
 	Pressable int `json:"pressable,omitempty"`
 	// Steps is the draft in plain words, one line each, in order.
 	Steps []string `json:"steps,omitempty"`
+	// Supply is the steps whose text could be made something the person supplies, and
+	// SupplySays is what the control says about itself and about what Simplify would cost.
+	//
+	// TWO READINGS OF ONE LIST, index-aligned by construction: both are built from
+	// `dr.Steps` in the same call, and `Supply` carries a position into `Steps` rather
+	// than a sentence of its own, so the chooser and the list cannot describe two
+	// different routines. Held by TestTheReviewOffersTheStepsItIsShowing.
+	Supply     []SupplyChoice `json:"supply,omitempty"`
+	SupplySays string         `json:"supply_says,omitempty"`
 	// StopKey names the stop gesture, so the button is not the only way out and the other
 	// way is written where somebody can see it — which is BEFORE Record as well as during
 	// a recording, because the card that holds it while one is running is behind the
@@ -587,10 +614,20 @@ func (a *Acts) SimplifyDraft() string {
 		// THE FIRST SIMPLIFICATION KEEPS THE ORIGINAL, and a second one does not
 		// overwrite it: simplifying twice must still have one way back, to what was
 		// demonstrated rather than to the previous simplification.
-		cp.wasDraft = cp.draft
+		//
+		// WITH ITS MARKS, because that draft may carry some: a briskly typed run
+		// folds without Simplify, so a value can be marked before this is ever
+		// pressed. See capture.wasSupplied.
+		cp.wasDraft, cp.wasSupplied = cp.draft, cp.supplied
 	}
 	cp.draft = next
 	cp.simplified = true
+	// AND THE MARKS ARE GONE WITH THE LIST THEY WERE ON. `SimplifiedDraft` re-derives
+	// from the EVENTS, so a value somebody marked as supplied is typed text again — and
+	// a position cannot honestly be carried across a list that folded. The caption said
+	// so before this was pressed; clearing it here is what makes that true rather than
+	// a warning about something that did not happen. See supplyCaption.
+	cp.supplied = nil
 	return ""
 }
 
@@ -608,7 +645,14 @@ func (a *Acts) UseOriginalDraft() string {
 	if cp.wasDraft == nil {
 		return "this recording has not been simplified, so there is nothing to go back to"
 	}
-	cp.draft, cp.wasDraft, cp.simplified = cp.wasDraft, nil, false
+	// THE ORIGINAL COMES BACK WITH WHATEVER WAS MARKED ON IT, which is usually nothing:
+	// the marks a simplification threw away were applied to a list derived from this one,
+	// and this is the list before any of that. Usually, and not always — a briskly typed
+	// run folds without Simplify, so somebody can have marked a value and then pressed it
+	// — and a draft restored with its placeholders and no caption about them is a card
+	// that says nothing about the steps on it. See capture.wasSupplied.
+	cp.draft, cp.supplied = cp.wasDraft, cp.wasSupplied
+	cp.wasDraft, cp.wasSupplied, cp.simplified = nil, nil, false
 	return ""
 }
 
@@ -746,6 +790,13 @@ func (a *Acts) Recording() Recording {
 	out.Exit = dr.ExitSentence()
 	out.Pressable = dr.Pressable()
 	out.Steps = inWords(dr.Steps)
+	// AND WHICH OF THEM COULD ASK FOR THEIR TEXT INSTEAD OF TYPING IT.
+	//
+	// From the same step list as the sentences above, in the same call, so a position the
+	// chooser offers is a position in the list on screen. See supplydraft.go for why the
+	// control is one row under the list rather than a box on every step.
+	out.Supply = supplyChoices(dr.Steps)
+	out.SupplySays = supplyCaption(dr.Steps, c.supplied)
 	// AND A GESTURE THAT CANNOT BE WRITTEN DOWN IS SAID HERE, BESIDE THE STEPS.
 	//
 	// Before the pressable check, because it is the more specific statement about the same

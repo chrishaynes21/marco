@@ -837,6 +837,43 @@
          from the recording that ran. It is the thing being approved. -->
     <ol id="capSteps" class="steps"></ol>
 
+    <!-- AND A VALUE CAN BE MADE SOMETHING YOU SUPPLY, BEFORE ANY OF IT IS SAVED.
+         A routine can ask for a piece of text instead of typing the text that was
+         demonstrated, and from this window that was reachable three ways, all of them
+         invisible: the name’s `with` clause, the reserved key during the demonstration,
+         and this operation — which existed only on a SAVED routine, so somebody who
+         realised at review had to save, find the routine in the panel, edit it, and save
+         again. Two writes and a hunt to say something they already knew.
+
+         UNDER THE STEPS, BECAUSE IT IS ABOUT THEM, and before the scope for the same
+         reason the steps are above the scope: this is a change to what the routine DOES
+         and the scope is a choice about where it does it.
+
+         ONE ROW, NOT A BOX ON EVERY STEP. The saved routine’s panel is a form and can
+         afford one; this card is the demonstration being read, and a text field threaded
+         through every typed line would turn the thing being approved into a form. The
+         chooser names its target instead — each option carries the text that step types
+         — which is the explicitness a per-row box buys. See supplydraft.go.
+
+         Hidden when no step types anything, which is most recordings of a game: a control
+         whose only answer is a refusal is worse than no control. -->
+    <div class="hide" style="margin-top:12px" id="capSupplyBox">
+      <div class="muted" id="capSupplySays"></div>
+      <!-- AND THE CONTROL IS WITHDRAWN WHILE THE CAPTION STILL SPEAKS.
+           A fresh recording holds each keystroke as its own step, so there is usually
+           nothing to pick until Simplify folds the typed run — and a chooser with no
+           options, or no control at all, reads as the capability being absent, which is
+           exactly how this slice came to be asked for. The sentence stays and says to
+           simplify first; the row goes. See supplyCaption. -->
+      <div class="row hide" style="margin-top:8px" id="capSupplyRow">
+        <label style="width:7em" for="capSupplyAt">ask for</label>
+        <select id="capSupplyAt" style="flex:1"></select>
+        <input type="text" id="capSupplyName" placeholder="call the value" style="width:11em">
+        <button onclick="supplyDraft()">Ask for it</button>
+      </div>
+      <div class="no hide" style="margin-top:6px" id="capSupplyWhy"></div>
+    </div>
+
     <!-- AND THE SCOPE BESIDE THEM, with what it was observed in above it: a scope is a
          choice about those steps and reads as one next to them.
 
@@ -2314,6 +2351,34 @@
      pollCapture()
    })
  }
+ // MAKING A VALUE SOMETHING YOU SUPPLY. Beside the two above because all three swap the
+ // draft under review and write nothing; Save still writes whichever one is on screen.
+ //
+ // THE REFUSAL HAS ITS OWN LINE and does not go to `capSimplifySays`, which describes what
+ // Simplify would do: a sentence saying why a name was rejected, sitting where the
+ // explanation of another button lives, reads as that button having failed.
+ //
+ // The name is NOT cleared on a refusal — it is what somebody has to correct.
+ function supplyDraft(){
+   // NOTHING CHOSEN IS NOT A POSITION. An empty select reads back as '' and
+   // `parseInt` makes that NaN, which is not a number any marshaller can carry — so a
+   // press with no step picked would fail somewhere nobody can read. The row is hidden
+   // when there is nothing to pick, so this is the state that should not be reachable,
+   // which is exactly the kind this page has been bitten by.
+   const at = parseInt($('capSupplyAt').value, 10)
+   if (!Number.isInteger(at)) {
+     text($('capSupplyWhy'), 'choose the step whose text the routine should ask for')
+     showing($('capSupplyWhy'), true)
+     return
+   }
+   const name = $('capSupplyName').value
+   acts.SupplyDraftText(at, name).then(why => {
+     text($('capSupplyWhy'), why || '')
+     showing($('capSupplyWhy'), !!why)
+     if (!why) { $('capSupplyName').value = '' }
+     pollCapture()
+   })
+ }
  // taken is the routine Save refused to replace, held so Replace can name the exact one somebody
  // agreed to. Cleared the moment anything is written or the panel goes away.
  let taken = null
@@ -2487,6 +2552,8 @@
      const sig = r.name + '\u0000' + (r.said || '') + '\u0000' + (r.missing || '')
        + '\u0000' + (r.exit || '') + '\u0000' + (r.steps || []).join('|')
        + '\u0000' + (r.simplified ? 1 : 0) + (r.original ? 1 : 0)
+       + '\u0000' + (r.supply_says || '')
+       + '\u0000' + (r.supply || []).map(c => c.at + ':' + c.label).join('|')
      if (sig === shownCapture) { return }
      shownCapture = sig
      // THE WAY BACK APPEARS ONLY ONCE THERE IS SOMETHING TO GO BACK TO, and the line
@@ -2547,6 +2614,38 @@
        }
        list.appendChild(li)
      })
+     // AND WHICH OF THOSE STEPS COULD ASK FOR ITS TEXT INSTEAD OF TYPING IT.
+     //
+     // Inside the signature guard with the list, because the options ARE the list: a
+     // chooser rebuilt under somebody who had already picked a step would move the
+     // target of the name they are typing. The selection is preserved across a redraw
+     // for the same reason the scope select below preserves its own.
+     //
+     // Hidden with nothing to offer. Every option carries a position into the list
+     // above, from the backend, so the page never counts steps itself — a page that
+     // worked out which steps type text would be a second reading of the draft, and
+     // the one that matters is the one Save writes.
+     const supply = r.supply || []
+     // THE BOX FOLLOWS THE SENTENCE AND THE ROW FOLLOWS THE OPTIONS, which are two
+     // different facts: a recording that types text has something to be told even when
+     // it has nothing to pick yet. See supplyCaption.
+     showing($('capSupplyBox'), !!r.supply_says)
+     showing($('capSupplyRow'), supply.length > 0)
+     text($('capSupplySays'), r.supply_says || '')
+     const pick = $('capSupplyAt')
+     const chosenStep = pick.value
+     pick.innerHTML = ''
+     supply.forEach(c => {
+       const o = document.createElement('option')
+       o.value = String(c.at)
+       o.textContent = c.label
+       pick.appendChild(o)
+     })
+     if (supply.some(c => String(c.at) === chosenStep)) { pick.value = chosenStep }
+     // AND A REFUSAL FROM THE LAST ATTEMPT DOES NOT SURVIVE THE LIST CHANGING, because
+     // it was about a step list that is no longer the one on screen.
+     text($('capSupplyWhy'), '')
+     showing($('capSupplyWhy'), false)
      // AND WHERE IT SHOULD WORK, ASKED RATHER THAN GUESSED — EXCEPT WHEN IT IS NOT A
      // QUESTION.
      //

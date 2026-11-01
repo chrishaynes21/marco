@@ -813,6 +813,62 @@ the only way a draft becomes a routine and therefore the only place the enforcem
 unchanged — nothing on disk is rewritten and there is no migration. Re-recording or an explicit
 `marco simplify` picks the correction up, which is a person asking for it.
 
+## A routine can take a value, and Studio now says so
+
+A routine can be told to ASK for a piece of text instead of typing the text that was
+demonstrated. There are three ways in, and **Studio wired all three and mentioned none** — which
+is why the owner went looking for the feature and reported it missing. A capability nothing
+mentions is indistinguishable from one that does not exist.
+
+| | how | where it is wired |
+| --- | --- | --- |
+| the name declares it | call the recording `cloud pull stone with item` | `Deps.Begin` → `routes.SplitArgs` |
+| the reserved key | press **F9** during the demonstration, where the value goes | `Deps.ArgKey`; `simplify.go`’s `argKey` branch |
+| the step edit | turn a typed step into a supplied one afterwards | [[ADR-278-the-text-a-step-types-can-be-made-something-you-supply]] |
+
+`marco learn` printed the key in its prompt (`argKeyHint`). The window with the Record button did
+not.
+
+**The key is named on the record card and in the band**, from `orchestrator.ArgKeyFor` so that one
+reading of `$MARCO_ARG_KEY` serves the recorder and the window alike. An unset override is F9, not
+silence — the same defect the stop key shipped with three rows up the same card. Before a
+recording the card says what the key is for and that the name’s `with` clause names the value;
+while one runs the band names the declared values **in order**, because the Nth press fills the Nth
+name.
+
+**And a value can be marked from the review**, before anything is saved
+(`Deps.SuppliedInDraft`). The operation existed only on a saved routine, so somebody who realised
+at review had to save, find it in the panel, edit it, and save again. `suppliedName` is the whole
+of what may be asked and `EditArgument` asks it too, so the credential refusal lives in one place;
+`declaredFor` declares the name, without which the saved routine would read the value from the
+credential store instead of typing it.
+
+**A value is one step, and a recording made at a human pace is one step per character.**
+`coalesceTyping` folds only what is adjacent, and a 400ms gap between keystrokes is a `wait`
+between them — so a slowly typed `stone` is five `type` steps and there is nothing to pick until
+**Simplify** folds the run. The card says that in those words and names the button, rather than
+showing an empty chooser. And Simplify takes any marks off, having said so first and named them:
+it re-derives from the events, and a position cannot honestly be carried across a list that
+folded. A run typed at *typing speed* is the exception — `simplify.MinWaitMs` is 30, so gaps under
+that emit no wait and the keys fold in the ordinary draft — which is how a value comes to be
+marked on a recording nobody simplified.
+
+**And a marked save writes its step list down.** A mark rewrites a step's text, so the list stops
+being a rendering of the demonstration under any rules, and `accountFor` originally asked only
+`Draft.Basis` — which a *rebuild* sets and an ordinary draft does not. The routine saved and ran
+correctly and then could not be touched: with no account beside it, `basisFor` renders the
+demonstration, compares, and refuses the edit panel, while a rebuild under today's rules
+re-derives the mark away. `Draft.Changed` records that the steps were changed after they were
+rendered and `Draft.ownSteps` is the one question it and `Basis` both answer. `capture.wasSupplied`
+travels with `capture.wasDraft` for the same reason: the draft kept as the way back can be one
+that was marked before Simplify was pressed.
+
+**Not done, deliberately:** a button in the band that drops a placeholder mid-demonstration. It
+can only be pressed by leaving the window being demonstrated in, and the mark would need a stored
+recorder event kind of its own, because `Draft.Events` carries no markers at all and a rebuild
+re-derives from what is stored. Making it an ordinary `EvKey` would be simulating a human press
+into a recording. See [[ADR-281-a-value-can-be-asked-for-from-the-review]].
+
 ## Known gaps
 
 See the *Known gaps* section of [[director-demonstrations]].

@@ -599,41 +599,9 @@ func applyEdits(steps []macroir.Step, edits []StepEdit) ([]macroir.Step, []strin
 			// never both, so "supplied and given a duration" cannot be asked of
 			// one step: the kind check below is what answers, with the true
 			// reason. A guard for it would be one that cannot fire.
-			if steps[ed.At].Kind != macroir.StepType {
-				return nil, nil, "", nil, fmt.Errorf("step %d does not type any "+
-					"text, so there is nothing about it to supply",
-					ed.At+1)
-			}
-			// ALREADY SUPPLIED IS NOT A CHANGE. A second pass over the same step
-			// would bury one placeholder inside another and the routine would
-			// type the braces.
-			if routes.Arguments(steps[ed.At].Text) != nil {
-				return nil, nil, "", nil, fmt.Errorf("the text at step %d is "+
-					"already supplied when the routine runs", ed.At+1)
-			}
-			name := strings.ToLower(strings.TrimSpace(ed.Name))
-			if !argName.MatchString(name) {
-				return nil, nil, "", nil, fmt.Errorf("%q is not a name a supplied "+
-					"value can have — letters, digits, dashes and "+
-					"underscores, and at least one of them", ed.Name)
-			}
-			// ── AND NOT A NAME THE GENERATOR READS FROM THE CREDENTIAL STORE ──
-			//
-			// `codegen` resolves a placeholder called `password`, `token`, `pin`,
-			// `key` and a handful of others from the CREDENTIAL STORE rather than
-			// typing it — `codegen.MeansASecret` is the list. So naming the
-			// changing text one of those would not produce supplied text at all:
-			// the routine would read whatever is in the store and type that.
-			//
-			// Somebody asking for a value they supply must not get a credential
-			// lookup because of the word they chose, and they cannot be expected
-			// to know the list. So it is refused, named, and said plainly.
-			if codegen.MeansASecret(name) {
-				return nil, nil, "", nil, fmt.Errorf("a supplied value cannot be "+
-					"called %q: the generator reads that name from the "+
-					"credential store instead of typing it, so the "+
-					"routine would type whatever is saved there — pick "+
-					"another name", name)
+			name, err := suppliedName(steps, ed.At, ed.Name)
+			if err != nil {
+				return nil, nil, "", nil, err
 			}
 			// ── AND NOTHING HERE CHECKS WHETHER THIS ROUTINE ALREADY HAS ONE ──
 			//
@@ -723,6 +691,52 @@ func applyEdits(steps []macroir.Step, edits []StepEdit) ([]macroir.Step, []strin
 func declaredFor(name string, steps []macroir.Step) (string, []string) {
 	base, args := routes.SplitArgs(name)
 	return base, append(args, suppliedIn(steps, args)...)
+}
+
+// suppliedName is the name the text at `at` would be supplied under, or why it cannot be.
+//
+// ONE SET OF RULES, BECAUSE THERE ARE TWO WAYS IN NOW. [EditArgument] asks it of a SAVED
+// routine's step list, and [Deps.SuppliedInDraft] asks it of a recording nobody has kept yet —
+// and the two are the same question about the same kind of step. A second copy of these four
+// checks is a second place for the credential refusal to be missing from, which is the one of
+// them that quietly changes what a routine does.
+//
+// The sentences name the step by its position from one, because that is how both surfaces list
+// them and an index nobody can see is not an explanation.
+func suppliedName(steps []macroir.Step, at int, raw string) (string, error) {
+	switch {
+	case at < 0 || at >= len(steps):
+		return "", fmt.Errorf("there is no step %d to supply", at+1)
+	case steps[at].Kind != macroir.StepType:
+		return "", fmt.Errorf("step %d does not type any text, so there is nothing "+
+			"about it to supply", at+1)
+	// ALREADY SUPPLIED IS NOT A CHANGE. A second pass over the same step would bury one
+	// placeholder inside another and the routine would type the braces.
+	case routes.Arguments(steps[at].Text) != nil:
+		return "", fmt.Errorf("the text at step %d is already supplied when the "+
+			"routine runs", at+1)
+	}
+	name := strings.ToLower(strings.TrimSpace(raw))
+	if !argName.MatchString(name) {
+		return "", fmt.Errorf("%q is not a name a supplied value can have — letters, "+
+			"digits, dashes and underscores, and at least one of them", raw)
+	}
+	// ── AND NOT A NAME THE GENERATOR READS FROM THE CREDENTIAL STORE ──
+	//
+	// `codegen` resolves a placeholder called `password`, `token`, `pin`, `key` and a handful
+	// of others from the CREDENTIAL STORE rather than typing it — `codegen.MeansASecret` is
+	// the list. So naming the changing text one of those would not produce supplied text at
+	// all: the routine would read whatever is in the store and type that.
+	//
+	// Somebody asking for a value they supply must not get a credential lookup because of the
+	// word they chose, and they cannot be expected to know the list. So it is refused, named,
+	// and said plainly.
+	if codegen.MeansASecret(name) {
+		return "", fmt.Errorf("a supplied value cannot be called %q: the generator reads "+
+			"that name from the credential store instead of typing it, so the routine "+
+			"would type whatever is saved there — pick another name", name)
+	}
+	return name, nil
 }
 
 // suppliedIn is the placeholder names a step list already types, that the name has not declared.

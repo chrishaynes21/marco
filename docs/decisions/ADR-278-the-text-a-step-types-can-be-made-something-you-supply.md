@@ -342,3 +342,22 @@ This is what the ledger rule is for, and it caught exactly what it was written t
   that package or in the listener it binds. Nothing here distinguishes them, so nothing here
   claims to — and it was not retried into silence either. The reading to avoid is the comfortable
   one, which is why this paragraph says less than the first version of it did.
+
+## Amended 2026-10-31 — and the window finally says the capability exists
+
+This decision was made for DISCOVERABILITY, and it did not finish the job. The edit it added was
+findable only on a SAVED routine, and the two older ways in — the name’s `with` clause and the
+reserved F9 key — were still mentioned by nothing in the window at all. `marco learn` printed the
+key in its prompt; the card with the Record button did not.
+
+So the same report came back one layer up: the owner asked **where arguments are added to a
+recording in Studio**, having found no surface that says a routine can take one. Three wired
+mechanisms, nothing on screen about any of them.
+
+[[ADR-281-a-value-can-be-asked-for-from-the-review]] closes it, and adds no mechanism: the arg key
+is named on the record card and in the recording band, and this ADR’s operation is reachable from
+the recording review as well as from the saved routine’s panel — so it no longer takes two
+writes and a hunt to express something somebody knew while they were demonstrating.
+`suppliedName` is now the one owner of what may be asked, which both ways in share, for the reason
+`declaredFor` became one owner in the slice above: the credential refusal is the check that
+quietly changes what a routine does if it goes missing from a copy.
