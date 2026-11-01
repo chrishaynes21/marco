@@ -187,8 +187,10 @@ func TestEverySectionTheWindowLinksToExists(t *testing.T) {
 	}
 	page := thePage(t)
 	for key := range has {
-		if !strings.Contains(page, "helpOn('"+key+"')") && key != "scope" &&
-			key != "measured" {
+		// `scope` is reached from the rail on purpose: the three choices are
+		// explained on the card that offers them, and a link beside that card
+		// would point at a shorter version of what is already there.
+		if !strings.Contains(page, "helpOn('"+key+"')") && key != "scope" {
 			t.Errorf("Help explains %q and nothing in the window links to it, "+
 				"so it is reachable only by browsing", key)
 		}

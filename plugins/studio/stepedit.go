@@ -92,6 +92,32 @@ type StepRow struct {
 	// invite an edit that is refused.
 	Supplied bool   `json:"supplied,omitempty"`
 	Named    string `json:"named,omitempty"`
+	// Point says this step presses somewhere, Movable whether its position can be
+	// changed, and PointWhy what stops it when it cannot — shown ON THE ROW, because a
+	// row with no box and no reason is a capability that looks absent.
+	//
+	// InWindow says which pair is offered: the offset INSIDE the window, or the point on
+	// the screen. The two survive different things and a person needs to know which one
+	// they are typing into — an offset still means the same place after the window has
+	// moved, and a screen point does not.
+	//
+	// WHICH IS NEVER THE PAGE'S CHOICE. It comes from the same reading the validator
+	// applies against, so a surface cannot offer a window to a press that was never
+	// measured in one. See orchestrator.PointIn.
+	Point    bool   `json:"point,omitempty"`
+	Movable  bool   `json:"movable,omitempty"`
+	PointWhy string `json:"point_why,omitempty"`
+	InWindow bool   `json:"in_window,omitempty"`
+	// X and Y are the pair, in the basis InWindow names. NOT omitempty: a press at the
+	// very corner of a window is at 0, and a field that vanished would reach the page as
+	// nothing and be drawn as an empty box.
+	X int `json:"x"`
+	Y int `json:"y"`
+	// Terms are the machine facts beside the pair — the button, and the window the press
+	// is checked against. They are what the edit KEEPS, which is why they are shown: two
+	// editable numbers and nothing else leaves somebody to find out afterwards whether
+	// moving a press also changed what it was checked against.
+	Terms string `json:"terms,omitempty"`
 }
 
 // StepChange is one operation the page asks for, against a position in the list it was shown.
@@ -102,6 +128,10 @@ type StepChange struct {
 	At int    `json:"at"`
 	// To is the new duration in milliseconds, for a wait.
 	To int `json:"to"`
+	// X and Y are where a press should be, for a "point" change, in the basis the row
+	// said it was offering.
+	X int `json:"x"`
+	Y int `json:"y"`
 	// Upto is the last position of the range, for a "typed" change, with `At` the first
 	// and both ends in it. Its own term rather than `To`, which is a duration: see
 	// orchestrator.StepEdit.Upto.
@@ -253,6 +283,16 @@ func stepRows(e orchestrator.EditReview) []StepRow {
 				r.Supplied, r.Named = true, args[0].Name
 			}
 		}
+		// ── AND WHERE IT PRESSES, WHEN IT PRESSES ANYWHERE ──
+		//
+		// Asked for EVERY step, so this panel never works out for itself which rows
+		// have a position: a surface that decided would be free to offer a box the
+		// validator then refuses, which is a control whose refusal arrives after
+		// somebody has typed into it.
+		if p := orchestrator.PointIn(steps, i); p.Is {
+			r.Point, r.Movable, r.PointWhy = true, p.Movable, p.Why
+			r.InWindow, r.X, r.Y, r.Terms = p.InWindow, p.X, p.Y, p.Terms
+		}
 		if partner := e.PairedWith(i); partner >= 0 {
 			r.Pairs, r.PairsAt = true, partner
 			r.PairSays = fmt.Sprintf("removing this removes step %d as well, "+
@@ -307,7 +347,7 @@ func (a *Acts) ReviewStepEdit(id, basis string, changes []StepChange) StepPrevie
 		// the one `routes` own pattern will read back.
 		edits = append(edits, orchestrator.StepEdit{
 			Op: orchestrator.EditOp(strings.TrimSpace(c.Op)), At: c.At, To: c.To,
-			Upto: c.Upto, Name: c.Name})
+			Upto: c.Upto, X: c.X, Y: c.Y, Name: c.Name})
 	}
 	d := orchestrator.Deps{Reg: a.reg(), Out: &strings.Builder{}}
 	e, err := d.PrepareEditOf(chosen.route(), basis, edits)

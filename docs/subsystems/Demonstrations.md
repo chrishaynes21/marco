@@ -977,6 +977,24 @@ STILL OPEN, and ruled on by nobody yet: the secret QUALIFIER is lost on every re
 routine, so a rescope or a step edit turns `<slug>:password` into `password`. See
 [[ADR-285-a-routine-can-be-called-something-else]].
 
+**And a press can be moved.** A click recorded inside a window is written down twice — a point on
+the screen and an offset inside that window — and the two were measured AT THE SAME INSTANT, so
+the window's origin is recoverable as `(X-RelX, Y-RelY)` and the screen point moves with the
+offset out of that same reading. That is the whole reason either number can be edited: without
+it, changing one makes the other a lie. The OFFSET is the pair offered for a measured press,
+because it is the half that still means the same place after the window has moved; a press never
+measured against a window is moved by its screen point and does not acquire a window by being
+moved. `orchestrator.PointIn` decides which, for every step, so no surface works it out for
+itself.
+
+Refused, each on its own row: a press found by its picture, its colour, the words beside it or
+what Marco can see — the coordinate there is a position INSIDE the thing being looked for; a
+drag, which has two ends; an incomplete measurement, refused rather than completed, because
+filling a term in would manufacture a guarded point out of a reading nobody took; and an offset
+the window could not contain. `movedPoint` COPIES the step and sets at most four numbers, so the
+button, the modifier, the count and all five guard terms survive. See
+[[ADR-286-a-press-can-be-moved]].
+
 ## Known gaps
 
 See the *Known gaps* section of [[director-demonstrations]].

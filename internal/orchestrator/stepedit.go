@@ -84,6 +84,17 @@ const (
 	EditWait EditOp = "wait"
 	// EditRemove removes one step, whole.
 	EditRemove EditOp = "remove"
+	// EditPoint moves where a press happens.
+	//
+	// It changes ONE step and leaves the list the length it was, so unlike EditTyped it
+	// collects with removals and waits in the ordinary way.
+	//
+	// WHICH PAIR IT SETS IS THE STEP'S OWN ANSWER, never the caller's: a press measured
+	// inside a window is moved by its OFFSET, and the point on the screen follows out of
+	// the same measurement; a press that was never measured against a window is moved by
+	// the screen point. A caller that chose would be free to give a press a window it was
+	// never recorded in. See pointedit.go, which is the whole of the rule.
+	EditPoint EditOp = "point"
 	// EditArgument makes the text a step types something SUPPLIED, under a name.
 	//
 	// # Why this is an edit rather than something you do while demonstrating
@@ -152,6 +163,13 @@ type StepEdit struct {
 	// hold in their head, in the one struct where a wrong number changes somebody's
 	// routine quietly.
 	Upto int `json:"upto"`
+	// X and Y are where the press should be, for EditPoint. Ignored otherwise.
+	//
+	// IN WHICHEVER BASIS THE STEP ITSELF USES — the offset inside the window when it was
+	// measured in one, the point on the screen when it was not. `MovablePoint.InWindow`
+	// is what a surface shows beside the box, and it comes from the same reading this
+	// applies against, so the two cannot disagree about which pair somebody typed.
+	X, Y int `json:"x,omitempty"`
 	// Name is what the supplied text is called, for EditArgument. Ignored otherwise.
 	//
 	// LOWERCASED when it is applied, because every reader downstream compares these
@@ -551,6 +569,7 @@ func applyEdits(steps []macroir.Step, edits []StepEdit) ([]macroir.Step, []strin
 	drop := map[int]bool{}
 	waits := map[int]int{}
 	args := map[int]string{}
+	points := map[int]macroir.Step{}
 	var says []string
 	// ── A DECLARATION THAT A RUN IS TYPED TEXT IS REVIEWED ON ITS OWN ──
 	//
@@ -615,6 +634,11 @@ func applyEdits(steps []macroir.Step, edits []StepEdit) ([]macroir.Step, []strin
 					"changed and removed, so nothing was changed",
 					ed.At+1)
 			}
+			if _, placed := points[ed.At]; placed {
+				return nil, nil, "", nil, fmt.Errorf("step %d is asked to be both "+
+					"moved and removed, so nothing was changed",
+					ed.At+1)
+			}
 			if _, supplied := args[ed.At]; supplied {
 				return nil, nil, "", nil, fmt.Errorf("step %d is asked to be both "+
 					"supplied and removed, so nothing was changed",
@@ -646,6 +670,27 @@ func applyEdits(steps []macroir.Step, edits []StepEdit) ([]macroir.Step, []strin
 					steps[ed.At].Key)
 			}
 			says = append(says, line)
+		case EditPoint:
+			if drop[ed.At] {
+				return nil, nil, "", nil, fmt.Errorf("step %d is asked to be both "+
+					"moved and removed, so nothing was changed", ed.At+1)
+			}
+			if _, already := points[ed.At]; already {
+				return nil, nil, "", nil, fmt.Errorf("step %d is asked to be "+
+					"moved to two places, so nothing was changed",
+					ed.At+1)
+			}
+			// AND NO CHECK AGAINST A DURATION OR A SUPPLIED NAME. A step is a
+			// click or a wait and never both, and a click types nothing — so
+			// "moved and given a duration" cannot be asked of one step, and a
+			// guard for it would be one that cannot fire. `movedPoint` answers
+			// with the true reason: the step does not press anywhere.
+			moved, said, perr := movedPoint(steps, ed.At, ed.X, ed.Y)
+			if perr != nil {
+				return nil, nil, "", nil, perr
+			}
+			points[ed.At] = moved
+			says = append(says, said)
 		case EditArgument:
 			if drop[ed.At] {
 				return nil, nil, "", nil, fmt.Errorf("step %d is asked to be both "+
@@ -691,6 +736,14 @@ func applyEdits(steps []macroir.Step, edits []StepEdit) ([]macroir.Step, []strin
 		}
 		if ms, ok := waits[i]; ok {
 			s.Ms = ms
+		}
+		// THE WHOLE STEP, because a moved press is the step it was with four
+		// numbers changed — `movedPoint` copied it, so the button, the modifiers,
+		// the count and every guard term are already on it. Assigning the
+		// coordinates here instead would be a second place that decides which of
+		// them a move may touch.
+		if moved, ok := points[i]; ok {
+			s = moved
 		}
 		if name, ok := args[i]; ok {
 			s.Text = "{{" + name + "}}"

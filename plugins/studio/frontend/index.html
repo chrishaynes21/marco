@@ -258,6 +258,23 @@
  .steprows .act{font:400 12px var(--mach);color:var(--dim);white-space:nowrap;
    text-transform:lowercase}
  .steprows .lbl{font:400 12px var(--mach);color:var(--dim)}
+ .steprows input[type=number].xy{width:5em}
+ /* A POINT ROW LAYS ITS PARTS OUT; a row of text does not.
+    Only the point rows become a flex container: everything else in this column is one
+    run of text, and making THAT an anonymous flex item changes how a long sentence
+    wraps for no reason at all. */
+ .steprows .said.pt{display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap}
+
+ /* WHAT A PRESS IS MEASURED AGAINST, as a badge rather than a sentence.
+    The two survive different things -- an offset inside a window still means the same
+    place after the window has moved, and a point on the desktop does not -- so the
+    word has to be beside the numbers rather than at the end of a line. */
+ .steprows .basis{font:600 10.5px var(--sans);letter-spacing:.04em;
+   text-transform:uppercase;padding:2px 6px;border-radius:999px;
+   background:var(--sink);color:var(--dim);border:1px solid var(--line);
+   white-space:nowrap}
+ .steprows .basis.win{background:var(--spot-bg);color:var(--spot);
+   border-color:transparent}
 
  /* AND ONLY THE ACTION AND THE VALUE ARE STRUCK OUT.
     This was `.gone .what`, and `.pair` - the sentence saying that removing this row
@@ -1272,7 +1289,9 @@
           <button id="routineStepsBtn" onclick="stepEditing()">Edit its steps</button>
         </div>
         <div class="muted">Nothing is written until you review it.
-          <button class="hint" onclick="helpOn('editing')">What can be changed</button></div>
+          <button class="hint" onclick="helpOn('editing')">What can be changed</button>
+          <button class="hint" onclick="helpOn('measured')"
+            >Where a press is measured</button></div>
       </div>
       <!-- AND WHAT A SAVE DID, WHICH HAS THREE ANSWERS. Saved is a banner; a source that
            landed without its step list is a PROBLEM card, because the routine runs as
@@ -3554,6 +3573,66 @@
      if (cut) { act.textContent = cut[0]; said.textContent = cut[1] }
      else { said.textContent = row.says }
      what.appendChild(said)
+     // ── AND A PRESS SAYS WHERE IT IS, IN THE BASIS IT WAS MEASURED IN ──
+     //
+     // The sentence is replaced rather than added to: `oneStep` already writes the
+     // numbers into it, and a row carrying both would be the same fact twice with
+     // only one of them editable.
+     //
+     // WHICH PAIR IS OFFERED IS THE BACKEND'S ANSWER (`row.in_window`), never worked
+     // out here. A press measured inside a window is moved by its OFFSET and the
+     // screen point follows out of the same measurement; a press never measured
+     // against a window is moved by the screen point, and does not acquire a window
+     // by being moved. See orchestrator.PointIn.
+     let xBox = null, yBox = null
+     if (row.point) {
+       said.textContent = ''
+       said.classList.add('pt')
+       const basis = document.createElement('span')
+       basis.className = 'basis' + (row.in_window ? ' win' : '')
+       basis.textContent = row.in_window ? 'in the window' : 'on the screen'
+       said.appendChild(basis)
+       const placed = asked && asked.op === 'point' ? asked : null
+       if (row.movable) {
+         for (const axis of ['x', 'y']) {
+           const lab = document.createElement('label')
+           lab.className = 'lbl'
+           lab.textContent = axis
+           lab.htmlFor = 'routineStep' + axis.toUpperCase() + '-' + row.at
+           const box = document.createElement('input')
+           box.type = 'number'
+           box.className = 'xy'
+           box.id = lab.htmlFor
+           // AND THE BOX SAYS WHICH STEP AND WHICH BASIS. A list of rows each
+           // carrying two numbers is a page of controls called x and y.
+           box.setAttribute('aria-label', axis + ' of the press at step ' +
+             (row.at + 1) + (row.in_window ? ', inside the window'
+                                           : ', on the screen'))
+           box.value = String(placed ? placed[axis] : row[axis])
+           said.append(lab, box)
+           if (axis === 'x') { xBox = box } else { yBox = box }
+         }
+       } else {
+         const at = document.createElement('span')
+         at.textContent = row.x + ', ' + row.y
+         said.appendChild(at)
+       }
+       if (row.terms) {
+         const terms = document.createElement('span')
+         terms.className = 'muted mach'
+         terms.textContent = row.terms
+         said.appendChild(terms)
+       }
+       // AND WHY IT CANNOT BE MOVED, ON THE ROW AND OUTSIDE THE STRUCK-OUT PART,
+       // for the reason the pair warning is: a reason struck through is a reason
+       // somebody reads as already dealt with.
+       if (row.point_why) {
+         const no = document.createElement('span')
+         no.className = 'pair no'
+         no.textContent = row.point_why
+         what.appendChild(no)
+       }
+     }
      if (row.pairs) {
        // THE OTHER HALF, ON THE ROW, BEFORE ANYTHING IS PRESSED.
        //
@@ -3627,6 +3706,26 @@
        }
        controls.append(name, ask)
      }
+     // ── AND A PRESS THAT CAN BE MOVED HAS A BUTTON TO MOVE IT ──
+     //
+     // Beside the boxes rather than on them: a number that applied as it was typed
+     // would send three edits on the way to 350, and the last of them is the only one
+     // anybody meant.
+     if (row.point && row.movable && xBox && yBox) {
+       const place = document.createElement('button')
+       place.id = 'routineStepPlace-' + row.at
+       const placed = asked && asked.op === 'point'
+       place.textContent = placed ? 'Put it back' : 'Set'
+       place.setAttribute('aria-label', (placed ? 'Leave step ' : 'Move step ') +
+         (row.at + 1) + ' where it was')
+       place.onclick = () => {
+         if (asked && asked.op === 'point') { dropStepChange(row.at); return }
+         askStepChange({op: 'point', at: row.at,
+           x: Math.round(parseFloat(xBox.value) || 0),
+           y: Math.round(parseFloat(yBox.value) || 0)})
+       }
+       controls.appendChild(place)
+     }
      // AND A STEP WHOSE TEXT IS ALREADY SUPPLIED SAYS SO, rather than offering the
      // control again for an edit the contract refuses.
      if (row.supplied) {
@@ -3694,6 +3793,15 @@
      if (c.op === 'wait') { return at + ' waits ' + c.to + 'ms' }
      if (c.op === 'remove') { return at + ' is removed' }
      if (c.op === 'argument') { return at + ' asks you for its text (' + c.name + ')' }
+     if (c.op === 'point') {
+       // AND IN WHICH BASIS, read off the row the numbers were typed into rather
+       // than carried on the change: two numbers with no word beside them are the
+       // same sentence for a press inside a window and a press on the desktop,
+       // and those are different places.
+       const row = ((stepList && stepList.rows) || []).find(r => r.at === c.at)
+       return at + ' presses at ' + c.x + ', ' + c.y +
+         (row && row.in_window ? ' in the window' : ' on the screen')
+     }
      return at + ' is changed in a way this window cannot describe (' + c.op + ')'
    }
    text(box, 'Asked: ' + stepChanges.map(saysChange).join('; ') +

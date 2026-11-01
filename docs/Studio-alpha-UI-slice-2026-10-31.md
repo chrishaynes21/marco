@@ -1,6 +1,6 @@
 ---
 type: reference
-status: in-progress
+status: implemented
 date: 2026-10-31
 source_paths:
   - plugins/studio/frontend/index.html
@@ -38,8 +38,25 @@ Four columns — number · action · value · controls. The basis is a badge rat
 No paragraph sits on a monospace row; the refusals and the pair warning do, because they are what
 somebody is about to act on.
 
-Both are rendered against Studio's own stylesheet in headless Edge, at 1180px. They are
-PROPOSALS, not screenshots of the product: nothing in the second layout exists yet.
+Both are rendered against Studio's own stylesheet in headless Edge, at 1180px. They are the
+PROPOSALS, kept as the record of what was approved and amended.
+
+## As built
+
+All four slices are landed. These are the real page, rendered in headless Edge over a stubbed
+backend — the same harness the rendered tests use, so what they show is the page's own markup and
+stylesheet rather than a mock of it.
+
+![Help](images/studio-ui/7-alpha-help-as-built.png)
+
+![Rename](images/studio-ui/7-alpha-rename-as-built.png)
+
+![The step editor](images/studio-ui/7-alpha-editor-as-built.png)
+
+The editor shot has one of each row: a press measured inside a window with its offset editable
+and its window terms beside it, a press measured on the desktop, and a press found by its picture
+which says on its row that it cannot be moved — struck out, because that row is also asked to be
+removed, with the reason outside the strike.
 
 ## What was traced first
 
@@ -141,6 +158,7 @@ Slices 1 and 2 touch no saved routine. 3 and 4 do.
 - [[ADR-283-the-alpha-offers-one-journey-and-the-window-explains-itself]] — slice 1
 - [[ADR-284-the-step-editor-is-a-list-of-rows]] — slice 2
 - [[ADR-285-a-routine-can-be-called-something-else]] — slice 3
+- [[ADR-286-a-press-can-be-moved]] — slice 4
 - [[Studio-journey-discoverability-2026-10-31]]
 - [[Studio-UI-audit-2026-10-29]]
 - [[ADR-282-a-run-of-steps-can-be-said-to-be-typed-text]]
