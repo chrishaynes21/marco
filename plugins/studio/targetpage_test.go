@@ -151,7 +151,9 @@ setTimeout(() => { pickId('notepad/focus/one') }, 1100)
 setTimeout(() => {
   // ONE CANDIDATE: SELECTED, AND STILL SHOWN.
   oneRow = shown('routineIntoRow')
-  oneSays = shown('routineIntoSays')
+  // THE LINE IS SHORT AND THE WHOLE SENTENCE IS ON THE CHOOSER: the backend's words,
+  // about the window chosen, are the select's title. Coherence audit, finding 3.
+  oneSays = shown('routineIntoSays') + ' || ' + document.getElementById('routineInto').title
   oneDead = dead()
   oneValue = chosenValue()
   press('routinePlayBtn')
@@ -176,7 +178,8 @@ setTimeout(() => {
 }, 2600)
 setTimeout(() => {
   twoDeadAfter = dead()
-  twoSaysAfter = shown('routineIntoSays')
+  twoSaysAfter = shown('routineIntoSays') + ' || ' +
+    document.getElementById('routineInto').title
   press('routinePlayBtn')
 }, 2900)
 setTimeout(() => { pickId('ark/focus/none') }, 3200)
@@ -192,7 +195,8 @@ setTimeout(() => {
     ' onerow=' + (oneRow !== '' ? 1 : 0) +
     ' onevalue=' + (oneValue === '4660:77' ? 1 : 0) +
     ' onelabel=' + (oneRow.includes('notes') ? 1 : 0) +
-    ' onesays=' + (oneSays.includes('checked against that window') ? 1 : 0) +
+    ' onesays=' + (oneSays.includes('checks it before each press') &&
+        oneSays.includes('notes to the front') ? 1 : 0) +
     ' onedead=' + oneDead +
     ' tworow=' + (twoRow !== '' ? 1 : 0) +
     ' twooptions=' + (twoOptions === '+1:11+2:22' ? 1 : 0) +
@@ -201,7 +205,7 @@ setTimeout(() => {
     ' twosays=' + (twoSays.includes('2 windows open') ? 1 : 0) +
     ' twodeadafter=' + twoDeadAfter +
     ' twosaysafter=' + (twoSaysAfter.includes('second to the front') &&
-        twoSaysAfter.includes('checked against that window') ? 1 : 0) +
+        twoSaysAfter.includes('checks it before each press') ? 1 : 0) +
     ' nonerow=' + (noneRow === '' ? 1 : 0) +
     ' nonewhy=' + (noneWhy.includes('no window open') ? 1 : 0) +
     ' nonedead=' + noneDead +

@@ -43,7 +43,7 @@
       code editor. The neutrals are hue-biased on purpose: a flat mid-grey reads
       as the colour nobody chose. */
    --ground:#15141a; --raise:#1e1c25; --sink:#100f14; --line:#2c2838;
-   --ink:#e9e5ef; --dim:#9d95b0; --faint:#6f6885;
+   --ink:#e9e5ef; --dim:#9d95b0; --faint:#8c85a2;
    /* ONE spot, and it is structural: the active destination, a chosen card, a
       rule, a focus ring, the primary button. Periwinkle because the three
       semantic hues below are green, amber and red, and an accent that collided
@@ -89,18 +89,18 @@
  @media (prefers-color-scheme:light){
    :root:not([data-theme="dark"]){
      --ground:#faf8f4; --raise:#ffffff; --sink:#f2efe9; --line:#e3ded4;
-     --ink:#211e27; --dim:#67607a; --faint:#8b8399;
+     --ink:#211e27; --dim:#67607a; --faint:#6e6680;
      --spot:#5a49c4; --spot-ink:#ffffff; --spot-dim:#8d82dd;
-     --ok:#2d8a4e; --warn:#8f5f07; --no:#c33a2e;
+     --ok:#277a45; --warn:#8f5f07; --no:#c33a2e;
      --ok-bg:#eaf5ec; --warn-bg:#faf2e2; --no-bg:#fdedeb; --spot-bg:#f0edfb;
    --lift:0 1px 1px rgba(33,30,39,.045), 0 10px 26px -16px rgba(33,30,39,.16);
    }
  }
  :root[data-theme="light"]{
    --ground:#faf8f4; --raise:#ffffff; --sink:#f2efe9; --line:#e3ded4;
-   --ink:#211e27; --dim:#67607a; --faint:#8b8399;
+   --ink:#211e27; --dim:#67607a; --faint:#6e6680;
    --spot:#5a49c4; --spot-ink:#ffffff; --spot-dim:#8d82dd;
-   --ok:#2d8a4e; --warn:#8f5f07; --no:#c33a2e;
+   --ok:#277a45; --warn:#8f5f07; --no:#c33a2e;
    --ok-bg:#eaf5ec; --warn-bg:#faf2e2; --no-bg:#fdedeb; --spot-bg:#f0edfb;
    --lift:0 1px 1px rgba(33,30,39,.045), 0 10px 26px -16px rgba(33,30,39,.16);
  }
@@ -613,6 +613,49 @@
    padding:2px 6px;border-radius:999px;background:var(--spot-bg);color:var(--spot);
    white-space:nowrap}
 
+ /* ── THE COMPACT SHELL ────────────────────────────────────────────────────────
+    One header row and then the list. See [[Studio-coherence-audit-2026-11-02]], findings 1,
+    2, 7, 11 and 12, and the measurements behind them. */
+ .viewhead{display:flex;align-items:center;gap:12px;margin:0 0 16px}
+ .viewhead h1{flex:1;margin:0;min-width:0}
+ .iconbtn{min-width:var(--ctl);padding:0 10px;font-weight:600}
+ /* THE FIND BOX IS THE TOP OF THE LIST, not a card of its own. */
+ .find{margin:0 0 6px}
+ .find .row > input[type=text]{max-width:none}
+ /* AND THE LIST IS ON THE PAGE. A card around every routine row made the rows a box inside
+    a box; the hairlines between the rows already make them a list. */
+ .card.flat{background:none;border:0;box-shadow:none;padding:0;margin-bottom:0}
+ /* ONE FILLED PLAY: the open routine's. A shut row's Play keeps the size the owner asked
+    for ([[ADR-289-the-panel-says-less-and-play-is-bigger]]) and loses the fill, because
+    five filled buttons down a list is no emphasis at all and the page's own rule is one
+    filled button per screen. */
+ .card.pick:not(.on) button.go.big{background:none;color:var(--spot);
+        border-color:var(--spot-dim)}
+ .card.pick:not(.on) button.go.big:hover:not(:disabled){background:var(--spot-bg);
+        color:var(--spot);border-color:var(--spot)}
+ .card.pick:not(.on) button.go.big:disabled{background:none;color:var(--dim);
+        border-color:var(--line)}
+ /* A NUMBER FIELD IS A FIELD. There was no rule for it at all, so every one on the page was
+    the host's white box in both themes. */
+ input[type=number]{font:400 14px var(--text);background:var(--sink);color:var(--ink);
+        border:1px solid var(--line);border-radius:var(--r-sm);padding:6px 9px;
+        min-height:var(--ctl)}
+ input[type=number]:focus{outline:none;border-color:var(--spot);
+        box-shadow:0 0 0 3px var(--spot-bg)}
+ /* THE TABS OF AN OPEN ROUTINE. Quiet until chosen, and the chosen one is marked by an
+    underline in the accent rather than a fill: the open row is already filled with
+    `--spot-bg`, and a fill on a fill is not a mark. */
+ .tabs{display:flex;flex-wrap:wrap;align-items:center;gap:2px 4px;
+        border-top:1px solid var(--line);margin-top:14px;padding-top:8px}
+ .tabs [role=tab]{background:none;border:0;color:var(--dim);font-weight:500;
+        min-height:32px;padding:5px 11px;border-radius:var(--r-sm)}
+ .tabs [role=tab]:hover:not(:disabled){background:var(--raise);color:var(--ink)}
+ .tabs [role=tab].on{color:var(--ink);font-weight:600;
+        box-shadow:inset 0 -2px 0 var(--spot);border-radius:var(--r-sm) var(--r-sm) 0 0}
+ .tabpanel{margin-top:10px}
+ .tabpanel > .card:first-child, .tabpanel > div:first-child{margin-top:0}
+ .tabnote{margin:0 0 8px}
+
  .hide{display:none!important}
 </style>
 
@@ -751,53 +794,24 @@
 
 <!-- ────────────────────────── SCENES ────────────────────────── -->
 <section id="view-routines" class="hide">
-  <h1>Routines</h1>
-  <!-- AND THIS ONE SAYS WHAT IT IS FOR, which the other three screens already did.
-       Acts, Scenes and Run history each open with a lead sentence under the heading;
-       the screen somebody actually lives in went straight from one word to a text
-       box, so the hierarchy that explains every other screen was missing from the
-       one that needed it. Three clauses for the three things on the screen, in the
-       order they are in. -->
-  <p class="sub">Ask for one in your own words, record a new one by doing it once, or
-    choose one below to play it or change what it does.</p>
-
-  <!-- THE QUESTION FIRST.
-       This is the one control that answers what somebody came here to do, and it used
-       to be the FOURTEENTH control in this view: inside the `Your routines` card, below
-       a paragraph about the card. Measured, with the rest of this view, in
-       [[Studio-UI-audit-2026-10-29]].
-
-       It asks Director and nothing else: the resolution, the scope policy, the library
-       and the candidate labels are Director's, and this window asks rather than
-       deciding. Moving the box did not move that. See plugins/studio/resolve.go.
-
-       AND IT IS LABELLED, like the two sections under it. It is the one control this
-       screen is arranged around and it was the only part of the screen with no name
-       over it, so the structure a person scans -- ask, record, what you have -- was
-       legible from the second heading down. -->
-  <h2 style="margin-top:0">Ask for one</h2>
-  <div class="card" id="askCard">
-    <div class="row">
-      <input id="askBox" type="text" placeholder="say what you want, in your own words"
-        aria-label="Say what you want" style="flex:1;min-width:220px">
-      <!-- THE TARGET APPLICATION, STATED AND NOT INFERRED.
-           An in-place routine works only while its application is in front, so it is
-           offered only when that application is the target. Studio owns the foreground
-           whenever somebody types in here, so reading the foreground would answer
-           "Studio" - and treating "it has a window" as eligibility would erase the
-           difference between the two application scopes. -->
-      <label class="muted" for="askTarget">in</label>
-      <select id="askTarget" aria-label="Target application"></select>
-      <button id="askBtn" class="secondary">Find it</button>
-    </div>
-    <!-- IT SELECTS. It does not run: the thing that runs one is the Play button below,
-         pressed by a person, with the guards it already had. See suggest.go. -->
-    <div class="muted" style="margin-top:6px" id="askSaid"></div>
-    <!-- AND WHO ANSWERED, WHICH IS NOT DECORATION.
-         Two of the three arms need no model at all, so this window could work, look
-         right, and never once reach the resolver somebody installed. It says which
-         answered and what part the configured resolver had. -->
-    <div class="muted mach" style="margin-top:4px;font-size:11.5px" id="askWho"></div>
+  <!-- ── ONE HEADER ROW: WHERE YOU ARE, AND THE ONE WAY TO MAKE A ROUTINE ──
+       The list used to be the third section on its own screen: a lead paragraph, three
+       section labels, the ask box, a build line, a readiness caveat and the library path
+       all came first, and the first routine started 549px down. The routines are what
+       somebody comes here for, so the screen is one header and then the list; the
+       machine lines are in Help, under About this installation. Record is the one way in
+       and it is FILLED only while no routine is open -- with one open, that routine's Play
+       is the thing to press, and two filled buttons is no emphasis at all (drawRoutines).
+       See [[Studio-coherence-audit-2026-11-02]], findings 1 and 2. -->
+  <div class="viewhead">
+    <h1>Routines</h1>
+    <span class="row" id="recordStart">
+      <button class="go" id="recordRevealBtn" onclick="revealRecord()">Record</button>
+      <!-- THE EXPLANATION IS A LINK, not forty-five words beside the button: the Recording
+           section of Help, where the stop shortcut can be the CONFIGURED one. -->
+      <button class="iconbtn" onclick="helpOn('recording')" aria-label="How recording works"
+        title="How recording works">?</button>
+    </span>
   </div>
 
   <!-- WHETHER THIS WINDOW CAN DO EITHER OF THE THINGS IT IS FOR, BEFORE SOMEBODY TRIES.
@@ -815,22 +829,12 @@
   <div class="card hide" id="readyCard">
     <div id="readyProblems"></div>
   </div>
-  <!-- WHICH BUILD THIS IS — a value, so it is mono — AND WHAT THIS CHECK DID NOT
-       ESTABLISH, which is a SENTENCE and is not.
-       One element carried both, in the monospace face, which is the rule the visual pass
-       set broken by the one line that is on screen under every page: mono marks a value,
-       never a sentence. See drawReady. -->
-  <div class="muted mach" style="font-size:11.5px" id="readyMachine"></div>
-  <div class="muted" style="font-size:11.5px;margin-bottom:14px" id="readyLimits"></div>
-
   <!-- RECORD A ROUTINE: the recorder-first path, and the ordinary one.
        Press Record, go and do the thing, press Stop. Nothing is chosen up front and
        nothing counts down: the switch to whatever you are using is itself the first step.
        Marco's own window is left out of the recording wherever it appears — pressing Stop
        in here never becomes part of what you taught, and neither does looking at this page
        halfway through. See recording.go and ADR-249. -->
-  <h2>Record</h2>
-
   <!-- ONE WAY IN, AND THE FORM BEHIND IT.
        There were two complete recording entry points on this view, each with its own name
        field, application chooser, refresh button and Record button — and four controls on
@@ -841,14 +845,6 @@
        stacked paragraphs of 43, 36 and 21 words, so the first thing between somebody and
        recording was a hundred words about recording. The explanation is still here, once,
        for whoever wants it. See [[Studio-UI-audit-2026-10-29]]. -->
-  <div class="row" id="recordStart">
-    <button class="go" id="recordRevealBtn" onclick="revealRecord()"
-      >Record something new</button>
-    <!-- AND THE EXPLANATION IS A LINK NOW, not forty-five words beside the button.
-         The words are not lost: they are the Recording section of Help, where the
-         sentence about the stop shortcut can be the CONFIGURED one. -->
-    <button class="hint" onclick="helpOn('recording')">How recording works</button>
-  </div>
   <div class="card hide" id="captureCard">
     <!-- WHAT IT WILL CAPTURE, SAID BEFORE IT DOES.
          From the backend rather than written here, because it is the backend that tells
@@ -874,7 +870,7 @@
 
          From the backend, like the line above it, so the day the rule moves again the
          sentence moves with it rather than going quietly stale. See everywhereSentence. -->
-    <div class="banner" style="margin-top:8px" id="capEverywhere"></div>
+    <div style="margin-top:6px" id="capEverywhere"></div>
     <!-- WHICH WINDOW, CHOSEN BEFORE RECORDING STARTS, AND ASKED FIRST.
          Not inferred. The first version took the first window to come forward after
          Record, which is whatever Windows does next: an updater, a notification, the
@@ -984,8 +980,10 @@
          because the Nth press fills the Nth name and nothing afterwards can tell that
          two of them went the wrong way round. See argSentence. -->
     <div class="muted hide" style="margin-top:8px" id="capArgBand"></div>
-    <div class="muted" style="margin-top:12px">Switch back to this window whenever you
-      are done — getting here and back is left out of what you are teaching.</div>
+    <!-- ONE SENTENCE, AND IN THIS PRODUCT'S WORDS. It said "what you are teaching", and TEACH is
+         reserved for the mirror image of this: Marco guiding a person. See CLAUDE.md. -->
+    <div class="muted" style="margin-top:12px">Switching back to this window is left out of
+      the recording.</div>
     <div class="row" style="margin-top:10px">
       <button class="go" id="capStopBtn" onclick="stopCapture()">Stop recording</button>
       <button class="stop" onclick="cancelCapture()">Cancel</button>
@@ -1168,6 +1166,7 @@
       <button id="capSimplifyBtn" onclick="simplifyDraft()">Simplify&hellip;</button>
       <button class="hide" id="capOriginalBtn"
         onclick="useOriginalDraft()">Use the original</button>
+      <button class="hint" onclick="helpOn('simplify')">What Simplify changes</button>
       <span class="muted" id="capSimplifySays"></span>
     </div>
     <div class="row" style="margin-top:14px">
@@ -1223,18 +1222,56 @@
        routine's result was is a second answer to "did that work". And it PRESSES FOR REAL,
        which the button says rather than offering a tick-box the command has no switch for.
        See routines.go. -->
-  <h2>Your routines</h2>
-  <div class="card" id="routinesCard">
-    <!-- WHICH LIBRARY, SAID OUT LOUD. Routines are in one place now, found the same way by
-         every part of Marco from any directory — and this line is how somebody checks that
-         the window and the command are looking at the same shelf. -->
-    <div class="muted mach" style="margin-top:6px;font-size:11.5px" id="libWhere"></div>
+  <!-- THE QUESTION FIRST.
+       This is the one control that answers what somebody came here to do, and it used
+       to be the FOURTEENTH control in this view: inside the `Your routines` card, below
+       a paragraph about the card. Measured, with the rest of this view, in
+       [[Studio-UI-audit-2026-10-29]].
+
+       It asks Director and nothing else: the resolution, the scope policy, the library
+       and the candidate labels are Director's, and this window asks rather than
+       deciding. Moving the box did not move that. See plugins/studio/resolve.go.
+
+       AND IT IS THE FIND BOX ABOVE THE LIST, flat rather than a card of its own: finding
+       a routine and reading the list are one act, and a framed box with a section label
+       over it made the list the third thing on the screen. See
+       [[Studio-coherence-audit-2026-11-02]]. -->
+  <div class="find" id="askCard">
+    <div class="row">
+      <input id="askBox" type="text" placeholder="Find a routine, or say what you want done"
+        aria-label="Say what you want" style="flex:1;min-width:220px">
+      <!-- THE TARGET APPLICATION, STATED AND NOT INFERRED.
+           An in-place routine works only while its application is in front, so it is
+           offered only when that application is the target. Studio owns the foreground
+           whenever somebody types in here, so reading the foreground would answer
+           "Studio" - and treating "it has a window" as eligibility would erase the
+           difference between the two application scopes. -->
+      <label class="muted" for="askTarget">in</label>
+      <select id="askTarget" aria-label="Target application"></select>
+      <button id="askBtn" class="secondary">Find it</button>
+    </div>
+    <!-- IT SELECTS. It does not run: the thing that runs one is the Play button below,
+         pressed by a person, with the guards it already had. See suggest.go. -->
+    <div class="muted" style="margin-top:6px" id="askSaid"></div>
+    <!-- AND WHO ANSWERED, WHICH IS NOT DECORATION.
+         Two of the three arms need no model at all, so this window could work, look
+         right, and never once reach the resolver somebody installed. It says which
+         answered and what part the configured resolver had. -->
+    <!-- BEHIND A DISCLOSURE, because it is provenance and not an answer: which arm
+         answered, what the request was read against, whether the resolver was reached.
+         Shown only once something has been asked. -->
+    <details class="hide" id="askWhoBox">
+      <summary>Details</summary>
+      <div class="muted mach" style="margin-top:4px;font-size:11.5px" id="askWho"></div>
+    </details>
+  </div>
+  <div class="card flat" id="routinesCard">
     <!-- AND A LIBRARY FROM BEFORE THAT, WHEN THERE IS ONE.
          Routines used to be kept beside whichever directory a binary was started from, so
          an old one can be sitting next to this window unread. Nothing is lost and nothing
          is moved; the honest failure of changing the rule is silence, so it says its name. -->
     <div class="banner hide" style="margin-top:8px" id="libElsewhere"></div>
-    <div id="routineList" style="margin-top:12px"></div>
+    <div id="routineList" style="margin-top:4px"></div>
     <div class="muted hide" id="routineNone">Nothing has been recorded yet. Record one
       above and it appears here.</div>
     <!-- WHERE THE PANEL WAITS WHILE NO ROUTINE IS OPEN.
@@ -1277,20 +1314,6 @@
            typed into, the count of changes they collected -- rather than "unsaved
            changes", which is a sentence that could be about anything. -->
       <div class="banner bad hide" id="routineLeaving"></div>
-      <!-- WHAT IS SELECTED, BEFORE ANYTHING ABOUT IT.
-           The list above marks the chosen card, and that was already true. What was not
-           is this panel saying which routine it is about: it opened with three lines of
-           provenance, and the name and application were only up in the list. See
-           [[Studio-UI-audit-2026-10-29]]. -->
-      <!-- AND WHERE YOU CAN ASK FOR IT, which is a different question from where it works
-           and is the one nothing in this window answered.
-           A routine saved to work in place is offered BY NAME only while its application
-           is in front — `resolveroute.Eligible`, which is the one rule for the ask box,
-           the widget and `marco dispatch` alike. Somebody who saved one and then could
-           not find it from anywhere else was reading a library that looked incomplete.
-           The row above says where it WORKS; this says where it can be REACHED. Written
-           by `askedFor`. -->
-      <div class="muted" style="margin-top:4px" id="routineAskedFor"></div>
 
       <!-- CALLING IT SOMETHING ELSE. The button that reveals this is on the ROW,
            beside the name it changes; the form is here because it holds typed text
@@ -1317,6 +1340,61 @@
         <button id="routineRenameCancel" onclick="hideRename()">Cancel</button>
       </div>
       <div class="no hide" style="margin-top:6px" id="routineRenameWhy"></div>
+      <!-- THE REVIEW OF A RENAME OR A MOVE, WHERE IT WAS ASKED FOR. One panel serves both,
+           so it is CARRIED: under the name box for a rename, and into the Where it works tab
+           for a move (placeMove). A review a card's length from the button that opened it
+           is a press that looks like it did nothing -- the Rename finding again. -->
+      <div id="routineMoveSlotTop">
+
+      <!-- THE MOVE ITSELF: BOTH SOURCES, WHAT IS IN THE WAY, AND ONE BUTTON.
+           NOT in a collapsed detail, for the reason the rebuild review is not: its
+           caution, its refusal and the consent it needs have to be readable.
+
+           The two panes are the whole of each file. A move RE-RENDERS from the
+           demonstration, so for a routine somebody edited by hand the left-hand pane is
+           their own text and approving this is approving the loss of it -- in front of
+           them rather than discovered afterwards. -->
+      <div class="card hide" id="routineMove" style="margin-top:10px">
+        <h3 id="routineMoveTitle">Review the move</h3>
+        <div class="muted" id="routineMoveMeans"></div>
+        <div class="banner bad hide" style="margin-top:6px" id="routineMoveRefused"></div>
+        <!-- SOMETHING IS ALREADY THERE, AND AGREEING TO MOVE THIS IS NOT AGREEING TO LOSE
+             THAT. Its own yes, and the version it is bound to is the one the backend
+             recorded when it prepared this review -- the page sends a boolean, never a
+             digest. Unticked, the destination is created exclusively, so a routine that
+             appears in the meantime is a refusal rather than something written over. -->
+        <div class="banner hide" style="margin-top:6px" id="routineMoveTaken"></div>
+        <label class="hide" style="margin-top:6px;display:block" id="routineMoveConsentRow">
+          <input type="checkbox" id="routineMoveConsent" onchange="paintMoveButtons()">
+          <span id="routineMoveConsentSays"></span></label>
+        <div class="muted" style="margin-top:6px" id="routineMoveSays"></div>
+        <div class="row" style="margin-top:8px">
+          <details style="flex:1;min-width:0">
+            <summary>The routine as it is saved now
+              (<span id="routineMoveFrom"></span>)</summary>
+            <pre id="routineMoveWas"></pre>
+          </details>
+          <details style="flex:1;min-width:0">
+            <summary><span id="routineMoveWrites">What a move would write</span>
+              (<span id="routineMoveTo"></span>)</summary>
+            <pre id="routineMoveNow"></pre>
+          </details>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <button class="go" id="routineMoveBtn" onclick="moveRoutine()">Move it</button>
+          <button id="routineMoveCancelBtn" onclick="cancelMove()">Cancel</button>
+          <span class="muted" id="routineMoveNote"></span>
+        </div>
+      </div>
+      </div>
+      <!-- WHAT A MOVE DID, AND MOVED IS NOT COPIED.
+           A destination written with the original gone is a move; one written with the
+           original still there is TWO routines, and it is rendered as a problem card
+           because that is what it is -- somebody told `Moved` would go looking for one of
+           them. Residue is its own line: the move happened AND something is still lying
+           at the old place, which is two things to be told. See MoveDone. -->
+      <div class="banner hide" style="margin-top:8px" id="routineMoveOutcome"></div>
+      <div class="banner hide" style="margin-top:6px" id="routineMoveLeft"></div>
 
       <!-- WHETHER ITS PRESSES ARE CHECKED, AND ONLY WHEN THAT IS A WARNING.
            Three contracts, and the guarded one -- which is every routine recorded since
@@ -1332,10 +1410,7 @@
            WHAT is checked is Help, linked from here whatever the contract, because
            somebody asking that question is asking it about Marco and not about this
            routine. Written by `checksSentence`. See ADR-251. -->
-      <div class="row" style="margin-top:8px">
-        <span class="muted" id="routineChecks"></span>
-        <button class="hint" onclick="helpOn('checks')">What is checked</button>
-      </div>
+      <div class="muted" style="margin-top:6px" id="routineChecks"></div>
       <!-- AND THE REASON IT CANNOT RUN, when there is one. OUTSIDE every collapsed detail
            on purpose: a refusal nobody can see is a Play button that does nothing for a
            reason somebody has to go looking for. -->
@@ -1361,9 +1436,11 @@
            to be "press into whatever is in front": with Studio in front, that is
            Studio. See target.go. -->
       <div class="row" style="margin-top:12px" id="routineIntoRow">
-        <label style="width:7em" for="routineInto">press in</label>
+        <label style="width:7em" for="routineInto">Presses in</label>
         <select id="routineInto" onchange="choseWindow()"></select>
-        <button id="routineIntoAgainBtn" onclick="loadTarget()">Refresh</button>
+        <button class="iconbtn" id="routineIntoAgainBtn" onclick="loadTarget()"
+          aria-label="Refresh the list of windows" title="Refresh the list of windows"
+          >&#8635;</button>
       </div>
       <div class="banner bad hide" style="margin-top:6px" id="routineIntoWhy"></div>
       <!-- THE TEXT THIS ROUTINE NEEDS, BESIDE PLAY AND BEFORE ITS CONFIRMATION.
@@ -1378,8 +1455,7 @@
            NO BOX FOR A SECRET. The credential store answers for one, and a field here
            would make it travel on a command line; what the row owes somebody is where
            the value comes from and what to do when it is not set. See playvalues.go. -->
-      <div class="hide" style="margin-top:12px" id="routineArgsBox">
-        <h3 style="margin:0 0 8px">Text this routine needs</h3>
+      <div class="hide" style="margin-top:8px" id="routineArgsBox">
         <div id="routineArgsList" class="steprows"></div>
       </div>
       <!-- PLAY IS NOT IN HERE. IT IS ON THE ROW.
@@ -1423,7 +1499,13 @@
            are not, and the sentence says which. The words are the backend's -- a page
            with them typed into it would go on promising whatever it said after the
            rule moved. -->
-      <div class="muted" style="margin-top:6px" id="routineIntoSays"></div>
+      <!-- AND THE LINK TO WHAT IS CHECKED IS ON THIS LINE, the one that says whether it is.
+           It was a row of its own above the window chooser, with nothing beside it for the
+           ordinary routine. -->
+      <div class="muted" style="margin-top:6px;font-size:13px">
+        <span id="routineIntoSays"></span>
+        <button class="hint" onclick="helpOn('checks')">What is checked</button>
+      </div>
       <!-- SAID ONCE, AND ONLY WHEN IT APPLIES. The warning used to be in the button's own
            label AND in the card's paragraph above the list. It belongs next to the button,
            and it belongs nowhere at all when the button cannot be pressed: the refusal
@@ -1446,122 +1528,91 @@
            the foreground is, which at the instant somebody clicks Play is this window.
            Written by `playMeans`. -->
       <div class="muted hide" style="margin-top:6px" id="routinePlayMeans"></div>
-      <!-- AND A SECOND LOOK AT WHAT MARCO WOULD WRITE TODAY, WITHOUT OPENING ANYTHING.
-           `Simplify typing pauses` and `Rebuild with current rules` were both inside the
-           collapsed detail below, which is the whole of why nobody found them: a complete
-           review-and-replace flow, with consent and a refusal when either file moved,
-           reachable only by somebody who already knew it was there.
 
-           Offered whenever the routine still has its own demonstration beside it, which
-           is what a rebuild is made from — NOT only when the generator's rules have
-           moved. A routine today's rules wrote can still be full of typing pauses, and
-           `update` answers a different question. Today's-rules review joins it on the
-           same row only when there IS a generation difference that bears on this file.
+      <!-- ── EVERYTHING ELSE ABOUT THIS ROUTINE IS A TAB ─────────────────────────────
+           It was five ruled rows and two disclosures, each with a caption: Simplify, Edit
+           its steps, Also answers to, Change where it works, the source and Rebuild and
+           re-record. An open routine was about 760px tall and its run controls were the
+           top quarter of it, and every editor opened BELOW all of them -- a screen away
+           from the button that opened it. Now one row of tabs, each opening its panel
+           directly beneath, and none open until asked.
 
-           Nothing is written by either: they open the review card below, which is where
-           Replace lives. That is said once, here, because a button that rewrites
-           somebody's routine and a button that shows them a comparison must not look
-           alike. See drawRoutinePlay. -->
-      <div class="hide deed" id="routineSecondLook">
-        <div class="row">
-          <!-- NAMED FOR THE THING IT DOES, and the review said UNDERNEATH rather than
-               beside it. It read "Review simplification", which names the review and
-               buries the action: somebody looking for a way to simplify a routine was
-               reading a row of words about reviewing. The ellipsis is the convention
-               for "this opens something" and carries the promise that nothing happens
-               yet; the line below keeps that promise explicit. -->
-          <button id="routineSimplifyBtn"
-            onclick="reviewRebuilt('simplify-typing')">Simplify&hellip;</button>
-          <button class="hide" id="routineReviewBtn"
-            onclick="reviewRebuilt('current')">Review today's rules</button>
-        </div>
-        <div class="muted" style="margin-top:4px" id="routineSecondLookSays">Review changes before replacing. Nothing is written until you do.</div>
+           THE PANELS ARE HIDDEN, NEVER REBUILT, so what is typed into one survives moving
+           to another and back: the carried-panel rule of
+           [[ADR-290-a-routine-opens-where-it-is]], one level in.
+
+           SIMPLIFY IS NOT A TAB AND NOT UNDER MORE. It is the capability the owner asked
+           for and could not find, twice; it stays a visible button at the end of the row,
+           and its review opens under the row like a tab's would.
+
+           The tab ids are the ids the buttons they replace had -- `routineStepsBtn` is
+           Steps and `routineWhereBtn` is Where it works -- and More is
+           `routineMaintainSummary`, which the desktop scenarios press by name. See
+           [[Studio-coherence-audit-2026-11-02]], finding 3. -->
+      <div class="tabs" role="tablist" aria-label="This routine" id="routineTabs">
+        <button role="tab" type="button" id="routineStepsBtn" aria-selected="false"
+          aria-controls="routineTabSteps" onclick="routineTab('steps')">Steps</button>
+        <button role="tab" type="button" id="routineNamesTab" aria-selected="false"
+          aria-controls="routineTabNames" onclick="routineTab('names')"
+          >Other names<span id="routineNamesCount"></span></button>
+        <button role="tab" type="button" id="routineWhereBtn" aria-selected="false"
+          aria-controls="routineTabWhere" onclick="routineTab('where')">Where it works</button>
+        <button role="tab" type="button" id="routineSourceTab" aria-selected="false"
+          aria-controls="routineTabSource" onclick="routineTab('source')">Source</button>
+        <button role="tab" type="button" id="routineMaintainSummary" aria-selected="false"
+          aria-controls="routineMaintain" onclick="routineTab('more')">More</button>
+        <span class="grow"></span>
+        <button class="hide" type="button" id="routineSimplifyBtn"
+          onclick="reviewRebuilt('simplify-typing')">Simplify&hellip;</button>
       </div>
-
-      <!-- AND A STEP CAN BE CHANGED, WHICH IS AN EDIT AND NOT A MOVE.
-           Two operations: change a wait, remove a step. The routine is RE-RENDERED from its
-           own step list rather than having lines cut out of it -- a step's boundary is in
-           the step list and only approximately in the file, and the one surface that edited
-           lines is on record breaking a press by deleting the row the page offered. The
-           whole contract is `orchestrator.PrepareEditOf` and `SaveEdit`.
-
-           THE POSITIONS REFER TO THE LIST THIS PANEL SHOWED. The backend mints a basis for
-           it, this sends it back with the changes, and a routine written since is a refusal
-           with the list reloaded -- because row 5 of a list nobody saw is somebody's
-           intention applied to the wrong step. See stepedit.go. -->
-      <div class="deed" id="routineStepsRow">
-        <div class="row">
-          <button id="routineStepsBtn" onclick="stepEditing()">Edit its steps</button>
+      <div class="card hide" id="routineReview" style="margin-top:10px">
+        <h3>Review the rebuilt version</h3>
+        <!-- WHICH CHOICE MADE THIS, and what that choice changes. Both from the backend:
+             see Review.Rebuild. -->
+        <div class="muted" id="routineReviewChoice"></div>
+        <div class="tabnote" style="margin-top:4px">
+          <button class="hint" onclick="helpOn('simplify')">What Simplify changes</button>
         </div>
-        <div class="muted">Nothing is written until you review it.
+        <div class="banner hide" id="routineReviewCaution"></div>
+        <!-- WHAT REPLACING WOULD DO TO THE STORED STEP LIST, which is where an edit
+             lives. The contract has written this sentence since step editing existed and
+             this window never asked for it. -->
+        <div class="banner hide" id="routineReviewSteps"></div>
+        <div class="banner bad hide" id="routineReviewRefused"></div>
+        <div class="muted" id="routineReviewSays"></div>
+        <!-- THE TWO SOURCES, CLOSED. They were `<details open>`, so two listings of Marco
+             were expanded on a screen whose job is to start a run. The sentences above
+             them -- which choice made this, its caution, its refusal -- say what the
+             difference IS; the panes are for somebody who wants to read it. -->
+        <div class="row" style="margin-top:8px">
+          <details style="flex:1;min-width:0">
+            <summary>The routine as it is saved now
+              (<span id="routineReviewWasGen"></span>)</summary>
+            <pre id="routineReviewWas"></pre>
+          </details>
+          <details style="flex:1;min-width:0">
+            <summary>Rebuilt from its own recording
+              (<span id="routineReviewNowGen"></span>)</summary>
+            <pre id="routineReviewNow"></pre>
+          </details>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <button class="go" id="routineReplaceBtn" onclick="replaceWithRebuilt()">Replace
+            the saved routine with this</button>
+          <button id="routineReviewCancelBtn" onclick="cancelReview()">Cancel</button>
+          <span class="muted" id="routineReplaceNote"></span>
+        </div>
+      </div>
+      <div class="tabpanel hide" role="tabpanel" id="routineTabSteps"
+        aria-labelledby="routineStepsBtn">
+        <div class="tabnote" id="routineStepsRow">
           <button class="hint" onclick="helpOn('editing')">What can be changed</button>
-          <button class="hint" onclick="helpOn('measured')"
-            >Where a press is measured</button></div>
-      </div>
+          <button class="hint" onclick="helpOn('measured')">Where a press is measured</button>
+        </div>
       <!-- AND WHAT A SAVE DID, WHICH HAS THREE ANSWERS. Saved is a banner; a source that
            landed without its step list is a PROBLEM card, because the routine runs as
            edited and cannot be edited again until it is rebuilt. See StepEditDone. -->
       <div class="banner hide" style="margin-top:8px" id="routineStepOutcome"></div>
-
-      <!-- AND WHAT ELSE IT ANSWERS TO.
-           A routine has one name and that name is the file, so the only way to reach one by
-           a second phrase used to be to save a second routine. These are phrases kept beside
-           it: one routine, one place in the library, several ways in.
-
-           A REMOVAL NAMES THE PHRASE and not its position, which is why there is no basis
-           token here -- a row number means nothing without the list it was read off, and a
-           phrase is its own identity. And a collision is NAMED rather than resolved: the
-           backend refuses a phrase another routine is already reached by and says which, as
-           the one thing a card about one routine must not decide for itself. See answers.go
-           and `orchestrator.AddAlias`. -->
-      <div class="deed" id="routineAnswersBox">
-        <div class="muted" style="margin-top:0">Also answers to</div>
-        <!-- THE PHRASES, each with the one thing that can be done to it. Empty and silent
-             for a routine that answers only to its own name, which is an ordinary routine
-             and not a problem worth a sentence. -->
-        <div id="routineAnswersList" class="steprows"></div>
-        <div class="row" style="margin-top:6px" id="routineAnswerAskRow">
-          <input id="routineAnswerPhrase" type="text" style="flex:1"
-            placeholder="another way to ask for it"
-            onkeydown="if (event.key === 'Enter') { addRoutineAnswer() }">
-          <button id="routineAnswerAddBtn" onclick="addRoutineAnswer()">Add</button>
-        </div>
-        <!-- AND WHY NONE OF IT IS OFFERED, WHEN IT IS NOT: a recording in progress, or a
-             phrase file left behind by a move that did not finish. Separate from `Said`
-             below, which is what an add or a remove came to. -->
-        <div class="muted hide" style="margin-top:6px" id="routineAnswersWhy"></div>
-        <div class="hide" style="margin-top:6px" id="routineAnswersSaid"></div>
-      </div>
-
-      <!-- AND WHERE IT WORKS CAN BE CHANGED, WHICH IS A MOVE AND NOT AN EDIT.
-           Where a routine works IS its folder -- `<app>/context`, `<app>/focus`, `global`
-           are three places -- so changing it writes a routine at one identity and ends one
-           at another. The whole contract is `orchestrator.PrepareRescope` and `Rescope`;
-           what is here is the four steps, three of which write nothing.
-
-           THE ENTRANCE IS VISIBLE, which is the lesson of Simplify: a complete flow with
-           consent and refusals sat inside the `Rebuild and re-record` detail below and
-           nobody found it. The choices themselves need a backend call -- whether a scope
-           is possible for THIS routine is `WhyNotThisScope`, not something a page can work
-           out -- so the button is what asks for them. See rescope.go. -->
-      <div class="deed" id="routineWhereRow">
-        <div class="row">
-          <button id="routineWhereBtn" onclick="scopeChoices()">Change where it
-            works</button>
-        </div>
-        <!-- ONE PROMISE, NOT A DESCRIPTION OF THE BUTTON. It also said "Shows all
-             three choices, and why any of them is unavailable", which is what pressing
-             it does and is answered by pressing it. -->
-        <div class="muted">Nothing is written until you move it.</div>
-      </div>
-      <!-- WHAT A MOVE DID, AND MOVED IS NOT COPIED.
-           A destination written with the original gone is a move; one written with the
-           original still there is TWO routines, and it is rendered as a problem card
-           because that is what it is -- somebody told `Moved` would go looking for one of
-           them. Residue is its own line: the move happened AND something is still lying
-           at the old place, which is two things to be told. See MoveDone. -->
-      <div class="banner hide" style="margin-top:8px" id="routineMoveOutcome"></div>
-      <div class="banner hide" style="margin-top:6px" id="routineMoveLeft"></div>
 
       <!-- THE STEPS, WITH WHAT CAN BE DONE TO EACH.
            Every step is listed, in order, because the positions the changes name mean
@@ -1610,7 +1661,9 @@
            has to be readable. The two panes are the whole of each file, because a list of
            changed lines is an interpretation and the file is the thing that runs. -->
       <div class="card hide" id="routineStepEdit" style="margin-top:10px">
-        <h3>Nothing has been written yet</h3>
+        <!-- TITLED BY WHAT IT SHOWS. It was "Nothing has been written yet", the same heading
+             on three panels; the review IS the promise that nothing is written. -->
+        <h3>Review the changes to its steps</h3>
         <div class="muted" id="routineStepEditDoing"></div>
         <div class="banner bad hide" style="margin-top:6px" id="routineStepEditRefused"></div>
         <div class="row" style="margin-top:8px">
@@ -1633,6 +1686,52 @@
           <span class="muted" id="routineStepEditNote"></span>
         </div>
       </div>
+      </div>
+      <div class="tabpanel hide" role="tabpanel" id="routineTabNames"
+        aria-labelledby="routineNamesTab">
+        <div class="tabnote">
+          <button class="hint" onclick="helpOn('names')">What other names are for</button>
+        </div>
+      <!-- AND WHAT ELSE IT ANSWERS TO.
+           A routine has one name and that name is the file, so the only way to reach one by
+           a second phrase used to be to save a second routine. These are phrases kept beside
+           it: one routine, one place in the library, several ways in.
+
+           A REMOVAL NAMES THE PHRASE and not its position, which is why there is no basis
+           token here -- a row number means nothing without the list it was read off, and a
+           phrase is its own identity. And a collision is NAMED rather than resolved: the
+           backend refuses a phrase another routine is already reached by and says which, as
+           the one thing a card about one routine must not decide for itself. See answers.go
+           and `orchestrator.AddAlias`. -->
+      <div id="routineAnswersBox">
+        <!-- THE PHRASES, each with the one thing that can be done to it. Empty and silent
+             for a routine that answers only to its own name, which is an ordinary routine
+             and not a problem worth a sentence. -->
+        <div id="routineAnswersList" class="steprows"></div>
+        <div class="row" style="margin-top:6px" id="routineAnswerAskRow">
+          <input id="routineAnswerPhrase" type="text" style="flex:1"
+            placeholder="another way to ask for it"
+            onkeydown="if (event.key === 'Enter') { addRoutineAnswer() }">
+          <button id="routineAnswerAddBtn" onclick="addRoutineAnswer()">Add</button>
+        </div>
+        <!-- AND WHY NONE OF IT IS OFFERED, WHEN IT IS NOT: a recording in progress, or a
+             phrase file left behind by a move that did not finish. Separate from `Said`
+             below, which is what an add or a remove came to. -->
+        <div class="muted hide" style="margin-top:6px" id="routineAnswersWhy"></div>
+        <div class="hide" style="margin-top:6px" id="routineAnswersSaid"></div>
+      </div>
+      </div>
+      <div class="tabpanel hide" role="tabpanel" id="routineTabWhere"
+        aria-labelledby="routineWhereBtn">
+      <!-- AND WHERE YOU CAN ASK FOR IT, which is a different question from where it works
+           and is the one nothing in this window answered.
+           A routine saved to work in place is offered BY NAME only while its application
+           is in front — `resolveroute.Eligible`, which is the one rule for the ask box,
+           the widget and `marco dispatch` alike. Somebody who saved one and then could
+           not find it from anywhere else was reading a library that looked incomplete.
+           The row above says where it WORKS; this says where it can be REACHED. Written
+           by `askedFor`. -->
+      <div class="muted" style="margin-top:4px" id="routineAskedFor"></div>
 
       <div class="card hide" id="routineWhere" style="margin-top:10px">
         <h3>Where it works, and where it could</h3>
@@ -1651,65 +1750,17 @@
         </div>
         <div id="routineWhereChoices"></div>
       </div>
-
-      <!-- THE MOVE ITSELF: BOTH SOURCES, WHAT IS IN THE WAY, AND ONE BUTTON.
-           NOT in a collapsed detail, for the reason the rebuild review is not: its
-           caution, its refusal and the consent it needs have to be readable.
-
-           The two panes are the whole of each file. A move RE-RENDERS from the
-           demonstration, so for a routine somebody edited by hand the left-hand pane is
-           their own text and approving this is approving the loss of it -- in front of
-           them rather than discovered afterwards. -->
-      <div class="card hide" id="routineMove" style="margin-top:10px">
-        <h3>Nothing has been written yet</h3>
-        <div class="muted" id="routineMoveMeans"></div>
-        <div class="banner bad hide" style="margin-top:6px" id="routineMoveRefused"></div>
-        <!-- SOMETHING IS ALREADY THERE, AND AGREEING TO MOVE THIS IS NOT AGREEING TO LOSE
-             THAT. Its own yes, and the version it is bound to is the one the backend
-             recorded when it prepared this review -- the page sends a boolean, never a
-             digest. Unticked, the destination is created exclusively, so a routine that
-             appears in the meantime is a refusal rather than something written over. -->
-        <div class="banner hide" style="margin-top:6px" id="routineMoveTaken"></div>
-        <label class="hide" style="margin-top:6px;display:block" id="routineMoveConsentRow">
-          <input type="checkbox" id="routineMoveConsent" onchange="paintMoveButtons()">
-          <span id="routineMoveConsentSays"></span></label>
-        <div class="muted" style="margin-top:6px" id="routineMoveSays"></div>
-        <div class="row" style="margin-top:8px">
-          <details style="flex:1;min-width:0">
-            <summary>The routine as it is saved now
-              (<span id="routineMoveFrom"></span>)</summary>
-            <pre id="routineMoveWas"></pre>
-          </details>
-          <details style="flex:1;min-width:0">
-            <summary><span id="routineMoveWrites">What a move would write</span>
-              (<span id="routineMoveTo"></span>)</summary>
-            <pre id="routineMoveNow"></pre>
-          </details>
-        </div>
-        <div class="row" style="margin-top:10px">
-          <button class="go" id="routineMoveBtn" onclick="moveRoutine()">Move it</button>
-          <button id="routineMoveCancelBtn" onclick="cancelMove()">Cancel</button>
-          <span class="muted" id="routineMoveNote"></span>
-        </div>
+        <div id="routineMoveSlotWhere"></div>
       </div>
-
-      <details style="margin-top:10px">
-        <summary>What it will do, as Marco saved it</summary>
+      <div class="tabpanel hide" role="tabpanel" id="routineTabSource"
+        aria-labelledby="routineSourceTab">
         <pre id="routineSource"></pre>
-      </details>
-
-      <!-- MAINTENANCE, COLLAPSED. Provenance, the two rebuild choices and re-recording:
-           all of them things somebody comes here to do deliberately, none of them things
-           between a person and Play. The review card they open is NOT in here -- its
-           caution, its refusal and its replacement consent have to be readable. -->
-      <details style="margin-top:12px" id="routineMaintain">
-        <!-- ADDRESSABLE, because the provenance line inside this is EVIDENCE a desktop
-             scenario reads: that Studio agrees the routine states no generation, before
-             anything is pressed. A disclosure with no id can be seen by a person and
-             reached by nothing, and the scenario that needs it failed in stage 6 saying
-             Studio did not say what it says perfectly well one click away. See
-             plugins/e2e/scenario_generation.go. -->
-        <summary id="routineMaintainSummary">Rebuild and re-record</summary>
+      </div>
+      <!-- MORE: provenance, the review against today's rules, and recording it again. It was
+           the collapsed `Rebuild and re-record` detail; the id is kept because the desktop
+           scenario that checks the provenance line reads it from here. -->
+      <div class="tabpanel hide" role="tabpanel" id="routineMaintain"
+        aria-labelledby="routineMaintainSummary">
       <!-- AND HOW IT WAS RECORDED, WHEN THE FILE SAYS SO.
            Hidden rather than filled in when it does not. Every routine saved before
            Studio could state a mode says nothing, and what those captured depended on
@@ -1757,41 +1808,9 @@
         <button id="routineAgainBtn" onclick="recordRoutineAgain()">Record it again</button>
         <span class="muted" id="routineAgainNote"></span>
       </div>
-      </details>
-
-      <div class="card hide" id="routineReview" style="margin-top:10px">
-        <h3>Nothing has been written yet</h3>
-        <!-- WHICH CHOICE MADE THIS, and what that choice changes. Both from the backend:
-             see Review.Rebuild. -->
-        <div class="muted" id="routineReviewChoice"></div>
-        <div class="banner hide" id="routineReviewCaution"></div>
-        <!-- WHAT REPLACING WOULD DO TO THE STORED STEP LIST, which is where an edit
-             lives. The contract has written this sentence since step editing existed and
-             this window never asked for it. -->
-        <div class="banner hide" id="routineReviewSteps"></div>
-        <div class="banner bad hide" id="routineReviewRefused"></div>
-        <div class="muted" id="routineReviewSays"></div>
-        <!-- THE TWO SOURCES, CLOSED. They were `<details open>`, so two listings of Marco
-             were expanded on a screen whose job is to start a run. The sentences above
-             them -- which choice made this, its caution, its refusal -- say what the
-             difference IS; the panes are for somebody who wants to read it. -->
-        <div class="row" style="margin-top:8px">
-          <details style="flex:1;min-width:0">
-            <summary>The routine as it is saved now
-              (<span id="routineReviewWasGen"></span>)</summary>
-            <pre id="routineReviewWas"></pre>
-          </details>
-          <details style="flex:1;min-width:0">
-            <summary>Rebuilt from its own recording
-              (<span id="routineReviewNowGen"></span>)</summary>
-            <pre id="routineReviewNow"></pre>
-          </details>
-        </div>
         <div class="row" style="margin-top:10px">
-          <button class="go" id="routineReplaceBtn" onclick="replaceWithRebuilt()">Replace
-            the saved routine with this</button>
-          <button id="routineReviewCancelBtn" onclick="cancelReview()">Cancel</button>
-          <span class="muted" id="routineReplaceNote"></span>
+          <button class="hide" id="routineReviewBtn"
+            onclick="reviewRebuilt('current')">Review today's rules</button>
         </div>
       </div>
       <!-- RECORD IT AGAIN, FROM THE ROUTINE.
@@ -2032,6 +2051,18 @@
   <h1>Help</h1>
   <p class="sub">What this window can do, and the shortcuts this installation is using.</p>
   <div id="helpSections"></div>
+  <!-- ABOUT THIS INSTALLATION: the machine lines that used to sit on the Routines screen.
+       Which build this window is, which library it reads, and what its readiness check did
+       NOT establish. All three are still painted by the code that always painted them
+       (drawReady, loadLibrary); what moved is where they are read. A readiness PROBLEM, and a
+       library from before this one, still appear on the Routines screen -- those are things
+       to act on, and these are things to look up. See [[Studio-coherence-audit-2026-11-02]]. -->
+  <div class="card" id="aboutCard">
+    <h3>About this installation</h3>
+    <div class="muted mach" style="font-size:12px;margin-top:6px" id="readyMachine"></div>
+    <div class="muted mach" style="font-size:12px;margin-top:4px" id="libWhere"></div>
+    <div class="muted" style="font-size:13px;margin-top:8px" id="readyLimits"></div>
+  </div>
 </section>
 
 <!-- ─────────────────────────── A RUN ────────────────────────── -->
@@ -2956,7 +2987,10 @@
      // the key is off, because a window with no arg key has no arg key to offer.
      text($('capArgSays'), r.arg_says || '')
      showing($('capArgSays'), !!r.arg_says)
-     text($('capArgBand'), r.arg_says || '')
+     // ONLY THE KEY WHILE RECORDING. The second sentence of `arg_says` is advice about the name
+     // field (add `with item` to it), and that field is gone once a recording has started --
+     // an instruction that cannot be followed, in the one state where a glance must be enough.
+     text($('capArgBand'), shortWhy(r.arg_says || ''))
      showing($('capArgBand'), !!r.arg_says)
      // SAID ONCE, BESIDE RECORD. See the element for why review does not repeat it.
      text($('capReviewCaptures'), '')
@@ -3440,7 +3474,11 @@
          if (card) { card.scrollIntoView({block:'nearest'}) }
        }
      }
-   }).finally(() => { asking = false; $('askBtn').disabled = false })
+   }).finally(() => {
+     asking = false
+     $('askBtn').disabled = false
+     showing($('askWhoBox'), !!$('askWho').textContent)
+   })
  }
 
  let shownRoutines = ''
@@ -3509,8 +3547,13 @@
      // application's outcome and must not appear to.
      //
      // Held by TestAStatusWordNeverClaimsAnOutcomeWasVerified.
+     // A BADGE ONLY FOR AN EXCEPTION. A routine checked against its window is every
+     // routine recorded since Marco measured windows, and saying so on every row is the
+     // badge people learn to stop reading -- including the one that says Won't run.
+     // [[ADR-289-the-panel-says-less-and-play-is-bigger]] made the open card silent about
+     // it; the row is silent too.
      const status = !r.runnable ? ['no', "Won't run"]
-       : r.contract === 'guarded' ? ['ok', 'Window-checked'] : ['un', 'Unchecked']
+       : r.contract === 'guarded' ? null : ['un', 'Unchecked']
      const key = routineKey(r.id)
      const open = r.id === chosenRoutine
      // THE OPEN ROW CARRIES THE IDS THE REST OF THIS FILE KNOWS.
@@ -3531,7 +3574,7 @@
          '<div class="muted">' + esc(whereItWorks(r)) +
          (r.saved_at ? '  ·  ' + esc(r.saved_at) : '') + '</div></span>' +
        '</button>' +
-       '<span class="pill ' + status[0] + '">' + esc(status[1]) + '</span>' +
+       (status ? '<span class="pill ' + status[0] + '">' + esc(status[1]) + '</span>' : '') +
        (open ? '<button id="routineRenameBtn" type="button">Rename</button>' : '') +
        '<button class="go big" type="button" id="' + playId + '">Play</button>' +
        '<span class="muted rowsays" id="' + saysId + '"></span>' +
@@ -3562,6 +3605,9 @@
    // signature to force this, which left the next poll comparing against "" and
    // drawing it all again -- a redraw nobody asked for that moves the panel and
    // takes focus out of whatever somebody was typing in.
+   // RECORD IS THE FILLED BUTTON ONLY WHILE NOTHING IS OPEN. With a routine open, its Play
+   // is the thing to press, and one filled button per screen is the rule this page states.
+   $('recordRevealBtn').classList.toggle('go', !chosenRoutine)
    shownRoutines = routinesSig()
    renderRoutine()
    // EVERY ROW'S PLAY IS PAINTED IN ONE PLACE, and it is the place the poll calls
@@ -3615,6 +3661,7 @@
    // list, and carrying them to the next routine would be somebody's intention
    // applied to steps that are not there.
    resetStepEdits()
+   openTabFor = ''
    chosenRoutine = to
    drawRoutines()
    return true
@@ -3749,7 +3796,7 @@
  // and it is why today's-rules review is conditioned separately. A routine today's rules
  // wrote rebuilds byte for byte under them and can still be full of typing pauses.
  function paintReviewButtons(r, busy){
-   showing($('routineSecondLook'), !!(r && r.offer))
+   showing($('routineSimplifyBtn'), !!(r && r.offer))
    showing($('routineReviewBtn'), !!(r && r.offer && r.update))
    const off = busy || !r || !r.offer
    $('routineReviewBtn').disabled = off
@@ -3864,6 +3911,9 @@
    // cleared the state is one defect away from drawing it under the wrong name.
    const a = (answers && r && answers.id === r.id) ? answers : null
    showing($('routineAnswersBox'), !!r)
+   // HOW MANY, ON THE TAB, so the list is known without opening it.
+   const count = ((a && a.phrases) || []).length
+   text($('routineNamesCount'), count ? ' (' + count + ')' : '')
    const list = $('routineAnswersList')
    list.innerHTML = ''
    ;((a && a.phrases) || []).forEach(p => {
@@ -4358,8 +4408,7 @@
    Object.keys(got.errors).forEach(at => {
      parts.push('step ' + (Number(at) + 1) + ' needs a correction')
    })
-   text(box, 'Asked: ' + parts.join('; ') +
-     '. Nothing is written until you review and save it.')
+   text(box, 'To review: ' + parts.join('; ') + '.')
  }
 
  // HOW MANY THINGS LEAVING WOULD THROW AWAY, for the leave-the-routine warning. Counts what
@@ -4640,6 +4689,15 @@
  }
 
  // PREPARING A MOVE WRITES NOTHING, and it is the only way to reach `MoveRoutine`.
+ // THE ONE MOVE REVIEW, CARRIED TO WHERE IT WAS ASKED FOR: under the name box for a rename,
+ // into the Where it works tab for a move. Moved, not copied, so its ids stay unique and a
+ // half-ticked consent is not duplicated.
+ function placeMove(slot){
+   const at = $(slot)
+   const panel = $('routineMove')
+   if (at && panel && panel.parentElement !== at) { at.appendChild(panel) }
+ }
+
  function reviewRescope(scope){
    const r = routineWith(chosenRoutine)
    if (!r) { return }
@@ -4652,6 +4710,7 @@
        return
      }
      moving = v
+     placeMove('routineMoveSlotWhere')
      drawMove()
    })
  }
@@ -4716,6 +4775,7 @@
      }
      showing($('routineRenameWhy'), false)
      moving = v
+     placeMove('routineMoveSlotTop')
      drawMove()
      // AND IT IS BROUGHT INTO VIEW. The button that asked for this is up beside the
      // name now, and the panel it opens is below the whole of the card -- so without
@@ -4728,6 +4788,7 @@
    const v = moving
    showing($('routineMove'), !!v)
    if (!v) { return }
+   text($('routineMoveTitle'), v.renaming ? 'Review the rename' : 'Review the move')
    // BOTH IDENTITIES, BECAUSE THE MOVE IS BETWEEN TWO. A refused preparation can have
    // no destination at all -- a routine about no application, with none named -- and
    // naming one would be a sentence about a place that does not exist.
@@ -4998,10 +5059,53 @@
    return null
  }
 
+ // ── THE TABS OF AN OPEN ROUTINE ─────────────────────────────────────────────────
+ //
+ // One open at a time, or none, and none when a routine is first opened: the run controls
+ // are what most visits are for. A panel is only HIDDEN when another is chosen -- never
+ // rebuilt -- so what is typed in one is still there on the way back. Pressing the open tab
+ // closes it, except Steps and Where it works when they have nothing loaded for this
+ // routine yet, where the press is the request to load them.
+ let openTab = '', openTabFor = ''
+ const TABS = {
+   steps: ['routineStepsBtn', 'routineTabSteps'],
+   names: ['routineNamesTab', 'routineTabNames'],
+   where: ['routineWhereBtn', 'routineTabWhere'],
+   source: ['routineSourceTab', 'routineTabSource'],
+   more: ['routineMaintainSummary', 'routineMaintain'],
+ }
+ function routineTab(name){
+   const r = routineWith(chosenRoutine)
+   if (!r) { return }
+   const stepsLoaded = !!(stepList && stepList.id === r.id)
+   const whereLoaded = !!(choices && choices.id === r.id)
+   const loads = (name === 'steps' && !stepsLoaded) || (name === 'where' && !whereLoaded)
+   openTab = (openTab === name && !loads) ? '' : name
+   openTabFor = r.id
+   paintTabs()
+   if (openTab === 'steps' && !stepsLoaded) { stepEditing() }
+   if (openTab === 'where' && !whereLoaded) { scopeChoices() }
+ }
+ function paintTabs(){
+   for (const [name, [tab, panel]] of Object.entries(TABS)) {
+     const on = openTab === name
+     const b = $(tab)
+     if (b) {
+       b.setAttribute('aria-selected', on ? 'true' : 'false')
+       b.classList.toggle('on', on)
+     }
+     if ($(panel)) { showing($(panel), on) }
+   }
+ }
+
  function renderRoutine(){
    const r = routineWith(chosenRoutine)
    showing($('routineChosen'), !!r)
    if (!r) { return }
+   // A ROUTINE OPENS WITH NO TAB OPEN. The tab that was open belongs to the routine it was
+   // opened on, like the step changes and the typed values do.
+   if (openTabFor !== r.id) { openTab = ''; openTabFor = r.id }
+   paintTabs()
    // THE NAME AND WHERE IT WORKS ARE NOT REPEATED IN HERE. This panel opens directly
    // underneath the row that carries both, four pixels away, and saying them again was
    // the same two lines twice. What is left is the question that row does NOT answer:
@@ -5595,7 +5699,19 @@
    // sentence on screen: the right words about the wrong window. With none chosen there
    // is no window to name, and what is shown instead is the ask.
    const row = (windows || []).find(w => w.id === intoWindow)
-   const says = row ? row.says : ((t && t.choose) || '')
+   // ONE SHORT LINE, AND THE FULL SENTENCE ON THE CHOOSER. The backend's sentence beside the
+   // select was twenty-seven words under every open routine, naming the window the select
+   // already shows. What it adds is whether the presses are checked, which is the same
+   // fact the backend reads (`contract`, in handoffSays) -- so it is said in eight words
+   // with a link to Help, and the whole sentence is the select's title and description.
+   // A routine with several windows and none chosen keeps the backend's own instruction.
+   const r = routineWith(chosenRoutine)
+   const says = row
+     ? (r && r.contract === 'guarded'
+         ? 'Brings this window forward, and checks it before each press.'
+         : 'Brings this window forward. Its presses are not checked.')
+     : ((t && t.choose) || '')
+   sel.title = row ? row.says : ''
    text($('routineIntoSays'), says)
    showing($('routineIntoSays'), !!says)
    paintRoutinePlay()

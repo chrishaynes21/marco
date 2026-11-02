@@ -152,13 +152,18 @@ func (a *Acts) Help() Help {
 			"moment the value goes in.")
 	}
 	asking = append(asking,
-		"Or afterwards: open “Edit its steps”, find the step that types the "+
-			"value, and say what to call it.",
+		"Or afterwards: open its Steps tab, find the step that types the "+
+			"value, name it and press Ask me for it.",
 		"A routine that asks for a value shows a box on its card, and Play waits "+
 			"until it is filled in.")
 
 	editing := []string{
 		"Change a wait, remove a step, or say a run of steps is text you typed.",
+		// THE BOXES ARE THE CHANGE. There is no Set: what is typed is read when Review is
+		// pressed, and an entry that is not a number stays as typed with the reason beside
+		// it. See ADR-292.
+		"Type a new wait or position into its box. Review collects every box you " +
+			"changed; Reset puts a row back as it was.",
 		"Make the text a step types something you supply each time — all of that " +
 			"step’s text, not part of it.",
 		"Nothing is written until you review the change and save it — the version " +
@@ -209,6 +214,29 @@ func (a *Acts) Help() Help {
 			"its card says which measurement is missing. Record it again.",
 	}
 
+	// SIMPLIFY, SAID ONCE HERE AND AGAIN IN THE REVIEW WHERE IT IS APPROVED. The recording
+	// review carried forty-one words of this beside the button; what it costs is now said
+	// on the review itself, at the moment somebody decides, and this is the whole of it.
+	simplify := []string{
+		"Simplify… shortens the waiting: a run of typing becomes one step, and every " +
+			"other pause drops to a quarter of a second.",
+		"If the simplified routine then presses before a screen has caught up, use " +
+			"the original.",
+		"It builds the steps again from your demonstration, so a step you marked to " +
+			"ask for its text types what you recorded again — mark it again afterwards.",
+		"You see the simplified version before anything is saved.",
+	}
+
+	// OTHER NAMES, which are not a rename. The box that adds one is the first thing that
+	// answered "where do I change what this is called" and was not the answer. See
+	// ADR-289.
+	names := []string{
+		"A routine can answer to more than one phrase when you ask for it in your own " +
+			"words. Add them on its Other names tab.",
+		"Other names are extra ways to ask for it. To change what it is called, use " +
+			"Rename beside its name.",
+	}
+
 	where := []string{
 		"In one application only — it runs when that application is in front.",
 		"In that application wherever it is — it brings the window forward first.",
@@ -221,6 +249,8 @@ func (a *Acts) Help() Help {
 		{Key: "editing", Title: "Editing what a routine does", Lines: editing},
 		{Key: "measured", Title: "Where a press is measured", Lines: measured},
 		{Key: "checks", Title: "What a routine checks before it presses", Lines: checks},
+		{Key: "simplify", Title: "Simplifying a routine", Lines: simplify},
+		{Key: "names", Title: "Other names for a routine", Lines: names},
 		{Key: "scope", Title: "Where a routine works", Lines: where},
 	}}
 }

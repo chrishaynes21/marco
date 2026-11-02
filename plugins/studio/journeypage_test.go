@@ -32,11 +32,13 @@ func TestTheJourneyPutsTheQuestionFirstAndPlayUnderWhatIsSelected(t *testing.T) 
 	// ── the view, and what comes first in it ──
 	routines := between(t, page, `<section id="view-routines"`, "</section>")
 	for _, c := range []struct{ first, then, why string }{
-		{`id="askBox"`, `id="recordStart"`,
-			"the request box must come before the way in to recording: it is the one " +
-				"control that answers what somebody came here to do"},
-		{`id="recordStart"`, `id="routineList"`,
-			"recording comes before the library, which is the order of the journey"},
+		// THE LIBRARY IS THE SCREEN. Record is the one way to make a routine and sits in
+		// the header; the find box is the top of the list it searches, directly above
+		// it. See [[Studio-coherence-audit-2026-11-02]], finding 1.
+		{`id="recordStart"`, `id="askBox"`,
+			"the way in to recording is in the header, above everything else on the screen"},
+		{`id="askBox"`, `id="routineList"`,
+			"the find box sits directly above the list it searches"},
 		{`id="routineList"`, `id="routineChosen"`,
 			"the panel about the selected routine comes after the list it is selected from"},
 	} {
@@ -113,17 +115,20 @@ func TestTheRoutineJourneyHasOneWayIntoRecording(t *testing.T) {
 	page := thePage(t)
 	routines := between(t, page, `<section id="view-routines"`, "</section>")
 
-	starts := regexp.MustCompile(`<button[^>]*>\s*Record something new`).
+	// THE ONE BUTTON THAT REVEALS THE FORM. It is labelled `Record` now, in the header;
+	// what is counted is what it DOES, because the form it reveals has a Record button of
+	// its own that starts the recording.
+	starts := regexp.MustCompile(`<button[^>]*onclick="revealRecord\(\)"`).
 		FindAllString(routines, -1)
 	if len(starts) != 1 {
-		t.Errorf("the journey has %d `Record something new` buttons, want exactly 1",
+		t.Errorf("the journey has %d buttons that open the record form, want exactly 1",
 			len(starts))
 	}
 	// AND THE FORM IT REVEALS IS NOT ALSO OPEN. `captureCard` must start hidden, or the
 	// button reveals something that was never away.
 	card := between(t, routines, `id="captureCard"`, `</div>`)
 	if !strings.Contains(startOf(routines, `id="captureCard"`), "hide") {
-		t.Errorf("the record form does not start hidden, so `Record something new` "+
+		t.Errorf("the record form does not start hidden, so `Record` "+
 			"reveals a form that is already on screen: %q", firstLine(card))
 	}
 	// AND THE OTHER RECORDING FLOW IS NOT ON THIS VIEW.
@@ -429,37 +434,36 @@ func TestASecondLookAtARoutineIsOfferedWithoutOpeningADetail(t *testing.T) {
 		t.Error("the second look comes before the window a run would press in, " +
 			"which is the one thing this panel is for")
 	}
-	// AND IT SAYS IT WRITES NOTHING, beside the button rather than after the press.
-	// A control that shows a comparison and one that rewrites somebody's routine must
-	// not look alike.
-	//
-	// READ OVER THE WHOLE BLOCK, because the sentence now sits BENEATH the row rather
-	// than beside it: the action is called "Simplify…" so that somebody looking for a
-	// way to simplify a routine finds a verb, and the promise that nothing happens yet
-	// is the line under it. The old reading stopped at the row's first `</div>` and
-	// would have reported the sentence missing the moment it moved anywhere.
-	block := between(t, page, `id="routineSecondLook"`, `id="routineSteps"`)
-	if !strings.Contains(block, "Nothing is written") {
-		t.Errorf("the second-look block does not say that nothing is written: %q",
-			block)
+	// AND IT IS IN THE TAB ROW, VISIBLE, AND NOT UNDER MORE. The owner asked for this
+	// capability and could not find it, twice; the Architect's ruling on the tabs keeps
+	// it a visible button for that reason. The promise that nothing is written is the
+	// review it opens, titled for what it is, rather than a caption under the button.
+	tabs := between(t, page, `id="routineTabs"`, `</div>`)
+	if !strings.Contains(tabs, `id="routineSimplifyBtn"`) {
+		t.Error("Simplify is not in the routine's tab row, where it is seen without " +
+			"opening anything")
+	}
+	if strings.Contains(between(t, page, `id="routineMaintain"`, `id="routineReviewBtn"`),
+		`id="routineSimplifyBtn"`) {
+		t.Error("Simplify is under More, which is another place nobody looks")
 	}
 	// AND THE ACTION IS A VERB. "Review simplification" named the review and buried the
-	// thing it does, which is what the panel is for.
-	if !strings.Contains(block, ">Simplify&hellip;<") {
-		t.Errorf("the action is not called Simplify: %q", block)
+	// thing it does.
+	if !strings.Contains(tabs, ">Simplify&hellip;<") {
+		t.Errorf("the action is not called Simplify: %q", tabs)
 	}
-	// AND THE REVIEW IS STILL PROMISED, which is the half the label must not cost.
-	if !strings.Contains(block, "Review changes before replacing") {
-		t.Errorf("the block does not promise a review: %q", block)
+	// AND WHAT IT OPENS IS A REVIEW, said in its heading.
+	if !strings.Contains(between(t, page, `id="routineReview"`, `</h3>`), "Review") {
+		t.Error("the panel Simplify opens does not say it is a review")
 	}
 
 	js := page[strings.Index(page, "<script>"):]
 	// AND IT IS SHOWN ON `offer`, NOT ON `update`.
-	if !regexp.MustCompile(`showing\(\$\('routineSecondLook'\),[^)]*r\.offer`).MatchString(js) {
-		t.Error("the second-look row is not shown by `offer`, which is the answer " +
+	if !regexp.MustCompile(`showing\(\$\('routineSimplifyBtn'\),[^)]*r\.offer`).MatchString(js) {
+		t.Error("Simplify is not shown by `offer`, which is the answer " +
 			"about whether the routine still has a demonstration to rebuild from")
 	}
-	shown := regexp.MustCompile(`showing\(\$\('routineSecondLook'\),\s*(.*)\)`).
+	shown := regexp.MustCompile(`showing\(\$\('routineSimplifyBtn'\),\s*(.*)\)`).
 		FindStringSubmatch(js)
 	if shown != nil && strings.Contains(shown[1], "update") {
 		t.Errorf("the simplification is conditioned on `update` (%q), which is about "+
@@ -741,9 +745,17 @@ func TestAStatusWordNeverClaimsAnOutcomeWasVerified(t *testing.T) {
 				"checks are present. Say which check it is.", word)
 		}
 	}
-	if !strings.Contains(line, "'Window-checked'") {
-		t.Error("the guarded row does not say WHICH check it has, so the word is open " +
-			"to being read as a verified outcome")
+	// AND THE ORDINARY ROUTINE CARRIES NO WORD AT ALL. A routine checked against its
+	// window is every routine recorded since Marco measured windows; a badge on every row
+	// is the badge people stop reading, including the one that says Won't run. Only the
+	// exceptions speak. See [[Studio-coherence-audit-2026-11-02]], finding 12.
+	if !strings.Contains(line, "r.contract === 'guarded' ? null") {
+		t.Error("a guarded routine's row carries a status word; only an exception should")
+	}
+	for _, word := range []string{"'Unchecked'", `"Won't run"`} {
+		if !strings.Contains(line, word) {
+			t.Errorf("the exception %s is no longer said on its row", word)
+		}
 	}
 }
 

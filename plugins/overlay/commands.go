@@ -144,9 +144,9 @@ type hudCommand struct {
 var hudCommands = []hudCommand{
 	{Word: cmdLearn, Aliases: []string{"teach"}, Arg: "<name>", Site: siteOverlay,
 		Listed: true, Hint: true,
-		What: "record a new play — demonstrate it, then the leader saves it"},
+		What: "record a new routine — demonstrate it, then the leader saves it"},
 	{Word: cmdNarrate, Arg: "learn <name>", Site: siteOverlay, Listed: true,
-		What: "learn a play by describing it step by step"},
+		What: "learn a routine by describing it step by step"},
 	{Word: cmdHere, Aliases: []string{"watch", "director", "insight"}, Site: sitePanel,
 		Panel: panelHere, Listed: true, Hint: true,
 		What: "what Marco sees now, and whether it is waiting on you"},
@@ -157,18 +157,18 @@ var hudCommands = []hudCommand{
 		What: "stop whatever is running, wherever it is running"},
 	{Word: cmdUI, Arg: "[view]", Site: siteOverlay, Listed: true,
 		What: "open the control centre in your browser"},
-	{Word: cmdEdit, Arg: "<play>", Site: siteOverlay, Listed: true,
-		What: "open one play in the control centre"},
-	{Word: cmdBind, Arg: "<key> <play>", Site: siteOverlay, Listed: true,
-		What: "give a play a leader shortcut in this app"},
+	{Word: cmdEdit, Arg: "<routine>", Site: siteOverlay, Listed: true,
+		What: "open one routine in the control centre"},
+	{Word: cmdBind, Arg: "<key> <routine>", Site: siteOverlay, Listed: true,
+		What: "give a routine a leader shortcut in this app"},
 	{Word: cmdUnbind, Arg: "<key>", Site: siteOverlay, Listed: true,
 		What: "take a leader shortcut back"},
 	{Word: cmdRename, Arg: "<old> to <new>", Site: siteOverlay, Listed: true,
-		What: "rename a play"},
-	{Word: cmdForget, Arg: "<play>", Site: siteOverlay, Listed: true,
-		What: "delete a play"},
-	{Word: cmdSimplify, Arg: "<play>", Site: siteOverlay, Listed: true,
-		What: "re-clean a play's steps"},
+		What: "rename a routine"},
+	{Word: cmdForget, Arg: "<routine>", Site: siteOverlay, Listed: true,
+		What: "delete a routine"},
+	{Word: cmdSimplify, Arg: "<routine>", Site: siteOverlay, Listed: true,
+		What: "re-clean a routine's steps"},
 	{Word: cmdPress, Arg: "<key>", Site: siteOverlay, Listed: true,
 		What: "press a key or a chord once"},
 	{Word: cmdVoice, Aliases: []string{"mute", "unmute", "listen"}, Arg: "on|off",
@@ -275,7 +275,7 @@ func commandListing() []string {
 		}
 		lines = append(lines, "  "+padTo(c.Word+" "+c.Arg, 22)+c.What)
 	}
-	lines = append(lines, "`<key>  run the play bound to it   Esc  cancel", "")
+	lines = append(lines, "`<key>  run the routine bound to it   Esc  cancel", "")
 	return append(lines, playGroups(activeApp(), listRoutesFull())...)
 }
 
@@ -313,7 +313,7 @@ func playGroups(app string, rows []routeInfo) []string {
 		}
 	}
 	if len(context)+len(focus)+len(global) == 0 {
-		return []string{"no plays yet — `m learn <name>"}
+		return []string{"no routines yet — `m learn <name>"}
 	}
 	var lines []string
 	add := func(title string, rs []routeInfo, tagApp bool) {
