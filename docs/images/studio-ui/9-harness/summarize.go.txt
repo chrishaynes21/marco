@@ -1,0 +1,14 @@
+package main
+import ("encoding/json";"fmt";"os";"path/filepath";"sort";"strings")
+type A struct{Total int;ByKind map[string]int;ByID map[string]int `json:"byId"`;Blocks []struct{Where,ID,Kind,T string};Buttons,Primary,Inputs,Cards,NestedCards,Banners,Headings,Hints,Details int;UnnamedControls []string;Hscroll bool;MainScrollHeight int;Errors []string}
+func main(){
+ files,_:=filepath.Glob(os.Args[1])
+ sort.Strings(files)
+ verbose:=len(os.Args)>2
+ for _,f:=range files{b,_:=os.ReadFile(f);var a A;if err:=json.Unmarshal(b,&a);err!=nil{fmt.Println(f,err);continue}
+  mainW:=0;for _,bl:=range a.Blocks{if bl.Where=="main"{mainW+=len(strings.Fields(bl.T))}}
+  fmt.Printf("%-28s words=%4d main=%4d prose(text+muted+banner+refusal)=%4d btn=%2d prim=%d cards=%d nested=%d banners=%d heads=%d hints=%d scrollH=%5d hscroll=%v unnamed=%v errs=%v\n",
+   strings.TrimSuffix(filepath.Base(f),".json"),a.Total,mainW,a.ByKind["text"]+a.ByKind["muted"]+a.ByKind["banner"]+a.ByKind["refusal"],a.Buttons,a.Primary,a.Cards,a.NestedCards,a.Banners,a.Headings,a.Hints,a.MainScrollHeight,a.Hscroll,a.UnnamedControls,a.Errors)
+  if verbose{fmt.Println("  kinds",a.ByKind);for _,bl:=range a.Blocks{if bl.Where=="main"{fmt.Printf("   [%s|%s] %s\n",bl.Kind,bl.ID,bl.T)}}}
+ }
+}

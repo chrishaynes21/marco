@@ -1,0 +1,88 @@
+// Audit render harness: injects instrument + common stub + a state script into a copy of
+// Studio's page, then screenshots it and dumps the measured audit JSON. Scratch only.
+package main
+
+import (
+	"flag"
+	"fmt"
+	"html"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"regexp"
+	"strings"
+	"time"
+)
+
+const edge = `C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe`
+
+func main() {
+	page := flag.String("page", `D:\Macros\marco\plugins\studio\frontend\index.html`, "page")
+	dir := flag.String("dir", ".", "audit dir holding instrument.js and common.js")
+	state := flag.String("state", "", "state js")
+	out := flag.String("out", "", "png out")
+	audit := flag.String("audit", "", "json out")
+	w := flag.Int("w", 1180, "width")
+	h := flag.Int("h", 900, "height")
+	theme := flag.String("theme", "dark", "dark|light")
+	flag.Parse()
+
+	src, err := os.ReadFile(*page)
+	must(err)
+	inst, err := os.ReadFile(filepath.Join(*dir, "instrument.js"))
+	must(err)
+	common, err := os.ReadFile(filepath.Join(*dir, "common.js"))
+	fx, _ := os.ReadFile(filepath.Join(*dir, "fixtures.js"))
+	common = append(common, fx...)
+	pr, _ := os.ReadFile(filepath.Join(*dir, "proposal.js"))
+	common = append(common, pr...)
+	must(err)
+	st, err := os.ReadFile(*state)
+	must(err)
+	inject := "<script>\n" + string(inst) + "\n" + string(common) + "\n" + string(st) + "\n</script>\n<script>"
+	doc := strings.Replace(string(src), "<script>", inject, 1)
+	doc = strings.Replace(doc, "<html", "<html", 1)
+	doc = strings.Replace(doc, "<title>", `<script>document.documentElement.setAttribute('data-theme','`+*theme+`')</script><title>`, 1)
+	tmp, err := os.MkdirTemp("", "studioaudit")
+	must(err)
+	defer os.RemoveAll(tmp)
+	at := filepath.Join(tmp, "page.html")
+	must(os.WriteFile(at, []byte(doc), 0o644))
+	base := []string{"--headless=new", "--disable-gpu", "--hide-scrollbars", "--no-first-run", "--no-default-browser-check",
+		"--force-device-scale-factor=1", "--virtual-time-budget=9000", fmt.Sprintf("--window-size=%d,%d", *w, *h)}
+	if *out != "" {
+		abs, _ := filepath.Abs(*out)
+		run(append(base, "--user-data-dir="+filepath.Join(tmp, "p1"), "--screenshot="+abs, at)...)
+	}
+	if *audit != "" {
+		dom := run(append(base, "--user-data-dir="+filepath.Join(tmp, "p2"), "--dump-dom", at)...)
+		m := regexp.MustCompile(`data-audit="([^"]*)"`).FindStringSubmatch(dom)
+		if m == nil {
+			fmt.Fprintln(os.Stderr, "NO AUDIT in", *state)
+			os.Exit(2)
+		}
+		must(os.WriteFile(*audit, []byte(html.UnescapeString(m[1])), 0o644))
+	}
+}
+
+func run(args ...string) string {
+	cmd := exec.Command(edge, args...)
+	done := make(chan struct{})
+	var out []byte
+	go func() { out, _ = cmd.Output(); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(120 * time.Second):
+		_ = cmd.Process.Kill()
+		fmt.Fprintln(os.Stderr, "timeout")
+		os.Exit(3)
+	}
+	return string(out)
+}
+
+func must(err error) {
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+}

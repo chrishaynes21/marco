@@ -1,0 +1,5 @@
+F.ReviewPlay = id => ({id, name: 'cloud pull stone', token: 'tok1', says: ['item \u2014 "granite"']})
+__at(400, () => __click('routineOpen-arkascended-focus-cloud-pull-stone'))
+__at(1500, () => { const b = document.getElementById('routineArg-item'); if (b) { b.value = 'granite'; b.dispatchEvent(new Event('input')) } })
+__at(1900, () => __click('routinePlayBtn'))
+__at(2600, () => __scrollTo('routine-arkascended-focus-cloud-pull-stone', 20))
