@@ -52,6 +52,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -119,6 +120,10 @@ type capture struct {
 	// wrongness as warning about a mark that is gone, only quieter. One pair, swapped
 	// together. See Acts.UseOriginalDraft.
 	wasSupplied []string
+	// dropped is the marks a simplification took off, for the review to name beside Save.
+	// NOT `wasSupplied`: that belongs to the FIRST simplification's way back, and a value
+	// marked on an already-simplified draft and then simplified away is not in it.
+	dropped []string
 	// supplied is the values marked as supplied on the draft under review, in the order
 	// they were marked.
 	//
@@ -254,6 +259,13 @@ type Recording struct {
 	// different routines. Held by TestTheReviewOffersTheStepsItIsShowing.
 	Supply     []SupplyChoice `json:"supply,omitempty"`
 	SupplySays string         `json:"supply_says,omitempty"`
+	// Marked names the values this draft will ask for instead of typing, and Unmarked the
+	// ones a simplification took off. Both exist so the review can say what Simplify costs
+	// at the moment somebody approves it -- beside the button, and again beside Save once
+	// it has happened -- rather than only inside the chooser's own caption. The words are
+	// the person's own value names, because "your marks" is not something anybody can check.
+	Marked   []string `json:"marked,omitempty"`
+	Unmarked []string `json:"unmarked,omitempty"`
 	// TypedRuns is the runs of steps that could be declared TYPED TEXT, and TypedSays is
 	// what that costs. See typeddraft.go for the defect it exists for.
 	TypedRuns []TypedChoice `json:"typed_runs,omitempty"`
@@ -635,6 +647,9 @@ func (a *Acts) SimplifyDraft() string {
 	}
 	cp.draft = next
 	cp.simplified = true
+	if len(cp.supplied) > 0 {
+		cp.dropped = cp.supplied
+	}
 	// AND THE MARKS ARE GONE WITH THE LIST THEY WERE ON. `SimplifiedDraft` re-derives
 	// from the EVENTS, so a value somebody marked as supplied is typed text again — and
 	// a position cannot honestly be carried across a list that folded. The caption said
@@ -665,7 +680,7 @@ func (a *Acts) UseOriginalDraft() string {
 	// — and a draft restored with its placeholders and no caption about them is a card
 	// that says nothing about the steps on it. See capture.wasSupplied.
 	cp.draft, cp.supplied = cp.wasDraft, cp.wasSupplied
-	cp.wasDraft, cp.wasSupplied, cp.simplified = nil, nil, false
+	cp.wasDraft, cp.wasSupplied, cp.simplified, cp.dropped = nil, nil, false, nil
 	return ""
 }
 
@@ -810,6 +825,15 @@ func (a *Acts) Recording() Recording {
 	// control is one row under the list rather than a box on every step.
 	out.Supply = supplyChoices(dr.Steps)
 	out.SupplySays = supplyCaption(dr.Steps, c.supplied)
+	out.Marked = append([]string(nil), c.supplied...)
+	// WHAT THE LAST SIMPLIFICATION TOOK OFF AND HAS NOT BEEN MARKED AGAIN.
+	if c.simplified {
+		for _, name := range c.dropped {
+			if !slices.Contains(c.supplied, name) {
+				out.Unmarked = append(out.Unmarked, name)
+			}
+		}
+	}
 	// AND WHICH RUNS OF THEM COULD BE DECLARED TYPED TEXT, from the same list in the same
 	// call, for the same reason: a range the chooser offers is a range of the steps on
 	// screen.

@@ -1017,7 +1017,9 @@
          draft's own name, from the backend; `nameOr` has a fallback for a recording that was
          never given one, and so does this. -->
     <h3 id="capReviewName" style="margin:0 0 8px"></h3>
-    <div id="capSaid"></div>
+    <!-- ONE SUMMARY LINE: what was recorded, where, and how it ended. It was three lines in
+         three places, and the steps -- the thing being approved -- were below two of them. -->
+    <div class="muted" id="capSummary"><span id="capSaid"></span><span id="capWhere"></span></div>
 
     <!-- AND WHAT WAS LEFT OUT OF IT, ABOVE THE STEPS, because it is about steps that are
          not there. Alt-Tab back to this window to press Stop and those two keys are how
@@ -1101,7 +1103,6 @@
          can be saved under, and the chooser is withdrawn rather than defaulted, because
          two of the three scopes promise to switch nothing and their routes would refuse
          every press. Moving this block does not widen that. -->
-    <div class="muted" style="margin-top:12px" id="capWhere"></div>
     <!-- HOW IT WILL BE PERFORMED, when that is not a choice. See pollCapture. -->
     <div class="muted hide" style="margin-top:6px" id="capBrings"></div>
     <div class="row hide" style="margin-top:10px" id="capScopeRow">
@@ -1123,6 +1124,17 @@
     <div class="hide" style="margin-top:12px" id="capWontRunBox">
       <div class="wontrun">This routine won't run.</div>
       <div class="no" id="capMissing"></div>
+      <!-- AND THE WAY TO FIX IT, AS THE BUTTON TO PRESS. A measurement that was not taken
+           is taken by recording again, so Record again is the primary here and Save anyway
+           is not. It SAYS it discards this recording before it does, and it keeps the name
+           and the window -- after checking the window is still open. It is offered only
+           for this refusal: a recording this version cannot save (`capUnsupported`) would be
+           refused again, and a button implying otherwise would be a lie about the machine.
+           See recordDraftAgain. -->
+      <div class="row" style="margin-top:10px" id="capAgainRow">
+        <button class="go" id="capAgainBtn" onclick="recordDraftAgain()">Record again</button>
+        <span class="muted" id="capAgainSays"></span>
+      </div>
     </div>
     <!-- AND WHAT CANNOT BE SAVED AT ALL, which is a different sentence from the one
          above: that one is a routine that saves and then refuses, this one does not
@@ -1171,7 +1183,7 @@
     </div>
     <div class="row" style="margin-top:14px">
       <button class="go" id="capSaveBtn" onclick="saveCapture()">Save</button>
-      <button class="stop" onclick="cancelCapture()">Cancel</button>
+      <button class="stop" id="capDiscardBtn" onclick="cancelCapture()">Discard</button>
       <span class="muted" id="capSaveNote"></span>
     </div>
     <!-- THE SAVE'S THIRD ANSWER, which is neither success nor refusal.
@@ -2259,6 +2271,7 @@
 
  function hideRecord(){
    recordOpen = false
+   againNote = ''
    shownCapture = ''
    showing($('captureCard'), false)
    showing($('recordStart'), true)
@@ -2786,6 +2799,7 @@
  }
  function startCapture(){
    text($('capSaveNote'), '')
+   againNote = ''
    acts.StartRecording($('capName').value, $('capWindow').value)
      .then(why => { text($('capNote'), why || '') })
  }
@@ -2810,6 +2824,59 @@
  // Neither writes anything. Both refresh the card from the backend, which is where the
  // steps come from, so what is on screen after either press is the version Save would
  // write -- the page does not keep its own copy of a draft to disagree with.
+ // ── RECORD AGAIN, FROM A REVIEW THAT WON'T RUN ───────────────────────────────────
+ //
+ // The fix for a measurement that was not taken is to take it, so this is the primary
+ // button in that refusal. In order:
+ //
+ //   1. DISCARD THIS DRAFT, which the line beside the button said it would. If the discard
+ //      is refused, nothing else happens and the reason is shown.
+ //   2. KEEP THE SETUP CHOICES: the same name, and the same window.
+ //   3. CHECK THAT WINDOW IS STILL THERE, by asking for the window list again. A handle is
+ //      an identity that ends when the window closes, so a window that has gone is not
+ //      quietly replaced by whatever is first in the list: the form opens instead, with
+ //      the reason, and the person chooses.
+ //   4. START, through the same backend call the form uses -- or, for a second recording
+ //      of a saved routine, the call that keeps it a second recording of THAT routine.
+ //
+ // The backend validates the window again when the recording starts, as it always does.
+ let lastReview = null, againNote = ''
+ function recordDraftAgain(){
+   const r = lastReview
+   if (!r || !r.review) { return }
+   const name = r.name || $('capName').value
+   const win = $('capWindow').value
+   const again = r.again || ''
+   $('capAgainBtn').disabled = true
+   acts.CancelRecording().then(why => {
+     $('capAgainBtn').disabled = false
+     if (why) { text($('capSaveNote'), why); return }
+     $('capName').value = name
+     recordOpen = true
+     shownCapture = ''
+     return loadWindows().then(() => {
+       showing($('recordStart'), false)
+       showing($('captureCard'), true)
+       const still = win !== '' && $('capWindow').value === win
+       if (!still) {
+         againNote = 'The window it was recorded in is no longer open. ' +
+           'Choose one, then press Record.'
+         text($('capNote'), againNote)
+         $('capNote').className = 'no'
+         $('capWindow').focus()
+         return
+       }
+       text($('capNote'), '')
+       $('capNote').className = 'muted'
+       const start = again ? acts.RecordAgain(again, win) : acts.StartRecording(name, win)
+       return start.then(why => {
+         text($('capNote'), why || '')
+         $('capNote').className = why ? 'no' : 'muted'
+       })
+     })
+   })
+ }
+
  function simplifyDraft(){
    $('capSimplifyBtn').disabled = true
    acts.SimplifyDraft().then(why => {
@@ -3048,8 +3115,10 @@
      if (!r.review) {
        // SAVED, OR NOTHING AT ALL. Either way the card above is back, and what it
        // says about the last one belongs beside it.
-       text($('capNote'), r.saved || r.said || '')
-       $('capNote').className = r.failed ? 'no' : 'muted'
+       // OR WHY RECORD AGAIN STOPPED SHORT, which this poll would otherwise wipe four times a
+       // second: the window it was recorded in had gone, and somebody is choosing another.
+       text($('capNote'), r.saved || r.said || againNote)
+       $('capNote').className = (r.failed || (againNote && !r.saved && !r.said)) ? 'no' : 'muted'
        if (r.saved) { $('capName').value = '' }
        shownCapture = ''
        return
@@ -3064,7 +3133,9 @@
      // against these steps hands it back, and holding it only when something was
      // redrawn would leave the page sending a term for a list it had stopped showing.
      capBasis = r.basis || ''
+     lastReview = r
      const sig = r.name + '\u0000' + (r.said || '') + '\u0000' + (r.missing || '')
+       + '\u0000' + (r.marked || []).join('|') + '\u0000' + (r.unmarked || []).join('|')
        + '\u0000' + (r.exit || '') + '\u0000' + (r.away || '')
        + '\u0000' + (r.steps || []).join('|')
        + '\u0000' + (r.simplified ? 1 : 0) + (r.original ? 1 : 0)
@@ -3086,16 +3157,26 @@
      // twenty-second demonstration twenty seconds long. The risk is said here too,
      // because this card's Save writes straight to the library with no second
      // comparison to look at. See orchestrator.Rebuild.Caution.
+     // WHAT SIMPLIFY COSTS, SAID WHERE IT IS APPROVED. Before the press, beside the button:
+     // what happens to the timing, and -- by name -- which marked values it takes off. After
+     // it, beside Save, which is where the simplified version is approved: the same timing
+     // change, the way back, and the values it took off. Not a tooltip: a consequence that
+     // is only on hover is a consequence most people never read.
+     const names = ns => ns.map(n => '“' + n + '”').join(', ')
+     const marked = r.marked || [], unmarked = r.unmarked || []
      text($('capSimplifySays'), r.simplified
-       ? 'These steps are a simplified version, with the waiting shortened. ' +
-         'Nothing is written until you save.'
-       : 'Shortens the waiting: typing becomes one step and every other pause ' +
-         'drops to a quarter of a second. If the routine then presses before a ' +
-         'screen has caught up, use the original. Nothing is written until you save.')
+       ? 'Simplified: typing is one step and every other pause is a quarter of a ' +
+         'second. If it then presses before a screen has caught up, use the original.' +
+         (unmarked.length ? ' Simplifying took off ' + names(unmarked) +
+           ', so that text is typed as recorded again — mark it again to be asked for it.' : '')
+       : 'Shortens the waits: typing becomes one step and every other pause drops to ' +
+         'a quarter of a second.' +
+         (marked.length ? ' It also takes off ' + names(marked) +
+           ', so that text would be typed as recorded again.' : ''))
      // WHICH ROUTINE THIS WILL BE, from the draft's own name. See capReviewName.
      text($('capReviewName'), r.name ? 'Review “' + r.name + '”' : 'Review this recording')
      text($('capSaid'), r.said || '')
-     $('capSaid').className = r.failed ? 'no' : 'ok'
+     $('capSaid').className = r.failed ? 'no' : ''
      text($('capExit'), r.exit || '')
      showing($('capExit'), !!r.exit)
      // AND HOW LONG THEY WERE AWAY, which is why the routine is shorter than what they did:
@@ -3105,11 +3186,14 @@
      showing($('capAway'), !!r.away)
      text($('capMissing'), r.missing || '')
      showing($('capWontRunBox'), !!r.missing)
+     // NOT WHEN THIS VERSION CANNOT SAVE IT AT ALL. Recording the same thing again would be
+     // refused again, and a Record again button there would say otherwise.
+     showing($('capAgainRow'), !r.unsupported)
      text($('capUnsupported'), r.unsupported || '')
      showing($('capUnsupported'), !!r.unsupported)
      text($('capWhere'), (r.application
-       ? 'recorded in ' + r.application
-       : 'no application was observed')
+       ? ' · recorded in ' + r.application
+       : ' · no application was observed')
        + ' · ended by ' + (r.stopped_by || 'something'))
      // EVERY STEP, IN ORDER. A review that left one out would be a review of a shorter
      // routine than the one being saved.
@@ -3247,6 +3331,13 @@
      // a collision is still refused and still offers `Replace` by name.
      text($('capSaveBtn'),
        (r.incomplete && !r.unsupported) ? 'Save anyway' : 'Save')
+     // AND SAVE ANYWAY IS NOT THE EMPHASISED BUTTON. When a measurement was not taken, the
+     // fix is to record again, and that is the filled button in the refusal above; saving a
+     // routine that refuses every press is still possible and is no longer what the card
+     // points at.
+     $('capSaveBtn').classList.toggle('go', !(r.incomplete && !r.unsupported))
+     text($('capAgainSays'), 'Discards this recording and records “' +
+       (r.name || 'it') + '” again in the same window.')
    }).finally(() => setTimeout(pollCapture, 400))
  }
 

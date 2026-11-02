@@ -304,6 +304,16 @@ func TestSimplifyingTakesTheSuppliedMarksOffAndSaidSoFirst(t *testing.T) {
 	if len(after.Supply) == 0 {
 		t.Error("the simplified draft offers nothing to ask for, though it types text")
 	}
+	// AND THE REVIEW CAN SAY BOTH HALVES BESIDE THE BUTTON AND BESIDE SAVE: which values
+	// are marked before, and which a simplification took off after. The review states the
+	// cost where it is approved, so it needs the names and not only the caption.
+	if strings.Join(marked.Marked, ",") != "item" {
+		t.Errorf("before simplifying, the draft does not say item is marked: %v", marked.Marked)
+	}
+	if len(after.Marked) != 0 || strings.Join(after.Unmarked, ",") != "item" {
+		t.Errorf("after simplifying, the draft does not say item was taken off: marked %v, "+
+			"unmarked %v", after.Marked, after.Unmarked)
+	}
 }
 
 // AND GOING BACK TO THE ORIGINAL TAKES THEM OFF TOO.
