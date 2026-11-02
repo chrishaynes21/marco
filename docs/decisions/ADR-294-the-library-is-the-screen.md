@@ -77,6 +77,11 @@ rulings:
 - `plugins/studio` `TestEverySectionTheWindowLinksToExists` covers the two new Help sections,
   *Simplifying a routine* and *Other names for a routine*, which are each linked from where they
   apply.
+- `plugins/studio` `TestARunnableConfirmationIsTheOnlyFilledButton` checks that while a run
+  confirmation holds a token, *Run it* is the one filled button and the open routine's Play is
+  unavailable; that a refused confirmation leaves Play live and filled as the way to ask again;
+  and that Cancel brings Play back. Filled is read from the computed background, with
+  transitions off.
 
 Five mutations were run and each failed a test:
 
@@ -85,3 +90,15 @@ Five mutations were run and each failed a test:
 - the old `--faint`;
 - a tab open by default;
 - Record left filled.
+
+## Correction: the run confirmation has one primary
+
+The after-record first showed two filled buttons at the run confirmation: the open routine's
+Play, repainted live as soon as the review came back, and *Run it*. The Architect ruled that
+*Run it* is the sole filled primary while a confirmation is open, and that this is not an
+exception to the design. `paintRoutinePlay` now treats a confirmation holding a token for the
+open routine as a reason Play is unavailable; a disabled `go` button is drawn without its fill.
+A refused confirmation has no *Run it* to press, so Play stays live and filled. Cancel is how
+somebody returns to change a value. Two mutations were run and each failed
+`TestARunnableConfirmationIsTheOnlyFilledButton`: the guard removed, and the guard applied to a
+refused confirmation too.

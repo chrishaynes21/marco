@@ -367,3 +367,93 @@ func TestThePlayFieldsBelongToTheRoutineTheyAreAbout(t *testing.T) {
 			"counts as given: %q", title)
 	}
 }
+
+// AND WHILE A CONFIRMATION CAN BE RUN, RUN IT IS THE ONE FILLED BUTTON.
+//
+// The open routine's Play was repainted live, and filled, as soon as the review came back, so the
+// confirmation showed two primaries side by side: the press that asks and the press that runs.
+// While the card holds a token, Play is unavailable. A refused review has no Run it to press, so
+// Play stays live and filled as the way to ask again; Cancel brings it back too. "Filled" is the
+// computed background, not the class, because a disabled `go` button is drawn without its fill.
+// See [[ADR-294-the-library-is-the-screen]].
+func TestARunnableConfirmationIsTheOnlyFilledButton(t *testing.T) {
+	browser := aBrowser()
+	if browser == "" {
+		t.Skip("no headless Chromium on this machine to render the page in")
+	}
+	stub := strings.SplitN(playValuesHarness, "setTimeout(", 2)[0]
+	// TRANSITIONS OFF, because they do not advance under the renderer's virtual time and a
+	// button whose class just changed would be read in its previous colour.
+	title := renderForCounters(t, browser, stub+`
+document.addEventListener('DOMContentLoaded', () => {
+  const s = document.createElement('style')
+  s.textContent = '*{transition:none !important}'
+  document.head.appendChild(s)
+})
+const filled = () => {
+  const p = document.createElement('div')
+  p.style.background = 'var(--spot)'
+  document.body.appendChild(p)
+  const spot = getComputedStyle(p).backgroundColor
+  p.remove()
+  return Array.from(document.querySelectorAll('main button'))
+    .filter(b => b.getClientRects().length > 0 && !b.closest('.hide'))
+    .filter(b => getComputedStyle(b).backgroundColor === spot)
+    .map(b => b.id || b.textContent.trim())
+}
+let atRefusal = '', atConfirm = '', afterCancel = ''
+let playLiveRefused = 0, playDeadConfirm = 0, playLiveCancel = 0
+setTimeout(() => { pickId('notepad/focus/write-a-note') }, 1000)
+setTimeout(() => { typeInto('routineArg-message', 'hello there') }, 1400)
+setTimeout(() => { press('routinePlayBtn') }, 1700)
+setTimeout(() => {
+  atRefusal = filled().join(',')
+  playLiveRefused = playDead() ? 0 : 1
+  press('routinePlayBtn')
+}, 2100)
+setTimeout(() => {
+  atConfirm = filled().join(',')
+  playDeadConfirm = playDead()
+  document.querySelector('#routineWillType button.stop').click()
+}, 2500)
+setTimeout(() => {
+  afterCancel = filled().join(',')
+  playLiveCancel = playDead() ? 0 : 1
+}, 2900)
+setTimeout(() => {
+  document.title = 'err=' + (window.bad ? 1 : 0) +
+    ' refusedone=' + (atRefusal === 'routinePlayBtn' ? 1 : 0) +
+    ' refusedlive=' + playLiveRefused +
+    ' confirmone=' + (atConfirm === 'routineConfirmBtn' ? 1 : 0) +
+    ' confirmdead=' + playDeadConfirm +
+    ' cancelone=' + (afterCancel === 'routinePlayBtn' ? 1 : 0) +
+    ' cancellive=' + playLiveCancel +
+    ' [' + atRefusal + '|' + atConfirm + '|' + afterCancel + ']'
+}, 3300)`)
+	if !strings.Contains(title, "err=") {
+		t.Fatalf("the page never reported its counters: %q", title)
+	}
+	n := func(key string) int {
+		m := regexp.MustCompile(`\b` + key + `=(\d+)`).FindStringSubmatch(title)
+		if m == nil {
+			t.Fatalf("no %s in %q", key, title)
+		}
+		v, _ := strconv.Atoi(m[1])
+		return v
+	}
+	for _, c := range []struct{ key, why string }{
+		{"refusedone", "with a refused review up, Play is not the one filled button"},
+		{"refusedlive", "a refused review left Play dead, so there is no way to ask again"},
+		{"confirmone", "with a runnable confirmation up, Run it is not the one filled button"},
+		{"confirmdead", "Play is live beside a runnable confirmation"},
+		{"cancelone", "after Cancel, Play is not the one filled button"},
+		{"cancellive", "after Cancel, Play stayed dead"},
+	} {
+		if n(c.key) != 1 {
+			t.Errorf("%s: %q", c.why, title)
+		}
+	}
+	if n("err") != 0 {
+		t.Errorf("the page threw: %q", title)
+	}
+}

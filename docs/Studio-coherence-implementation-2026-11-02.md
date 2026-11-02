@@ -65,7 +65,7 @@ drawn outlined.
 | Review | 295 → 201 | 195 → 119 | 14 → 15 | 5 → 1 | 1640 → 1204 |
 | Review, won't run | 316 → 259 | 191 → 150 | 14 → 16 | 5 → 1 | 1635 → 1273 |
 | Arguments required | 280 → **111** | 157 → **39** | 23 → 22 | 4 → **0** | 1827 → **908** |
-| Run confirmation | 282 → **116** | 152 → **37** | 25 → 24 | 6 → 2 | 1996 → 965 |
+| Run confirmation | 282 → **116** | 152 → **37** | 25 → 24 | 6 → **1** | 1996 → 965 |
 | Step editor | 406 → **241** | 174 → **51** | 39 → 37 | 5 → 1 | 2397 → 1503 |
 | Rename collision | 368 → **139** | 217 → **61** | 27 → 24 | 5 → 1 | 2222 → 932 |
 | Help, one section open | 108 → 152 | 72 → 98 | 0 → 0 | 0 → 0 | 908 → 928 |
@@ -74,7 +74,11 @@ Notes on the table:
 
 - **Arguments required shows no filled button.** Play waits on the field, and the line says
   *Enter item to play.*
-- **The confirmation shows two:** the open routine's Play and *Run it*.
+- **The confirmation shows one: *Run it*.** It first showed two, because the open routine's
+  Play was repainted live and filled as soon as the review came back. That was corrected by
+  ruling in a separate commit: while a confirmation can be run, Play is unavailable. A refused
+  confirmation has no *Run it*, so Play stays filled as the way to ask again. See the correction
+  in [[ADR-294-the-library-is-the-screen]].
 - **Help grew, as intended.** It now carries About this installation, which is what left the
   Routines screen.
 - **The won't-run review gained three things it lacked:** the `away` line the backend always
@@ -114,7 +118,7 @@ New states that had no before:
 | A person can… | Result |
 |---|---|
 | see their routines without scrolling | **Met.** The first row starts at about 157px, against 549. |
-| tell the one next action | **Met in ordinary states.** One filled button. Two exceptions: none while a required value is empty, and two at the run confirmation. |
+| tell the one next action | **Met.** One filled button, including at the run confirmation, where it is *Run it*. While a required value is empty there is none: Play waits on the field and says so. |
 | open a routine and play it without scrolling past maintenance | **Met.** Window, value and Play are in the first ~150px of the open panel. Prose is 39 words on the whole screen. |
 | see an editor appear where they asked | **Met.** The panel sits directly under the tab row. |
 | change a coordinate and have it count | **Met.** `TestTypedStepValuesAreReviewedWithoutASetAndAreNeverDropped` |
@@ -144,7 +148,9 @@ proposed shortening `brings`. That is backend copy and was not part of the appro
 | **Record again starts recording when the window is still there.** | The form opens only when there is a choice to make again. |
 | **Pressing the open tab closes it**, except Steps and Where it works when nothing is loaded yet. | For those two, the press is the request to load. |
 | **The window line is composed on the page from `contract`**, the same fact the backend's sentence uses. | The full backend sentence remains the chooser's title. |
-| **Audit finding 22 was not implemented**: hiding the library while a recording is reviewed. | It was not in the approved increments. Play is dark during a recording (increment 2), but the library's Play is still live during review. |
+| **Audit finding 22 was not implemented**: hiding the library while a recording is reviewed. | It was not in the approved increments, and the Architect ruled it stays out of this slice. Play is dark during a recording (increment 2), but the library's Play is still live during review. |
+| **The review card's 88 words are accepted.** | By ruling: useful consequences are not removed only to reach 70. |
+| **Typing a new value while a confirmation is up does not withdraw it.** | Play stays unavailable until *Run it* or Cancel. *Run it* is confirmed by token alone, so it types the values shown on the card, not what is in the box. |
 
 ## Two things that went wrong during the work
 
@@ -154,7 +160,8 @@ module is a single main package, so Go wrote the binary into the directory, and 
 binary timestamps. It was restored by copying back the windowed `studio.exe` that `build.cmd` had
 placed at the repository root from the same build. The two are now byte-identical, and the
 check CLAUDE.md gives (`grep -a "will not build without the correct build tags"`) finds nothing
-in either. No other binary was touched. It is recorded so it is not repeated.
+in either. No other binary was touched. It is recorded so it is not repeated. The restoration
+returns the previous build; it establishes neither a new build nor anything on the desktop.
 
 **The audit's headless renders did not run CSS transitions.** A button whose class changed after
 the first paint could be photographed in its old colour: the computed style stayed at the

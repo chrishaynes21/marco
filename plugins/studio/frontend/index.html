@@ -5660,10 +5660,16 @@
    //
    // GUARDED, because there is no open row until somebody opens one -- the list can
    // be drawn, and this painted, with nothing chosen at all.
+   //
+   // AND NOT WHILE ITS CONFIRMATION IS UP. A confirmation that can be run makes Run it the
+   // one next action, and a filled Play beside it was a second primary competing for the
+   // same press. A refused confirmation has no Run it to press, so Play stays the way to
+   // ask again; Cancel is how somebody goes back to change a value.
+   const confirming = !!(willType && willType.token && r && willType.id === r.id)
    const btn = $('routinePlayBtn')
    if (btn) {
      btn.disabled = runActive || recording || !r || !r.runnable || !intoWindow ||
-       !suppliedArgs()
+       !suppliedArgs() || confirming
    }
    // AND THE FIELDS IT IS WAITING ON ARE NAMED, when that is the only thing it waits on.
    //
