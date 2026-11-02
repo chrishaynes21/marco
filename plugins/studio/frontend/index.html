@@ -357,6 +357,19 @@
  .steprows .gone .said{text-decoration:line-through;color:var(--dim)}
  .steprows .gone .act{text-decoration:line-through;color:var(--dim)}
  .steprows input[type=number]{width:6.5em}
+ /* THE STEP EDITOR'S NUMBERS ARE TEXT FIELDS, so an entry that is not a number is kept as
+    typed rather than blanked (see stepField). They take the page's field style and a
+    measured width, and NOT the `.row > input[type=text]` rule that stretches a field to
+    fill its row -- these sit in a row of controls and are four or six characters wide. */
+ .steprows input.num{flex:none;font:400 13px var(--mach);padding:4px 8px;
+   min-height:30px;text-align:right}
+ .steprows input.num.ms{width:6.5em}
+ .steprows input.num.xy{width:4.5em}
+ .steprows input.num:disabled{opacity:.5}
+ /* A ROW THAT DIFFERS FROM THE ROUTINE IS MARKED, so the rows that will change can be found
+    by looking rather than by reading every box. */
+ .steprows .sr.changed > .n{color:var(--spot);font-weight:600}
+ .steprows .sr.changed input.num{border-color:var(--spot-dim)}
  /* THE CONTROLS STAY ON THE STEP THEY BELONG TO. `.row` wraps, which is right for a
     card's own rows and wrong inside a grid cell: on a typing step `name it` landed on
     its own line above `Ask me for it` and `Remove`, so one step was two rows deep and
@@ -3587,7 +3600,7 @@
    // THE CHANGES BELONG TO THE ROUTINE BEING LEFT. They are positions in ITS step
    // list, and carrying them to the next routine would be somebody's intention
    // applied to steps that are not there.
-   stepChanges = []
+   resetStepEdits()
    chosenRoutine = to
    drawRoutines()
    return true
@@ -3601,9 +3614,10 @@
  // not lost.
  function pendingEdits(){
    const out = []
-   if (stepChanges && stepChanges.length) {
-     out.push(stepChanges.length === 1 ? 'the change you collected to its steps'
-       : 'the ' + stepChanges.length + ' changes you collected to its steps')
+   const edits = stepEditCount()
+   if (edits) {
+     out.push(edits === 1 ? 'the change you made to its steps'
+       : 'the ' + edits + ' changes you made to its steps')
    }
    // WHAT SOMEBODY TYPED, WHICH IS NOT WHAT A REQUEST PROPOSED FOR THEM. A value
    // read out of the words of a request arrives in the same box; losing it costs
@@ -3782,6 +3796,12 @@
  // the listing and the review is a refusal, not somebody's row numbers applied to steps
  // they never saw. See stepedit.go.
  let stepList = null, stepChanges = [], stepReview = null, stepSaid = null
+ // WHAT HAS BEEN TYPED INTO A ROW, AS IT WAS TYPED. A field is the change: there is no
+ // per-row Set, so a value somebody typed and never confirmed cannot be lost on the way to
+ // Review. Kept as the raw text, because an invalid entry is shown back exactly as it was
+ // typed with the reason beside it, never reset and never quietly left out. Keyed by step.
+ let stepDrafts = {}, stepErrors = {}
+ function resetStepEdits(){ stepChanges = []; stepDrafts = {}; stepErrors = {} }
 
  // ── WHAT ELSE A ROUTINE ANSWERS TO ──────────────────────────────────────────
  //
@@ -3868,7 +3888,7 @@
    text($('routineStepsWhy'), '')
    acts.StepEditing(r.id).then(v => {
      $('routineStepsBtn').disabled = false
-     stepChanges = []
+     resetStepEdits()
      stepReview = null
      showing($('routineStepEdit'), false)
      if (!v || v.why || !v.editable) {
@@ -3922,7 +3942,9 @@
    stepList.rows.forEach(row => {
      const asked = changeAt(row.at)
      const div = document.createElement('div')
-     div.className = 'sr four' + (asked && asked.op === 'remove' ? ' gone' : '')
+     div.className = 'sr four' + (asked && asked.op === 'remove' ? ' gone' : '') +
+       (stepFieldsChanged(row) ? ' changed' : '')
+     div.id = 'routineStepRow-' + row.at
      const n = document.createElement('span')
      n.className = 'n'
      n.textContent = (row.at + 1) + '.'
@@ -3969,23 +3991,25 @@
        basis.className = 'basis' + (row.in_window ? ' win' : '')
        basis.textContent = row.in_window ? 'window' : 'screen'
        said.appendChild(basis)
-       const placed = asked && asked.op === 'point' ? asked : null
        if (row.movable) {
          for (const axis of ['x', 'y']) {
            const lab = document.createElement('label')
            lab.className = 'lbl'
            lab.textContent = axis
            lab.htmlFor = 'routineStep' + axis.toUpperCase() + '-' + row.at
-           const box = document.createElement('input')
-           box.type = 'number'
-           box.className = 'xy'
+           // TEXT, WITH A NUMERIC KEYBOARD, AND NOT type=number. A number field
+           // reports an entry it cannot parse as the empty string and throws the
+           // typing away on the next redraw, which is the input loss this panel was
+           // rebuilt to stop. A text field keeps exactly what was typed, and Review
+           // says what is wrong with it beside it.
+           const box = stepField(row.at, axis, String(row[axis]))
+           box.className = 'num xy'
            box.id = lab.htmlFor
            // AND THE BOX SAYS WHICH STEP AND WHICH BASIS. A list of rows each
            // carrying two numbers is a page of controls called x and y.
            box.setAttribute('aria-label', axis + ' of the press at step ' +
              (row.at + 1) + (row.in_window ? ', inside the window'
                                            : ', on the screen'))
-           box.value = String(placed ? placed[axis] : row[axis])
            const pair = document.createElement('span')
            pair.className = 'xyp'
            pair.append(lab, box)
@@ -4021,26 +4045,27 @@
        pair.textContent = row.pair_says
        what.appendChild(pair)
      }
+     // WHAT IS WRONG WITH WHAT WAS TYPED, ON THE ROW IT WAS TYPED INTO. Always present
+     // and hidden when empty, so a keystroke never has to rebuild the list to show or
+     // clear it -- a rebuild is what moves the cursor out of the box being typed in.
+     const err = document.createElement('span')
+     err.className = 'pair no' + (stepErrors[row.at] ? '' : ' hide')
+     err.id = 'routineStepErr-' + row.at
+     err.setAttribute('role', 'alert')
+     err.textContent = stepErrors[row.at] || ''
+     what.appendChild(err)
      const controls = document.createElement('span')
      controls.className = 'row'
      if (row.wait) {
-       const ms = document.createElement('input')
-       ms.type = 'number'
+       const ms = stepField(row.at, 'ms', String(row.ms))
+       ms.className = 'num ms'
        ms.id = 'routineStepMs-' + row.at
-       ms.min = '0'
        // WHAT THIS BOX IS AND WHICH STEP IT IS ON. A number with no name beside it
        // is a number read out as "edit text, 250" and nothing else; on a list of
        // nine rows carrying one box each, the step is half of what it means.
        ms.setAttribute('aria-label', 'Wait on step ' + (row.at + 1) +
          ', in milliseconds')
-       ms.value = String(asked && asked.op === 'wait' ? asked.to : row.ms)
-       const set = document.createElement('button')
-       set.id = 'routineStepSet-' + row.at
-       set.setAttribute('aria-label', 'Set the wait on step ' + (row.at + 1))
-       set.textContent = 'Set'
-       set.onclick = () => askStepChange({op: 'wait', at: row.at,
-         to: Math.max(0, parseInt(ms.value, 10) || 0)})
-       controls.append(ms, set)
+       controls.append(ms)
      }
      // ── AND THE TEXT A STEP TYPES CAN BECOME SOMETHING YOU SUPPLY ──
      //
@@ -4062,7 +4087,15 @@
        name.setAttribute('aria-label', 'What to call the value step ' +
          (row.at + 1) + ' asks for')
        name.style.width = '7em'
-       name.value = asked && asked.op === 'argument' ? asked.name : ''
+       // KEPT ACROSS REDRAWS LIKE EVERY OTHER BOX ON THE LIST, so a name half typed is not
+       // lost to a removal toggled on another row.
+       name.value = asked && asked.op === 'argument' ? asked.name
+         : stepDraft(row.at, 'name', '')
+       name.oninput = () => {
+         stepDrafts[row.at] = stepDrafts[row.at] || {}
+         stepDrafts[row.at].name = name.value
+         onStepInput(row.at)
+       }
        const ask = document.createElement('button')
        ask.id = 'routineStepArg-' + row.at
        ask.textContent = asked && asked.op === 'argument' ? 'Keep the text' : 'Ask me for it'
@@ -4073,7 +4106,13 @@
        // then names the text it replaced, so what was given up is visible before Save.
        ask.title = 'replaces all of the text this step types'
        ask.onclick = () => {
-         if (asked && asked.op === 'argument') { dropStepChange(row.at); return }
+         if (asked && asked.op === 'argument') {
+           // TAKEN BACK, AND THE NAME WITH IT: the box was the name of a request that
+           // has just been withdrawn, not a second one waiting to be made.
+           if (stepDrafts[row.at]) { delete stepDrafts[row.at].name }
+           dropStepChange(row.at)
+           return
+         }
          const n = (name.value || '').trim()
          // A NAME IS REQUIRED, AND THE CONTRACT STILL JUDGES IT. This only declines to
          // send an EMPTY one, because a window that asked for nothing and got a refusal
@@ -4084,25 +4123,24 @@
        }
        controls.append(name, ask)
      }
-     // ── AND A PRESS THAT CAN BE MOVED HAS A BUTTON TO MOVE IT ──
+     // ── AND A ROW SOMEBODY HAS TYPED INTO CAN BE PUT BACK ──
      //
-     // Beside the boxes rather than on them: a number that applied as it was typed
-     // would send three edits on the way to 350, and the last of them is the only one
-     // anybody meant.
-     if (row.point && row.movable && xBox && yBox) {
-       const place = document.createElement('button')
-       place.id = 'routineStepPlace-' + row.at
-       const placed = asked && asked.op === 'point'
-       place.textContent = placed ? 'Put it back' : 'Set'
-       place.setAttribute('aria-label', (placed ? 'Leave step ' : 'Move step ') +
-         (row.at + 1) + ' where it was')
-       place.onclick = () => {
-         if (asked && asked.op === 'point') { dropStepChange(row.at); return }
-         askStepChange({op: 'point', at: row.at,
-           x: Math.round(parseFloat(xBox.value) || 0),
-           y: Math.round(parseFloat(yBox.value) || 0)})
+     // There is no Set. The boxes ARE the change, read when Review is pressed -- a
+     // value applied as it was typed would send three edits on the way to 350, and a
+     // value that waited for a per-row button was lost whenever somebody pressed
+     // Review without it. Reset is shown only while the row differs from the routine.
+     if (row.wait || (row.point && row.movable)) {
+       const reset = document.createElement('button')
+       reset.id = 'routineStepReset-' + row.at
+       reset.className = 'reset' + (stepFieldsChanged(row) ? '' : ' hide')
+       reset.textContent = 'Reset'
+       reset.setAttribute('aria-label', 'Put step ' + (row.at + 1) + ' back as it was')
+       reset.onclick = () => {
+         delete stepDrafts[row.at]
+         delete stepErrors[row.at]
+         drawStepRows()
        }
-       controls.appendChild(place)
+       controls.appendChild(reset)
      }
      // AND A STEP WHOSE TEXT IS ALREADY SUPPLIED SAYS SO, rather than offering the
      // control again for an edit the contract refuses.
@@ -4125,6 +4163,12 @@
        : askStepChange({op: 'remove', at: row.at})
      controls.appendChild(rm)
      div.append(n, act, what, controls)
+     // A STEP BEING REMOVED CANNOT ALSO BE CHANGED -- one operation per step, which is
+     // the backend's rule too. Its boxes keep what was typed and are greyed rather than
+     // cleared, so taking the removal back gives the typing back.
+     if (asked && asked.op === 'remove') {
+       div.querySelectorAll('input.num').forEach(b => { b.disabled = true })
+     }
      box.appendChild(div)
    })
    drawStepAsked()
@@ -4136,18 +4180,129 @@
  // changed and removed is refused there, and offering it here would be offering a press that
  // comes back as an error.
  function askStepChange(c){
-   dropStepChange(c.at)
+   stepChanges = stepChanges.filter(x => x.at !== c.at)
    stepChanges.push(c)
+   withdrawStepReview()
    drawStepRows()
  }
 
  function dropStepChange(at){
    stepChanges = stepChanges.filter(c => c.at !== at)
+   withdrawStepReview()
    drawStepRows()
  }
 
+ // A REVIEW IS OF WHAT WAS ASKED WHEN IT WAS MADE. Change anything after it and the review on
+ // screen describes an edit nobody is asking for any more, with a live Save beside it -- so it
+ // is let go of, and Review is pressed again. The token goes back to the backend with it.
+ function withdrawStepReview(){
+   if (stepReview) { cancelStepEdit() }
+ }
+
+ // ── THE BOXES ARE THE CHANGE ─────────────────────────────────────────────────
+ //
+ // A field holds its draft as typed, and keeps it across every redraw of the list: a
+ // removal toggled on another row rebuilds the rows, and that rebuild must not be where
+ // somebody's typing goes. Nothing is applied as it is typed; Review reads every field.
+ function stepField(at, key, original){
+   const box = document.createElement('input')
+   box.type = 'text'
+   box.inputMode = 'numeric'
+   box.autocomplete = 'off'
+   box.spellcheck = false
+   const d = stepDrafts[at]
+   box.value = (d && Object.prototype.hasOwnProperty.call(d, key)) ? d[key] : original
+   box.oninput = () => {
+     stepDrafts[at] = stepDrafts[at] || {}
+     stepDrafts[at][key] = box.value
+     onStepInput(at)
+   }
+   return box
+ }
+
+ function stepDraft(at, key, original){
+   const d = stepDrafts[at]
+   return (d && Object.prototype.hasOwnProperty.call(d, key)) ? d[key] : original
+ }
+
+ function stepFieldsChanged(row){
+   const same = (key, original) => stepDraft(row.at, key, original).trim() === original
+   if (row.wait && !same('ms', String(row.ms))) { return true }
+   if (row.point && row.movable &&
+       (!same('x', String(row.x)) || !same('y', String(row.y)))) { return true }
+   return false
+ }
+
+ // A KEYSTROKE UPDATES THE ROW IT IS ON AND THE SUMMARY, AND REBUILDS NOTHING. Rebuilding
+ // would take the cursor out of the box being typed in.
+ function onStepInput(at){
+   withdrawStepReview()
+   const row = ((stepList && stepList.rows) || []).find(r => r.at === at)
+   if (row) {
+     const changed = stepFieldsChanged(row)
+     const el = $('routineStepRow-' + at)
+     if (el) { el.classList.toggle('changed', changed) }
+     const reset = $('routineStepReset-' + at)
+     if (reset) { showing(reset, changed) }
+   }
+   // THE REASON GOES WHEN THE THING IT WAS ABOUT IS EDITED, and not before.
+   if (stepErrors[at]) {
+     delete stepErrors[at]
+     const err = $('routineStepErr-' + at)
+     if (err) { text(err, ''); showing(err, false) }
+   }
+   drawStepAsked()
+ }
+
+ // EVERY CHANGE ON THE LIST, READ OFF THE LIST. The removals and the supplied-text marks are
+ // what was pressed; the waits and the points are what the boxes now hold. An entry that is
+ // not a value is an ERROR AGAINST ITS ROW and is never sent and never dropped: the person sees
+ // it beside what they typed.
+ function collectStepEdits(){
+   const changes = []
+   const errors = {}
+   ;((stepList && stepList.rows) || []).forEach(row => {
+     const asked = changeAt(row.at)
+     if (asked) { changes.push(asked) }
+     if (asked && asked.op === 'remove') { return }
+     if (row.wait) {
+       const raw = stepDraft(row.at, 'ms', String(row.ms)).trim()
+       if (raw !== String(row.ms)) {
+         if (/^\d+$/.test(raw)) {
+           changes.push({op: 'wait', at: row.at, to: parseInt(raw, 10)})
+         } else {
+           errors[row.at] = raw === ''
+             ? 'Enter how long to wait, in milliseconds.'
+             : '“' + raw + '” is not a whole number of milliseconds.'
+         }
+       }
+     }
+     if (row.point && row.movable) {
+       const rx = stepDraft(row.at, 'x', String(row.x)).trim()
+       const ry = stepDraft(row.at, 'y', String(row.y)).trim()
+       if (rx !== String(row.x) || ry !== String(row.y)) {
+         if (/^-?\d+$/.test(rx) && /^-?\d+$/.test(ry)) {
+           changes.push({op: 'point', at: row.at, x: parseInt(rx, 10), y: parseInt(ry, 10)})
+         } else {
+           errors[row.at] = 'Enter whole numbers for x and y.'
+         }
+       }
+     }
+     // A NAME TYPED AND NOT ASKED FOR. Making the text something you supply replaces all
+     // of it, so it stays a press -- but a name left in the box is not quietly ignored.
+     if (row.types && !(asked && asked.op === 'argument')) {
+       const named = stepDraft(row.at, 'name', '').trim()
+       if (named) {
+         errors[row.at] = 'Press “Ask me for it” to use “' + named +
+           '” for this step’s text, or clear the name.'
+       }
+     }
+   })
+   return {changes, errors}
+ }
+
  function clearStepChanges(){
-   stepChanges = []
+   resetStepEdits()
    stepReview = null
    showing($('routineStepEdit'), false)
    text($('routineStepsWhy'), '')
@@ -4158,9 +4313,12 @@
  // review exists.
  function drawStepAsked(){
    const box = $('routineStepAsked')
-   showing(box, stepChanges.length > 0)
-   $('routineStepReviewBtn').disabled = stepChanges.length === 0
-   if (!stepChanges.length) { return }
+   const got = collectStepEdits()
+   const wrong = Object.keys(got.errors).length
+   const any = got.changes.length + wrong
+   showing(box, any > 0)
+   $('routineStepReviewBtn').disabled = any === 0
+   if (!any) { return }
    // EVERY OP NAMED, and a word this does not know says so rather than borrowing
    // another one's sentence. The ternary here read "is removed" for anything that was
    // not a wait, so the third operation would have told somebody their step was being
@@ -4182,8 +4340,21 @@
      }
      return at + ' is changed in a way this window cannot describe (' + c.op + ')'
    }
-   text(box, 'Asked: ' + stepChanges.map(saysChange).join('; ') +
+   const parts = got.changes.map(saysChange)
+   Object.keys(got.errors).forEach(at => {
+     parts.push('step ' + (Number(at) + 1) + ' needs a correction')
+   })
+   text(box, 'Asked: ' + parts.join('; ') +
      '. Nothing is written until you review and save it.')
+ }
+
+ // HOW MANY THINGS LEAVING WOULD THROW AWAY, for the leave-the-routine warning. Counts what
+ // was typed as well as what was pressed, valid or not: an entry with a mistake in it is still
+ // somebody's work.
+ function stepEditCount(){
+   if (!stepList) { return 0 }
+   const got = collectStepEdits()
+   return got.changes.length + Object.keys(got.errors).length
  }
 
  // DECLARING A RUN TYPED TEXT GOES THROUGH THE SAME REVIEW as every other change, so it is
@@ -4203,14 +4374,15 @@
      text($('routineStepsWhy'), 'choose the run of steps that is text you typed')
      return
    }
-   if (stepChanges.length) {
-     stepChanges = []
-     drawStepAsked()
-     text($('routineStepsWhy'), 'the other changes were cleared — saying which steps ' +
-       'are typed text changes how many steps there are, so it is reviewed on its own')
-   } else {
-     text($('routineStepsWhy'), '')
+   // AND IT WAITS FOR WHAT ELSE IS ON THE LIST, rather than clearing it. It used to drop the
+   // collected changes and say so; with the boxes being the changes, that would be a press
+   // that throws away somebody's typing. Nothing is sent; their work stays where it is.
+   if (stepEditCount()) {
+     text($('routineStepsWhy'), 'Review or reset the other changes first — saying which ' +
+       'steps are typed text changes how many steps there are, so it is reviewed on its own.')
+     return
    }
+   text($('routineStepsWhy'), '')
    acts.ReviewStepEdit(r.id, stepList.basis,
      [{op: 'typed', at: from, upto: to, to: 0, name: ''}]).then(v => {
      if (!v || v.why) {
@@ -4233,7 +4405,22 @@
    const r = routineWith(chosenRoutine)
    if (!r || !stepList) { return }
    text($('routineStepsWhy'), '')
-   acts.ReviewStepEdit(r.id, stepList.basis, stepChanges).then(v => {
+   const got = collectStepEdits()
+   const wrong = Object.keys(got.errors)
+   if (wrong.length) {
+     // NOTHING IS SENT, AND NOTHING IS RESET. Each reason goes on its row beside what was
+     // typed, and the first of them gets the cursor.
+     stepErrors = got.errors
+     drawStepRows()
+     text($('routineStepsWhy'), wrong.length === 1
+       ? 'Step ' + (Number(wrong[0]) + 1) + ' needs a correction before it can be reviewed.'
+       : wrong.length + ' steps need a correction before they can be reviewed.')
+     const first = document.querySelector('#routineStepRow-' + wrong[0] + ' input:not(:disabled)')
+     if (first) { first.focus() }
+     return
+   }
+   stepErrors = {}
+   acts.ReviewStepEdit(r.id, stepList.basis, got.changes).then(v => {
      if (!v || v.why) {
        // REFUSED, AND THE LIST READ AGAIN. The usual reason is that the routine
        // has been written since these rows were listed, and the only honest
@@ -4256,7 +4443,7 @@
    const r = routineWith(chosenRoutine)
    if (!r) { return }
    acts.StepEditing(r.id).then(v => {
-     stepChanges = []
+     resetStepEdits()
      if (!v || v.why || !v.editable) {
        stepList = null
        showing($('routineSteps'), false)
@@ -4329,7 +4516,7 @@
      }
      stepReview = null
      stepList = null
-     stepChanges = []
+     resetStepEdits()
      showing($('routineStepEdit'), false)
      showing($('routineSteps'), false)
      stepSaid = {id: v.id, says: done.says || '', partial: !!done.partial}
@@ -4850,7 +5037,7 @@
    if (stepReview && stepReview.id !== r.id) { cancelStepEdit() }
    if (stepList && stepList.id !== r.id) {
      stepList = null
-     stepChanges = []
+     resetStepEdits()
      showing($('routineSteps'), false)
    }
    drawStepOutcome(r)

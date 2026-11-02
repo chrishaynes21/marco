@@ -300,7 +300,8 @@ setTimeout(() => {
 setTimeout(() => {
   document.getElementById('routineStepX-1').value = '200'
   document.getElementById('routineStepY-1').value = '150'
-  press('routineStepPlace-1')
+  document.getElementById('routineStepX-1').dispatchEvent(new Event('input'))
+  document.getElementById('routineStepY-1').dispatchEvent(new Event('input'))
 }, 1800)
 setTimeout(() => {
   after = shownAsked()

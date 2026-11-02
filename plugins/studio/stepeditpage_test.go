@@ -220,7 +220,7 @@ setTimeout(() => {
             there('routineStepDown-1')) ? 1 : 0
   deadBtn = document.getElementById('routineStepReviewBtn').disabled ? 1 : 0
   document.getElementById('routineStepMs-1').value = '800'
-  press('routineStepSet-1')
+  document.getElementById('routineStepMs-1').dispatchEvent(new Event('input'))
 }, 1500)
 setTimeout(() => {
   askedText = shown('routineStepAsked')
@@ -238,7 +238,7 @@ setTimeout(() => {
   staleAsked = shown('routineStepAsked')
   staleRows = document.getElementById('routineStepRows').children.length
   document.getElementById('routineStepMs-1').value = '800'
-  press('routineStepSet-1')
+  document.getElementById('routineStepMs-1').dispatchEvent(new Event('input'))
 }, 2200)
 setTimeout(() => { press('routineStepReviewBtn') }, 2500)
 setTimeout(() => {
