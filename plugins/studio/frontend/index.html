@@ -3175,7 +3175,8 @@
            ', so that text would be typed as recorded again.' : ''))
      // WHICH ROUTINE THIS WILL BE, from the draft's own name. See capReviewName.
      text($('capReviewName'), r.name ? 'Review “' + r.name + '”' : 'Review this recording')
-     text($('capSaid'), r.said || '')
+     // WITHOUT ITS FULL STOP, because the line goes on: ` · recorded in … · ended by …`.
+     text($('capSaid'), (r.said || '').replace(/\.$/, ''))
      $('capSaid').className = r.failed ? 'no' : ''
      text($('capExit'), r.exit || '')
      showing($('capExit'), !!r.exit)
