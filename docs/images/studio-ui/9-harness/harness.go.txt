@@ -49,7 +49,7 @@ func main() {
 	at := filepath.Join(tmp, "page.html")
 	must(os.WriteFile(at, []byte(doc), 0o644))
 	base := []string{"--headless=new", "--disable-gpu", "--hide-scrollbars", "--no-first-run", "--no-default-browser-check",
-		"--force-device-scale-factor=1", "--virtual-time-budget=9000", fmt.Sprintf("--window-size=%d,%d", *w, *h)}
+		"--force-device-scale-factor=1", "--force-prefers-reduced-motion", "--virtual-time-budget=9000", fmt.Sprintf("--window-size=%d,%d", *w, *h)}
 	if *out != "" {
 		abs, _ := filepath.Abs(*out)
 		run(append(base, "--user-data-dir="+filepath.Join(tmp, "p1"), "--screenshot="+abs, at)...)

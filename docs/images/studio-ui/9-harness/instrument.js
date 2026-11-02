@@ -65,6 +65,7 @@ window.__measure = function(){
     unnamedControls: ctlNoName,
     hscroll: m ? (m.scrollWidth > m.clientWidth + 1) : false,
     mainScrollHeight: m ? m.scrollHeight : 0, viewport: innerWidth + 'x' + innerHeight,
+    filled: (() => { const p = document.createElement('div'); p.style.background = 'var(--spot)'; document.body.appendChild(p); const spot = getComputedStyle(p).backgroundColor; p.remove(); return Array.from(document.querySelectorAll('main button')).filter(visible).filter(b => getComputedStyle(b).backgroundColor === spot).length })(),
     errors: window.__errors,
   }
   doc.setAttribute('data-audit', JSON.stringify(out))
