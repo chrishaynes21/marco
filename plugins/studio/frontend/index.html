@@ -1027,6 +1027,7 @@
          — and that is the ONLY thing the boundary trims instead of refusing, which is why
          it is said out loud. Empty and hidden when nothing was left out. -->
     <div class="muted hide" style="margin-top:6px" id="capExit"></div>
+    <div class="muted hide" style="margin-top:6px" id="capAway"></div>
 
     <!-- WHAT WAS DEMONSTRATED, FIRST. The draft in plain words, one line each, in order,
          from the recording that ran. It is the thing being approved. -->
@@ -2910,7 +2911,11 @@
      // A recording happens in THIS process, so a diagnostic that writes a file into
      // somebody's library while the keyboard is being watched is work done on the
      // one thread that has to stay out of the way. See pollReady.
+     const wasActive = captureActive
      captureActive = !!r.active
+     // EVERY PLAY ON THE PAGE CHANGES WITH THIS, so it is repainted when it flips rather
+     // than on whatever next happens to repaint them.
+     if (wasActive !== captureActive) { paintRoutinePlay() }
      // AND THE WINDOW LIST IS FILLED THE FIRST TIME THE CARD IS AVAILABLE, so the
      // choice is already in front of somebody rather than waiting on a button they
      // have no reason to press. Once: refilling it under their cursor would move the
@@ -3026,7 +3031,8 @@
      // redrawn would leave the page sending a term for a list it had stopped showing.
      capBasis = r.basis || ''
      const sig = r.name + '\u0000' + (r.said || '') + '\u0000' + (r.missing || '')
-       + '\u0000' + (r.exit || '') + '\u0000' + (r.steps || []).join('|')
+       + '\u0000' + (r.exit || '') + '\u0000' + (r.away || '')
+       + '\u0000' + (r.steps || []).join('|')
        + '\u0000' + (r.simplified ? 1 : 0) + (r.original ? 1 : 0)
        + '\u0000' + (r.supply_says || '')
        + '\u0000' + (r.supply || []).map(c => c.at + ':' + c.label).join('|')
@@ -3058,6 +3064,11 @@
      $('capSaid').className = r.failed ? 'no' : 'ok'
      text($('capExit'), r.exit || '')
      showing($('capExit'), !!r.exit)
+     // AND HOW LONG THEY WERE AWAY, which is why the routine is shorter than what they did:
+     // the gap where the absence was is a quarter of a second now. The backend has sent this
+     // since the recording learned to pause, and the page never showed it.
+     text($('capAway'), r.away || '')
+     showing($('capAway'), !!r.away)
      text($('capMissing'), r.missing || '')
      showing($('capWontRunBox'), !!r.missing)
      text($('capUnsupported'), r.unsupported || '')
@@ -3342,7 +3353,10 @@
  // One call, one answer, and nothing starts. `SuggestRoutine` names a routine by its
  // WHOLE identity, which is what a card already carries, so selecting it is the same
  // thing clicking the card does - and Play is then the button it always was.
- let askTargets = ''
+ // NULL, NOT THE EMPTY STRING. An answer with no applications in it has the empty signature,
+ // and comparing that to an empty starting value returned before the first paint -- so with
+ // nothing running the selector had no options at all, not even `no application`.
+ let askTargets = null
  function pollAskTargets(){
    acts.SuggestTargets().then(ts => {
      ts = ts || []
@@ -3521,7 +3535,7 @@
        (open ? '<button id="routineRenameBtn" type="button">Rename</button>' : '') +
        '<button class="go big" type="button" id="' + playId + '">Play</button>' +
        '<span class="muted rowsays" id="' + saysId + '"></span>' +
-       (open ? '<span class="muted hide" id="routineWants"></span>' : '') +
+       (open ? '<span class="muted rowsays hide" id="routineWants"></span>' : '') +
        '</div>' +
        '<div class="here" id="routineHere-' + key + '"></div>'
      list.appendChild(card)
@@ -3652,7 +3666,7 @@
 
  function playFrom(id){
    const r = routineWith(id)
-   if (!r || !r.runnable || runActive) { return }
+  if (!r || !r.runnable || runActive || captureActive) { return }
    if (chosenRoutine !== id) {
      // OPENING IT IS LEAVING THE OTHER ONE, and that is the same question with the
      // same answer. A refused leave is a warning on screen and no run.
@@ -4684,11 +4698,20 @@
    const r = routineWith(chosenRoutine)
    if (!r) { return }
    acts.ReviewRename(r.id, $('routineRenameBox').value || '').then(v => {
-     if (!v || v.why) {
+     // A REFUSED RENAME IS SAID BESIDE THE BOX, whether it was refused before a review
+     // (`why`) or by preparing one (`refused` -- a name something else already has, or a
+     // credential the new name would stop reading). The review panel opens only for a
+     // rename that can happen: it describes what the routine WOULD be called and where it
+     // would be filed, and that description in front of a refusal is the panel saying the
+     // rename will happen and then that it will not.
+     const refusal = v && (v.why || (v.refused && !v.movable ? v.refused : ''))
+     if (!v || refusal) {
+       if (v && v.token) { acts.CancelMove(v.token) }
        moving = null
        showing($('routineMove'), false)
-       text($('routineRenameWhy'), (v && v.why) || 'the rename could not be prepared')
+       text($('routineRenameWhy'), refusal || 'the rename could not be prepared')
        showing($('routineRenameWhy'), true)
+       $('routineRenameBox').focus()
        return
      }
      showing($('routineRenameWhy'), false)
@@ -5354,7 +5377,14 @@
    rows.innerHTML = ''
    ;(willType.says || []).forEach(line => {
      const li = document.createElement('li')
-     li.textContent = line
+     // ONE LINE ACROSS THE ROW. `ol.steps li` is a grid of number, verb and value, and a
+     // bare line of text dropped into it lands in the 96px verb column -- so `item —
+     // "granite"` broke over two lines in the one place somebody checks a value before a
+     // run. The line spans the verb and value columns instead.
+     const said = document.createElement('span')
+     said.className = 'whole'
+     said.textContent = line
+     li.appendChild(said)
      rows.appendChild(li)
    })
    text($('routineWillTypeWhy'), willType.why || '')
@@ -5396,6 +5426,9 @@
  //
  // A button that is live and answers a press with "this routine cannot be performed as it
  // stands" is a window telling somebody off for pressing what it offered them.
+ // WHY EVERY PLAY IS DARK WHILE A RECORDING RUNS, in five words on the row.
+ const RECORDING_BLOCKS_PLAY = 'Finish the recording to play.'
+
  function paintRoutinePlay(){
    const r = routineWith(chosenRoutine)
    // WHERE EACH BOX'S TEXT CAME FROM, REPAINTED RATHER THAN REBUILT. This runs on every
@@ -5409,9 +5442,20 @@
    // because pressing it OPENS the row and puts the cursor in whatever it still needs
    // -- so the press always does something, which is the condition the open row's
    // button cannot meet and the reason the two rules differ.
+   // AND NONE WHILE SOMETHING IS BEING RECORDED. The backend refuses a Play then -- one
+   // thing at a time on one screen -- and a button that looks live and answers with a
+   // refusal is a press wasted on finding that out. Each row says why, briefly, on its
+   // own line; a routine that cannot run at all keeps its own reason instead.
+   const recording = !!captureActive
    routines.forEach(x => {
-     const b = $('routinePlay-' + routineKey(x.id))
-     if (b) { b.disabled = runActive || !x.runnable }
+     const key = routineKey(x.id)
+     const b = $('routinePlay-' + key)
+     if (b) { b.disabled = runActive || recording || !x.runnable }
+     const says = $('routineSays-' + key)
+     if (says && x.runnable) {
+       says.className = 'muted rowsays'
+       text(says, recording ? RECORDING_BLOCKS_PLAY : '')
+     }
    })
    // AND THE OPEN ONE, WHICH HAS THE FIELDS IN FRONT OF IT. Dead rather than
    // live-and-then-refused: the window and the text are both on screen here, so a
@@ -5422,7 +5466,8 @@
    // be drawn, and this painted, with nothing chosen at all.
    const btn = $('routinePlayBtn')
    if (btn) {
-     btn.disabled = runActive || !r || !r.runnable || !intoWindow || !suppliedArgs()
+     btn.disabled = runActive || recording || !r || !r.runnable || !intoWindow ||
+       !suppliedArgs()
    }
    // AND THE FIELDS IT IS WAITING ON ARE NAMED, when that is the only thing it waits on.
    //
@@ -5431,8 +5476,10 @@
    // rather than empty, which is the distinction `suppliedArgs` makes and the reason this
    // reads the same predicate — a box somebody has typed into and cleared is a value, and
    // a routine asked to type nothing types nothing.
-   const wants = (!runActive && r && r.runnable && intoWindow && !suppliedArgs())
-     ? 'Fill in ' + missingArgs().join(' and ') + ' below to play it.' : ''
+   // AND NO DIRECTION IN IT. It said `below`, and the field is above it at a narrow width.
+   const wants = (recording && r && r.runnable) ? RECORDING_BLOCKS_PLAY
+     : (!runActive && r && r.runnable && intoWindow && !suppliedArgs())
+       ? 'Enter ' + missingArgs().join(' and ') + ' to play.' : ''
    if ($('routineWants')) {
      text($('routineWants'), wants)
      showing($('routineWants'), !!wants)

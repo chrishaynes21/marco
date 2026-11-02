@@ -305,6 +305,12 @@ func TestARenameOntoAnOccupiedNameIsRefusedWithNothingToAgreeTo(t *testing.T) {
 	if !strings.Contains(m.Refused, "already a routine") {
 		t.Errorf("the refusal does not name what is in the way: %q", m.Refused)
 	}
+	// BY THE NAME SOMEBODY TYPED AND THE APPLICATION, NOT THE ROUTE ID. It is read beside
+	// the box the name was typed into.
+	if !strings.Contains(m.Refused, `"post my address" is already a routine in notepad`) ||
+		strings.Contains(m.Refused, "/") {
+		t.Errorf("the refusal does not name the routine in the person's words: %q", m.Refused)
+	}
 	// NOTHING TO AGREE TO. `Taken` is what makes a consent possible at all.
 	if m.Taken || m.TakenSays != "" {
 		t.Errorf("a rename offered a consent to replace what is there: %+v", m)

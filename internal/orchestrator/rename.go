@@ -87,10 +87,18 @@ func (d Deps) PrepareRename(rt routes.Route, newBase string) (Rescoping, error) 
 			"nothing to rename", m.Name)
 	}
 	// ── AND A COLLISION IS REFUSED, WITH NOTHING TO AGREE TO ──
+	//
+	// NAMED BY ITS NAME, NOT ITS ROUTE ID. The sentence is read beside the box somebody just
+	// typed a name into, and `arkascended/focus/open-settings` is how the library files it,
+	// not what anybody called it.
 	if m.Taken {
-		m.Refused = fmt.Sprintf("there is already a routine at %s. Nothing has been "+
+		where := "that works everywhere"
+		if m.To.App != "" {
+			where = "in " + m.To.App
+		}
+		m.Refused = fmt.Sprintf("%q is already a routine %s. Nothing has been "+
 			"renamed — choose another name, or delete that one first",
-			m.TakenID)
+			strings.TrimSpace(newBase), where)
 		m.Taken, m.TakenSays = false, ""
 		return m.sealed(), nil
 	}

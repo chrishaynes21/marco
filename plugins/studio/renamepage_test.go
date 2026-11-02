@@ -84,7 +84,7 @@ window.go = {main: {
         return Promise.resolve({id: args[0], from: args[0], name: 'cloud pull stone',
           renaming: 'cloud pull wood', clause: 'with item', token: 'tok-taken',
           to: 'arkascended/focus/cloud-pull-wood', movable: false,
-          refused: 'there is already a routine at arkascended/focus/cloud-pull-wood. ' +
+          refused: '"cloud pull wood" is already a routine in arkascended. ' +
             'Nothing has been renamed - choose another name, or delete that one first',
           was: 'use os.', now: ''})
       }
@@ -222,10 +222,11 @@ setTimeout(() => {
 
 // AND A REFUSAL LANDS WHERE THE THING TO CHANGE IS.
 //
-// TWO PLACES, AND THEY ARE NOT ONE. A refusal with no review — the name it already has — belongs
-// beside the box, which is what somebody would retype. A refusal WITH a review — something is
-// already called that — belongs in the panel beside the two sources, because there is a review to
-// read and the answer is a different name rather than a press.
+// ONE PLACE: BESIDE THE BOX. A refusal with no review — the name it already has — and a refusal
+// the backend reached by preparing one — something else is already called that — both belong
+// where the name was typed, because the answer to both is a different name. It used to open the
+// review for the second, which then described the rename as if it would happen before saying it
+// would not. See [[Studio-coherence-audit-2026-11-02]], finding 8.
 func TestARefusedRenameSaysSoWhereTheAnswerIs(t *testing.T) {
 	browser := aBrowser()
 	if browser == "" {
@@ -250,9 +251,11 @@ setTimeout(() => {
   press('routineRenameGo')
 }, 1900)
 setTimeout(() => {
+  // BESIDE THE BOX TOO, and no review: a refused rename has no outcome to describe,
+  // and the answer is a different name typed where the cursor already is.
   takenWhy = seen('routineRenameWhy')
-  takenRefused = said('routineMoveRefused')
-  takenBtn = document.getElementById('routineMoveBtn').disabled ? 0 : 1
+  takenRefused = said('routineRenameWhy')
+  takenBtn = seen('routineMove')
   takenConsent = seen('routineMoveConsentRow')
 }, 2300)
 
@@ -279,16 +282,13 @@ setTimeout(() => {
 	if n("samePanel") != 0 {
 		t.Errorf("a refusal with no review opened the review panel anyway: %q", title)
 	}
-	if n("takenWhy") != 0 {
-		t.Errorf("the refusal from the earlier attempt is still beside the box: %q",
-			title)
-	}
-	if n("taken") != 1 {
-		t.Errorf("a name something else already has is not refused in the review: %q",
+	if n("takenWhy") != 1 || n("taken") != 1 {
+		t.Errorf("a name something else already has is not refused beside the box: %q",
 			title)
 	}
 	if n("takenBtn") != 0 {
-		t.Errorf("the button under a refused rename is live: %q", title)
+		t.Errorf("a refused rename opened its review, which describes an outcome that "+
+			"will not happen: %q", title)
 	}
 	if n("takenConsent") != 0 {
 		t.Errorf("the window offered to replace the routine that is in the way: %q",
