@@ -139,7 +139,8 @@ func TestLearningANameTwiceAsksBeforeItReplacesAnything(t *testing.T) {
 func TestAutoLearnRefusesACollisionAndKeepsWhatIsThere(t *testing.T) {
 	t.Setenv("MARCO_CV", "off")
 	reg := routes.Registry{Dir: t.TempDir()}
-	rt := routes.Route{App: "notepad", Slug: "the-same-name"}
+	// FOCUS, because that is the shared default an unattended save now uses (R2).
+	rt := routes.Route{App: "notepad", Focus: true, Slug: "the-same-name"}
 
 	var first bytes.Buffer
 	d := aTerminal(reg, aPlainDemonstration("a"), "", &first, "notepad")
@@ -807,12 +808,13 @@ func TestNoSurfaceSavesARoutineThatRefusesEveryPress(t *testing.T) {
 func TestTheTerminalStatesNoModeAndStillDoesNot(t *testing.T) {
 	t.Setenv("MARCO_CV", "off")
 	for _, how := range []struct {
-		say string
-		run func(Deps) error
-		in  string
+		say   string
+		run   func(Deps) error
+		in    string
+		focus bool // where it lands: "c" was answered, or the unattended default (R2)
 	}{
-		{"learn", func(d Deps) error { return d.Learn("ordinary") }, "y\nc\n"},
-		{"auto", func(d Deps) error { return d.LearnAuto("ordinary") }, ""},
+		{"learn", func(d Deps) error { return d.Learn("ordinary") }, "y\nc\n", false},
+		{"auto", func(d Deps) error { return d.LearnAuto("ordinary") }, "", true},
 	} {
 		reg := routes.Registry{Dir: t.TempDir()}
 		var out bytes.Buffer
@@ -829,7 +831,7 @@ func TestTheTerminalStatesNoModeAndStillDoesNot(t *testing.T) {
 				"callers have always sent", how.say, told.mode)
 		}
 		// AND THE SAVED ROUTINE STATES NOTHING, which `ModeOf` reads back as unstated.
-		src := sourceAt(t, reg, routes.Route{App: "notepad", Slug: "ordinary"})
+		src := sourceAt(t, reg, routes.Route{App: "notepad", Focus: how.focus, Slug: "ordinary"})
 		if strings.Contains(src, modeStated) {
 			t.Errorf("%s: the saved routine states a mode it was never recorded "+
 				"under:\n%s", how.say, src)

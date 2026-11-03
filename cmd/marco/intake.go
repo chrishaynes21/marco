@@ -469,6 +469,24 @@ func performOnePlay(d orchestrator.Deps, p playInvocation) (Outcome, error) {
 	// "what runs is what was authorised" true rather than merely intended: a caller still
 	// holding the map it passed in cannot change what gets typed after the door has
 	// answered. See orchestrator.Resolved.WithValues.
+	// ── AN ONLY-IN ROUTINE RUNS ONLY IN ITS APPLICATION, WHICHEVER ARM DECIDED IT ──
+	//
+	// Here, because this is the one place every performance of a routine passes: a phrase,
+	// an explicit identity from Studio or the control centre, a binding, a confirmed offer.
+	// The phrase arms already offer an in-place routine only while its application is the
+	// context; an explicit identity was never checked, and its route carries no `Activate`
+	// and no check of its own, so it ran into whatever was in front. The foreground is read
+	// NOW, not carried from the intake, which for `--play --app` held the route's app rather
+	// than a reading. A window the host validated for this run is the other way in — Studio's
+	// handoff — and only when it belongs to the routine's application.
+	//
+	// Deleting this must fail TestAnExplicitOnlyInRoutineIsRefusedWithAnotherAppInFront.
+	if why := orchestrator.AdmitInPlace(p.rt, orchestrator.InPlace{
+		HandedTo: d.HandedTo, Foreground: appOf(d)}); why != "" {
+		mlog.Info("intake: not admitted here", "play", p.rt.Slug, "why", why)
+		fmt.Fprintln(os.Stdout, why)
+		return OutcomeRefused, nil
+	}
 	resolved := orchestrator.Classify(d.Reg, p.rt, plays.Pretty(p.rt.Slug)).
 		WithValues(p.named)
 	decision := orchestrator.Authorize(resolved, d.Authority)

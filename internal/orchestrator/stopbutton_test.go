@@ -86,7 +86,7 @@ func learnByButton(t *testing.T, events []recorder.RecordedEvent) string {
 	if err := d.LearnAuto("ark graphics"); err != nil {
 		t.Fatalf("recording: %v", err)
 	}
-	raw, err := os.ReadFile(reg.Path(routes.Route{App: "arkascended",
+	raw, err := os.ReadFile(reg.Path(routes.Route{App: "arkascended", Focus: true, // the shared default (R2)
 		Slug: "ark-graphics"}))
 	if err != nil {
 		t.Fatalf("loading the saved route: %v (said: %s)", err, out.String())
@@ -230,7 +230,7 @@ func TestAGestureEndedRecordingIsNotStripped(t *testing.T) {
 	// last app the recording switched to is the app it is filed under. Read from
 	// there deliberately rather than worked around, because it is the clearest
 	// statement of what the strip is for.
-	raw, err := os.ReadFile(reg.Path(routes.Route{App: "studio",
+	raw, err := os.ReadFile(reg.Path(routes.Route{App: "studio", Focus: true, // the shared default (R2)
 		Slug: "ark-graphics"}))
 	if err != nil {
 		t.Fatalf("loading: %v (said: %s)", err, out.String())
@@ -263,12 +263,12 @@ func TestAButtonStoppedRecordingIsFiledUnderTheAppItWasMadeIn(t *testing.T) {
 	if err := d.LearnAuto("ark graphics"); err != nil {
 		t.Fatalf("recording: %v", err)
 	}
-	if _, err := os.Stat(reg.Path(routes.Route{App: "studio",
+	if _, err := os.Stat(reg.Path(routes.Route{App: "studio", Focus: true, // the shared default (R2)
 		Slug: "ark-graphics"})); err == nil {
 		t.Fatal("the routine was filed under Marco's own window, so it is only " +
 			"offered while Marco is in front")
 	}
-	if _, err := os.Stat(reg.Path(routes.Route{App: "arkascended",
+	if _, err := os.Stat(reg.Path(routes.Route{App: "arkascended", Focus: true, // the shared default (R2)
 		Slug: "ark-graphics"})); err != nil {
 		t.Fatalf("the routine is not filed under the app it was demonstrated "+
 			"in: %v (said: %s)", err, out.String())
@@ -337,7 +337,7 @@ func TestAStopInsideTheSampleIntervalIsStillCut(t *testing.T) {
 	}
 	// FILED UNDER THE GAME, which is also the assertion that the tail is gone: the
 	// scope comes from the recording's last app switch.
-	raw, err := os.ReadFile(reg.Path(routes.Route{App: "arkascended",
+	raw, err := os.ReadFile(reg.Path(routes.Route{App: "arkascended", Focus: true, // the shared default (R2)
 		Slug: "ark-graphics"}))
 	if err != nil {
 		t.Fatalf("the routine is not filed under the app it was demonstrated "+
@@ -378,7 +378,7 @@ func TestTheProcessBoundaryHoldsWithNoOwnerName(t *testing.T) {
 	if err := d.LearnAuto("ark graphics"); err != nil {
 		t.Fatalf("recording: %v", err)
 	}
-	raw, err := os.ReadFile(reg.Path(routes.Route{App: "arkascended",
+	raw, err := os.ReadFile(reg.Path(routes.Route{App: "arkascended", Focus: true, // the shared default (R2)
 		Slug: "ark-graphics"}))
 	if err != nil {
 		t.Fatalf("loading: %v (said: %s)", err, out.String())
@@ -424,7 +424,7 @@ func TestAMoveBetweenDemonstratedClicksSurvivesTheProcessRule(t *testing.T) {
 	if err := d.LearnAuto("ark graphics"); err != nil {
 		t.Fatalf("recording: %v", err)
 	}
-	raw, err := os.ReadFile(reg.Path(routes.Route{App: "arkascended",
+	raw, err := os.ReadFile(reg.Path(routes.Route{App: "arkascended", Focus: true, // the shared default (R2)
 		Slug: "ark-graphics"}))
 	if err != nil {
 		t.Fatalf("loading: %v (said: %s)", err, out.String())
@@ -483,7 +483,7 @@ func TestAMoveBetweenTwoOperatorClicksIsCutWithThem(t *testing.T) {
 	if err := d.LearnAuto("ark graphics"); err != nil {
 		t.Fatalf("recording: %v", err)
 	}
-	raw, err := os.ReadFile(reg.Path(routes.Route{App: "arkascended",
+	raw, err := os.ReadFile(reg.Path(routes.Route{App: "arkascended", Focus: true, // the shared default (R2)
 		Slug: "ark-graphics"}))
 	if err != nil {
 		t.Fatalf("loading: %v (said: %s)", err, out.String())
@@ -538,7 +538,7 @@ func TestAnUnattributedReleaseDoesNotHideThePressBehindIt(t *testing.T) {
 	if err := d.LearnAuto("ark graphics"); err != nil {
 		t.Fatalf("recording: %v", err)
 	}
-	raw, err := os.ReadFile(reg.Path(routes.Route{App: "arkascended",
+	raw, err := os.ReadFile(reg.Path(routes.Route{App: "arkascended", Focus: true, // the shared default (R2)
 		Slug: "ark-graphics"}))
 	if err != nil {
 		t.Fatalf("the routine is not filed under the app it was demonstrated "+
@@ -614,7 +614,7 @@ func TestAStaleNameDoesNotDeleteAClickTheEventPlacesInTheGame(t *testing.T) {
 	if err := d.LearnAuto("ark graphics"); err != nil {
 		t.Fatalf("recording: %v", err)
 	}
-	raw, err := os.ReadFile(reg.Path(routes.Route{App: "arkascended",
+	raw, err := os.ReadFile(reg.Path(routes.Route{App: "arkascended", Focus: true, // the shared default (R2)
 		Slug: "ark-graphics"}))
 	if err != nil {
 		t.Fatalf("the routine is not filed under the app it was demonstrated "+

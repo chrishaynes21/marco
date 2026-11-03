@@ -331,6 +331,12 @@ type Recording struct {
 	// three.
 	Scope  string `json:"scope,omitempty"`
 	Brings string `json:"brings,omitempty"`
+	// DefaultScope is the scope the chooser OPENS on when the choice is still the person's:
+	// `orchestrator.DefaultScope`, the one default every surface uses (From anywhere → this
+	// application). The page used to type its own, "only in", which disagreed with the ruling
+	// and could drift from the terminal's. Empty when there is no default to offer — no
+	// application known — and then the page states no preference either.
+	DefaultScope string `json:"default_scope,omitempty"`
 	// Unsupported says this recording cannot be saved as a routine at all, and why.
 	//
 	// Different from Incomplete, which is a routine that saves and then refuses: this one
@@ -883,6 +889,10 @@ func (a *Acts) Recording() Recording {
 			"presses are checked against the window they were made in has to "+
 			"stop when one of them does not happen, and this version cannot "+
 			"make %s do that — so it cannot be saved yet.", why, why)
+	}
+	// THE SHARED DEFAULT, for the chooser to open on. See Recording.DefaultScope.
+	if def, _ := orchestrator.DefaultScope(dr); def != "" {
+		out.DefaultScope = string(def)
 	}
 	// AND HOW IT WILL BE PERFORMED, when that is not a choice. See Recording.Scope.
 	if only := orchestrator.ScopeFor(dr); only != "" {

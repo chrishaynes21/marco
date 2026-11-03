@@ -109,8 +109,8 @@ func TestFocusScopeSavesUnderFocusAndActivatesItsApp(t *testing.T) {
 			"whatever the person was looking at:\n%s", src)
 	}
 
-	// The person is told what they chose, in their words, naming no scope machinery.
-	if !strings.Contains(out.String(), "in notepad from anywhere") {
+	// The person is told what they chose, in the shared vocabulary, naming no scope machinery.
+	if !strings.Contains(out.String(), "From anywhere → notepad") {
 		t.Errorf("the confirmation does not describe a focus play:\n%s", out.String())
 	}
 }
@@ -215,11 +215,87 @@ func TestOnlyAFocusPlaySwitchesWindows(t *testing.T) {
 	}
 }
 
-// With no application in front there is nothing to focus, so nothing is asked.
+// With no application there is no default: it is ASKED, with Enter meaning no (R2).
 //
-// The early return in `chooseScope`. Offering "only in " and "in  from anywhere" with an empty
-// name would be asking a person to choose between two blanks.
-func TestWithNoApplicationTheScopeQuestionIsNotAsked(t *testing.T) {
+// It used to be saved for the current foreground without a word, because that was the only scope
+// left. The ruling: with no application known, ask or refuse — never invent one, never silently
+// choose the current-foreground scope. The three-way question is still not asked, because two of
+// its answers would name a blank.
+func TestNoApplicationIsAskedNotSavedForTheForeground(t *testing.T) {
+	learnAppless := func(t *testing.T, answer string) (routes.Registry, string) {
+		t.Helper()
+		reg := routes.Registry{Dir: t.TempDir()}
+		out := &bytes.Buffer{}
+		d := Deps{
+			Reg: reg,
+			Rec: &fakeRecorder{events: []recorder.RecordedEvent{
+				{Kind: recorder.EvClick, Button: "left", Down: true, X: 10, Y: 20, T: at(0)},
+				{Kind: recorder.EvClick, Button: "left", Down: false, X: 10, Y: 20, T: at(5)},
+				{Kind: recorder.EvKey, KeyName: "esc", Down: true, T: at(500)},
+			}},
+			In:      strings.NewReader("y\n" + answer), // save? yes; then the no-app question
+			Out:     out,
+			App:     func() string { return "" },
+			StopKey: "esc",
+		}
+		if err := d.Learn("click there"); err != nil {
+			t.Fatalf("Learn: %v\n%s", err, out.String())
+		}
+		return reg, out.String()
+	}
+	global := routes.Route{Slug: "click-there"}
+
+	t.Run("enter is no", func(t *testing.T) {
+		reg, said := learnAppless(t, "\n")
+		if reg.Has(global) {
+			t.Fatalf("Enter saved an app-less recording for the current foreground:\n%s", said)
+		}
+		for _, want := range []string{"no application was recorded",
+			"From anywhere → current foreground", "Nothing was saved"} {
+			if !strings.Contains(said, want) {
+				t.Errorf("the question or its answer does not say %q:\n%s", want, said)
+			}
+		}
+		if strings.Contains(said, "Where?") {
+			t.Errorf("the three-way question was asked with no application to name:\n%s", said)
+		}
+	})
+	t.Run("yes saves it for the current foreground", func(t *testing.T) {
+		reg, said := learnAppless(t, "y\n")
+		if !reg.Has(global) {
+			t.Fatalf("an explicit yes did not save it:\n%s", said)
+		}
+	})
+	t.Run("nobody to ask refuses", func(t *testing.T) {
+		reg, said := learnAppless(t, "") // stdin ends: the question has no answer
+		if reg.Has(global) {
+			t.Fatalf("a question nobody answered saved the routine:\n%s", said)
+		}
+	})
+}
+
+// Enter at the three-way question is the ruled default, and the prompt says Enter changed.
+func TestEnterAtTheScopeQuestionIsTheRuledDefault(t *testing.T) {
+	reg, out := learnWithScope(t, "") // Enter
+	if !reg.Has(routes.Route{App: "notepad", Focus: true, Slug: "open-the-file"}) {
+		t.Fatalf("Enter did not save From anywhere → notepad:\n%s", out.String())
+	}
+	if reg.Has(routes.Route{App: "notepad", Slug: "open-the-file"}) {
+		t.Error("Enter also wrote an only-in routine")
+	}
+	for _, want := range []string{
+		`Enter now means "From anywhere → notepad"`,
+		`it used to mean "Only in notepad"`,
+		"[f] From anywhere → notepad (Enter)",
+	} {
+		if !strings.Contains(out.String(), want) {
+			t.Errorf("the prompt does not say %q:\n%s", want, out.String())
+		}
+	}
+}
+
+// The unattended path has nobody to ask, so with no application it saves nothing.
+func TestAnUnattendedRecordingWithNoApplicationIsNotSaved(t *testing.T) {
 	reg := routes.Registry{Dir: t.TempDir()}
 	out := &bytes.Buffer{}
 	d := Deps{
@@ -229,18 +305,18 @@ func TestWithNoApplicationTheScopeQuestionIsNotAsked(t *testing.T) {
 			{Kind: recorder.EvClick, Button: "left", Down: false, X: 10, Y: 20, T: at(5)},
 			{Kind: recorder.EvKey, KeyName: "esc", Down: true, T: at(500)},
 		}},
-		In:      strings.NewReader("y\n"), // save? yes — and NOTHING for a scope answer
 		Out:     out,
 		App:     func() string { return "" },
 		StopKey: "esc",
 	}
-	if err := d.Learn("click there"); err != nil {
-		t.Fatalf("Learn: %v\n%s", err, out.String())
+	if err := d.LearnAuto("click there"); err != nil {
+		t.Fatalf("LearnAuto: %v\n%s", err, out.String())
 	}
-	if strings.Contains(out.String(), "Where?") {
-		t.Errorf("the scope question was asked with no application to name:\n%s", out.String())
+	if got := reg.List(); len(got) != 0 {
+		t.Fatalf("an unattended app-less recording was saved as %+v:\n%s", got, out.String())
 	}
-	if !reg.Has(routes.Route{Slug: "click-there"}) {
-		t.Fatalf("an app-less demonstration did not become a global play:\n%s", out.String())
+	if !strings.Contains(out.String(), "Not saving") ||
+		!strings.Contains(out.String(), "cannot ask") {
+		t.Errorf("the refusal does not say why:\n%s", out.String())
 	}
 }

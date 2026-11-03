@@ -931,6 +931,27 @@ func TestALegacyRecordingKeepsTheChoice(t *testing.T) {
 		t.Errorf("a recording that checks no window had its scope decided for "+
 			"it: %q / %q", r.Scope, r.Brings)
 	}
+	// AND THE CHOOSER OPENS ON THE SHARED DEFAULT (R2), which the backend states rather
+	// than the page typing its own.
+	if r.DefaultScope != "app-anywhere" {
+		t.Errorf("the chooser opens on %q, want the shared default app-anywhere",
+			r.DefaultScope)
+	}
+}
+
+// AND THE PAGE TAKES THE BACKEND'S DEFAULT, never a scope word of its own.
+func TestThePageOpensTheScopeChooserOnTheBackendsDefault(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("frontend", "index.html"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	page := string(raw)
+	if !strings.Contains(page, "r.default_scope") {
+		t.Error("the page does not read the backend's default scope")
+	}
+	if strings.Contains(page, "had || 'app'\n") {
+		t.Error("the page still opens the chooser on its own 'app' (Only in) default")
+	}
 }
 
 // AND SAVING ONE UNDER A SCOPE ITS PRESSES CANNOT BE PERFORMED UNDER IS REFUSED.

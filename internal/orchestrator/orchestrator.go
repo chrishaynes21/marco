@@ -74,6 +74,12 @@ type Deps struct {
 	// Authored and taught plays are unaffected: they run as they always have.
 	Authority Gate
 	App       func() string // current foreground app; nil disables context-awareness
+	// HandedTo is the program owning the window this run was HANDED, as the host validated it
+	// (`oshost.GiveWindow`), or "" when none was. Set only by the entrance, only after the
+	// host accepted the window — a window the host refused has already refused the run. Read
+	// by `AdmitInPlace`: a validated window of the routine's own application is what lets an
+	// only-in routine run while the surface that chose it (Studio) is the foreground reading.
+	HandedTo string
 	// StopKey is the gesture that ends a recording (e.g. "f12", "esc",
 	// "ctrl+f12"). Empty uses recorder.DefaultStopKey. Keeping it off Esc lets a
 	// macro record Esc as an ordinary key.
@@ -469,7 +475,11 @@ func nameWithArgs(dr *Draft) string {
 // this recording cannot be performed under is re-asked with the one that works named, and a name
 // already in the library is a question with Enter meaning NO.
 func (d Deps) keepWhatWasShown(dr *Draft) error {
-	scope := d.askScope(dr)
+	scope, ok := d.askScope(dr)
+	if !ok {
+		fmt.Fprintln(d.Out, "Left alone. Nothing was saved.")
+		return nil
+	}
 	// REFUSED AND NOT RE-ASKED, which is the bounded shape of this.
 	//
 	// `askScope` already declines to offer a scope this recording cannot be performed
@@ -539,37 +549,64 @@ func (d Deps) saidKept(dr *Draft, scope Scope, rt routes.Route, kept string) {
 		d.Reg.Path(rt))
 }
 
-// askScope asks where the routine should work, offering only the scopes it can be saved under.
+// askScope asks where the routine should work, offering only the scopes it can be saved under,
+// and reports false when nothing should be saved.
 //
-// With no application there is only one answer and it is not asked for. Where the recording's
-// presses check their own window there is also only one, and it IS said — because a person who
-// expected "only here" needs to know why they are not being offered it, and a surface that
-// silently narrowed the choice would be the one deciding.
-func (d Deps) askScope(dr *Draft) Scope {
-	if dr.App == "" {
-		return ScopeEverywhere
+// Where the recording's presses check their own window there is only one answer, and it IS said —
+// because a person who expected "only here" needs to know why they are not being offered it, and a
+// surface that silently narrowed the choice would be the one deciding.
+//
+// ENTER IS THE RULED DEFAULT, FROM ANYWHERE → THIS APPLICATION, and the prompt says that Enter
+// changed: it used to mean "only in", and somebody with that in their fingers deserves to read the
+// difference before it costs them a routine that switches windows.
+//
+// WITH NO APPLICATION THERE IS NO DEFAULT. It used to return the current-foreground scope without
+// asking, because that was the only one left; the ruling is ask or refuse. So it is asked, with
+// Enter meaning NO, and with nobody to ask it refuses.
+func (d Deps) askScope(dr *Draft) (Scope, bool) {
+	def, why := DefaultScope(dr)
+	if def == "" {
+		fmt.Fprintf(d.Out, "Not saved yet: %s.\n", why)
+		if !d.confirmDefaultNo(fmt.Sprintf("Save it as %q? [y]es / [N]o: ",
+			ScopeLabel(ScopeEverywhere, ""))) {
+			return "", false
+		}
+		return ScopeEverywhere, true
 	}
-	if only := ScopeFor(dr); only != "" {
+	if ScopeFor(dr) != "" {
 		fmt.Fprintf(d.Out, "Every press in this recording checks the window it was made "+
-			"in, so it has to bring %s forward: saving it to work only in place "+
-			"would refuse every press.\n", dr.App)
-		return only
+			"in, so it has to be %q: %q or %q would refuse every press.\n",
+			ScopeLabel(def, dr.App), ScopeLabel(ScopeApp, dr.App),
+			ScopeLabel(ScopeEverywhere, dr.App))
+		return def, true
 	}
+	return d.askAmongScopes(dr.App), true
+}
+
+// askAmongScopes is the three-way question, Enter meaning From anywhere → app.
+//
+// Shared by the demonstration path and the narration path so the two cannot ask it differently.
+func (d Deps) askAmongScopes(app string) Scope {
+	fmt.Fprintf(d.Out, "Enter now means %q (it used to mean %q).\n",
+		ScopeLabel(ScopeAppAnywhere, app), ScopeLabel(ScopeApp, app))
 	for {
-		fmt.Fprintf(d.Out, "Where? [c] only in %s / [f] in %s from anywhere / [g] anywhere: ",
-			dr.App, dr.App)
+		fmt.Fprintf(d.Out, "Where? [f] %s (Enter) / [c] %s / [g] %s: ",
+			ScopeLabel(ScopeAppAnywhere, app), ScopeLabel(ScopeApp, app),
+			ScopeLabel(ScopeEverywhere, app))
 		if d.In == nil {
-			return ScopeApp
+			return ScopeAppAnywhere
 		}
 		switch strings.TrimSpace(strings.ToLower(readLine(d.In))) {
-		case "", "c", "context", "here", "only here":
-			return ScopeApp
-		case "f", "focus", "switch":
+		case "", "f", "focus", "switch":
 			return ScopeAppAnywhere
+		case "c", "context", "here", "only here":
+			return ScopeApp
 		case "g", "global", "anywhere", "everywhere":
 			return ScopeEverywhere
 		}
-		fmt.Fprintln(d.Out, "Please answer c (only here), f (anywhere + focus), or g (anywhere).")
+		fmt.Fprintf(d.Out, "Please answer f (%s), c (%s) or g (%s).\n",
+			ScopeLabel(ScopeAppAnywhere, app), ScopeLabel(ScopeApp, app),
+			ScopeLabel(ScopeEverywhere, app))
 	}
 }
 
@@ -582,30 +619,24 @@ const (
 	scopeGlobal                   // anywhere; no window switch (app-agnostic actions)
 )
 
-// chooseScope asks where the route should work. Context (only here) is the default —
-// the common case and the one that can't surprise you by switching windows. Focus
-// makes it global and brings the app forward first; Global makes it work in place
-// (typing, Ctrl+A, …). With no app context only Global makes sense, so it's returned
-// without asking.
-func (d Deps) chooseScope(app string) scopeMode {
-	if app == "" {
-		return scopeGlobal
-	}
-	for {
-		fmt.Fprintf(d.Out, "Where? [c] only in %s / [f] in %s from anywhere / [g] anywhere: ", app, app)
-		if d.In == nil {
-			return scopeContext
+// chooseScope asks where the route should work, through the same question `askScope` asks, and
+// reports false when nothing should be saved.
+//
+// FROM ANYWHERE → THIS APPLICATION is the default (the ruling; see scopeterms.go). It used to be
+// "only here", and with no application it used to return the current-foreground scope without
+// asking. Now no application is a yes/no question with Enter meaning no, and with nobody to ask
+// it refuses.
+func (d Deps) chooseScope(app string) (scopeMode, bool) {
+	if strings.TrimSpace(app) == "" {
+		_, why := DefaultScope(&Draft{})
+		fmt.Fprintf(d.Out, "Not saved yet: %s.\n", why)
+		if !d.confirmDefaultNo(fmt.Sprintf("Save it as %q? [y]es / [N]o: ",
+			ScopeLabel(ScopeEverywhere, ""))) {
+			return scopeGlobal, false
 		}
-		switch strings.TrimSpace(strings.ToLower(readLine(d.In))) {
-		case "", "c", "context", "here", "only here":
-			return scopeContext
-		case "f", "focus", "switch":
-			return scopeFocus
-		case "g", "global", "anywhere", "everywhere":
-			return scopeGlobal
-		}
-		fmt.Fprintln(d.Out, "Please answer c (only here), f (anywhere + focus), or g (anywhere).")
+		return scopeGlobal, true
 	}
+	return d.askAmongScopes(app).mode(), true
 }
 
 // saveTaught writes a freshly recorded route under the chosen scope. Only the focus
@@ -613,7 +644,11 @@ func (d Deps) chooseScope(app string) scopeMode {
 // events (the raw demonstration) is persisted beside the route when non-nil so it
 // can be re-simplified later. Shared by demonstration and narration learn.
 func (d Deps) saveTaught(name string, argNames []string, steps []macroir.Step, app string, events []recorder.RecordedEvent) error {
-	mode := d.chooseScope(app)
+	mode, ok := d.chooseScope(app)
+	if !ok {
+		fmt.Fprintln(d.Out, "Left alone. Nothing was saved.")
+		return nil
+	}
 	rt := routes.Route{Slug: routes.Slug(name)}
 	codegenApp := "" // only focus prepends Activate(app) so the run switches first
 	switch mode {
@@ -652,15 +687,11 @@ func (d Deps) saveTaught(name string, argNames []string, steps []macroir.Step, a
 }
 
 // scopeLabel describes a saved route's reach for the "Learned …" line.
+//
+// The shared vocabulary's label, so the line a terminal prints after a save names the scope the
+// way every other surface does.
 func scopeLabel(mode scopeMode, app string) string {
-	switch mode {
-	case scopeContext:
-		return "only in " + app
-	case scopeFocus:
-		return "in " + app + " from anywhere"
-	default:
-		return "everywhere"
-	}
+	return ScopeLabel(scopeOfMode(mode), app)
 }
 
 // stripLeadingActivate drops a route's opening Activate (and the window-settle wait
@@ -710,12 +741,17 @@ func (d Deps) LearnAuto(name string) error {
 	// routine that refuses every press, saved with nobody having looked at it — measured, on
 	// this path. So the draft is asked what it can be saved as first, and the default is
 	// what is left.
-	scope := ScopeFor(dr)
+	//
+	// THE SHARED DEFAULT, and with no application NO save at all. This used to fall back to
+	// "only in" with an application and to the current-foreground scope without one; the
+	// ruling is From anywhere → this application, and with no application ask or refuse.
+	// Nobody is here to ask.
+	scope, noDefault := DefaultScope(dr)
 	if scope == "" {
-		scope = ScopeApp
-		if dr.App == "" {
-			scope = ScopeEverywhere
-		}
+		mlog.Warn("record-auto: no scope to save under", "route", dr.Name, "why", noDefault)
+		fmt.Fprintf(d.Out, "Not saving: %s, and an unattended recording cannot ask.\n",
+			noDefault)
+		return nil
 	}
 	if why := d.WhyNotThisScope(dr, scope); why != "" {
 		// UNREACHABLE AND REFUSED ANYWAY. `ScopeFor` just named this scope, so it

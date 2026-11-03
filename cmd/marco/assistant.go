@@ -160,7 +160,8 @@ func doInTheChosenWindow(d orchestrator.Deps, req invoke.Request, explain bool, 
 	// context and global, are exactly where unguarded presses live, so a routine that
 	// types would type into the person's editor or their chat window.
 	if window != "" {
-		if why := handOverTheWindow(d, window); why != "" {
+		program, why := handOverTheWindow(d, window)
+		if why != "" {
 			// AND IT IS A REFUSAL, ANNOUNCED. Not a bare exit code with a
 			// sentence on stderr: every surface that spawns this reads the
 			// outcome off the wire line, and a run that ended without one is
@@ -172,6 +173,10 @@ func doInTheChosenWindow(d orchestrator.Deps, req invoke.Request, explain bool, 
 			outcome.Announce(out, OutcomeRefused)
 			return OutcomeRefused.Exit()
 		}
+		// THE PROGRAM THE HOST VALIDATED, not the flag. `AdmitInPlace` compares this with
+		// an only-in routine's application, so a `--window` naming another program's
+		// window is refused there rather than trusted because it was supplied.
+		d.HandedTo = program
 	}
 	return doOrExplain(d, req, explain)
 }
@@ -194,24 +199,27 @@ func doInTheChosenWindow(d orchestrator.Deps, req invoke.Request, explain bool, 
 // A host that cannot be given a window is not a failure to work around. It means this build's
 // `*` host is not the OS host — a dry run, a stand-in — and a run that was told which window to
 // act in and cannot be told is refused rather than performed somewhere else.
-func handOverTheWindow(d orchestrator.Deps, term string) string {
+//
+// Returns the program that owns the window, as the host validated it, when it was accepted.
+func handOverTheWindow(d orchestrator.Deps, term string) (program, why string) {
 	hwnd, pid, pinned := orchestrator.GivenWindow(term)
 	if !pinned {
 		chosen, err := d.TheWindow(term)
 		if err != nil {
-			return err.Error()
+			return "", err.Error()
 		}
 		hwnd, pid = chosen.HWnd, chosen.PID
 	}
 	h, ok := d.Hosts["*"].(*oshost.Host)
 	if !ok {
-		return "this run was told which window to act in, and the host performing it " +
+		return "", "this run was told which window to act in, and the host performing it " +
 			"cannot be told — nothing was performed"
 	}
-	if _, err := h.GiveWindow(hwnd, pid); err != nil {
-		return err.Error()
+	is, err := h.GiveWindow(hwnd, pid)
+	if err != nil {
+		return "", err.Error()
 	}
-	return ""
+	return is, ""
 }
 
 // parseDoArgs reads the entrance's argv: the words, and the few flags a surface may add.

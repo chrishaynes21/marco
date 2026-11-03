@@ -97,6 +97,13 @@ it without reading `Request.Text` at all.
 resolver that records every call and assert it was **not** asked
 (`TestAnExplicitPlayIsNeverLookedUpAgain`).
 
+**AN IDENTITY STILL HAS TO BE IN THE RIGHT PLACE.** An *Only in <app>* routine is admitted at
+`performOnePlay` — whichever arm decided it — only when the window handed to the run is owned,
+as the host validated it, by that application (Studio's Play), or when that application is in
+front at that instant. `--window` alone is not admission and `Source` is never read. Before this,
+only the phrase arms kept the scope, so `--play` ran an in-place routine into whatever was in
+front. See [[ADR-296-one-scope-vocabulary-one-default-and-in-place-is-checked-at-the-door]].
+
 **AND A STEP'S TEXT CAN BE MADE INTO ONE FROM THE PANEL THAT SHOWS THE ROUTINE.** A third edit
 operation replaces a Type step's literal with `{{name}}` — the same placeholder everything below is
 built on — so somebody types the text they actually want and then says which part changes. It was

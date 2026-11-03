@@ -3311,7 +3311,9 @@
      // because that is not a choice at all; then the scope of the routine being
      // re-recorded, so a replacement is not silently rescoped; then whatever was
      // selected before, then the default.
-     scope.value = r.scope || r.again_scope || had || 'app'
+     // The default is the BACKEND'S (orchestrator.DefaultScope), never a word typed here:
+     // the page's own 'app' disagreed with the ruled default and with the terminal.
+     scope.value = r.scope || r.again_scope || had || r.default_scope || 'app-anywhere'
      // AND SAVE IS NOT OFFERED FOR A RECORDING THAT PRESSES NOTHING. There is nothing
      // to keep, and the sentence above says so.
      // AND SAVE IS NOT OFFERED FOR A RECORDING THAT CANNOT BE SAVED, for either
