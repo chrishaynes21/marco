@@ -1,92 +1,299 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
 	"github.com/chaynes-simpleclouds/marco/internal/invoke"
+	"github.com/chaynes-simpleclouds/marco/internal/marcopaths"
 	"github.com/chaynes-simpleclouds/marco/internal/orchestrator"
+	"github.com/chaynes-simpleclouds/marco/internal/recordingnow"
 	"github.com/chaynes-simpleclouds/marco/internal/routes"
 	"github.com/chaynes-simpleclouds/marco/internal/winctx"
 )
 
-// runBind: `marco bind <key> "<play>"` — bind the leader hotkey `<key> to a
-// play, scoped to the current foreground app. So `s in Notepad can run "say
-// hello" while doing nothing elsewhere.
+// LEADER SHORTCUTS FROM THE TERMINAL — and from the widget, whose `bind` and `unbind` words spawn
+// these commands. Every rule is `orchestrator`'s (shortcuts.go); this file only COLLECTS the
+// answers: which key, which routine, listened for where, and whether to replace what is there.
+//
+// "Listened for where" is the foreground at the moment somebody types, unless they say:
+// `--everywhere`, or `--in=<app>`. That is the widget's meaning of `bind`, kept (R4).
+
+// whereFlags reads `--everywhere` / `--in=<app>` off the front of args.
+func whereFlags(args []string) (listenIn string, stated bool, rest []string, err error) {
+	for len(args) > 0 && strings.HasPrefix(args[0], "--") {
+		switch a := args[0]; {
+		case a == "--everywhere":
+			if stated {
+				return "", false, nil, fmt.Errorf("say --everywhere or --in=<app>, not both")
+			}
+			listenIn, stated = "", true
+		case strings.HasPrefix(a, "--in="):
+			if stated {
+				return "", false, nil, fmt.Errorf("say --everywhere or --in=<app>, not both")
+			}
+			listenIn, stated = strings.ToLower(strings.TrimSpace(strings.TrimPrefix(a, "--in="))), true
+			if listenIn == "" {
+				return "", false, nil, fmt.Errorf("--in needs an application")
+			}
+		default:
+			return listenIn, stated, args, nil
+		}
+		args = args[1:]
+	}
+	return listenIn, stated, args, nil
+}
+
+// runBind: `marco bind [--everywhere|--in=<app>] <key> "<routine>[ then …]"`, or
+// `marco bind --reassign [--everywhere|--in=<app>] <key>` for a shortcut set up by name.
 func runBind(args []string) {
-	if len(args) < 2 {
-		fmt.Fprintln(os.Stderr, `usage: marco bind <key> "<play>"`)
+	reassign := false
+	if len(args) > 0 && args[0] == "--reassign" {
+		reassign, args = true, args[1:]
+	}
+	listenIn, stated, args, err := whereFlags(args)
+	if err == nil && len(args) > 0 && args[0] == "--reassign" {
+		reassign, args = true, args[1:]
+	}
+	if err != nil || (reassign && len(args) != 1) || (!reassign && len(args) < 2) {
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "marco: "+err.Error())
+		}
+		fmt.Fprintln(os.Stderr, `usage: marco bind [--everywhere|--in=<app>] <key> "<routine>"`)
+		fmt.Fprintln(os.Stderr, `       marco bind --reassign [--everywhere|--in=<app>] <key>`)
 		os.Exit(2)
 	}
-	if err := bindKey(newDeps(), winctx.Active(), strings.ToLower(args[0]),
-		strings.TrimSpace(strings.Join(args[1:], " "))); err != nil {
+	fg := winctx.Active()
+	if !stated {
+		listenIn = fg
+	}
+	d := newDeps()
+	key := strings.ToLower(args[0])
+	if reassign {
+		err = reassignKey(d, fg, listenIn, key, os.Stdout)
+	} else {
+		err = bindKey(d, fg, listenIn, key, strings.TrimSpace(strings.Join(args[1:], " ")),
+			os.Stdout)
+	}
+	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }
 
-// bindKey is the whole of what binding does, with the two things a test cannot have — the real
-// registry and the real foreground window — handed in.
+// configuredLeader is the leader key the widget is using, which cannot itself be bound.
+var configuredLeader = func() string { return loadOverlayConfig().Leader }
+
+// resolveSteps resolves each step of cmd EXACTLY, once, in the foreground's context — the same
+// lookup a typed name gets — and returns the routines. This is the only place a shortcut's words
+// are ever looked up; afterwards it holds identities.
 //
-// Split out for the same reason `pressHotkey` is: a test that re-implements the validation is
-// testing its own copy. The scope a binding LANDS in and the scope a press RESOLVES in have to be
-// the same one, and nothing could see them diverge while both lived behind an os.Exit.
-func bindKey(d orchestrator.Deps, app, key, cmd string) error {
-	// A binding can chain steps with " then " ("say hi then wave"). Validate that
-	// every step resolves to an existing play, so a typo can't be bound, then store
-	// the raw command — each step is resolved + its args applied at run time.
-	//
-	// VALIDATED THE WAY IT WILL BE RESOLVED, which it was not.
-	//
-	// Binding used to accept a step on a 0.6 FUZZY score and then store the raw words, while
-	// pressing the key resolves them EXACTLY. So `marco bind e "enter freeplayy"` scored 0.93,
-	// was accepted, was reported as bound — and then did nothing at all, forever, because the
-	// press could not resolve it and a hotkey skips a step it cannot resolve rather than
-	// dropping into learn. A binding that reports success and can never fire is worse than one
-	// that refuses.
-	//
-	// Deleting the exact check must fail TestABindingIsValidatedTheWayItWillBeResolved.
+// Deleting the exact check must fail TestABindingIsValidatedTheWayItWillBeResolved.
+func resolveSteps(d orchestrator.Deps, fg, cmd string) ([]routes.Route, error) {
+	var steps []routes.Route
 	for _, step := range routes.SplitChain(cmd) {
 		base, _, _ := routes.ParseInvocation(step)
-		if _, ok := d.Reg.Resolve(app, base); !ok {
+		rt, ok := d.Reg.Resolve(fg, base)
+		if !ok {
 			// "no play matches " is the engine's one unknown-command prefix, shared with
 			// panicstop.go and PREFIX-MATCHED by plugins/overlay (acts.go, const
 			// noPlayMatches). Changing the wording on one side only breaks the overlay's
 			// offer-to-learn silently — it simply stops recognising the error.
 			//
 			// Deleting the shared spelling must fail TestTheUnknownCommandErrorIsOnePrefix.
-			return fmt.Errorf("no play matches %q (learn it first)", step)
+			return nil, fmt.Errorf("no play matches %q (learn it first)", step)
 		}
+		steps = append(steps, rt)
 	}
-	// BOUND IN THE SCOPE THE PRESS WILL LOOK IN. `pressHotkey` resolves with the foreground
-	// application, so a binding stored under any other scope is one that can never fire.
-	//
-	// Deleting the shared `app` must fail TestAHotkeyResolvesInTheScopeItWasBoundIn.
-	if err := d.Reg.Bind(app, key, cmd); err != nil {
+	return steps, nil
+}
+
+// bindKey is the whole of `marco bind <key> <routine>`, with the registry, the foreground, the
+// answers and the output handed in so a test can enter it.
+func bindKey(d orchestrator.Deps, fg, listenIn, key, cmd string, out io.Writer) error {
+	steps, err := resolveSteps(d, fg, cmd)
+	if err != nil {
 		return err
 	}
-	scope := app
-	if scope == "" {
-		scope = "everywhere"
+	return assignWithConsent(d, orchestrator.Assignment{Key: key, ListenIn: listenIn,
+		Steps: steps, Cmd: cmd, Leader: configuredLeader()}, out)
+}
+
+// reassignKey turns a shortcut set up by name into one that names its routines — after showing
+// which routines those are and asking. The words and any configured values are kept as they were.
+func reassignKey(d orchestrator.Deps, fg, listenIn, key string, out io.Writer) error {
+	st := d.ShortcutAt(listenIn, key)
+	if !st.Exists {
+		return fmt.Errorf("there is no shortcut on `%s %s", key, where(listenIn))
 	}
-	fmt.Printf("bound `%s -> %s in %s\n", key, cmd, scope)
+	if !st.Binding.Legacy() {
+		return fmt.Errorf("`%s %s already names its routine: %s", key, where(listenIn), st.Says)
+	}
+	steps, err := resolveSteps(d, fg, st.Binding.Command())
+	if err != nil {
+		return fmt.Errorf("`%s %s was set up by name as %q, and that name does not "+
+			"reach a routine here: %v", key, where(listenIn), st.Binding.Command(), err)
+	}
+	ids := make([]string, len(steps))
+	for i, rt := range steps {
+		ids[i] = rt.ID()
+	}
+	fmt.Fprintf(out, "`%s %s was set up by name as %q. Here that is %s.\n", key,
+		where(listenIn), st.Binding.Command(), strings.Join(ids, " then "))
+	if !confirmNo(out, "Make the shortcut run exactly that? [y]es / [N]o: ") {
+		fmt.Fprintln(out, "Left as it is. It still does not run until it is reassigned.")
+		return nil
+	}
+	b, err := d.AssignShortcut(orchestrator.Assignment{Key: key, ListenIn: listenIn,
+		Steps: steps, Cmd: st.Binding.Command(), Leader: configuredLeader(),
+		Consent: st.Version})
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(out, "reassigned `%s %s -> %s (%s)\n", b.Key, where(b.App), b.Cmd,
+		strings.Join(b.Routes, ", "))
 	return nil
 }
 
-// runUnbind: `marco unbind <key>` — remove the hotkey for the current app.
+// assignWithConsent assigns, and when something is already on that key asks with Enter meaning NO,
+// carrying the version it showed as the consent.
+func assignWithConsent(d orchestrator.Deps, a orchestrator.Assignment, out io.Writer) error {
+	if why := d.WhyNotShortcut(a); why != "" {
+		return fmt.Errorf("not bound: %s", why)
+	}
+	if st := d.ShortcutAt(a.ListenIn, a.Key); st.Exists {
+		fmt.Fprintln(out, st.Says+".")
+		if !confirmNo(out, "Replace it? [y]es / [N]o: ") {
+			fmt.Fprintln(out, "Left as it is.")
+			return nil
+		}
+		a.Consent = st.Version
+	}
+	b, err := d.AssignShortcut(a)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(out, "bound `%s -> %s in %s (%s)\n", b.Key, b.Cmd, scopeWord(b.App),
+		strings.Join(b.Routes, ", "))
+	return nil
+}
+
+// askLine reads one answer. A variable so a test can answer.
+var askLine = func() string { s, _ := readStdinLine(); return s }
+
+// confirmNo asks a yes/no question where Enter, end of input and anything else mean NO.
+func confirmNo(out io.Writer, prompt string) bool {
+	fmt.Fprint(out, prompt)
+	switch strings.TrimSpace(strings.ToLower(askLine())) {
+	case "y", "yes":
+		return true
+	}
+	return false
+}
+
+func where(app string) string {
+	if app == "" {
+		return "everywhere"
+	}
+	return "in " + app
+}
+
+// scopeWord is the bind confirmation's "in <app>" / "in everywhere" — the spelling this line has
+// always had, which the widget shows as it arrives.
+func scopeWord(app string) string {
+	if app == "" {
+		return "everywhere"
+	}
+	return app
+}
+
+// runUnbind: `marco unbind [--everywhere|--in=<app>] <key>` — take a shortcut off, saying what it was.
 func runUnbind(args []string) {
-	if len(args) < 1 {
-		fmt.Fprintln(os.Stderr, "usage: marco unbind <key>")
+	listenIn, stated, args, err := whereFlags(args)
+	if err != nil || len(args) != 1 {
+		fmt.Fprintln(os.Stderr, "usage: marco unbind [--everywhere|--in=<app>] <key>")
 		os.Exit(2)
 	}
-	key := strings.ToLower(args[0])
-	d := newDeps()
-	if err := d.Reg.Unbind(winctx.Active(), key); err != nil {
+	if !stated {
+		listenIn = winctx.Active()
+	}
+	if err := unbindKey(newDeps(), listenIn, strings.ToLower(args[0]), os.Stdout); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	fmt.Printf("unbound `%s\n", key)
+}
+
+// unbindKey removes exactly the shortcut it just read, so one that changed in between is refused.
+func unbindKey(d orchestrator.Deps, listenIn, key string, out io.Writer) error {
+	st := d.ShortcutAt(listenIn, key)
+	if !st.Exists {
+		fmt.Fprintf(out, "there is no shortcut on `%s %s\n", key, where(listenIn))
+		return nil
+	}
+	b, err := d.RemoveShortcut(listenIn, key, st.Version)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(out, "unbound `%s %s (it ran %s)\n", b.Key, where(b.App), b.Command())
+	return nil
+}
+
+// runBindings: `marco bindings [--here] [--json]` — every shortcut, or what each key fires here.
+func runBindings(args []string) {
+	here, asJSON := false, false
+	for _, a := range args {
+		switch a {
+		case "--here":
+			here = true
+		case "--json":
+			asJSON = true
+		default:
+			fmt.Fprintln(os.Stderr, "usage: marco bindings [--here] [--json]")
+			os.Exit(2)
+		}
+	}
+	app := ""
+	if here {
+		app = winctx.Active()
+	}
+	listShortcuts(newDeps(), app, here, asJSON, os.Stdout)
+}
+
+func listShortcuts(d orchestrator.Deps, app string, here, asJSON bool, out io.Writer) {
+	rows := d.ListShortcuts(app, here)
+	if asJSON {
+		if rows == nil {
+			rows = []orchestrator.ListedShortcut{}
+		}
+		_ = json.NewEncoder(out).Encode(map[string]any{"app": app, "shortcuts": rows})
+		return
+	}
+	if len(rows) == 0 {
+		if here {
+			fmt.Fprintf(out, "no shortcuts %s\n", where(app))
+		} else {
+			fmt.Fprintln(out, "no shortcuts")
+		}
+		return
+	}
+	for _, r := range rows {
+		mark := ""
+		switch r.State {
+		case "needs-reassigning":
+			mark = "  [needs reassigning]"
+		case "stale":
+			mark = "  [routine gone]"
+		case "wider":
+			mark = "  [wider than its routine]"
+		}
+		if r.Shadowed {
+			mark += "  [hidden here by an app shortcut]"
+		}
+		fmt.Fprintf(out, "`%-3s %-18s %s%s\n", r.Key, where(r.ListenIn), r.Cmd, mark)
+	}
 }
 
 // exitProcess ends the process with a code.
@@ -95,9 +302,8 @@ func runUnbind(args []string) {
 // binary exiting underneath it. Production never reassigns it.
 var exitProcess = os.Exit
 
-// runHotkey: `marco hotkey <key>` — run the play bound to the leader hotkey in
-// the current foreground app, or do nothing if none is bound (silent no-op so an
-// unbound key over a game is harmless).
+// runHotkey: `marco hotkey <key>` — run the shortcut on the leader key in the current foreground
+// app, or do nothing if none is bound (silent, so an unbound key over a game is harmless).
 func runHotkey(args []string) {
 	if len(args) < 1 {
 		return
@@ -105,42 +311,70 @@ func runHotkey(args []string) {
 	pressHotkey(newDeps(), winctx.Active(), strings.ToLower(args[0]))
 }
 
-// pressHotkey is the whole of what a press does, with the two things a test cannot have — the
-// real registry and the real foreground window — handed in.
+// betweenPressAndRun is the instant after a press resolved its routines and before it runs them,
+// where a test can publish something else at the identity. A no-op in production.
+var betweenPressAndRun = func() {}
+
+// recordingHome is where a recording in progress is announced. A variable so a test can state one.
+var recordingHome = marcopaths.Home
+
+// pressHotkey is the whole of what a press does, with the registry and the foreground handed in.
 //
-// Split out so a test can ENTER IT rather than re-implement it. The three lines below (HotkeyCmd,
-// ParseInvocation, Resolve) are exactly the wiring that must not drift, and a test that copies
-// them into itself and then calls `invoke.Decide` directly proves only that the copy works. See
-// the memory note "prove wiring by deleting it".
+// Split out so a test can ENTER IT rather than re-implement it. See the memory note "prove wiring
+// by deleting it".
 func pressHotkey(d orchestrator.Deps, app, key string) {
-	cmd, ok := d.Reg.HotkeyCmd(app, key)
-	if !ok {
+	// ── A RECORDING IN PROGRESS HOLDS EVERY SHORTCUT OFF ──
+	//
+	// First, before anything is looked up: a shortcut injects real input, and pressed during a
+	// demonstration it would type into the window being recorded. Only if one is BOUND — an
+	// unbound key over a game stays silent. See internal/recordingnow.
+	//
+	// Deleting this must fail TestARecordingHoldsShortcutsOff.
+	p := d.ShortcutPressed(app, key)
+	if !p.Found {
 		return
 	}
-	// A BINDING ALREADY HOLDS AN IDENTITY, so it is resolved ONCE and performed as that play.
+	// UNKNOWN IS REFUSED TOO. A press that cannot tell whether somebody is recording does not
+	// find out by typing into their window.
+	switch m, st := recordingnow.InProgress(recordingHome()); st {
+	case recordingnow.Recording:
+		fmt.Fprintln(os.Stdout, m.Says())
+		announce(OutcomeRefused)
+		exitProcess(OutcomeRefused.Exit())
+		return
+	case recordingnow.Unknown:
+		fmt.Fprintln(os.Stdout, recordingnow.UnknownSays())
+		announce(OutcomeRefused)
+		exitProcess(OutcomeRefused.Exit())
+		return
+	}
+	// ── A SHORTCUT NAMES ITS ROUTINES, AND NOTHING ELSE IS LOOKED UP ──
 	//
-	// It used to put its own command text back through the phrase matcher on every press —
-	// `resolveTarget`, the 0.75-score matcher plus an optional external model — so a hotkey
-	// that had been bound to a particular play could quietly start running a different one as
-	// the registry filled up. A binding is an invocation mapping, not a second chance to guess.
-	//
-	// Each chained step is resolved here, in this loop, and handed to the one intake as an
-	// EXPLICIT identity: `invoke.Decide` then performs that play without reading any words.
-	//
-	// A step pointing at a play that no longer exists is still skipped silently — a hotkey must
-	// never drop into learn-on-unknown, and it must not become a question for Director either.
-	// Pressing a key over a game is not a request for interpretation.
+	// It used to store words and resolve them on every press, by name, with the foreground's
+	// four-scope priority — so a key bound to one routine ran a namesake once one existed, and a
+	// new routine saved under an old name inherited the key. Now each step is the identity
+	// recorded at assignment, performed through the one intake as an EXPLICIT identity, or the
+	// press refuses and says why: set up by name and not reassigned, or a routine that is gone.
 	//
 	// Deleting the identity and passing text must fail TestAHotkeyPerformsTheBoundPlayItself.
-	for _, step := range routes.SplitChain(cmd) {
-		base, named, positional := routes.ParseInvocation(step)
-		rt, ok := d.Reg.Resolve(app, base)
-		if !ok {
-			continue
-		}
+	if p.Refused != "" {
+		fmt.Fprintln(os.Stdout, p.Refused)
+		announce(OutcomeRefused)
+		exitProcess(OutcomeRefused.Exit())
+		return
+	}
+	betweenPressAndRun()
+	for _, step := range p.Steps {
+		// THE STEP'S WORDS GIVE ITS CONFIGURED VALUES ONLY. The routine is the identity.
+		_, named, positional := routes.ParseInvocation(step.Text)
+		rt := step.Route
+		// PINNED to the bytes the owner read under the routine's lock while the key still
+		// named it, so a routine published at this identity since is refused, not run.
+		//
+		// Dropping the pin must fail TestAPressDoesNotRunWhatWasPublishedAfterItResolved.
 		out, err := runInvocation(d, invoke.Request{
 			Source: invoke.SourceHotkey, App: app, Play: &rt,
-			Named: named, Positional: positional,
+			Named: named, Positional: positional, Pinned: step.Pin,
 		})
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
@@ -148,7 +382,7 @@ func pressHotkey(d orchestrator.Deps, app, key string) {
 		announce(out)
 		if out != OutcomePerformed {
 			// A chain stops at the first step that did not perform. Nothing further is
-			// attempted, and the outcome travels out as this process.s exit code.
+			// attempted, and the outcome travels out as this process's exit code.
 			exitProcess(out.Exit())
 			return
 		}

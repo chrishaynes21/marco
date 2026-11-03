@@ -364,6 +364,13 @@ func runCaptureGameSession(args []string) int {
 		return 1
 	}
 
+	// ANNOUNCED BEFORE THE HOOKS GO ON, or not started. See recordingnow.go.
+	clearRecording, announced := announceRecording(os.Stderr, "a game session ("+*session+")")
+	if !announced {
+		return 1
+	}
+	defer clearRecording()
+
 	// THE KEYBOARD AND MOUSE HALF, which this command did not have.
 	//
 	// A recording of somebody playing with the keyboard had no input half at all, and

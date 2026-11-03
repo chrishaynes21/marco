@@ -582,6 +582,29 @@ func (d Deps) Rescope(m Rescoping, consent Consent) (Rescoped, error) {
 		d.AfterValidating()
 	}
 
+	// ── A ROUTINE THIS MOVE REPLACES LOSES ITS SHORTCUTS BEFORE ANYTHING IS WRITTEN ──
+	//
+	// BEFORE, not after. Its shortcuts name the destination identity, and the instant a
+	// different routine is published there they would run that routine instead — so they
+	// are invalidated while the destination still holds the routine they were bound to.
+	// Under both route locks, which are held here, and then the bindings lock: the one
+	// documented order. A failure writes nothing at all, because a move that went ahead would
+	// leave those shortcuts pointing at whatever it published. (A press already under way
+	// is held off by its pin — see orchestrator.ShortcutPressed.)
+	//
+	// Moving this after the write must fail TestAReplacedRoutinesShortcutsGoBeforeItIsReplaced.
+	if toSrc != "" {
+		if _, err := d.dropShortcutsNaming(m.To); err != nil {
+			return Rescoped{}, fmt.Errorf("%q is left as it is: the shortcuts of the "+
+				"routine at %s could not be removed first (%v), so nothing was "+
+				"written — a move would have left them running the routine moved there",
+				m.Name, m.TakenID, err)
+		}
+	}
+	if d.AfterShortcutsInvalidated != nil {
+		d.AfterShortcutsInvalidated()
+	}
+
 	// ── THE IMAGES FIRST, BECAUSE THEY ARE WHAT THE SOURCE REFERS TO ──
 	//
 	// Decided whole and created exclusively, exactly as a replacement's are: a path that
@@ -758,6 +781,19 @@ func (d Deps) Rescope(m Rescoping, consent Consent) (Rescoped, error) {
 	//
 	// A routine IS its `.marco`: while that is there the routine is there, so removing it
 	// is what makes this a move, and everything else is litter afterwards.
+	// ── ITS SHORTCUTS FOLLOW IT, BEFORE THE ORIGINAL GOES ──
+	//
+	// Carried while both identities hold this routine, so at no instant does a shortcut name an
+	// identity with nothing there that something else could be created at. A carry that fails
+	// KEEPS THE ORIGINAL: its shortcuts still name it, it is still there, and nothing they
+	// could run has changed. Under both route locks, then the bindings lock.
+	//
+	// Moving this after the removal must fail TestACarryThatFailsKeepsTheOriginal.
+	if _, err := d.CarryShortcuts(m.From, m.To); err != nil {
+		return Rescoped{To: m.To, Says: copiedSays(m.Name, m.TakenID,
+			fmt.Sprintf("its shortcuts could not be moved to it (%v), so the original "+
+				"was kept and its shortcuts still run it", err))}, nil
+	}
 	if err := removeSource(d.Reg, m.From); err != nil {
 		return Rescoped{To: m.To, Says: copiedSays(m.Name, m.TakenID,
 			fmt.Sprintf("the original could not be removed (%v), and nothing "+

@@ -469,8 +469,15 @@ marco do "say hello with chris then delete all then say hi"
 marco bind e "say hello with chris then delete all then say hi"   # one key, three steps
 ```
 
-`bind <key> <command>` ties a leader hotkey (`` `e ``) to a command — a single routine
-or a `then`-chain — scoped to the foreground app; `unbind <key>` removes it.
+`bind <key> <command>` ties a leader shortcut (`` `e ``) to a routine — or a `then`-chain —
+listened for in the foreground app, or `--everywhere`, or `--in=<app>`. The same key can run a
+different routine in each app, and an app's own key hides a global one there. A shortcut names
+the routine it was given, so a rename keeps it and a later routine with the old name never
+inherits it; forgetting a routine removes its shortcuts. Taking a key that is in use asks first
+(Enter means no). `marco bindings [--here]` lists them, and `unbind <key>` removes one. A shortcut
+set up by an older Marco named its routine only by words: it is kept, does not run, and
+`marco bind --reassign <key>` shows which routine it would run and asks. Shortcuts are held off
+while a recording is in progress.
 
 ### Learn by talking
 
@@ -622,8 +629,10 @@ marco register "<name>"    make a saved routine askable
 marco args "<name>"        print a routine's argument labels (used by the overlay)
 marco rename "<old>" to "<new>"   rename a routine (keeps its recording + anchors)
 marco forget "<name>"      delete a routine ("forget all" wipes them, after a confirm)
-marco bind <key> "<cmd>"   bind a leader hotkey to a command or `then`-chain
-marco unbind <key>         remove a hotkey binding
+marco bind [--everywhere|--in=<app>] <key> "<cmd>"   leader shortcut to a routine or chain
+marco bind --reassign <key>   make a shortcut set up by name run the routine it names, after asking
+marco unbind [--everywhere|--in=<app>] <key>   remove a shortcut, saying what it ran
+marco bindings [--here] [--json]   list shortcuts, or what each key does in the app in front
 marco secret set|list|rm <name>   manage stored passwords
 
 marco run   [--host …] <file.marco>     run a Marco program

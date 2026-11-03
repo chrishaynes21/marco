@@ -1,0 +1,4 @@
+ok  	github.com/chaynes-simpleclouds/marco/plugins/overlay	1.701s
+?   	github.com/chaynes-simpleclouds/marco/plugins/overlay/cmd/groundprobe	[no test files]
+?   	github.com/chaynes-simpleclouds/marco/plugins/overlay/cmd/marco-show	[no test files]
+overlay exit 0

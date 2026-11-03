@@ -88,10 +88,14 @@ it without reading `Request.Text` at all.
 - The control centre's Run posts `{slug, app, scope}` and spawns `do --source=control-centre
   --play=<slug> [--app=…] [--focus]` (`TestAClickedRunSpawnsAnExplicitIdentity`,
   `TestARunSurvivesANameThatDoesNotRoundTripThroughItsSlug`, `TestTheRunArgvSpellsEachScope`).
-- `marco hotkey` resolves its binding to a `routes.Route` **once**, in `bind.go`, and hands that
-  Route down. It used to put its own command text back through the phrase matcher on every press,
-  so a hotkey bound to one Play could quietly start running a different one as the registry filled
-  up (`TestAHotkeyPerformsTheBoundPlayItself`).
+- A shortcut is resolved to routine identities **once, when it is assigned**, and stores them
+  (`routes.Binding.Routes`); `marco hotkey` performs those identities and looks no name up at all.
+  It used to put its own command text back through the phrase matcher on every press, so a hotkey
+  bound to one Play could quietly start running a different one as the registry filled up
+  (`TestAHotkeyPerformsTheBoundPlayItself`), and then still by name once per press, so a namesake
+  or a rename could redirect it (`TestAPressedShortcutIsTheRoutineItWasAssigned`). A shortcut set
+  up by name before that refuses until reassigned. See
+  [[ADR-297-a-shortcut-names-its-routine-and-has-one-owner]].
 
 `invoke.Plays` is a one-method interface partly for exactly this reason: a test can hand in a
 resolver that records every call and assert it was **not** asked

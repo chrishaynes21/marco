@@ -201,7 +201,7 @@ type snapshot struct {
 
 // take reads the routine once and says what is about to run.
 func take(d orchestrator.Deps, rt routes.Route, named map[string]string,
-	positional []string, flagged []string, expect string) snapshot {
+	positional []string, flagged []string, expect, pinned string) snapshot {
 
 	s := snapshot{rt: rt, path: d.Reg.Path(rt), named: named}
 	mlog.Debug("run: reading route", "route", rt.Slug, "path", s.path)
@@ -234,6 +234,18 @@ func take(d orchestrator.Deps, rt routes.Route, named map[string]string,
 	// Refused, and nothing is pressed: this is before `ApplyArgs` and before any
 	// reference is claimed. Empty `expect` pins nothing, which is every entrance that
 	// confirmed nothing.
+	// AND THE BYTES A SHORTCUT PRESS PINNED. Not a confirmation (see Expect): the press read
+	// this routine under its lock while the key still named it, and anything else at this
+	// identity now is not the routine the key was bound to.
+	if pinned != "" && routes.DigestOf(string(src)) != pinned {
+		mlog.Info("run: refused", "route", rt.Slug, "why", "not the routine the shortcut "+
+			"was pressed for")
+		s.refused = fmt.Sprintf("%q changed between the shortcut being pressed and the "+
+			"run starting, so nothing has been run — press it again",
+			plays.Pretty(rt.Slug))
+		s.did = ran{Digest: routes.DigestOf(string(src)), Contract: contractUnstated}
+		return s
+	}
 	if expect != "" && routes.DigestOf(string(src)) != expect {
 		mlog.Info("run: refused", "route", rt.Slug, "why", "the routine changed since "+
 			"it was confirmed")

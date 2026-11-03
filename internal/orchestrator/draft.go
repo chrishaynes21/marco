@@ -51,6 +51,7 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/macroir"
 	"github.com/chaynes-simpleclouds/marco/internal/mlog"
 	"github.com/chaynes-simpleclouds/marco/internal/recorder"
+	"github.com/chaynes-simpleclouds/marco/internal/recordingnow"
 	"github.com/chaynes-simpleclouds/marco/internal/routes"
 	"github.com/chaynes-simpleclouds/marco/internal/simplify"
 )
@@ -216,6 +217,8 @@ type Capture struct {
 	stop     recorder.StopKey
 	// mode is what this capture told its recorder to capture. See Deps.Mode.
 	mode RecordedAs
+	// marker is this recording as the rest of Marco sees it. Cleared at Finish.
+	marker recordingnow.Marker
 }
 
 // Begin starts the recorder and returns the capture in flight.
@@ -260,10 +263,29 @@ func (d Deps) Begin(name string) (*Capture, error) {
 		}
 		c.Only(d.Watch.watching(), d.Window)
 	}
+	// ── THE REST OF MARCO IS TOLD A RECORDING IS GOING ON, BEFORE THE HOOKS GO ON ──
+	//
+	// Before `Start`, so there is no instant at which input is being captured and nothing
+	// says so: a shortcut pressed at that instant would type into the window being recorded.
+	// And a recording that CANNOT be announced does not start — announcing is the condition
+	// for recording, not a courtesy after it. See internal/recordingnow.
+	//
+	// Moving this after Start, or ignoring its error, must fail
+	// TestARecordingIsAnnouncedBeforeItsHooksGoOn / TestAnUnannouncedRecordingDoesNotStart.
+	marker, err := recordingnow.Mark(d.RecordingHome, name)
+	if err != nil {
+		mlog.Warn("draft: recording refused, not announced", "route", name, "err", err)
+		return nil, err
+	}
+	if d.BeforeHooks != nil {
+		d.BeforeHooks()
+	}
 	if err := d.Rec.Start(); err != nil {
+		recordingnow.Clear(marker)
 		return nil, fmt.Errorf("can't record on this platform: %w", err)
 	}
-	return &Capture{d: d, name: name, argNames: argNames, stop: stop, mode: mode}, nil
+	return &Capture{d: d, name: name, argNames: argNames, stop: stop, mode: mode,
+		marker: marker}, nil
 }
 
 // Name is what this capture will be called, after the argument names have been taken off it.
@@ -323,6 +345,8 @@ func (c *Capture) Finish() *Draft {
 	// clock before `simplify` measures a gap in it. It also consumes the markers, so
 	// nothing downstream — and nothing on disk — sees a kind it does not know.
 	cap := inWindowClock(d.Rec.Stop(), ResumeSettle)
+	// THE HOOKS ARE OFF, SO SHORTCUTS MAY RUN AGAIN. See internal/recordingnow.
+	recordingnow.Clear(c.marker)
 	events := stripTrailingStop(cap.Events, stop)
 	// ── THE OWNER'S WINDOW, UNDER WHICHEVER OF THE TWO RULES THIS DEPS ASKED FOR ──
 	//

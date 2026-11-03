@@ -95,6 +95,9 @@ func newDeps() orchestrator.Deps {
 		SimplifySaves: os.Getenv("MARCO_SIMPLIFY_SAVES") != "",
 		// Reserved demonstration key for "an argument goes here" → {{N}} (default F9).
 		ArgKey: os.Getenv("MARCO_ARG_KEY"),
+		// A recording made through this process is announced in the shared home, so a
+		// shortcut pressed elsewhere is held off while it runs (internal/recordingnow).
+		RecordingHome: marcopaths.Home(),
 	}
 	// THE door. Every invocation passes through it; only a learned play with intact
 	// provenance is ever stopped there, and then only to ask. See
@@ -572,10 +575,14 @@ func runForget(args []string) {
 			return
 		}
 		n := 0
+		// EACH THROUGH THE ONE FORGET (shortcuts first, then the routine), and each one that
+		// did not go is said with what did. See orchestrator.ForgetRoutine.
 		for _, rt := range all {
-			if err := d.Reg.Delete(rt); err == nil {
-				n++
+			if _, err := d.ForgetRoutine(rt); err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				continue
 			}
+			n++
 		}
 		fmt.Printf("Forgot %d plays.\n", n)
 		return
@@ -618,10 +625,13 @@ func runForget(args []string) {
 // Split out of runForget so it can be proved rather than read: runForget itself reads stdin and
 // calls os.Exit. Deleting the DeleteOrigin call must fail TestForgettingAPlayTakesItsPastWithIt.
 func forgetPlay(reg routes.Registry, rt routes.Route) error {
-	if err := reg.DeleteOrigin(rt); err != nil {
-		return err
-	}
-	return reg.Delete(rt)
+	// THROUGH THE ONE FORGET: under the routine's lock, its shortcuts FIRST, then its
+	// provenance, then the routine — so a failed cleanup forgets nothing rather than leaving
+	// keys for the next routine saved under its name. See orchestrator.ForgetRoutine.
+	//
+	// Going back to deleting here must fail TestForgettingARoutineRemovesItsShortcutsAtTheDoor.
+	_, err := (orchestrator.Deps{Reg: reg}).ForgetRoutine(rt)
+	return err
 }
 
 func runRename(args []string) {
@@ -643,7 +653,11 @@ func runRename(args []string) {
 		fmt.Fprintf(os.Stderr, "A play named %q already exists.\n", newName)
 		os.Exit(1)
 	}
-	if err := d.Reg.Rename(rt, newRt); err != nil {
+	// UNDER BOTH ROUTES' LOCKS, AND THE ORIGINAL KEPT until the new name holds the routine and its
+	// shortcuts have moved, so a key never names a place that does not hold this routine. A
+	// partial result is said and exits non-zero. (Still the unreviewed rename; R7 moves it. See
+	// orchestrator.RenameInPlace.)
+	if err := d.RenameInPlace(rt, newRt); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}

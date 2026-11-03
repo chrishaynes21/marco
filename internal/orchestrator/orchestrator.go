@@ -80,6 +80,26 @@ type Deps struct {
 	// by `AdmitInPlace`: a validated window of the routine's own application is what lets an
 	// only-in routine run while the surface that chose it (Studio) is the foreground reading.
 	HandedTo string
+	// RecordingHome is the Marco home a recording is announced in, so a shortcut pressed in
+	// another process is held off while it runs (internal/recordingnow). Set by the production
+	// constructors; "" announces nothing, which is every test that does not ask.
+	RecordingHome string
+	// BeforeHooks, AfterShortcutChecked and BeforeForgetWrites are the instants a test can stand
+	// in: after a recording is announced and before its hooks go on; after an assignment has
+	// revalidated its routines under their locks and before it writes; after a forget has taken
+	// its locks and before it changes anything. Nil in every production path.
+	BeforeHooks          func()
+	AfterShortcutChecked func()
+	BeforeForgetWrites   func()
+	// AfterShortcutsInvalidated is the instant in a replacing move after the replaced routine's
+	// shortcuts are gone and before the destination is written. Nil in production.
+	AfterShortcutsInvalidated func()
+	// BetweenPressReads is the instant in ShortcutPressed after the shortcut was first read and
+	// before its routines are locked and it is read again. Nil in production.
+	BetweenPressReads func()
+	// RenameFault makes a step of RenameInPlace ("create", "carry", "finish") fail when it
+	// returns an error. Nil in production.
+	RenameFault func(step string) error
 	// StopKey is the gesture that ends a recording (e.g. "f12", "esc",
 	// "ctrl+f12"). Empty uses recorder.DefaultStopKey. Keeping it off Esc lets a
 	// macro record Esc as an ordinary key.

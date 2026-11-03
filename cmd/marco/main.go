@@ -120,6 +120,9 @@ func main() {
 	case "hotkey":
 		runHotkey(os.Args[2:])
 		return
+	case "bindings":
+		runBindings(os.Args[2:])
+		return
 	case "forget":
 		runForget(os.Args[2:])
 		return
@@ -361,7 +364,7 @@ Developer surfaces, kept working and not part of the normal product:
   marco assistant          the pre-Director interactive loop
   marco dispatch "<phrase>"  the pre-Director phrase classifier
   marco director <cmd>     talk to the Director service directly
-  marco diag | games | args | bind | unbind | hotkey | wake
+  marco diag | games | args | bind | unbind | bindings | hotkey | wake
 Run "marco <verb>" with no arguments for each one's own usage.
 `)
 }

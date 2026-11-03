@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"sync"
 	"time"
 
@@ -264,11 +265,14 @@ func (p *learnPasses) viaRegistry(ctx context.Context, b observe.Bounds,
 // restore one, so a restart ends the attempt rather than resuming a demonstration somebody agreed
 // to give an hour ago.
 type learnSession struct {
-	mu      sync.RWMutex
-	coord   *learn.Coordinator
-	cancel  context.CancelFunc
-	session learn.Session
-	active  bool
+	mu sync.RWMutex
+	// clearRecording ends this session's announcement (recordingnow.go). Idempotent; called
+	// when the capture ends (finish), when it is stopped, and when the driver settles.
+	clearRecording func()
+	coord          *learn.Coordinator
+	cancel         context.CancelFunc
+	session        learn.Session
+	active         bool
 	// selector is the window this session is learning against, resolved once at start.
 	//
 	// Held because a later read has to be able to ask where that window is NOW — the freshness
@@ -295,6 +299,14 @@ func (t *learnSession) start(name string, passes learn.Passes, memory observe.Me
 			"this Director has no durable memory, so it cannot recognise where you are " +
 				"starting and cannot learn")
 	}
+	// ANNOUNCED BEFORE ANYTHING IS OBSERVED, or not started. See recordingnow.go.
+	clearRecording, announced := announceRecording(io.Discard, "a learn session ("+name+")")
+	if !announced {
+		t.mu.Unlock()
+		return learn.Session{}, fmt.Errorf("this learn session could not be announced to " +
+			"the rest of Marco, so it was not started — shortcuts could have typed into it")
+	}
+	t.clearRecording = clearRecording
 	c := learn.New(name, passes, memory, learn.DefaultBounds()).
 		WithTail(tail).WithGrounding(ground).WithPlayName(actor, verb)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -306,6 +318,7 @@ func (t *learnSession) start(name string, passes learn.Passes, memory observe.Me
 		// A name Marco cannot use is refused before anything is observed, so there is
 		// nothing to run.
 		cancel()
+		clearRecording()
 		return first, nil
 	}
 
@@ -316,6 +329,7 @@ func (t *learnSession) start(name string, passes learn.Passes, memory observe.Me
 	// the bound on how long that may go on, so a session left open never runs forever.
 	go func() {
 		defer cancel()
+		defer clearRecording()
 		for {
 			s := c.Advance(ctx)
 			t.mu.Lock()
@@ -368,6 +382,7 @@ func (t *learnSession) stop() (learn.Session, error) {
 	if cancel != nil {
 		cancel()
 	}
+	t.endRecording()
 	t.mu.Lock()
 	t.session, t.active = c.Session(), false
 	s := t.session
@@ -388,6 +403,8 @@ func (t *learnSession) finish() (learn.Session, error) {
 		return learn.Session{}, fmt.Errorf("no learn session is running")
 	}
 	c.Finish()
+	// THE CAPTURE IS OVER, so shortcuts may run again while the rest of the session works.
+	t.endRecording()
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	return t.session, nil
@@ -742,4 +759,14 @@ func (r *Runtime) LearningNow() bool {
 		return false
 	}
 	return r.learn.running()
+}
+
+// endRecording ends the announcement, if there is one. Safe to call more than once.
+func (t *learnSession) endRecording() {
+	t.mu.RLock()
+	clear := t.clearRecording
+	t.mu.RUnlock()
+	if clear != nil {
+		clear()
+	}
 }

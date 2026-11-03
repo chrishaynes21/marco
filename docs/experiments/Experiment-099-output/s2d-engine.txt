@@ -1,0 +1,804 @@
+?   	github.com/chaynes-simpleclouds/marco/bridges/echo-bridge	[no test files]
+?   	github.com/chaynes-simpleclouds/marco/cmd/bakeoff	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/cmd/cleanroom	1.881s
+ok  	github.com/chaynes-simpleclouds/marco/cmd/director	187.570s
+?   	github.com/chaynes-simpleclouds/marco/cmd/docscheck	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/cmd/gate	77.603s
+?   	github.com/chaynes-simpleclouds/marco/cmd/identityprobe	[no test files]
+?   	github.com/chaynes-simpleclouds/marco/cmd/localizetrial	[no test files]
+[10:23:23][INFO] intake - routed trace=source=cli decision=play play=volume app=testgame why="an exact match for a play Marco has"
+[10:23:23][INFO] intake - authority play=volume verdict=declined reason=user_declined
+No.
+[10:23:23][INFO] intake - finished decision=play outcome=refused words=volume play=volume
+[10:23:23][INFO] intake - routed trace=source=cli decision=play play=volume app=testgame why="an exact match for a play Marco has"
+[10:23:23][INFO] intake - authority play=volume verdict=refused reason=learned_play
+Marco needs a yes to run a play it learned by watching you, and did not get one. Left alone.
+[10:23:23][INFO] intake - finished decision=play outcome=refused words=volume play=volume
+[10:23:23][INFO] intake - routed trace=source=cli decision=play play=volume app=testgame why="an exact match for a play Marco has"
+[10:23:23][INFO] intake - authority play=volume verdict=refused reason=learned_play
+Marco needs a yes to run a play it learned by watching you, and did not get one. Left alone.
+[10:23:23][INFO] intake - finished decision=play outcome=refused words=volume play=volume
+[10:23:23][INFO] intake - routed trace=source=cli decision=play play=volume app=testgame why="an exact match for a play Marco has"
+[10:23:23][INFO] intake - authority play=volume verdict=declined reason=user_declined
+Left alone.
+[10:23:23][INFO] intake - finished decision=play outcome=refused words=volume play=volume
+[10:23:23][INFO] intake - routed trace=source=cli decision=play play=volume app=testgame why="an exact match for a play Marco has"
+[10:23:23][INFO] intake - authority play=volume verdict=refused reason=learned_play
+Marco needs a yes to run a play it learned by watching you, and did not get one. Left alone.
+[10:23:23][INFO] intake - finished decision=play outcome=refused words=volume play=volume
+[10:23:23][INFO] intake - routed trace=source=cli decision=play play=volume app=testgame why="an exact match for a play Marco has"
+[10:23:23][INFO] intake - authority play=volume verdict=allowed reason=learned_play
+[route] volume
+[10:23:23][INFO] perform - delegating to the Director route=volume goal=volume application=testgame subject=subj_b
+[10:23:23][INFO] intake - finished decision=play outcome=performed words=volume play=volume
+[10:23:23][INFO] intake - routed trace=source=cli decision=play play=volume app=testgame why="an exact match for a play Marco has"
+[10:23:23][INFO] intake - authority play=volume verdict=allowed reason=learned_play
+[route] volume
+[10:23:23][INFO] perform - delegating to the Director route=volume goal=volume application=testgame subject=subj_b
+[10:23:23][INFO] intake - finished decision=play outcome=performed words=volume play=volume
+[10:23:23][INFO] intake - routed trace=source=cli decision=play play=volume app=testgame why="an exact match for a play Marco has"
+[10:23:23][INFO] intake - authority play=volume verdict=allowed reason=ordinary_play
+[route] volume
+  run run-20261103-102323-ec72   C:\Users\chris\AppData\Local\Temp\marco-tests-2970750058\runs\run-20261103-102323-ec72.json
+[10:23:23][INFO] run - executing route=volume scope=testgame named_args=0
+[INFO] this play expected to finish on controller settings
+[10:23:23][INFO] intake - finished decision=play outcome=performed words=volume play=volume
+[10:23:23][INFO] intake - authority play=a-routine verdict=allowed reason=ordinary_play
+[10:23:23][INFO] run - executing route=a-routine scope=no-such-application-9f2c named_args=0
+[10:23:23][ERROR] run - stopped route=a-routine why=the escape key did not happen: context canceled
+[10:23:23][INFO] intake - authority play=a-routine verdict=allowed reason=ordinary_play
+[10:23:23][INFO] run - executing route=a-routine scope=no-such-application-9f2c named_args=0
+[10:23:23][ERROR] run - stopped route=a-routine why=the escape key did not happen: context canceled
+[10:23:23][INFO] intake - authority play=a-routine verdict=allowed reason=ordinary_play
+[10:23:23][INFO] run - executing route=a-routine scope=no-such-application-9f2c named_args=0
+[10:23:23][ERROR] run - stopped route=a-routine why=the escape key did not happen: context canceled
+[10:23:24][INFO] intake - authority play=a-routine verdict=allowed reason=ordinary_play
+[10:23:24][INFO] run - executing route=a-routine scope=no-such-application-9f2c named_args=0
+[10:23:24][ERROR] run - stopped route=a-routine why=the escape key did not happen: context canceled
+[10:23:24][INFO] intake - authority play=a-routine verdict=allowed reason=ordinary_play
+[10:23:24][INFO] run - executing route=a-routine scope=no-such-application-9f2c named_args=0
+[10:23:24][INFO] intake - authority play=a-routine verdict=allowed reason=ordinary_play
+[10:23:24][INFO] run - executing route=a-routine scope=no-such-application-9f2c named_args=0
+[10:23:25][INFO] intake - routed trace=source=cli decision=play play=types-something explicit=yes why="the surface named the play itself"
+[10:23:25][INFO] intake - authority play=types-something verdict=allowed reason=ordinary_play
+[10:23:25][INFO] run - executing route=types-something scope= named_args=0
+[10:23:25][INFO] intake - finished decision=play outcome=performed words= play=types-something
+[10:23:29][INFO] intake - routed trace=source=cli decision=play play=types-something explicit=yes why="the surface named the play itself"
+[10:23:29][INFO] intake - authority play=types-something verdict=allowed reason=ordinary_play
+[10:23:29][INFO] run - executing route=types-something scope= named_args=0
+[10:23:29][INFO] intake - finished decision=play outcome=performed words= play=types-something
+[10:23:30][INFO] intake - routed trace=source=cli decision=play play=types-something explicit=yes why="the surface named the play itself"
+[10:23:30][INFO] intake - authority play=types-something verdict=allowed reason=ordinary_play
+[10:23:30][INFO] run - executing route=types-something scope= named_args=0
+[10:23:30][INFO] intake - finished decision=play outcome=performed words= play=types-something
+[10:23:32][INFO] intake - routed trace=source=typed decision=demonstration demonstration="ark graphics live" app=arkascended why="an exact match for something the person demonstrated"
+[10:23:32][INFO] intake - performing a demonstration by sight name=ark graphics live application=arkascended args=[perform-workflow --name ark graphics live --application arkascended --live --hotkeys --reading]
+  run run-20261019-201500-abcd   C:\home\runs\run-20261019-201500-abcd.json
+  the control was pressed
+  run run-20261019-201500-abcd   C:\home\runs\run-20261019-201500-abcd.json   (verified)
+[10:23:32][INFO] intake - the supervised run ended name=ark graphics live run=run-20261019-201500-abcd record=C:\home\runs\run-20261019-201500-abcd.json ran=verified
+[10:23:32][INFO] intake - finished decision=demonstration outcome=performed words=ark graphics live demonstration=ark graphics live
+[10:23:34][INFO] intake - routed trace=source= decision=demonstration demonstration="Ark Graphics Live" app=arkascended why="an exact match for something the person demonstrated"
+[10:23:34][INFO] intake - performing a demonstration by sight name=Ark Graphics Live application=arkascended args=[perform-workflow --name Ark Graphics Live --application arkascended --live --hotkeys --reading]
+  run run-20261019-201500-abcd   C:\home\runs\run-20261019-201500-abcd.json
+  the control was pressed
+  run run-20261019-201500-abcd   C:\home\runs\run-20261019-201500-abcd.json   (verified)
+[10:23:34][INFO] intake - the supervised run ended name=Ark Graphics Live run=run-20261019-201500-abcd record=C:\home\runs\run-20261019-201500-abcd.json ran=verified
+[10:23:34][INFO] intake - finished decision=demonstration outcome=performed words=ark graphics live demonstration=Ark Graphics Live
+[10:23:36][ERROR] intake - the supervised run ended in a word this build does not know outcome=something new
+[10:23:36][INFO] intake - routed trace=source= decision=demonstration demonstration="ark graphics live" app=arkascended why="an exact match for something the person demonstrated"
+[10:23:36][INFO] intake - performing a demonstration by sight name=ark graphics live application=arkascended args=[perform-workflow --name ark graphics live --application arkascended --live --hotkeys --reading]
+  run run-20261019-201500-abcd   C:\home\runs\run-20261019-201500-abcd.json
+  the control was pressed
+  run run-20261019-201500-abcd   C:\home\runs\run-20261019-201500-abcd.json   (unconfirmed)
+[10:23:36][INFO] intake - the supervised run ended name=ark graphics live run=run-20261019-201500-abcd record=C:\home\runs\run-20261019-201500-abcd.json ran=unconfirmed
+[10:23:36][INFO] intake - finished decision=demonstration outcome=unverified words=ark graphics live demonstration=ark graphics live
+[10:23:36][INFO] intake - routed trace=source= decision=demonstration demonstration="ark graphics live" app=arkascended why="an exact match for something the person demonstrated"
+[10:23:36][INFO] intake - performing a demonstration by sight name=ark graphics live application=arkascended args=[perform-workflow --name ark graphics live --application arkascended --live --hotkeys --reading]
+  run run-20261019-201500-abcd   C:\home\runs\run-20261019-201500-abcd.json
+  the control was pressed
+  run run-20261019-201500-abcd   C:\home\runs\run-20261019-201500-abcd.json   (refused)
+[10:23:36][INFO] intake - the supervised run ended name=ark graphics live run=run-20261019-201500-abcd record=C:\home\runs\run-20261019-201500-abcd.json ran=refused
+[10:23:36][INFO] intake - finished decision=demonstration outcome=refused words=ark graphics live demonstration=ark graphics live
+[10:23:36][INFO] intake - routed trace=source= decision=demonstration demonstration="ark graphics live" app=arkascended why="an exact match for something the person demonstrated"
+[10:23:36][INFO] intake - performing a demonstration by sight name=ark graphics live application=arkascended args=[perform-workflow --name ark graphics live --application arkascended --live --hotkeys --reading]
+  run run-20261019-201500-abcd   C:\home\runs\run-20261019-201500-abcd.json
+  the control was pressed
+  run run-20261019-201500-abcd   C:\home\runs\run-20261019-201500-abcd.json   (cancelled)
+[10:23:36][INFO] intake - the supervised run ended name=ark graphics live run=run-20261019-201500-abcd record=C:\home\runs\run-20261019-201500-abcd.json ran=cancelled
+[10:23:36][INFO] intake - finished decision=demonstration outcome=cancelled words=ark graphics live demonstration=ark graphics live
+[10:23:36][INFO] intake - routed trace=source= decision=demonstration demonstration="ark graphics live" app=arkascended why="an exact match for something the person demonstrated"
+[10:23:36][INFO] intake - performing a demonstration by sight name=ark graphics live application=arkascended args=[perform-workflow --name ark graphics live --application arkascended --live --hotkeys --reading]
+  run run-20261019-201500-abcd   C:\home\runs\run-20261019-201500-abcd.json
+  the control was pressed
+[10:23:36][INFO] intake - the supervised run ended name=ark graphics live run=run-20261019-201500-abcd record=C:\home\runs\run-20261019-201500-abcd.json ran=
+[10:23:36][ERROR] intake - the supervised run printed no outcome name=ark graphics live
+[10:23:36][INFO] intake - finished decision=demonstration outcome=failed words=ark graphics live demonstration=ark graphics live
+[10:23:37][INFO] intake - routed trace=source= decision=demonstration demonstration="ark graphics live" app=arkascended why="an exact match for something the person demonstrated"
+[10:23:37][INFO] intake - performing a demonstration by sight name=ark graphics live application=arkascended args=[perform-workflow --name ark graphics live --application arkascended --live --hotkeys --reading]
+marco: the supervised runner could not be started: director.exe is not here
+[10:23:37][INFO] intake - finished decision=demonstration outcome=unavailable words=ark graphics live demonstration=ark graphics live
+  run run-20261019-201500-abcd   C:\home\runs\run-20261019-201500-abcd.json
+  the control was pressed
+  run run-20261019-201500-abcd   C:\home\runs\run-20261019-201500-abcd.json   (verified)
+  run run-20261019-201500-abcd   C:\home\runs\run-20261019-201500-abcd.json
+  the control was pressed
+  run run-20261019-201500-abcd   C:\home\runs\run-20261019-201500-abcd.json   (refused)
+stop sent — anything Marco was running will stop
+  run run-20261019-201500-abcd   C:\home\runs\run-20261019-201500-abcd.json
+  the control was pressed
+  run run-20261019-201500-abcd   C:\home\runs\run-20261019-201500-abcd.json   (unconfirmed)
+words        "ark graphics live"
+decision     demonstration
+because      an exact match for something the person demonstrated
+would run    director.exe
+             perform-workflow --name ark graphics live --application arkascended --live --hotkeys --reading
+             one authorised action at a time; F7 approves each one
+[10:23:37][INFO] intake - routed trace=source= decision=demonstration demonstration="ark graphics live" app=arkascended why="an exact match for something the person demonstrated"
+[10:23:37][INFO] intake - performing a demonstration by sight name=ark graphics live application=arkascended args=[perform-workflow --name ark graphics live --application arkascended --live --hotkeys --reading]
+  run run-20261019-201500-abcd   C:\home\runs\run-20261019-201500-abcd.json
+  the control was pressed
+  run run-20261019-201500-abcd   C:\home\runs\run-20261019-201500-abcd.json   (verified)
+[10:23:37][INFO] intake - the supervised run ended name=ark graphics live run=run-20261019-201500-abcd record=C:\home\runs\run-20261019-201500-abcd.json ran=verified
+[10:23:37][INFO] intake - finished decision=demonstration outcome=performed words=ark graphics live demonstration=ark graphics live
+[result] performed
+[10:23:57][INFO] intake - routed trace=source=typed decision=demonstration demonstration="ark graphics live" app=arkascended why="an exact match for something the person demonstrated"
+[10:23:57][INFO] intake - performing a demonstration by sight name=ark graphics live application=arkascended args=[perform-workflow --name ark graphics live --application arkascended --live --hotkeys --reading]
+[10:23:58][INFO] intake - the supervised runner exited unhappily err=exit status 1 run=run-20261103-102357-480c
+[10:23:58][INFO] intake - the supervised run ended name=ark graphics live run=run-20261103-102357-480c record=C:\Users\chris\AppData\Local\Temp\TestTypingADemonstratedNameReachesTheRealRunner2905732972\002\runs\run-20261103-102357-480c.json ran=cancelled
+[10:23:58][INFO] intake - finished decision=demonstration outcome=cancelled words=ark graphics live demonstration=ark graphics live
+[10:24:10][INFO] intake - the supervised runner exited unhappily err=exit status 2 run=
+[10:24:10][INFO] intake - authority play=a-routine verdict=allowed reason=ordinary_play
+[10:24:10][INFO] run - executing route=a-routine scope=no-such-application-9f2c named_args=0
+[10:24:10][ERROR] run - stopped route=a-routine why=the escape key did not happen: context canceled
+[10:24:10][INFO] intake - authority play=a-routine verdict=allowed reason=ordinary_play
+[10:24:10][INFO] run - executing route=a-routine scope=no-such-application-9f2c named_args=0
+[10:24:10][ERROR] run - stopped route=a-routine why=the escape key did not happen: context canceled
+[10:24:10][INFO] args - no play answers to those words phrase=open the settings nearest=open settings
+[10:24:16][INFO] intake - authority play=a-routine verdict=allowed reason=ordinary_play
+[10:24:16][INFO] run - executing route=a-routine scope=no-such-application-9f2c named_args=0
+[10:24:16][ERROR] run - stopped route=a-routine why=the no-such-application-9f2c window could not be brought to the front: activate: "no-such-application-9f2c" is not running and could not be launched
+[10:24:16][INFO] intake - authority play=a-routine verdict=allowed reason=ordinary_play
+[10:24:16][INFO] run - executing route=a-routine scope=no-such-application-9f2c named_args=0
+[10:24:36][ERROR] run - stopped route=a-routine why=the no-such-application-9f2c window could not be brought to the front: activate: "no-such-application-9f2c" did not open within the launch timeout
+[10:24:36][INFO] intake - authority play=a-routine verdict=allowed reason=ordinary_play
+[10:24:36][INFO] run - executing route=a-routine scope=no-such-application-9f2c named_args=0
+[10:24:56][ERROR] run - stopped route=a-routine why=the no-such-application-9f2c window could not be brought to the front: activate: "no-such-application-9f2c" did not open within the launch timeout
+[10:24:56][INFO] intake - authority play=a-routine verdict=allowed reason=ordinary_play
+[10:24:56][INFO] run - executing route=a-routine scope=no-such-application-9f2c named_args=0
+[10:24:56][ERROR] run - stopped route=a-routine why=the no-such-application-9f2c window could not be brought to the front: activate: "no-such-application-9f2c" is not running and could not be launched
+--- FAIL: TestTheRecordDoesNotRelabelALaterGenerationAsItsOwn (20.10s)
+    generationrecord_test.go:115: the stamped routine stopped because a-routine stopped: the no-such-application-9f2c window could not be brought to the front: activate: "no-such-application-9f2c" did not open within the launch timeout and the unstamped one because a-routine stopped: the no-such-application-9f2c window could not be brought to the front: activate: "no-such-application-9f2c" is not running and could not be launched
+[10:24:56][INFO] intake - authority play=a-routine verdict=allowed reason=ordinary_play
+[10:24:56][INFO] run - executing route=a-routine scope=no-such-application-9f2c named_args=0
+[10:24:56][ERROR] run - stopped route=a-routine why=the no-such-application-9f2c window could not be brought to the front: activate: "no-such-application-9f2c" is not running and could not be launched
+[10:24:56][INFO] intake - authority play=a-routine verdict=allowed reason=ordinary_play
+[10:24:56][INFO] run - executing route=a-routine scope=no-such-application-9f2c named_args=0
+[10:24:56][ERROR] run - stopped route=a-routine why=the no-such-application-9f2c window could not be brought to the front
+[10:24:56][INFO] intake - authority play=a-routine verdict=allowed reason=ordinary_play
+[10:24:56][ERROR] run - read failed path=C:\Users\chris\AppData\Local\Temp\TestARoutineThatCouldNotBeReadStatesNoGenerationEitherWay3093201868\002\no-such-application-9f2c\focus\a-routine.marco err=open C:\Users\chris\AppData\Local\Temp\TestARoutineThatCouldNotBeReadStatesNoGenerationEitherWay3093201868\002\no-such-application-9f2c\focus\a-routine.marco: The system cannot find the file specified.
+[10:24:56][INFO] run - executing route=a-routine scope=no-such-application-9f2c named_args=0
+[INFO] activate: "no-such-application-9f2c" did not open within the launch timeout
+[INFO] a routine: stopped there — nothing after it was done
+[10:25:16][ERROR] run - stopped route=a-routine why=the no-such-application-9f2c window could not be brought to the front: activate: "no-such-application-9f2c" did not open within the launch timeout
+[10:25:16][INFO] run - executing route=a-routine scope=no-such-application-9f2c named_args=0
+[INFO] a routine: done
+[10:25:16][INFO] run - executing route=a-routine scope=no-such-application-9f2c named_args=0
+[INFO] SendInput was blocked
+[INFO] a routine: stopped there — nothing after it was done
+[10:25:16][ERROR] run - stopped route=a-routine why=a press at 842,274 did not happen: SendInput was blocked
+[10:25:16][INFO] run - executing route=a-routine scope=no-such-application-9f2c named_args=0
+[INFO] a routine: done
+[10:25:16][INFO] run - executing route=a-routine scope=no-such-application-9f2c named_args=0
+[INFO] SendInput was blocked
+[INFO] a routine: stopped there — nothing after it was done
+[10:25:16][ERROR] run - stopped route=a-routine why=the escape key did not happen: SendInput was blocked
+[10:25:16][INFO] run - executing route=a-routine scope=no-such-application-9f2c named_args=0
+[INFO] a routine: done
+[10:25:16][INFO] intake - routed trace=source=cli decision=play play=save-and-close app=notepad explicit=yes why="the surface named the play itself"
+[10:25:16][INFO] intake - not admitted here play=save-and-close why=this routine is "Only in notepad", and discord is in front — nothing was performed. Bring notepad forward and ask again, or change where it works to "From anywhere → notepad"
+[10:25:16][INFO] intake - finished decision=play outcome=refused words= play=save-and-close
+[10:25:16][INFO] intake - routed trace=source=cli decision=play play=save-and-close app=notepad explicit=yes why="the surface named the play itself"
+[10:25:16][INFO] intake - authority play=save-and-close verdict=allowed reason=ordinary_play
+[10:25:16][INFO] run - executing route=save-and-close scope=notepad named_args=0
+[10:25:16][INFO] intake - finished decision=play outcome=performed words= play=save-and-close
+[10:25:16][INFO] intake - routed trace=source=cli decision=play play=save-and-close app=notepad explicit=yes why="the surface named the play itself"
+[10:25:16][INFO] intake - authority play=save-and-close verdict=allowed reason=ordinary_play
+[10:25:16][INFO] run - executing route=save-and-close scope=notepad named_args=0
+[10:25:16][INFO] intake - finished decision=play outcome=performed words= play=save-and-close
+[10:25:16][INFO] intake - routed trace=source=cli decision=play play=save-and-close app=notepad explicit=yes why="the surface named the play itself"
+[10:25:16][INFO] intake - not admitted here play=save-and-close why=this routine is "Only in notepad", and the window it was given belongs to chrome — nothing was performed
+[10:25:16][INFO] intake - finished decision=play outcome=refused words= play=save-and-close
+[10:25:16][INFO] intake - routed trace=source=cli decision=play play=save-and-close app=notepad explicit=yes why="the surface named the play itself"
+[10:25:16][INFO] intake - not admitted here play=save-and-close why=this routine is "Only in notepad", and discord is in front — nothing was performed. Bring notepad forward and ask again, or change where it works to "From anywhere → notepad"
+[10:25:16][INFO] intake - finished decision=play outcome=refused words= play=save-and-close
+[10:25:16][INFO] intake - routed trace=source=typed decision=play play=save-and-close app=notepad explicit=yes why="the surface named the play itself"
+[10:25:16][INFO] intake - not admitted here play=save-and-close why=this routine is "Only in notepad", and discord is in front — nothing was performed. Bring notepad forward and ask again, or change where it works to "From anywhere → notepad"
+[10:25:16][INFO] intake - finished decision=play outcome=refused words= play=save-and-close
+[10:25:16][INFO] intake - routed trace=source=spoken decision=play play=save-and-close app=notepad explicit=yes why="the surface named the play itself"
+[10:25:16][INFO] intake - not admitted here play=save-and-close why=this routine is "Only in notepad", and discord is in front — nothing was performed. Bring notepad forward and ask again, or change where it works to "From anywhere → notepad"
+[10:25:16][INFO] intake - finished decision=play outcome=refused words= play=save-and-close
+[10:25:16][INFO] intake - routed trace=source=hotkey decision=play play=save-and-close app=notepad explicit=yes why="the surface named the play itself"
+[10:25:16][INFO] intake - not admitted here play=save-and-close why=this routine is "Only in notepad", and discord is in front — nothing was performed. Bring notepad forward and ask again, or change where it works to "From anywhere → notepad"
+[10:25:16][INFO] intake - finished decision=play outcome=refused words= play=save-and-close
+[10:25:16][INFO] intake - routed trace=source=studio decision=play play=save-and-close app=notepad explicit=yes why="the surface named the play itself"
+[10:25:16][INFO] intake - not admitted here play=save-and-close why=this routine is "Only in notepad", and discord is in front — nothing was performed. Bring notepad forward and ask again, or change where it works to "From anywhere → notepad"
+[10:25:16][INFO] intake - finished decision=play outcome=refused words= play=save-and-close
+[10:25:16][INFO] intake - routed trace=source=control-centre decision=play play=save-and-close app=notepad explicit=yes why="the surface named the play itself"
+[10:25:16][INFO] intake - not admitted here play=save-and-close why=this routine is "Only in notepad", and discord is in front — nothing was performed. Bring notepad forward and ask again, or change where it works to "From anywhere → notepad"
+[10:25:16][INFO] intake - finished decision=play outcome=refused words= play=save-and-close
+[10:25:16][INFO] intake - routed trace=source=cli decision=play play=open-mouse-settings app=settings explicit=yes why="the surface named the play itself"
+[10:25:16][INFO] intake - authority play=open-mouse-settings verdict=allowed reason=ordinary_play
+[10:25:16][INFO] run - executing route=open-mouse-settings scope=settings named_args=0
+[10:25:16][INFO] intake - finished decision=play outcome=failed words= play=open-mouse-settings err=C:\Users\chris\AppData\Local\Temp\TestOnlyTheOnlyInScopeIsCheckedAtTheDoor369136928\001\settings\focus\open-mouse-settings.marco: graph: 1:1: top-level sentence with no script declaration
+    script main...
+    ^
+[10:25:17][INFO] intake - routed trace=source=cli decision=play play=open-dad-s-settings explicit=yes why="the surface named the play itself"
+[10:25:17][INFO] intake - authority play=open-dad-s-settings verdict=allowed reason=ordinary_play
+[10:25:17][INFO] run - executing route=open-dad-s-settings scope= named_args=0
+[10:25:17][INFO] intake - finished decision=play outcome=failed words= play=open-dad-s-settings err=C:\Users\chris\AppData\Local\Temp\TestOnlyTheOnlyInScopeIsCheckedAtTheDoor369136928\004\global\open-dad-s-settings.marco: graph: 1:1: top-level sentence with no script declaration
+    script main...
+    ^
+[10:25:17][INFO] intake - routed trace=source=spoken decision=control phrase="stop" why="a control phrase — it acts on what is running"
+stop sent — anything Marco was running will stop
+[10:25:17][INFO] intake - finished decision=control outcome=cancelled words=stop
+[10:25:17][INFO] intake - routed trace=source=spoken decision=director phrase="the second one" why="Director is waiting for an answer — these words are it"
+[10:25:17][INFO] intake - finished decision=director outcome=performed words=the second one
+[10:25:17][INFO] intake - routed trace=source=spoken decision=play play=open-mouse-settings app=settings why="an exact match for a play Marco has"
+[10:25:17][INFO] intake - authority play=open-mouse-settings verdict=allowed reason=ordinary_play
+[10:25:17][INFO] run - executing route=open-mouse-settings scope=settings named_args=0
+[10:25:17][INFO] intake - finished decision=play outcome=performed words=open mouse settings play=open-mouse-settings
+[10:25:17][INFO] intake - routed trace=source=hotkey decision=play play=stop explicit=yes why="the surface named the play itself"
+[10:25:17][INFO] intake - authority play=stop verdict=allowed reason=ordinary_play
+[10:25:17][INFO] run - executing route=stop scope= named_args=0
+[10:25:17][INFO] intake - finished decision=play outcome=failed words= play=stop err=C:\Users\chris\AppData\Local\Temp\TestAHotkeyPerformsTheBoundPlayItselfeven_when_the_play_is_name2866526037\001\global\stop.marco: graph: 1:1: top-level sentence with no script declaration
+    script main...
+    ^
+C:\Users\chris\AppData\Local\Temp\TestAHotkeyPerformsTheBoundPlayItselfeven_when_the_play_is_name2866526037\001\global\stop.marco: graph: 1:1: top-level sentence with no script declaration
+    script main...
+    ^
+[10:25:17][INFO] intake - routed trace=source=hotkey decision=play play=open-mouse-settings app=settings explicit=yes why="the surface named the play itself"
+[10:25:17][INFO] intake - authority play=open-mouse-settings verdict=allowed reason=ordinary_play
+[10:25:17][INFO] run - executing route=open-mouse-settings scope=settings named_args=0
+[10:25:17][INFO] intake - finished decision=play outcome=failed words= play=open-mouse-settings err=C:\Users\chris\AppData\Local\Temp\TestAHotkeyPerformsTheBoundPlayItselfeven_while_Director_is_wai1656279765\001\settings\focus\open-mouse-settings.marco: graph: 1:1: top-level sentence with no script declaration
+    script main...
+    ^
+C:\Users\chris\AppData\Local\Temp\TestAHotkeyPerformsTheBoundPlayItselfeven_while_Director_is_wai1656279765\001\settings\focus\open-mouse-settings.marco: graph: 1:1: top-level sentence with no script declaration
+    script main...
+    ^
+[10:25:17][INFO] intake - routed trace=source=hotkey decision=play play=restart explicit=yes why="the surface named the play itself"
+[10:25:17][INFO] intake - authority play=restart verdict=allowed reason=ordinary_play
+[10:25:17][INFO] run - executing route=restart scope= named_args=0
+[10:25:17][INFO] intake - finished decision=play outcome=failed words= play=restart err=C:\Users\chris\AppData\Local\Temp\TestAHotkeyResolvesInTheScopeItWasBoundInthe_binding_lands_in_t1447613376\001\global\restart.marco: graph: 1:1: top-level sentence with no script declaration
+    script main...
+    ^
+C:\Users\chris\AppData\Local\Temp\TestAHotkeyResolvesInTheScopeItWasBoundInthe_binding_lands_in_t1447613376\001\global\restart.marco: graph: 1:1: top-level sentence with no script declaration
+    script main...
+    ^
+[10:25:17][INFO] intake - routed trace=source=hotkey decision=play play=restart app=discord explicit=yes why="the surface named the play itself"
+[10:25:17][INFO] intake - authority play=restart verdict=allowed reason=ordinary_play
+[10:25:17][INFO] run - executing route=restart scope=discord named_args=0
+[10:25:17][INFO] intake - finished decision=play outcome=failed words= play=restart err=C:\Users\chris\AppData\Local\Temp\TestAHotkeyResolvesInTheScopeItWasBoundInthe_press_resolves_in_3492300958\001\discord\context\restart.marco: graph: 1:1: top-level sentence with no script declaration
+    script main...
+    ^
+C:\Users\chris\AppData\Local\Temp\TestAHotkeyResolvesInTheScopeItWasBoundInthe_press_resolves_in_3492300958\001\discord\context\restart.marco: graph: 1:1: top-level sentence with no script declaration
+    script main...
+    ^
+[10:25:17][INFO] intake - routed trace=source=typed decision=play play=learned-one app=settings why="an exact match for a play Marco has"
+[10:25:17][INFO] intake - authority play=learned-one verdict=declined reason=user_declined
+No.
+[10:25:17][INFO] intake - finished decision=play outcome=refused words=learned one play=learned-one
+[10:25:17][INFO] intake - routed trace=source=spoken decision=play play=slow-one why="an exact match for a play Marco has"
+[10:25:17][INFO] intake - authority play=slow-one verdict=allowed reason=ordinary_play
+[route] slow one
+  run run-20261103-102517-5344   C:\Users\chris\AppData\Local\Temp\TestACancelledPlayIsNotReportedAsPerformed2614316655\002\runs\run-20261103-102517-5344.json
+[10:25:17][INFO] run - executing route=slow-one scope= named_args=0
+[10:25:17][INFO] intake - finished decision=play outcome=cancelled words=slow one play=slow-one
+[10:25:18][INFO] intake - routed trace=source=spoken decision=director phrase="do something impossible" why="no play answers to this, so Director reads it against what is on screen"
+[10:25:18][INFO] intake - finished decision=director outcome=failed words=do something impossible
+[10:25:18][INFO] intake - routed trace=source=spoken decision=director phrase="do something impossible" why="no play answers to this, so Director reads it against what is on screen"
+[10:25:18][INFO] intake - finished decision=director outcome=unavailable words=do something impossible err=no play matches "do something impossible" (learn it: marco learn "do something impossible", or `m learn … in the overlay)
+[10:25:18][INFO] intake - routed trace=source=typed decision=play play=log-in-with-google why="an exact match for a play Marco has"
+[10:25:18][INFO] intake - authority play=log-in-with-google verdict=allowed reason=ordinary_play
+[10:25:18][INFO] run - refused route=log-in-with-google why=1 values were given and this routine takes 0 — it takes none
+[10:25:18][INFO] intake - finished decision=play outcome=refused words=log in with google play=log-in-with-google
+[10:25:18][INFO] intake - routed trace=source=typed decision=play play=wait-then-click why="an exact match for a play Marco has"
+[10:25:18][INFO] intake - authority play=wait-then-click verdict=allowed reason=ordinary_play
+[10:25:18][INFO] run - executing route=wait-then-click scope= named_args=0
+[10:25:18][INFO] intake - finished decision=play outcome=performed words=wait then click play=wait-then-click
+[10:25:18][INFO] intake - routed trace=source=spoken decision=director phrase="first thing then something nobody taught" why="no play answers to this, so Director reads it against what is on screen"
+[10:25:18][INFO] intake - finished decision=director outcome=performed words=first thing then something nobody taught
+[10:25:18][INFO] intake - routed trace=source=spoken decision=director phrase="first thing then second thing" why="no play answers to this, so Director reads it against what is on screen"
+[10:25:18][INFO] intake - the invocation grammar named plays steps=2
+[10:25:18][INFO] intake - authority play=first-thing verdict=allowed reason=ordinary_play
+[10:25:18][INFO] run - executing route=first-thing scope= named_args=0
+[10:25:18][INFO] intake - authority play=second-thing verdict=allowed reason=ordinary_play
+[10:25:18][INFO] run - executing route=second-thing scope= named_args=0
+[10:25:18][INFO] intake - finished decision=director outcome=performed words=first thing then second thing
+[10:25:18][INFO] intake - routed trace=source=typed decision=play play=open-settings why="an exact match for a play Marco has"
+[10:25:18][INFO] intake - authority play=open-settings verdict=allowed reason=ordinary_play
+[10:25:18][INFO] run - executing route=open-settings scope= named_args=0
+[10:25:18][INFO] intake - finished decision=play outcome=performed words=open settings play=open-settings
+[10:25:18][INFO] intake - routed trace=source=typed decision=play play=open-the-settings why="an exact match for a play Marco has"
+[10:25:18][INFO] intake - authority play=open-the-settings verdict=allowed reason=ordinary_play
+[10:25:18][INFO] run - executing route=open-the-settings scope= named_args=0
+[10:25:18][INFO] intake - finished decision=play outcome=performed words=open the settings play=open-the-settings
+[10:25:18][INFO] intake - routed trace=source=typed decision=director phrase="open the setting" why="no play answers to this, so Director reads it against what is on screen"
+[10:25:18][INFO] intake - finished decision=director outcome=performed words=open the setting
+[10:25:19][INFO] intake - routed trace=source=spoken decision=director phrase="the second one" why="Director is waiting for an answer — these words are it"
+[10:25:19][INFO] intake - finished decision=director outcome=performed words=the second one
+[10:25:19][INFO] intake - routed trace=source=cli decision=play play=volume app=testgame why="an exact match for a play Marco has"
+[10:25:19][INFO] intake - authority play=volume verdict=allowed reason=edited_since_learned
+[route] volume
+  run run-20261103-102519-2f40   C:\Users\chris\AppData\Local\Temp\TestAnEditedLearnedPlayTakesTheLocalRunner3170522215\001\runs\run-20261103-102519-2f40.json
+[10:25:19][INFO] run - executing route=volume scope=testgame named_args=0
+[INFO] this play expected to finish on controller settings
+[10:25:19][INFO] intake - finished decision=play outcome=performed words=volume play=volume
+marco: I haven't been watching, so I don't know what you just did.
+  Turn it on with: marco observe
+Marco is not watching.
+Marco is not watching.
+marco: I don't know `observe stpo`. Try: observe, observe status, observe learn, observe learn off, observe stop
+marco: nothing running
+Marco is not watching.
+Marco is not watching.
+[10:25:19][INFO] intake - routed trace=source=cli decision=play play=mute-volume app=testgame why="an exact match for a play Marco has"
+[10:25:19][INFO] intake - authority play=mute-volume verdict=allowed reason=learned_play
+[route] mute volume
+[10:25:19][INFO] perform - delegating to the Director route=mute-volume goal=mute volume application=testgame subject=subj_b
+[10:25:19][INFO] intake - finished decision=play outcome=performed words=mute-volume play=mute-volume
+[10:25:19][INFO] intake - routed trace=source=cli decision=play play=mute-volume app=testgame why="an exact match for a play Marco has"
+[10:25:19][INFO] intake - authority play=mute-volume verdict=allowed reason=ordinary_play
+[route] mute volume
+  run run-20261103-102519-c2eb   C:\Users\chris\AppData\Local\Temp\marco-tests-2970750058\runs\run-20261103-102519-c2eb.json
+[10:25:19][INFO] run - executing route=mute-volume scope=testgame named_args=0
+[INFO] this play expected to finish on controller settings
+[10:25:19][INFO] intake - finished decision=play outcome=performed words=mute-volume play=mute-volume
+[10:25:19][INFO] intake - routed trace=source=cli decision=play play=mute-volume app=testgame why="an exact match for a play Marco has"
+[10:25:19][INFO] intake - authority play=mute-volume verdict=allowed reason=edited_since_learned
+[route] mute volume
+  run run-20261103-102519-d4e1   C:\Users\chris\AppData\Local\Temp\marco-tests-2970750058\runs\run-20261103-102519-d4e1.json
+[10:25:19][INFO] run - executing route=mute-volume scope=testgame named_args=0
+[INFO] this play expected to finish on controller settings
+[10:25:19][INFO] intake - finished decision=play outcome=performed words=mute-volume play=mute-volume
+[10:25:19][INFO] intake - routed trace=source=cli decision=play play=mute-volume app=testgame why="an exact match for a play Marco has"
+[10:25:19][INFO] intake - authority play=mute-volume verdict=allowed reason=learned_play
+[route] mute volume
+[10:25:19][INFO] perform - delegating to the Director route=mute-volume goal=mute volume application=testgame subject=subj_b
+[10:25:19][INFO] intake - finished decision=play outcome=performed words=mute-volume play=mute-volume
+[10:25:19][INFO] intake - routed trace=source=cli decision=play play=mute-volume app=testgame why="an exact match for a play Marco has"
+[10:25:19][INFO] intake - authority play=mute-volume verdict=allowed reason=learned_play
+[route] mute volume
+[10:25:19][INFO] perform - delegating to the Director route=mute-volume goal=mute volume application=testgame subject=subj_b
+[10:25:19][INFO] intake - finished decision=play outcome=failed words=mute-volume play=mute-volume err=I got as far as the settings list and stopped. (1 of 2 steps verified; step_unverified)
+[10:25:19][INFO] intake - routed trace=source=cli decision=play play=mute-volume app=testgame why="an exact match for a play Marco has"
+[10:25:19][INFO] intake - authority play=mute-volume verdict=allowed reason=learned_play
+[route] mute volume
+[10:25:19][INFO] perform - delegating to the Director route=mute-volume goal=mute volume application=testgame subject=subj_b
+[10:25:19][INFO] intake - finished decision=play outcome=failed words=mute-volume play=mute-volume err=I'm at the volume panel. (2 of 3 steps verified; no reason given)
+[10:25:19][INFO] intake - routed trace=source=cli decision=play play=mute-volume app=testgame why="an exact match for a play Marco has"
+[10:25:19][INFO] intake - authority play=mute-volume verdict=allowed reason=learned_play
+[route] mute volume
+[10:25:19][INFO] perform - delegating to the Director route=mute-volume goal=mute volume application=testgame subject=subj_b
+[10:25:19][INFO] intake - finished decision=play outcome=failed words=mute-volume play=mute-volume err=I haven't learned how to reach "mute volume". (not_learned)
+[10:25:19][INFO] intake - routed trace=source=cli decision=play play=mute-volume app=testgame why="an exact match for a play Marco has"
+[10:25:19][INFO] intake - authority play=mute-volume verdict=allowed reason=learned_play
+[route] mute volume
+[10:25:19][INFO] perform - delegating to the Director route=mute-volume goal=mute volume application=testgame subject=subj_b
+[10:25:19][INFO] intake - finished decision=play outcome=failed words=mute-volume play=mute-volume err=I couldn't bring testgame to the front (application_not_available)
+[10:25:19][INFO] intake - routed trace=source=cli decision=play play=mute-volume app=testgame why="an exact match for a play Marco has"
+[10:25:19][INFO] intake - authority play=mute-volume verdict=allowed reason=learned_play
+[route] mute volume
+[10:25:19][INFO] perform - delegating to the Director route=mute-volume goal=mute volume application=testgame subject=subj_b
+[10:25:19][INFO] intake - finished decision=play outcome=failed words=mute-volume play=mute-volume err=I can't tell which screen is in front right now (place_unknown)
+[10:25:19][INFO] intake - routed trace=source=cli decision=play play=mute-volume app=testgame why="an exact match for a play Marco has"
+[10:25:19][INFO] intake - authority play=mute-volume verdict=allowed reason=learned_play
+[route] mute volume
+[10:25:19][INFO] perform - delegating to the Director route=mute-volume goal=mute volume application=testgame subject=subj_b
+[10:25:19][INFO] intake - finished decision=play outcome=failed words=mute-volume play=mute-volume err=I know that outcome and can't get there from here. (no_known_route)
+[10:25:19][INFO] intake - routed trace=source=cli decision=play play=mute-volume app=testgame why="an exact match for a play Marco has"
+[10:25:19][INFO] intake - authority play=mute-volume verdict=allowed reason=learned_play
+[route] mute volume
+[10:25:19][INFO] perform - delegating to the Director route=mute-volume goal=mute volume application=testgame subject=subj_b
+[10:25:19][INFO] intake - finished decision=play outcome=failed words=mute-volume play=mute-volume err=Every step worked and this isn't where I expected to end up. (did_not_arrive)
+[10:25:19][INFO] intake - routed trace=source=cli decision=play play=mute-volume app=testgame why="an exact match for a play Marco has"
+[10:25:19][INFO] intake - authority play=mute-volume verdict=allowed reason=learned_play
+[route] mute volume
+[10:25:19][INFO] perform - delegating to the Director route=mute-volume goal=mute volume application=testgame subject=subj_b
+[10:25:19][INFO] intake - finished decision=play outcome=failed words=mute-volume play=mute-volume err=no_authority (no_authority)
+[10:25:19][INFO] intake - routed trace=source=cli decision=play play=mute-volume app=testgame why="an exact match for a play Marco has"
+[10:25:19][INFO] intake - authority play=mute-volume verdict=allowed reason=learned_play
+[route] mute volume
+[10:25:19][INFO] perform - delegating to the Director route=mute-volume goal=mute volume application=testgame subject=subj_b
+[10:25:19][INFO] intake - finished decision=play outcome=failed words=mute-volume play=mute-volume err=no_actuator (no_actuator)
+[10:25:19][INFO] intake - routed trace=source=cli decision=play play=mute-volume app=testgame why="an exact match for a play Marco has"
+[10:25:19][INFO] intake - authority play=mute-volume verdict=allowed reason=learned_play
+[route] mute volume
+[10:25:19][INFO] perform - delegating to the Director route=mute-volume goal=mute volume application=testgame subject=subj_b
+[10:25:19][INFO] intake - finished decision=play outcome=failed words=mute-volume play=mute-volume err="mute volume" is a play Marco learned by watching, so the Director has to perform it — and the Director is not available: director: accessibility bridge not found at C:\nowhere\uia.exe
+[10:25:19][INFO] intake - routed trace=source=cli decision=play play=mute-volume app=testgame why="an exact match for a play Marco has"
+[10:25:19][INFO] intake - authority play=mute-volume verdict=allowed reason=learned_play
+[route] mute volume
+[10:25:19][INFO] intake - finished decision=play outcome=failed words=mute-volume play=mute-volume err="mute volume" is a play Marco learned by watching, and it takes no arguments; drop the level: and ask for it by name
+[10:25:19][INFO] intake - routed trace=source=cli decision=play play=mute-volume app=testgame why="an exact match for a play Marco has"
+[10:25:19][INFO] intake - authority play=mute-volume verdict=allowed reason=learned_play
+[route] mute volume
+[10:25:19][INFO] intake - finished decision=play outcome=failed words=mute-volume play=mute-volume err="mute volume" is a play Marco learned by watching, and it takes no arguments; drop the 1 positional argument(s) and ask for it by name
+[10:25:19][INFO] intake - routed trace=source=cli decision=play play=mute-volume app=testgame why="an exact match for a play Marco has"
+[10:25:19][INFO] intake - authority play=mute-volume verdict=allowed reason=learned_play
+[10:25:19][INFO] perform - delegating to the Director route=mute-volume goal=mute volume application=testgame subject=subj_b
+[10:25:19][INFO] intake - finished decision=play outcome=failed words=mute-volume play=mute-volume err=I can't tell which screen is in front right now (place_unknown)
+[10:25:19][INFO] perform - delegating to the Director route=open-steve-s-downloads goal=open steve s downloads application=testgame subject=subj_0000f699ea69
+  step 1 of 1: verified
+open Steve's downloads: performed 1 of 1 steps.
+[10:25:19][INFO] perform - delegating to the Director route=open-mouse-settings goal=open mouse settings application=testgame subject=subj_0000f699ea69
+  step 1 of 1: verified
+Open Mouse Settings!: performed 1 of 1 steps.
+[10:25:19][INFO] perform - delegating to the Director route=e-mail-steve goal=e mail steve application=testgame subject=subj_0000f699ea69
+  step 1 of 1: verified
+e-mail steve: performed 1 of 1 steps.
+[10:25:19][INFO] perform - delegating to the Director route=open-mouse-settings goal=open mouse settings application=testgame subject=subj_0000f699ea69
+  step 1 of 1: verified
+open mouse  settings: performed 1 of 1 steps.
+[10:25:19][INFO] perform - delegating to the Director route=open-mouse-settings-win11 goal=open mouse settings win11 application=testgame subject=subj_0000f699ea69
+  step 1 of 1: verified
+open mouse settings (win11): performed 1 of 1 steps.
+[10:25:19][INFO] intake - routed trace=source=cli decision=director phrase="nothing-called-this" why="no play answers to this, so Director reads it against what is on screen"
+[10:25:19][INFO] intake - finished decision=director outcome=unavailable words=nothing-called-this err=no play matches "nothing-called-this" (learn it: marco learn "nothing-called-this", or `m learn … in the overlay)
+[10:25:19][INFO] intake - authority play=a-routine verdict=allowed reason=ordinary_play
+[10:25:19][INFO] run - executing route=a-routine scope=no-such-application-9f2c named_args=0
+[10:25:19][ERROR] run - stopped route=a-routine why=the no-such-application-9f2c window could not be brought to the front: activate: "no-such-application-9f2c" is not running and could not be launched
+[10:25:19][INFO] intake - authority play=a-routine verdict=allowed reason=ordinary_play
+[10:25:19][INFO] run - executing route=a-routine scope=no-such-application-9f2c named_args=0
+[10:25:19][ERROR] run - stopped route=a-routine why=the no-such-application-9f2c window could not be brought to the front: activate: "no-such-application-9f2c" is not running and could not be launched
+[10:25:19][INFO] intake - authority play=a-routine verdict=allowed reason=ordinary_play
+[10:25:19][INFO] run - executing route=a-routine scope=no-such-application-9f2c named_args=0
+[10:25:19][ERROR] run - stopped route=a-routine why=the no-such-application-9f2c window could not be brought to the front
+[10:25:19][INFO] intake - authority play=a-routine verdict=allowed reason=ordinary_play
+[10:25:19][INFO] run - executing route=a-routine scope=no-such-application-9f2c named_args=0
+[10:25:19][ERROR] run - stopped route=a-routine why=the no-such-application-9f2c window could not be brought to the front: activate: "no-such-application-9f2c" is not running and could not be launched
+[10:25:19][INFO] draft - saved route=a routine app=no-such-application-9f2c steps=2 path=C:\Users\chris\AppData\Local\Temp\TestTheRecordOfARepairedRoutineSaysWhatItWasRecordedAs760287111\002\no-such-application-9f2c\context\a-routine.marco
+[10:25:19][INFO] draft - saved route=a routine app=no-such-application-9f2c steps=2 path=C:\Users\chris\AppData\Local\Temp\TestTheRecordOfARepairedRoutineSaysWhatItWasRecordedAs760287111\002\no-such-application-9f2c\focus\a-routine.marco
+[10:25:19][INFO] resave - saved again so its presses have a window route=a routine was=app now=app-anywhere recorded_as=coordinates
+[10:25:19][INFO] intake - authority play=a-routine verdict=allowed reason=ordinary_play
+[10:25:19][INFO] run - executing route=a-routine scope=no-such-application-9f2c named_args=0
+[10:25:19][ERROR] run - stopped route=a-routine why=the no-such-application-9f2c window could not be brought to the front: activate: "no-such-application-9f2c" is not running and could not be launched
+[10:25:19][INFO] intake - authority play=a-routine verdict=allowed reason=ordinary_play
+[10:25:19][INFO] run - executing route=a-routine scope=no-such-application-9f2c named_args=0
+[10:25:19][ERROR] run - stopped route=a-routine why=the no-such-application-9f2c window could not be brought to the front: activate: "no-such-application-9f2c" is not running and could not be launched
+[10:25:19][INFO] intake - authority play=a-routine verdict=allowed reason=ordinary_play
+[10:25:19][INFO] run - executing route=a-routine scope=no-such-application-9f2c named_args=0
+[10:25:19][ERROR] run - stopped route=a-routine why=the no-such-application-9f2c window could not be brought to the front: activate: "no-such-application-9f2c" is not running and could not be launched
+[10:25:19][INFO] intake - authority play=a-routine verdict=allowed reason=ordinary_play
+[10:25:19][INFO] run - executing route=a-routine scope=no-such-application-9f2c named_args=0
+[10:25:19][ERROR] run - stopped route=a-routine why=the no-such-application-9f2c window could not be brought to the front: activate: "no-such-application-9f2c" is not running and could not be launched
+[10:25:19][INFO] intake - authority play=a-routine verdict=allowed reason=ordinary_play
+[10:25:19][INFO] run - executing route=a-routine scope=no-such-application-9f2c named_args=0
+[10:25:19][INFO] intake - authority play=a-routine verdict=allowed reason=ordinary_play
+[10:25:19][INFO] run - executing route=a-routine scope=no-such-application-9f2c named_args=0
+[10:25:19][ERROR] run - stopped route=a-routine why=the no-such-application-9f2c window could not be brought to the front: activate: "no-such-application-9f2c" is not running and could not be launched
+[10:25:19][INFO] intake - authority play=a-routine verdict=allowed reason=ordinary_play
+[10:25:19][INFO] run - executing route=a-routine scope=no-such-application-9f2c named_args=0
+[10:25:19][ERROR] run - stopped route=a-routine why=the no-such-application-9f2c window could not be brought to the front: activate: "no-such-application-9f2c" is not running and could not be launched
+[10:25:19][INFO] intake - authority play=a-routine verdict=allowed reason=ordinary_play
+[10:25:19][INFO] run - executing route=a-routine scope=no-such-application-9f2c named_args=0
+[10:25:19][ERROR] run - stopped route=a-routine why=the no-such-application-9f2c window could not be brought to the front: activate: "no-such-application-9f2c" is not running and could not be launched
+[10:25:19][INFO] intake - authority play=a-routine verdict=allowed reason=ordinary_play
+[10:25:19][INFO] run - executing route=a-routine scope=no-such-application-9f2c named_args=0
+[10:25:19][ERROR] run - stopped route=a-routine why=a press at 842,274 did not happen: SendInput was blocked
+[10:25:19][INFO] intake - authority play=a-routine verdict=allowed reason=ordinary_play
+[10:25:19][INFO] run - executing route=a-routine scope=no-such-application-9f2c named_args=0
+[10:25:19][ERROR] run - stopped route=a-routine why=the no-such-application-9f2c window could not be brought to the front
+[10:25:19][INFO] intake - authority play=a-routine verdict=allowed reason=ordinary_play
+[10:25:19][INFO] run - executing route=a-routine scope=no-such-application-9f2c named_args=0
+[10:25:19][ERROR] run - stopped route=a-routine why=the no-such-application-9f2c window could not be brought to the front
+[10:25:19][INFO] intake - authority play=a-routine verdict=allowed reason=ordinary_play
+[10:25:19][INFO] run - executing route=a-routine scope=no-such-application-9f2c named_args=1
+[10:25:19][INFO] intake - authority play=a-routine verdict=allowed reason=ordinary_play
+[10:25:19][INFO] run - executing route=a-routine scope=no-such-application-9f2c named_args=0
+[10:25:19][INFO] click - refused why=this press was recorded inside a window and does not say what scale it was drawn at, so there is nothing to check it against — demonstrate it again
+[10:25:19][ERROR] run - stopped route=a-routine why=this press was recorded inside a window and does not say what scale it was drawn at, so there is nothing to check it against — demonstrate it again
+[10:25:20][INFO] intake - routed trace=source=cli decision=play play=volume app=testgame why="an exact match for a play Marco has"
+[10:25:20][INFO] intake - authority play=volume verdict=allowed reason=edited_since_learned
+[route] volume
+  run run-20261103-102520-dbb2   C:\Users\chris\AppData\Local\Temp\TestAnEditedLearnedPlayRunsItsOwnSourceAndItsGuardIsAnswered677161619\001\runs\run-20261103-102520-dbb2.json
+[10:25:20][INFO] run - executing route=volume scope=testgame named_args=0
+[INFO] done
+[10:25:20][INFO] intake - finished decision=play outcome=performed words=volume play=volume
+[10:25:20][INFO] draft - saved route=sign in to the portal app= steps=2 path=C:\Users\chris\AppData\Local\Temp\TestAnEditedRoutineStillAsksForTheCredentialItAlwaysAskedFor540361917\002\global\sign-in-to-the-portal.marco
+[10:25:20][INFO] intake - authority play=sign-in-to-the-portal verdict=allowed reason=ordinary_play
+[10:25:20][INFO] run - executing route=sign-in-to-the-portal scope= named_args=0
+[10:25:20][INFO] edit - saved from its own step list route=sign-in-to-the-portal edits=1 steps=2 scope=everywhere
+[10:25:20][INFO] intake - authority play=sign-in-to-the-portal verdict=allowed reason=ordinary_play
+[10:25:20][INFO] run - executing route=sign-in-to-the-portal scope= named_args=0
+[10:25:20][INFO] draft - saved route=sign in to the portal app= steps=2 path=C:\Users\chris\AppData\Local\Temp\TestARefusedRebuildLeavesTheRoutineAskingForWhatItAlwaysAskedFor2611146793\002\global\sign-in-to-the-portal.marco
+[10:25:20][INFO] intake - authority play=sign-in-to-the-portal verdict=allowed reason=ordinary_play
+[10:25:20][INFO] run - executing route=sign-in-to-the-portal scope= named_args=0
+[10:25:20][INFO] intake - authority play=a-routine verdict=allowed reason=ordinary_play
+[10:25:20][INFO] run - executing route=a-routine scope=no-such-application-9f2c named_args=0
+[10:25:20][WARN] secret - not set key=a-routine:password
+[10:25:20][ERROR] run - stopped route=a-routine why=the secret "a-routine:password" is not set — pass password:<value> once, or run: marco secret set a-routine:password
+[10:25:20][INFO] intake - authority play=a-routine verdict=allowed reason=ordinary_play
+[10:25:20][INFO] run - executing route=a-routine scope=no-such-application-9f2c named_args=0
+[10:25:20][ERROR] secret - store error key=a-routine:password err=the credential store is not available
+[10:25:20][ERROR] run - stopped route=a-routine why=the credential store would not answer about the secret "a-routine:password": the credential store is not available
+[10:25:20][INFO] intake - authority play=a-routine verdict=allowed reason=ordinary_play
+[10:25:20][INFO] run - executing route=a-routine scope=no-such-application-9f2c named_args=0
+[10:25:20][INFO] click - refused why=this press was recorded inside a window and no window was brought to the front for it, so there is nothing to measure it against
+[10:25:20][ERROR] run - stopped route=a-routine why=this press was recorded inside a window and no window was brought to the front for it, so there is nothing to measure it against
+[10:25:20][INFO] intake - routed trace=source=hotkey decision=play play=save explicit=yes why="the surface named the play itself"
+[10:25:20][INFO] intake - authority play=save verdict=allowed reason=ordinary_play
+[10:25:20][INFO] run - refused route=save why=not the routine the shortcut was pressed for
+[10:25:20][INFO] intake - finished decision=play outcome=refused words= play=save
+[10:25:20][INFO] intake - routed trace=source=hotkey decision=play play=save explicit=yes why="the surface named the play itself"
+[10:25:20][INFO] intake - authority play=save verdict=allowed reason=ordinary_play
+[10:25:20][INFO] run - executing route=save scope= named_args=0
+[10:25:20][INFO] intake - finished decision=play outcome=performed words= play=save
+[10:25:21][INFO] intake - routed trace=source=hotkey decision=play play=open-dad-s-settings explicit=yes why="the surface named the play itself"
+[10:25:21][INFO] intake - authority play=open-dad-s-settings verdict=allowed reason=ordinary_play
+[10:25:21][INFO] run - executing route=open-dad-s-settings scope= named_args=0
+[10:25:21][INFO] intake - finished decision=play outcome=performed words= play=open-dad-s-settings
+[10:25:21][INFO] intake - routed trace=source=hotkey decision=play play=open-dad-s-settings explicit=yes why="the surface named the play itself"
+[10:25:21][INFO] intake - authority play=open-dad-s-settings verdict=allowed reason=ordinary_play
+[10:25:21][INFO] run - executing route=open-dad-s-settings scope= named_args=0
+[10:25:21][INFO] intake - finished decision=play outcome=performed words= play=open-dad-s-settings
+[10:25:21][INFO] intake - routed trace=source=spoken decision=control phrase="stop" why="a control phrase — it acts on what is running"
+stop sent — anything Marco was running will stop
+[10:25:21][INFO] intake - finished decision=control outcome=cancelled words=stop
+[10:25:21][INFO] intake - routed trace=source=typed decision=control phrase="stop" why="a control phrase — it acts on what is running"
+stop sent — anything Marco was running will stop
+[10:25:21][INFO] intake - finished decision=control outcome=cancelled words=stop
+[10:25:22][INFO] intake - routed trace=source=cli decision=play play=write-a-note app=notepad why="an exact match for a play Marco has"
+[10:25:22][INFO] intake - authority play=write-a-note verdict=allowed reason=ordinary_play
+[route] write a note
+[10:25:22][INFO] run - refused route=write-a-note why=this routine types text that has to be supplied, and no value was given for "message"
+"write a note": this routine types text that has to be supplied, and no value was given for "message". This request needs text values reviewed before running. Open it in Studio, or supply the value with the request
+[10:25:22][INFO] intake - finished decision=play outcome=refused words=write a note play=write-a-note
+[10:25:22][INFO] intake - routed trace=source=cli decision=play play=write-a-note app=notepad why="an exact match for a play Marco has"
+[10:25:22][INFO] intake - authority play=write-a-note verdict=allowed reason=ordinary_play
+[route] write a note
+  run run-20261103-102522-ab71   C:\Users\chris\AppData\Local\Temp\TestARoutineGivenItsTextTypesIt97484019\001\runs\run-20261103-102522-ab71.json
+[10:25:22][INFO] run - executing route=write-a-note scope=notepad named_args=1
+[INFO] done
+[10:25:22][INFO] intake - finished decision=play outcome=performed words=write a note play=write-a-note
+[10:25:22][INFO] intake - routed trace=source=cli decision=play play=write-a-note app=notepad why="an exact match for a play Marco has"
+[10:25:22][INFO] intake - authority play=write-a-note verdict=allowed reason=ordinary_play
+[route] write a note
+  run run-20261103-102522-7b77   C:\Users\chris\AppData\Local\Temp\TestAnExplicitlyEmptyValueRunsAndTypesNothing3336746486\001\runs\run-20261103-102522-7b77.json
+[10:25:22][INFO] run - executing route=write-a-note scope=notepad named_args=1
+[INFO] done
+[10:25:22][INFO] intake - finished decision=play outcome=performed words=write a note play=write-a-note
+[10:25:22][INFO] intake - routed trace=source=cli decision=play play=write-a-note app=notepad why="an exact match for a play Marco has"
+[10:25:22][INFO] intake - authority play=write-a-note verdict=allowed reason=ordinary_play
+[route] write a note
+  run run-20261103-102522-5691   C:\Users\chris\AppData\Local\Temp\TestTheSuppliedTextIsNotInAnyDurableRecord4064885822\001\runs\run-20261103-102522-5691.json
+[10:25:22][INFO] run - executing route=write-a-note scope=notepad named_args=1
+[INFO] done
+[10:25:22][INFO] intake - finished decision=play outcome=performed words=write a note play=write-a-note
+[10:25:22][INFO] intake - routed trace=source=cli decision=play play=write-a-note app=notepad why="an exact match for a play Marco has"
+[10:25:22][INFO] intake - authority play=write-a-note verdict=allowed reason=ordinary_play
+[10:25:22][INFO] run - refused route=write-a-note why=this routine does not take "subject", so there is nowhere for that text to go — it takes "message"
+[10:25:22][INFO] intake - finished decision=play outcome=refused words=write a note play=write-a-note
+[10:25:22][INFO] intake - routed trace=source=cli decision=play play=log-in app=web explicit=yes why="the surface named the play itself"
+[10:25:22][INFO] intake - authority play=log-in verdict=allowed reason=ordinary_play
+[10:25:22][INFO] run - refused route=log-in why="password" cannot be given here: it is read from the credential store, so set it once with `marco secret set` and this routine will find it
+[10:25:22][INFO] intake - finished decision=play outcome=refused words= play=log-in
+[10:25:22][INFO] intake - routed trace=source=cli decision=play play=log-in app=web explicit=yes why="the surface named the play itself"
+[10:25:22][INFO] intake - authority play=log-in verdict=allowed reason=ordinary_play
+[route] log in
+  run run-20261103-102522-27ce   C:\Users\chris\AppData\Local\Temp\TestASecretGivenThroughTheFlagIsRefusedAtTheDoor330910196\001\runs\run-20261103-102522-27ce.json
+[10:25:22][INFO] run - executing route=log-in scope=web named_args=1
+[INFO] done
+[10:25:22][INFO] intake - finished decision=play outcome=performed words= play=log-in
+[10:25:22][INFO] intake - routed trace=source=cli decision=play play=write-a-note app=notepad explicit=yes why="the surface named the play itself"
+[10:25:22][INFO] intake - authority play=write-a-note verdict=allowed reason=ordinary_play
+[10:25:22][INFO] run - refused route=write-a-note why=the routine changed since it was confirmed
+[10:25:22][INFO] intake - finished decision=play outcome=refused words= play=write-a-note
+[10:25:22][INFO] intake - routed trace=source=cli decision=play play=write-a-note app=notepad explicit=yes why="the surface named the play itself"
+[10:25:22][INFO] intake - authority play=write-a-note verdict=allowed reason=ordinary_play
+[route] write a note
+  run run-20261103-102522-4171   C:\Users\chris\AppData\Local\Temp\TestAConfirmedVersionThatStillMatchesRuns31197203\001\runs\run-20261103-102522-4171.json
+[10:25:22][INFO] run - executing route=write-a-note scope=notepad named_args=1
+[INFO] done
+[10:25:22][INFO] intake - finished decision=play outcome=performed words= play=write-a-note
+[10:25:22][INFO] intake - routed trace=source=cli decision=play play=write-a-note app=notepad explicit=yes why="the surface named the play itself"
+[10:25:22][INFO] intake - authority play=write-a-note verdict=allowed reason=ordinary_play
+[route] write a note
+  run run-20261103-102522-1ee0   C:\Users\chris\AppData\Local\Temp\TestAnEntranceThatConfirmedNothingPinsNothing1748397898\001\runs\run-20261103-102522-1ee0.json
+[10:25:22][INFO] run - executing route=write-a-note scope=notepad named_args=1
+[INFO] done
+[10:25:22][INFO] intake - finished decision=play outcome=performed words= play=write-a-note
+[10:25:22][INFO] intake - authority play=a-routine verdict=allowed reason=ordinary_play
+[10:25:22][INFO] run - executing route=a-routine scope=no-such-application-9f2c named_args=0
+[10:25:22][ERROR] run - stopped route=a-routine why=the escape key did not happen: context canceled
+[10:25:22][INFO] intake - authority play=a-routine verdict=allowed reason=ordinary_play
+[10:25:22][INFO] run - executing route=a-routine scope=no-such-application-9f2c named_args=0
+[10:25:22][ERROR] run - stopped route=a-routine why=the escape key did not happen: context canceled
+[10:25:22][INFO] intake - authority play=a-routine verdict=allowed reason=ordinary_play
+[10:25:22][INFO] run - executing route=a-routine scope=no-such-application-9f2c named_args=0
+[10:25:22][ERROR] run - stopped route=a-routine why=the escape key did not happen: context canceled
+[10:25:22][INFO] intake - routed trace=source=cli decision=play play=write-a-note app=notepad why="an exact match for a play Marco has"
+[10:25:22][INFO] intake - authority play=write-a-note verdict=allowed reason=ordinary_play
+[10:25:22][INFO] run - refused route=write-a-note why=this routine types text that has to be supplied, and no value was given for "message"
+[10:25:22][INFO] intake - finished decision=play outcome=refused words=write a note play=write-a-note
+[10:25:22][INFO] intake - routed trace=source=cli decision=play play=write-a-note app=notepad why="an exact match for a play Marco has"
+[10:25:22][INFO] intake - authority play=write-a-note verdict=allowed reason=ordinary_play
+[10:25:22][INFO] run - refused route=write-a-note why=this routine types text that has to be supplied, and no value was given for "message"
+[10:25:22][INFO] intake - finished decision=play outcome=refused words=write a note play=write-a-note
+[10:25:22][INFO] intake - routed trace=source=cli decision=play play=write-a-note app=notepad why="an exact match for a play Marco has"
+[10:25:22][INFO] intake - authority play=write-a-note verdict=allowed reason=ordinary_play
+[10:25:22][INFO] run - refused route=write-a-note why=this routine does not take "mesage", so there is nowhere for that text to go — it takes "message"
+[10:25:22][INFO] intake - finished decision=play outcome=refused words=write a note play=write-a-note
+[10:25:22][INFO] intake - routed trace=source=cli decision=play play=write-a-note app=notepad why="an exact match for a play Marco has"
+[10:25:22][INFO] intake - authority play=write-a-note verdict=allowed reason=ordinary_play
+[10:25:22][INFO] run - refused route=write-a-note why=the value given for "message" runs over more than one line, and a routine cannot type that yet
+[10:25:22][INFO] intake - finished decision=play outcome=refused words=write a note play=write-a-note
+[10:25:22][INFO] intake - routed trace=source=cli decision=play play=write-a-note app=notepad why="an exact match for a play Marco has"
+[10:25:22][INFO] intake - authority play=write-a-note verdict=allowed reason=ordinary_play
+[10:25:22][INFO] run - refused route=write-a-note why=2 values were given and this routine takes 1 — it takes "message"
+[10:25:22][INFO] intake - finished decision=play outcome=refused words=write a note play=write-a-note
+[10:25:22][INFO] intake - routed trace=source=cli decision=play play=write-a-note app=notepad why="an exact match for a play Marco has"
+[10:25:22][INFO] intake - authority play=write-a-note verdict=allowed reason=ordinary_play
+[10:25:22][INFO] run - executing route=write-a-note scope=notepad named_args=1
+[10:25:22][INFO] intake - finished decision=play outcome=performed words=write a note play=write-a-note
+[10:25:22][INFO] intake - routed trace=source=cli decision=play play=write-a-note app=notepad why="an exact match for a play Marco has"
+[10:25:22][INFO] intake - authority play=write-a-note verdict=allowed reason=ordinary_play
+[10:25:22][INFO] run - executing route=write-a-note scope=notepad named_args=0
+[10:25:22][INFO] intake - finished decision=play outcome=performed words=write a note play=write-a-note
+[10:25:22][INFO] intake - routed trace=source=cli decision=play play=open-settings app=notepad why="an exact match for a play Marco has"
+[10:25:22][INFO] intake - authority play=open-settings verdict=allowed reason=ordinary_play
+[10:25:22][INFO] run - executing route=open-settings scope=notepad named_args=0
+[10:25:22][INFO] intake - finished decision=play outcome=performed words=open settings play=open-settings
+[10:25:22][INFO] intake - routed trace=source=cli decision=play play=write-a-note app=notepad why="an exact match for a play Marco has"
+[10:25:22][INFO] intake - authority play=write-a-note verdict=allowed reason=ordinary_play
+[10:25:22][INFO] run - refused route=write-a-note why=this routine types text that has to be supplied, and no value was given for "message"
+[10:25:22][INFO] intake - finished decision=play outcome=refused words=write a note play=write-a-note
+FAIL
+FAIL	github.com/chaynes-simpleclouds/marco/cmd/marco	118.642s
+?   	github.com/chaynes-simpleclouds/marco/cmd/marco-macros	[no test files]
+?   	github.com/chaynes-simpleclouds/marco/cmd/nameprobe	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/cmd/perceptionreplay	16.965s
+?   	github.com/chaynes-simpleclouds/marco/cmd/twinprobe	[no test files]
+?   	github.com/chaynes-simpleclouds/marco/cmd/variance	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/internal/acceptance	1.692s
+ok  	github.com/chaynes-simpleclouds/marco/internal/activate	0.334s
+?   	github.com/chaynes-simpleclouds/marco/internal/ast	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/internal/bridgehost	0.390s
+ok  	github.com/chaynes-simpleclouds/marco/internal/buildid	0.345s
+ok  	github.com/chaynes-simpleclouds/marco/internal/codegen	15.137s
+?   	github.com/chaynes-simpleclouds/marco/internal/compile	[no test files]
+?   	github.com/chaynes-simpleclouds/marco/internal/demonstratedmod	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/internal/director	3.250s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/actiongraph	6.450s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/ambient	0.390s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/binding	0.363s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/collections	0.395s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/controlevidence	12.123s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/demo	13.893s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/demonstrated	4.602s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/edit	0.402s
+?   	github.com/chaynes-simpleclouds/marco/internal/director/edit/clipboard	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/edit/planner	0.382s
+?   	github.com/chaynes-simpleclouds/marco/internal/director/edit/providers	[no test files]
+?   	github.com/chaynes-simpleclouds/marco/internal/director/edit/verification	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/execute	4.991s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/fastobserve	26.185s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/game	0.433s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/goal	0.443s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/inline	0.407s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/intent	0.931s
+?   	github.com/chaynes-simpleclouds/marco/internal/director/internal/fixtures	[no test files]
+?   	github.com/chaynes-simpleclouds/marco/internal/director/internal/recorded	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/interpret	0.370s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/learn	44.999s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/learnstate	9.231s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/localizetrial	49.118s
+?   	github.com/chaynes-simpleclouds/marco/internal/director/marcoexec	[no test files]
+?   	github.com/chaynes-simpleclouds/marco/internal/director/match	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/meaning	23.152s
+?   	github.com/chaynes-simpleclouds/marco/internal/director/memory	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/observe	52.799s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/observe/screenfixture	0.485s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/observesession	50.733s
+?   	github.com/chaynes-simpleclouds/marco/internal/director/perception/capture	[no test files]
+?   	github.com/chaynes-simpleclouds/marco/internal/director/perception/diagnostics	[no test files]
+?   	github.com/chaynes-simpleclouds/marco/internal/director/perception/explain	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/perception/fusion	0.901s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/perception/observation	0.683s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/perception/providers	1.011s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/perception/providers/ocr	1.029s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/perception/providers/structure	0.796s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/perception/providers/vision	4.498s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/perception/providers/visualstate	1.861s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/perception/selection	5.085s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/perception/shadow	0.553s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/perception/structure	5.324s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/perception/timeline	0.382s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/perception/windowref	0.538s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/plan	0.463s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/policy	0.396s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/preview	0.978s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/program	0.549s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/rehearse	40.594s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/rephrase	0.465s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/runref	0.464s
+?   	github.com/chaynes-simpleclouds/marco/internal/director/runstate	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/satisfied	0.510s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/search	0.570s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/semanticmemory	30.643s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/service	9.405s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/shadowreplay	0.390s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/surface	0.502s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/target	0.499s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/trace	0.513s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/uiact	0.442s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/values	0.701s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/variables	0.792s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/verify	0.664s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/visionbench	8.117s
+?   	github.com/chaynes-simpleclouds/marco/internal/director/wait/conditions	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/wait/engine	0.870s
+?   	github.com/chaynes-simpleclouds/marco/internal/director/wait/evaluation	[no test files]
+?   	github.com/chaynes-simpleclouds/marco/internal/director/wait/history	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/workflow	29.694s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/workflowrun	48.364s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/workflowstore	32.929s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/world	0.502s
+ok  	github.com/chaynes-simpleclouds/marco/internal/dispatch	18.752s
+ok  	github.com/chaynes-simpleclouds/marco/internal/docsindex	0.708s
+ok  	github.com/chaynes-simpleclouds/marco/internal/driver	0.932s
+ok  	github.com/chaynes-simpleclouds/marco/internal/gamepacks/palworld	0.538s
+ok  	github.com/chaynes-simpleclouds/marco/internal/gate	0.990s
+?   	github.com/chaynes-simpleclouds/marco/internal/graph	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/internal/invoke	0.611s
+ok  	github.com/chaynes-simpleclouds/marco/internal/lexer	0.557s
+?   	github.com/chaynes-simpleclouds/marco/internal/macroir	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/internal/marcopaths	0.504s
+?   	github.com/chaynes-simpleclouds/marco/internal/mlog	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/internal/nlu	0.618s
+ok  	github.com/chaynes-simpleclouds/marco/internal/orchestrator	25.097s
+ok  	github.com/chaynes-simpleclouds/marco/internal/oshost	27.200s
+ok  	github.com/chaynes-simpleclouds/marco/internal/osmod	2.857s
+ok  	github.com/chaynes-simpleclouds/marco/internal/outcome	0.302s
+ok  	github.com/chaynes-simpleclouds/marco/internal/parser	0.354s
+ok  	github.com/chaynes-simpleclouds/marco/internal/platform/homelock	0.362s
+ok  	github.com/chaynes-simpleclouds/marco/internal/platform/marcorunner	1.780s
+ok  	github.com/chaynes-simpleclouds/marco/internal/platform/navsource	12.711s
+?   	github.com/chaynes-simpleclouds/marco/internal/platform/ocrclient	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/internal/platform/padsource	0.444s
+?   	github.com/chaynes-simpleclouds/marco/internal/platform/recordhost	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/internal/platform/screenhost	8.175s
+ok  	github.com/chaynes-simpleclouds/marco/internal/platform/theaterhost	0.194s
+ok  	github.com/chaynes-simpleclouds/marco/internal/platform/uiaclient	0.188s
+ok  	github.com/chaynes-simpleclouds/marco/internal/platform/visionclient	0.183s
+ok  	github.com/chaynes-simpleclouds/marco/internal/platform/wincapture	0.219s
+ok  	github.com/chaynes-simpleclouds/marco/internal/platform/winprovider	0.177s
+ok  	github.com/chaynes-simpleclouds/marco/internal/plays	0.438s
+?   	github.com/chaynes-simpleclouds/marco/internal/production	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/internal/recorder	25.323s
+ok  	github.com/chaynes-simpleclouds/marco/internal/recordingnow	0.214s
+ok  	github.com/chaynes-simpleclouds/marco/internal/resolver	20.206s
+ok  	github.com/chaynes-simpleclouds/marco/internal/resolveroute	0.239s
+ok  	github.com/chaynes-simpleclouds/marco/internal/routes	2.708s
+ok  	github.com/chaynes-simpleclouds/marco/internal/runs	0.581s
+ok  	github.com/chaynes-simpleclouds/marco/internal/runtime	0.563s
+ok  	github.com/chaynes-simpleclouds/marco/internal/screen	1.217s
+?   	github.com/chaynes-simpleclouds/marco/internal/screenmod	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/internal/secrets	0.324s
+ok  	github.com/chaynes-simpleclouds/marco/internal/simplify	0.266s
+ok  	github.com/chaynes-simpleclouds/marco/internal/spectest	3.139s
+ok  	github.com/chaynes-simpleclouds/marco/internal/stopsignal	0.769s
+?   	github.com/chaynes-simpleclouds/marco/internal/textmod	[no test files]
+?   	github.com/chaynes-simpleclouds/marco/internal/theatermod	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/internal/token	0.177s
+?   	github.com/chaynes-simpleclouds/marco/internal/uiamod	[no test files]
+?   	github.com/chaynes-simpleclouds/marco/internal/visionmod	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/internal/voicelearn	0.230s
+ok  	github.com/chaynes-simpleclouds/marco/internal/winctx	1.583s
+ok  	github.com/chaynes-simpleclouds/marco/internal/wiringcheck	8.308s
+ok  	github.com/chaynes-simpleclouds/marco/pkg/directorapi	0.174s
+ok  	github.com/chaynes-simpleclouds/marco/pkg/playbill	0.241s
+ok  	github.com/chaynes-simpleclouds/marco/pkg/referent	0.166s
+ok  	github.com/chaynes-simpleclouds/marco/plugins/fixture	0.165s
+FAIL
+engine exit 1

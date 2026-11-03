@@ -371,6 +371,13 @@ func (s visualSession) watch(ctx context.Context, obs *fastobserve.Observer,
 		return res, 1
 	}
 
+	// ANNOUNCED BEFORE THE HOOKS GO ON, or not started. See recordingnow.go.
+	clearRecording, announced := announceRecording(errOut, "a demonstration in "+s.app)
+	if !announced {
+		return res, 1
+	}
+	defer clearRecording()
+
 	// THE MOUSE HALF. navsource owns its own blocking message pump and this only opens a
 	// subscription and drains it, exactly as the observation sampler does. Nothing here
 	// touches the hook thread, and nothing here can inject.

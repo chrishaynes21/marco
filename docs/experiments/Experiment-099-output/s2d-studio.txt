@@ -1,0 +1,2 @@
+ok  	github.com/chaynes-simpleclouds/marco/plugins/studio	140.512s
+studio exit 0

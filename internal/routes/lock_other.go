@@ -49,7 +49,11 @@ func (r Registry) Lock(rt Route, within time.Duration) (*Hold, error) {
 	if rt.Slug == "" {
 		return nil, fmt.Errorf("routes: a play needs a name")
 	}
-	key := r.LockPath(rt)
+	return lockFile("", r.LockPath(rt), "another save of "+fmt.Sprintf("%q", rt.Slug), within)
+}
+
+// lockFile is the one claim, keyed by its rendezvous path. See the Windows side.
+func lockFile(_, key, what string, within time.Duration) (*Hold, error) {
 	locksMu.Lock()
 	mu, ok := locks[key]
 	if !ok {
@@ -65,8 +69,8 @@ func (r Registry) Lock(rt Route, within time.Duration) (*Hold, error) {
 	case <-done:
 		return &Hold{mu: mu}, nil
 	case <-time.After(within):
-		return nil, fmt.Errorf("another save of %q is still going after %s, so this "+
-			"one has not been written", rt.Slug, within)
+		return nil, fmt.Errorf("%s is still going after %s, so this "+
+			"one has not been written", what, within)
 	}
 }
 

@@ -726,7 +726,7 @@ bindings, per CLAUDE.md, or a rendered mockup for the HUD) and a review of it.
 - **S0: scope vocabulary and default. Done in this change (§14).**
 - **S1: run-time admission for in-place routines. Done in this change (§14).**
   Studio `--source=studio` (F2) is folded into S3, because it changes Studio code.
-- **S2: shortcut owner.** `orchestrator.Shortcuts` (Check/Assign/Remove/List/Carry/Forget),
+- **S2: shortcut owner. Done (§15, [[ADR-297-a-shortcut-names-its-routine-and-has-one-owner]]).** `orchestrator.Shortcuts` (Check/Assign/Remove/List/Carry/Forget),
   `Binding.Route`, binding-version consent, the bindings lock and the lock order (§5.8), legacy
   bindings refuse (R6), the "recording now" fact blocks shortcuts; `bindKey`, the control centre
   and the widget words call it; `everywhere`; `marco bindings` (list). CLI only, no new control.
@@ -822,3 +822,47 @@ Tests updated because they pinned the old default rather than what they test: te
 `stopbutton_test.go` lookups and two `keep_test.go` lookups now read the `focus` path that the
 unattended save uses; `scope_test.go`'s confirmation text; the no-application test replaced by
 the ruled behaviour.
+
+---
+
+## 15. What S2 built
+
+Recorded in [[ADR-297-a-shortcut-names-its-routine-and-has-one-owner]]. CLI and backend only: no
+surface control changed.
+
+| piece | where |
+|---|---|
+| the owner: assign, check, remove, list, carry, forget, press | `internal/orchestrator/shortcuts.go` (new) |
+| identities in the store, version digest, `ParseID`, bindings lock, atomic locked update | `internal/routes/bindings.go`; `lockFile` shared with the route locks |
+| the "recording now" fact | `internal/recordingnow` (new): one file per recording process, pid + start time |
+| announced by `Begin`, cleared by `Finish` | `internal/orchestrator/draft.go`; `Deps.RecordingHome` from `newDeps` and Studio's recording |
+| `marco bind [--everywhere\|--in=<app>]`, `--reassign`, `unbind`, `bindings [--here] [--json]`, `hotkey` | `cmd/marco/bind.go` |
+| control centre bind/unbind/list through the owner | `cmd/marco/edit.go` |
+| forget removes; move carries; replace drops first | `forgetPlay`, control-centre delete and scope move, CLI rename, `Rescope` |
+
+Differences from §5.1 as proposed, each smaller rather than larger:
+
+- `Check` is `WhyNotShortcut` + `ShortcutAt`; there is no separate `recording-in-progress` state at
+  assignment — the hold-off is at the press, where the input would be injected.
+- The widget's `everywhere` word is **not** added: the word table is a widget surface. The CLI has
+  `--everywhere` and `--in=<app>`.
+- Legacy entries are matched by name only when a routine is forgotten (removing one that would have
+  reached it is the safe direction); a move never touches them.
+
+### Corrections after review
+
+The first S2 version had three P1 gaps (cleanup after the identity changed; assignment outside
+the route locks; recording admission failing open). All three are closed by ordering, recorded in
+[[ADR-297-a-shortcut-names-its-routine-and-has-one-owner]] under *Corrections after review*. Two
+additions to the design above came with them: a press PINS the bytes of each routine it resolved
+(`invoke.Request.Pinned`), and Director's three recording entrances announce themselves too.
+
+A second review found one more lifecycle case: the CLI's unreviewed rename carried shortcuts first
+and rolled them back on failure, so a rename and a rollback that both failed left keys that the
+next routine saved under the new name would have answered. `RenameInPlace` now keeps the original
+until the destination holds the routine AND its shortcuts have moved (copy, carry, finish), and
+nothing is rolled back. Recorded under *Second review* in the same ADR.
+A failed create or carry deletes nothing: what is at the new name is left and reported, because
+bytes are not evidence of who wrote a file. And by ruling, a replacement somebody agrees to keeps
+the routine's shortcuts (a new version of the same routine) and its question says so once; Studio's
+Replace card is to say the same in S3.

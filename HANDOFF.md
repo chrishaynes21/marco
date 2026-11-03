@@ -1,5 +1,20 @@
 # Handoff — Marco (feat/host-ffi)
 
+> **⚠ THE REPO-ROOT BINARIES ARE A MISMATCHED PAIR (2026-11-03). Do not launch that stack, and do
+> not rebuild it yet.**
+>
+> - `director.exe` at the repo root was overwritten on 2026-11-03 at 01:30 by a stray
+>   `go build ./cmd/director/` from the **uncommitted** S2 working tree (ADR-297). It matches no
+>   commit.
+> - `marco.exe` beside it is older (built 2026-11-02 23:10). The two are not a pair, which is the
+>   trap the `director.exe must sit beside marco.exe` rule describes.
+> - The previous `director.exe` is gone; there is no copy to restore.
+>
+> Rebuild both from a COMMIT only when a rebuild is authorised. Until then, any verification build
+> writes to an explicit temporary output path (`go build -o <scratch dir>\director.exe
+> ./cmd/director`), never to the repo root. A `go build` of a single main package with no `-o`
+> writes into the current directory, which is how this happened.
+
 State as of this handoff: **all green** (Go packages pass), gofmt + vet clean (modulo
 the standard Windows LL-hook `unsafe.Pointer` notes), branch `feat/host-ffi` (unmerged).
 Binaries built and current: `marco.exe`, `marco-macros.exe` (repo root),

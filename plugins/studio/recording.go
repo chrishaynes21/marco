@@ -454,6 +454,9 @@ func (a *Acts) beginRecording(name, window string, again *reRecording) string {
 		Owner:    winctx.Self(),
 		OwnerPID: uint32(os.Getpid()),
 		StopWhen: c.stop,
+		// ANNOUNCED IN THIS WINDOW'S STORE, so the widget's shortcuts are held off while
+		// somebody demonstrates here (internal/recordingnow).
+		RecordingHome: a.home,
 		// ── AND WHAT TO CAPTURE, SAID OUT LOUD AND NOT INHERITED ──
 		//
 		// This window records plain coordinates and the real pauses. That is not

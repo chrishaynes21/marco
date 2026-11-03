@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -120,5 +122,86 @@ func TestABindingTakesItsScopeFromThePlayItStartsWith(t *testing.T) {
 		if got := bindScope(e.reg, tc.cmd); got != tc.want {
 			t.Errorf("bindScope(%q) = %q, want %q", tc.cmd, got, tc.want)
 		}
+	}
+}
+
+// THE CONTROL CENTRE GOES THROUGH THE SAME OWNER: a taken key is refused unless the page names the
+// version it showed, forgetting a routine removes its shortcuts, and moving one carries them.
+func TestTheControlCentreTakesAKeyOnlyWithConsentToWhatItShowed(t *testing.T) {
+	t.Setenv("MARCO_OVERLAY_CONFIG", filepath.Join(t.TempDir(), "overlay.json"))
+	e := newTestEditor(t)
+	authored(t, e, "notepad", false, "greet")
+	authored(t, e, "notepad", false, "wave")
+	if w := postBind(t, e, "", "e", "greet"); w.Code != http.StatusOK {
+		t.Fatalf("first bind = %d: %s", w.Code, w.Body)
+	}
+	if w := postBind(t, e, "", "e", "wave"); w.Code == http.StatusOK {
+		t.Fatal("the control centre overwrote a taken key with no consent")
+	}
+	if b, _ := e.reg.BindingAt("notepad", "e"); b.Cmd != "greet" {
+		t.Fatalf("the refused bind changed the key: %+v", b)
+	}
+	shown, _ := e.reg.BindingAt("notepad", "e")
+	raw, _ := json.Marshal(map[string]string{"app": "", "key": "e", "cmd": "wave",
+		"consent": shown.Version()})
+	w := httptest.NewRecorder()
+	e.handleBind(w, httptest.NewRequest(http.MethodPost, "/api/bind", strings.NewReader(string(raw))))
+	if w.Code != http.StatusOK {
+		t.Fatalf("a bind with consent to the shown version was refused: %d %s", w.Code, w.Body)
+	}
+}
+
+func TestTheControlCentreForgetsAndCarriesShortcuts(t *testing.T) {
+	t.Setenv("MARCO_OVERLAY_CONFIG", filepath.Join(t.TempDir(), "overlay.json"))
+	e := newTestEditor(t)
+	authored(t, e, "notepad", false, "greet")
+	authored(t, e, "notepad", false, "wave")
+	postBind(t, e, "", "g", "greet")
+	postBind(t, e, "", "w", "wave")
+
+	// Moving `greet` to From anywhere → notepad carries `g.
+	w := postJSON(t, e.handleScope, "/api/scope", map[string]any{
+		"name": "greet", "slug": "greet", "curApp": "notepad", "curScope": "context",
+		"scope": "focus", "app": "notepad"})
+	if w.Code != http.StatusOK {
+		t.Fatalf("scope move = %d: %s", w.Code, w.Body)
+	}
+	if b, _ := e.reg.BindingAt("notepad", "g"); len(b.Routes) != 1 ||
+		b.Routes[0] != "notepad/focus/greet" {
+		t.Errorf("`g did not follow the move: %+v", b)
+	}
+	// Forgetting `wave` removes `w.
+	w = postJSON(t, e.handleDelete, "/api/delete", map[string]any{
+		"name": "wave", "slug": "wave", "app": "notepad", "scope": "context"})
+	if w.Code != http.StatusOK {
+		t.Fatalf("delete = %d: %s", w.Code, w.Body)
+	}
+	if _, ok := e.reg.BindingAt("notepad", "w"); ok {
+		t.Error("forgetting wave left its shortcut")
+	}
+}
+
+// A control-centre scope move whose shortcuts cannot follow moves nothing: the copy is undone and
+// the original keeps its place and its shortcuts.
+func TestTheControlCentreMoveCarriesBeforeItDeletes(t *testing.T) {
+	t.Setenv("MARCO_OVERLAY_CONFIG", filepath.Join(t.TempDir(), "overlay.json"))
+	e := newTestEditor(t)
+	from := authored(t, e, "notepad", false, "greet")
+	postBind(t, e, "", "g", "greet")
+	if err := os.WriteFile(filepath.Join(e.reg.Dir, "bindings.json"), []byte("{broken"),
+		0o644); err != nil {
+		t.Fatal(err)
+	}
+	w := postJSON(t, e.handleScope, "/api/scope", map[string]any{
+		"name": "greet", "slug": "greet", "curApp": "notepad", "curScope": "context",
+		"scope": "focus", "app": "notepad"})
+	if w.Code == http.StatusOK {
+		t.Fatal("the move reported success although its shortcuts could not follow")
+	}
+	if !e.reg.Has(from) {
+		t.Error("the original was removed")
+	}
+	if e.reg.Has(routes.Route{App: "notepad", Focus: true, Slug: "greet"}) {
+		t.Error("the copy was left behind")
 	}
 }

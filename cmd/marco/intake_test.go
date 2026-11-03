@@ -58,6 +58,9 @@ func intakeWorld(t *testing.T) orchestrator.Deps {
 	dir := t.TempDir()
 	t.Setenv("MARCO_ROUTES", dir)
 	t.Setenv("MARCO_HOME", t.TempDir())
+	// AND NO WIDGET SETTINGS, so the leader a binding is checked against is the default and not
+	// whatever the owner configured.
+	t.Setenv("MARCO_OVERLAY_CONFIG", filepath.Join(t.TempDir(), "overlay.json"))
 	reg := routes.Registry{Dir: dir}
 	for _, rt := range []routes.Route{
 		{App: "settings", Focus: true, Slug: "open-mouse-settings"},
@@ -478,7 +481,9 @@ func TestAHotkeyPerformsTheBoundPlayItself(t *testing.T) {
 		if err := d.Reg.Save(routes.Route{Slug: "stop"}, intakeSrc); err != nil {
 			t.Fatal(err)
 		}
-		if err := d.Reg.Bind("discord", "s", "stop"); err != nil {
+		if _, err := captureStdout(t, func() error {
+			return bindKey(d, "discord", "discord", "s", "stop", os.Stdout)
+		}); err != nil {
 			t.Fatal(err)
 		}
 		var stopped bool
@@ -513,11 +518,13 @@ func TestAHotkeyPerformsTheBoundPlayItself(t *testing.T) {
 		submitPhrase = func(p string, _ bool) int { submitted = p; return exitOK }
 		t.Cleanup(func() { submitPhrase = prevSubmit })
 
-		if err := d.Reg.Bind("discord", "m", "open mouse settings"); err != nil {
+		if _, err := captureStdout(t, func() error {
+			return bindKey(d, "discord", "discord", "o", "open mouse settings", os.Stdout)
+		}); err != nil {
 			t.Fatal(err)
 		}
 		said, err := captureStdout(t, func() error {
-			pressHotkey(d, "discord", "m")
+			pressHotkey(d, "discord", "o")
 			return nil
 		})
 		if err != nil {
@@ -552,7 +559,7 @@ func TestAHotkeyResolvesInTheScopeItWasBoundIn(t *testing.T) {
 		if err := d.Reg.Save(routes.Route{Slug: "restart"}, intakeSrc); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := captureStdout(t, func() error { return bindKey(d, "discord", "r", "restart") }); err != nil {
+		if _, err := captureStdout(t, func() error { return bindKey(d, "discord", "discord", "r", "restart", os.Stdout) }); err != nil {
 			t.Fatalf("binding: %v", err)
 		}
 		said, err := captureStdout(t, func() error { pressHotkey(d, "notepad", "r"); return nil })
@@ -580,7 +587,7 @@ func TestAHotkeyResolvesInTheScopeItWasBoundIn(t *testing.T) {
 		if err := d.Reg.Save(routes.Route{App: "discord", Slug: "restart"}, intakeSrc); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := captureStdout(t, func() error { return bindKey(d, "discord", "r", "restart") }); err != nil {
+		if _, err := captureStdout(t, func() error { return bindKey(d, "discord", "discord", "r", "restart", os.Stdout) }); err != nil {
 			t.Fatalf("binding: %v", err)
 		}
 		said, err := captureStdout(t, func() error { pressHotkey(d, "discord", "r"); return nil })
@@ -609,19 +616,24 @@ func TestABindingIsValidatedTheWayItWillBeResolved(t *testing.T) {
 		t.Fatalf("%q resolves exactly; pick a better near miss for this test", typo)
 	}
 	src := readRepoFile(t, "cmd/marco/bind.go")
-	i := strings.Index(src, "func runBind(")
+	// resolveSteps is the one place a shortcut's words are looked up, at assignment.
+	i := strings.Index(src, "func resolveSteps(")
 	if i < 0 {
-		t.Fatal("runBind is gone")
+		t.Fatal("resolveSteps, where a shortcut's words are resolved, is gone")
 	}
 	body := src[i:]
-	if end := strings.Index(body, "\n// runUnbind"); end > 0 {
+	if end := strings.Index(body, "\n// bindKey"); end > 0 {
 		body = body[:end]
+	}
+	// And a typo is refused at assignment, through the function every surface uses.
+	if _, err := resolveSteps(d, "discord", typo); err == nil {
+		t.Errorf("%q was accepted as a routine to bind", typo)
 	}
 	if strings.Contains(body, "nlu.Resolve(") {
 		t.Error("`marco bind` validates with a fuzzy matcher while `marco hotkey` resolves " +
 			"exactly, so a binding can be accepted and then never fire")
 	}
-	if !strings.Contains(body, "d.Reg.Resolve(app, base)") {
+	if !strings.Contains(body, "d.Reg.Resolve(fg, base)") {
 		t.Error("`marco bind` no longer validates with the call the press will make")
 	}
 }

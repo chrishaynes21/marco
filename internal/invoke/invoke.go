@@ -149,6 +149,12 @@ type Request struct {
 	// nothing because nothing was confirmed to them. What this closes is the gap between
 	// a confirmation and the run it authorised.
 	Expect string
+	// Pinned is the digest of the routine as the ENTRANCE read it when it chose it — a shortcut
+	// press, under the routine's lock, while the shortcut still named it. Nobody confirmed this
+	// version: it is not Expect, and a mismatch is not "saved since you confirmed it" but "this
+	// is not the routine the key was bound to". The run refuses other bytes. Empty pins nothing.
+	// Cargo, like Expect; Decide never reads it.
+	Pinned string
 	// Flagged names the arguments whose values arrived as explicit FLAGS rather than
 	// inside a phrase.
 	//

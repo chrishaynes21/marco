@@ -124,6 +124,9 @@ type Collision struct {
 	// On the wire because the sentence names them and a surface may want to list them
 	// beside it. Empty when it answers only to its own name.
 	Answers []string `json:"answers,omitempty"`
+	// Shortcuts are the keys that run the routine that is there, each as "<key> <where>". A
+	// replacement keeps them: they run the new version.
+	Shortcuts []string `json:"shortcuts,omitempty"`
 }
 
 // Consent is permission to replace ONE routine, as it was when somebody was shown it.
@@ -238,6 +241,11 @@ func (d Deps) Collision(dr *Draft, scope Scope, app string) Collision {
 			"phrases belong to its place in the library, so they would reach "+
 			"whatever is saved here.", joinWords(quoted(s.Phrases)))
 	}
+	// AND ITS SHORTCUTS, WHICH ARE KEPT. The owner's ruling (2026-11-03): a replacement somebody
+	// agrees to is a new version of the same routine, so the keys that ran it run the new
+	// version. That is the opposite of a forget followed by an unrelated routine saved under
+	// the name, which inherits nothing. Said here, once, with no question per shortcut.
+	c.Shortcuts, c.Says = d.shortcutsKeptSays(rt, c.Says)
 	return c
 }
 

@@ -536,14 +536,15 @@ func (e *editor) handleRun(w http.ResponseWriter, r *http.Request) {
 
 // handleBindings lists every leader-hotkey binding (key → command, scoped to an app).
 func (e *editor) handleBindings(w http.ResponseWriter, _ *http.Request) {
-	type row struct{ App, Key, Cmd string }
+	// Version is what an unbind or a replacement names as its consent; Legacy marks an entry
+	// set up by name, which does not run until it is reassigned.
+	type row struct {
+		App, Key, Cmd, Version string
+		Legacy                 bool
+	}
 	var rows []row
 	for _, b := range e.reg.Bindings() {
-		cmd := b.Cmd
-		if cmd == "" {
-			cmd = b.Slug // legacy single-play binding
-		}
-		rows = append(rows, row{b.App, b.Key, cmd})
+		rows = append(rows, row{b.App, b.Key, b.Command(), b.Version(), b.Legacy()})
 	}
 	writeJSON(w, map[string]any{"bindings": rows, "app": e.app})
 }
@@ -602,7 +603,9 @@ func bindScope(reg routes.Registry, cmd string) string {
 // Deleting the bindKey call — storing the binding directly again — must fail
 // TestABindingThePressCouldNeverResolveIsRefused.
 func (e *editor) handleBind(w http.ResponseWriter, r *http.Request) {
-	var req struct{ App, Key, Cmd string }
+	// Consent is the version of the binding the page showed on that key, or "" for "it was
+	// free". A page that sends none is refused on a collision rather than overwriting it.
+	var req struct{ App, Key, Cmd, Consent string }
 	if json.NewDecoder(r.Body).Decode(&req) != nil || req.Key == "" || strings.TrimSpace(req.Cmd) == "" {
 		http.Error(w, "key and command required", 400)
 		return
@@ -612,7 +615,16 @@ func (e *editor) handleBind(w http.ResponseWriter, r *http.Request) {
 	if app == "" {
 		app = bindScope(e.reg, cmd)
 	}
-	if err := bindKey(orchestrator.Deps{Reg: e.reg}, app, strings.ToLower(req.Key), cmd); err != nil {
+	// THROUGH THE ONE OWNER. The routine is resolved once, in ITS application (the browser is
+	// the foreground here, so the foreground means nothing), and the shortcut names it.
+	d := orchestrator.Deps{Reg: e.reg}
+	steps, err := resolveSteps(d, app, cmd)
+	if err == nil {
+		_, err = d.AssignShortcut(orchestrator.Assignment{Key: strings.ToLower(req.Key),
+			ListenIn: app, Steps: steps, Cmd: cmd, Leader: configuredLeader(),
+			Consent: strings.TrimSpace(req.Consent)})
+	}
+	if err != nil {
 		// 400 and the engine's own sentence — "no play matches …" is the one unknown-command
 		// wording the rest of the product prefix-matches, and a person reading it beside the
 		// field they typed into can act on it.
@@ -624,13 +636,21 @@ func (e *editor) handleBind(w http.ResponseWriter, r *http.Request) {
 
 // handleUnbind removes a binding.
 func (e *editor) handleUnbind(w http.ResponseWriter, r *http.Request) {
-	var req struct{ App, Key string }
+	// Version is the version the page showed; a page that sends none removes the one that is
+	// there as it reads it now, which is what this did before versions existed.
+	var req struct{ App, Key, Version string }
 	if json.NewDecoder(r.Body).Decode(&req) != nil || req.Key == "" {
 		http.Error(w, "bad request", 400)
 		return
 	}
-	if err := e.reg.Unbind(req.App, strings.ToLower(req.Key)); err != nil {
-		http.Error(w, err.Error(), 500)
+	d := orchestrator.Deps{Reg: e.reg}
+	key := strings.ToLower(req.Key)
+	version := strings.TrimSpace(req.Version)
+	if version == "" {
+		version = d.ShortcutAt(req.App, key).Version
+	}
+	if _, err := d.RemoveShortcut(req.App, key, version); err != nil {
+		http.Error(w, err.Error(), http.StatusConflict)
 		return
 	}
 	writeJSON(w, map[string]any{"ok": true})
@@ -698,11 +718,11 @@ func (e *editor) handleDelete(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "no such play", 404)
 			return
 		}
-		// The play AND its provenance, so forgetting leaves no sidecar describing a file that
-		// is not there — and nothing in the staging directory, which is a different play.
-		if err = e.reg.DeleteOrigin(rt); err == nil {
-			err = e.reg.Delete(rt)
-		}
+		// THROUGH THE ONE FORGET: under the routine's lock, its shortcuts first, then its
+		// provenance, then the play — and nothing in the staging directory, which is a
+		// different play. A failed shortcut cleanup forgets nothing. See
+		// orchestrator.ForgetRoutine.
+		_, err = (orchestrator.Deps{Reg: e.reg}).ForgetRoutine(rt)
 	}
 	if err != nil {
 		http.Error(w, unprefixRoutes(err.Error()), 500)
@@ -773,6 +793,21 @@ func (e *editor) handleScope(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]any{"ok": true})
 		return
 	}
+	// ── BOTH ROUTES HELD FOR THE WHOLE MOVE, IN IDENTITY ORDER, THEN THE BINDINGS LOCK ──
+	//
+	// So nothing is saved at either identity, and no shortcut is assigned to either, while the
+	// routine is in two places. See orchestrator.LockRoutes.
+	d := orchestrator.Deps{Reg: e.reg}
+	release, lerr := d.LockRoutes([]routes.Route{from, to})
+	if lerr != nil {
+		http.Error(w, lerr.Error(), http.StatusConflict)
+		return
+	}
+	defer release()
+	if !e.reg.Has(from) {
+		http.Error(w, "no such play", 404)
+		return
+	}
 	if e.reg.Has(to) {
 		http.Error(w, "a play already exists at that scope", 409)
 		return
@@ -788,6 +823,17 @@ func (e *editor) handleScope(w http.ResponseWriter, r *http.Request) {
 	}
 	if rec, ok := e.reg.LoadRecording(from); ok {
 		_ = e.reg.SaveRecording(to, rec)
+	}
+	// ITS SHORTCUTS FOLLOW IT WHILE IT IS IN BOTH PLACES, before the original goes, so no
+	// shortcut ever names an identity with nothing there. A carry that fails undoes the copy
+	// and moves nothing.
+	//
+	// Moving this after the Delete must fail TestTheControlCentreMoveCarriesBeforeItDeletes.
+	if _, cerr := d.CarryShortcuts(from, to); cerr != nil {
+		_ = e.reg.Delete(to)
+		http.Error(w, "the routine was not moved: its shortcuts could not be moved with it: "+
+			cerr.Error(), 500)
+		return
 	}
 	// THE PLAY'S PAST MOVES WITH IT, and it moves VERBATIM.
 	//

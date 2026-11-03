@@ -293,6 +293,9 @@ type playInvocation struct {
 	// expect is the digest of the routine this invocation was authorised against, or ""
 	// when nothing pinned a version. See invoke.Request.Expect.
 	expect string
+	// pinned is the digest the entrance read the routine at, unconfirmed. See
+	// invoke.Request.Pinned.
+	pinned string
 }
 
 // performDecidedPlay runs the play the decision chose, with whatever arguments the words carried.
@@ -307,7 +310,8 @@ func performDecidedPlay(d orchestrator.Deps, dec invoke.Decision, req invoke.Req
 	// over cargo that did, would silently drop arguments somebody supplied. Which is the exact
 	// failure `TestALearnedPlayRefusesArgumentsRatherThanDroppingThem` exists to prevent.
 	steps := []playInvocation{{rt: dec.Play, named: req.Named,
-		positional: req.Positional, flagged: req.Flagged, expect: req.Expect}}
+		positional: req.Positional, flagged: req.Flagged, expect: req.Expect,
+		pinned: req.Pinned}}
 	if !dec.Explicit && len(req.Named)+len(req.Positional) == 0 {
 		_, named, positional := routes.ParseInvocation(strings.TrimSpace(req.Text))
 		steps[0].named, steps[0].positional = named, positional
@@ -534,7 +538,7 @@ func performOnePlay(d orchestrator.Deps, p playInvocation) (Outcome, error) {
 	// reads the caller's map is one caller away from that being false — which is the same
 	// reasoning `Resolved.WithValues` copies for, and the same shape ADR-271 records
 	// about a review's `Was`.
-	s := take(d, p.rt, resolved.Values, p.positional, p.flagged, p.expect)
+	s := take(d, p.rt, resolved.Values, p.positional, p.flagged, p.expect, p.pinned)
 	// ── AND AN INVOCATION THAT MAY NOT RUN AT ALL IS REFUSED, NOT FAILED ──
 	//
 	// Before the reference is claimed, for the reason the authority door's own refusal sits

@@ -84,10 +84,15 @@ func (r Registry) Lock(rt Route, within time.Duration) (*Hold, error) {
 	if rt.Slug == "" {
 		return nil, fmt.Errorf("routes: a play needs a name")
 	}
-	if err := os.MkdirAll(r.locDir(rt), 0o755); err != nil {
+	return lockFile(r.locDir(rt), r.LockPath(rt), "another save of "+fmt.Sprintf("%q", rt.Slug), within)
+}
+
+// lockFile is the one claim, of one rendezvous file, shared by the route locks and the
+// bindings lock so both have the same handle-held, bounded, process-death-safe semantics.
+func lockFile(dir, path, what string, within time.Duration) (*Hold, error) {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, err
 	}
-	path := r.LockPath(rt)
 	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0o644)
 	if err != nil {
 		return nil, err
@@ -106,8 +111,8 @@ func (r Registry) Lock(rt Route, within time.Duration) (*Hold, error) {
 		}
 		if time.Now().After(deadline) {
 			_ = f.Close()
-			return nil, fmt.Errorf("another save of %q is still going after %s, so "+
-				"this one has not been written: %v", rt.Slug, within, callErr)
+			return nil, fmt.Errorf("%s is still going after %s, so "+
+				"this one has not been written: %v", what, within, callErr)
 		}
 		time.Sleep(2 * time.Millisecond)
 	}
