@@ -9,7 +9,7 @@ used_by:
   - service
   - visibility
   - learned-plays
-updated: 2026-11-03
+updated: 2026-11-04
 source_paths:
   - internal/invoke
   - cmd/marco/intake.go
@@ -123,6 +123,21 @@ it without reading `Request.Text` at all.
   A line with values runs as its identity and the version read (`--play`, `--expect`, `--arg`),
   only once its read-back has been on screen; values Director proposed are reviewed there before
   they run. See [[ADR-301-the-command-line-reads-back-what-it-will-run]].
+- Studio opens the widget (Open widget). It starts the installer's own stack beside it, with
+  Studio's library and store, never a second one beside one already running, and never from pieces
+  of different builds. A widget Studio did not start is said to be running with its library and
+  settings unverified. See [[ADR-302-studio-opens-the-widget]].
+- Studio forgets one routine through the one forget, after a confirmation naming every part. The
+  confirmation is sealed so that nothing it did not show is removed, and each part is reported as
+  found afterwards. See [[ADR-303-studio-forgets-one-routine]].
+- A narrated recording's window is settled before narration starts: the widget gives it or starts
+  nothing, the terminal answer is one line, and the session is of that window. See
+  [[ADR-304-narration-is-of-a-window-settled-first]].
+- Enter means no at every textual yes/no confirmation, shown as `[y]es / [N]o`. Enter still submits
+  a command, or a read-back on screen. See [[ADR-305-enter-means-no]].
+- A guarded "Only in" routine is bound at admission to the window in front, read once, with no raise
+  or search, and every press still checks it. Legacy in-place routines are admitted as before. See
+  [[ADR-306-a-guarded-routine-may-be-only-in-its-application]].
 
 `invoke.Plays` is a one-method interface partly for exactly this reason: a test can hand in a
 resolver that records every call and assert it was **not** asked
