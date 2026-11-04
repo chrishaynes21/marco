@@ -821,6 +821,13 @@
 
 <!-- ────────────────────────── SCENES ────────────────────────── -->
 <section id="view-routines" class="hide">
+  <!-- WHAT A FORGET OF ONE ROUTINE DID, part by part. Here and not in the routine's panel, which
+       goes with the routine. Put away by its own button. -->
+  <div class="card hide" id="forgotOutcome" style="margin-bottom:12px">
+    <div id="forgotSays"></div>
+    <ul id="forgotParts" style="margin:6px 0 0 18px;padding:0"></ul>
+    <div class="row" style="margin-top:8px"><button type="button" onclick="showing($('forgotOutcome'), false)">OK</button></div>
+  </div>
   <!-- ── ONE HEADER ROW: WHERE YOU ARE, AND THE ONE WAY TO MAKE A ROUTINE ──
        The list used to be the third section on its own screen: a lead paragraph, three
        section labels, the ask box, a build line, a readiness caveat and the library path
@@ -1379,6 +1386,22 @@
         <button id="routineRenameCancel" onclick="hideRename()">Cancel</button>
       </div>
       <div class="no hide" style="margin-top:6px" id="routineRenameWhy"></div>
+      <!-- FORGETTING THIS ONE ROUTINE (R8). The confirmation names every part that goes, in the
+           order it goes, and Forget it is the only way past it. What happened is read back part by
+           part: a forget that stops partway says which parts are gone and which are still here.
+           Every word is the backend's (forgetone.go). -->
+      <div class="card hide" id="routineForget" style="margin-top:10px">
+        <h3 id="routineForgetTitle">Forget this routine?</h3>
+        <div class="muted" id="routineForgetWhere"></div>
+        <div style="margin-top:6px">This removes, in this order:</div>
+        <ul id="routineForgetParts" style="margin:4px 0 0 18px;padding:0"></ul>
+        <div class="muted" style="margin-top:6px">It cannot be undone. Nothing else is touched.</div>
+        <div class="banner bad hide" style="margin-top:6px" id="routineForgetWhy"></div>
+        <div class="row" style="margin-top:10px">
+          <button class="stop" id="routineForgetGo" type="button">Forget it</button>
+          <button id="routineForgetKeep" type="button" onclick="hideForget()">Keep it</button>
+        </div>
+      </div>
       <!-- THE REVIEW OF A RENAME OR A MOVE, WHERE IT WAS ASKED FOR. One panel serves both,
            so it is CARRIED: under the name box for a rename, and into the Where it works tab
            for a move (placeMove). A review a card's length from the button that opened it
@@ -3811,6 +3834,7 @@
        '</button>' +
        (status ? '<span class="pill ' + status[0] + '">' + esc(status[1]) + '</span>' : '') +
        (open ? '<button id="routineRenameBtn" type="button">Rename</button>' : '') +
+       (open ? '<button id="routineForgetBtn" type="button">Forget</button>' : '') +
        '<button class="go big" type="button" id="' + playId + '">Play</button>' +
        '<span class="muted rowsays" id="' + saysId + '"></span>' +
        (open ? '<span class="muted rowsays hide" id="routineWants"></span>' : '') +
@@ -3822,6 +3846,7 @@
      $('routineOpen-' + key).onclick = () => toggleRoutine(r.id)
      $(playId).onclick = () => playFrom(r.id)
      if (open) { $('routineRenameBtn').onclick = () => revealRename() }
+     if (open) { $('routineForgetBtn').onclick = () => reviewForget(r.id) }
      // AND THE SHORT REASON A SHUT ROW CANNOT BE PLAYED, beside its own Play. The
      // open one has the whole refusal in `routineWhy`, under the name, where a
      // second short copy would be the same sentence twice.
@@ -5228,6 +5253,55 @@
    showing($('routineRenameClause'), !!r.clause)
    $('routineRenameBox').focus()
  }
+
+ // ── FORGET ONE ROUTINE ──
+ let forgetToken = ''
+ function reviewForget(id){
+   forgetToken = ''
+   acts.ReviewForgetRoutine(id).then(v => {
+     const card = $('routineForget')
+     card.classList.remove('hide')
+     $('routineForgetTitle').textContent = 'Forget ' + (v.name ? '“' + v.name + '”' : 'this routine') + '?'
+     $('routineForgetWhere').textContent = v.where ? 'It works ' + v.where + '.' : ''
+     const list = $('routineForgetParts')
+     list.innerHTML = ''
+     ;(v.parts || []).forEach(p => { const li = document.createElement('li'); li.textContent = p; list.appendChild(li) })
+     const why = $('routineForgetWhy')
+     why.textContent = v.why || ''
+     showing(why, !!v.why)
+     forgetToken = v.token || ''
+     $('routineForgetGo').disabled = !forgetToken
+     $('routineForgetGo').onclick = () => forgetIt()
+   })
+ }
+ function forgetIt(){
+   if (!forgetToken) { return }
+   $('routineForgetGo').disabled = true
+   const token = forgetToken
+   forgetToken = ''
+   acts.ForgetRoutine(token).then(done => {
+     if (done.why) {
+       // NOTHING WAS TRIED: the review is no longer the one held, or something is in flight.
+       const why = $('routineForgetWhy')
+       why.textContent = done.why
+       showing(why, true)
+       return
+     }
+     // EVERY OUTCOME OF A FORGET THAT RAN IS SAID ABOVE THE LIST, part by part, because the
+     // routine's panel goes with the routine.
+     hideForget()
+     text($('forgotSays'), done.says || '')
+     $('forgotSays').className = done.removed ? '' : 'no'
+     const list = $('forgotParts')
+     list.innerHTML = ''
+     ;(done.parts || []).forEach(p => { const li = document.createElement('li');
+       li.textContent = p.what + (p.gone ? ' — removed' : ' — NOT removed, still here');
+       li.className = p.gone ? 'muted' : 'no'; list.appendChild(li) })
+     showing($('forgotOutcome'), true)
+     reloadRoutines()
+   })
+ }
+ function hideForget(){ $('routineForget').classList.add('hide'); forgetToken = '' }
 
  function hideRename(){
    renamingFor = ''

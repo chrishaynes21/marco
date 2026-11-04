@@ -26,6 +26,7 @@ source_paths:
   - cmd/marco/line.go
   - plugins/overlay/line.go
   - plugins/studio/widget.go
+  - plugins/studio/forgetone.go
   - internal/widgetstack
 ---
 

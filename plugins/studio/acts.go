@@ -146,7 +146,9 @@ type Acts struct {
 	// invocations is each prepared RUN of a routine that needs text, held by its token
 	// so that what is confirmed is what runs and the page cannot hand back values it was
 	// never given. Bounded, because each one holds text somebody typed.
-	invocations     map[string]orchestrator.Invocation
+	invocations map[string]orchestrator.Invocation
+	// forgets is each reviewed forget of one routine, by its token (forgetone.go).
+	forgets         map[string]orchestrator.ForgetPlan
 	invocationOrder []string
 	// playing is what a confirmed invocation is handed to, and is `playChosen` unless a
 	// test substitutes it.

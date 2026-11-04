@@ -402,7 +402,22 @@ type Forgotten struct {
 // went leaves a routine with no shortcuts, which can redirect nothing, and is said.
 //
 // Reordering must fail TestAForgetWhoseShortcutsCannotBeRemovedForgetsNothing.
-func (d Deps) ForgetRoutine(rt routes.Route) (Forgotten, error) {
+func (d Deps) ForgetRoutine(rt routes.Route) (Forgotten, error) { return d.forget(rt, "") }
+
+// ForgetAsPlanned is ForgetRoutine for a forget somebody was SHOWN: it refuses, having removed
+// nothing, if the routine, its demonstration or its shortcuts are not what the plan listed.
+// Checked under the routine's lock, so nothing saved or assigned after the review is removed
+// without having been shown.
+//
+// Skipping the check must fail TestAForgetRemovesNothingItDidNotShow.
+func (d Deps) ForgetAsPlanned(p ForgetPlan) (Forgotten, error) {
+	if p.Token == "" {
+		return Forgotten{Route: p.Route}, fmt.Errorf("this forget was never reviewed, so nothing was removed")
+	}
+	return d.forget(p.Route, p.Token)
+}
+
+func (d Deps) forget(rt routes.Route, shown string) (Forgotten, error) {
 	out := Forgotten{Route: rt}
 	hold, err := d.Reg.Lock(rt, SaveWithin)
 	if err != nil {
@@ -411,6 +426,10 @@ func (d Deps) ForgetRoutine(rt routes.Route) (Forgotten, error) {
 	defer hold.Release()
 	if !d.Reg.Has(rt) {
 		return out, fmt.Errorf("there is no routine %s to forget", rt.ID())
+	}
+	if shown != "" && d.planOf(rt).Token != shown {
+		return out, fmt.Errorf("%s has changed since you looked at what forgetting it would "+
+			"remove, so nothing was removed — look again", rt.ID())
 	}
 	if d.BeforeForgetWrites != nil {
 		d.BeforeForgetWrites()
@@ -743,3 +762,54 @@ func (d Deps) failedRename(from, to routes.Route, why error) error {
 // wider than rt allows, or "" when it would not. The owner's own rule, for a surface that offers
 // the choice before anybody makes it.
 func WiderThanItsRoutine(rt routes.Route, listenIn string) string { return wider(rt, listenIn) }
+
+// ForgetPlan is what forgetting one routine would remove, read before anything is, and sealed.
+type ForgetPlan struct {
+	Route routes.Route
+	// Shortcuts are the keys that run it, which go first.
+	Shortcuts []routes.Binding
+	// Demonstration is whether its recording is kept beside it, and Steps whether an edited
+	// step account is.
+	Demonstration, Steps bool
+	// Provenance is whether a provenance record is kept beside it.
+	Provenance bool
+	// Phrases are what else it answers to.
+	Phrases []string
+	// Token seals all of the above with the routine's source and demonstration as they are.
+	Token string
+}
+
+// PlanForget reads what forgetting rt would remove. It writes nothing.
+func (d Deps) PlanForget(rt routes.Route) (ForgetPlan, error) {
+	if !d.Reg.Has(rt) {
+		return ForgetPlan{Route: rt}, fmt.Errorf("there is no routine %s to forget", rt.ID())
+	}
+	return d.planOf(rt), nil
+}
+
+func (d Deps) planOf(rt routes.Route) ForgetPlan {
+	p := ForgetPlan{Route: rt, Demonstration: d.Reg.HasRecording(rt), Steps: d.Reg.HasSteps(rt)}
+	if _, err := os.Stat(d.Reg.OriginPath(rt)); err == nil {
+		p.Provenance = true
+	}
+	for _, b := range d.Reg.Bindings() {
+		for _, id := range b.Routes {
+			if id == rt.ID() {
+				p.Shortcuts = append(p.Shortcuts, b)
+				break
+			}
+		}
+	}
+	if a, st := d.Reg.Aliases(rt); st == routes.AliasesIntact {
+		p.Phrases = a.Phrases
+	}
+	src, _ := os.ReadFile(d.Reg.Path(rt))
+	rec, _ := d.Reg.LoadRecording(rt)
+	parts := []string{rt.ID(), routes.DigestOf(string(src)), routes.DigestOf(string(rec))}
+	for _, b := range p.Shortcuts {
+		parts = append(parts, b.App+"\x01"+b.Key+"\x01"+strings.Join(b.Routes, ","))
+	}
+	parts = append(parts, strings.Join(p.Phrases, "\x01"))
+	p.Token = routes.DigestOf(strings.Join(parts, "\x00"))
+	return p
+}
