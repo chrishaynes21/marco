@@ -17,7 +17,10 @@ import (
 // live via applyLeaderHook.
 var leaderVK = parseLeader(cfgLeader())
 
-func init() { applyLeaderHook = func() { leaderVK = parseLeader(cfgLeader()) } }
+func init() {
+	applyLeaderHook = func() { leaderVK = parseLeader(cfgLeader()) }
+	reopenEditHook = func() { editing.Store(true) } // the command line, reopened on a line (line.go)
+}
 
 func parseLeader(spec string) uint16 {
 	switch s := strings.ToLower(spec); s {
@@ -455,7 +458,7 @@ func handleKey(vk uint16, down bool) bool {
 			case vkBack:
 				push(action{kind: actBackspace})
 			default:
-				if r, ok := vkToRune(vk, shiftDown.Load()); ok {
+				if r, ok := vkToText(vk, shiftDown.Load()); ok {
 					push(action{kind: actAppend, r: r})
 				}
 			}
@@ -520,6 +523,51 @@ func vkToRune(vk uint16, shift bool) (rune, bool) {
 		return ' ', true
 	case vk == vkOEMMin:
 		return '-', true
+	}
+	return 0, false
+}
+
+// vkToText is vkToRune plus the punctuation a value needs (`name:value`, `see you at 8.30`, a
+// path, a quotation), and the shifted digits, for the COMMAND LINE ONLY: the key after the leader
+// still reads vkToRune, so a punctuation key there is not a shortcut. On the hook thread, so a
+// switch and nothing else. US layout; another layout's punctuation keys type what this table says.
+//
+// Dropping the colon must fail TestTheCommandLineTypesWhatAValueNeeds.
+func vkToText(vk uint16, shift bool) (rune, bool) {
+	switch {
+	case shift && vk >= '0' && vk <= '9':
+		return rune(")!@#$%^&*("[vk-'0']), true
+	case shift && vk == vkOEMMin:
+		return '_', true
+	}
+	if r, ok := vkToRune(vk, shift); ok {
+		return r, true
+	}
+	pick := func(plain, shifted rune) (rune, bool) {
+		if shift {
+			return shifted, true
+		}
+		return plain, true
+	}
+	switch vk {
+	case 0xBA: // VK_OEM_1
+		return pick(';', ':')
+	case 0xBB: // VK_OEM_PLUS
+		return pick('=', '+')
+	case 0xBC: // VK_OEM_COMMA
+		return pick(',', '<')
+	case 0xBE: // VK_OEM_PERIOD
+		return pick('.', '>')
+	case 0xBF: // VK_OEM_2
+		return pick('/', '?')
+	case 0xDE: // VK_OEM_7
+		return pick('\'', '"')
+	case 0xDB: // VK_OEM_4
+		return pick('[', '{')
+	case 0xDD: // VK_OEM_6
+		return pick(']', '}')
+	case 0xDC: // VK_OEM_5
+		return pick('\\', '|')
 	}
 	return 0, false
 }

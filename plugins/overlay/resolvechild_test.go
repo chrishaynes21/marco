@@ -64,6 +64,9 @@ func TestMain(m *testing.M) {
 		code, _ := strconv.Atoi(os.Getenv("MARCO_OVERLAY_ANSWER_EXIT"))
 		os.Exit(code)
 	}
+	// NO TEST READS A LINE THROUGH A REAL `marco` unless it says which engine answers: the
+	// default is no reading, which is the line going to the intake as words, as before S6.
+	askLine = func(string, *lineProposal) (lineReading, bool) { return lineReading{}, false }
 	os.Exit(m.Run())
 }
 

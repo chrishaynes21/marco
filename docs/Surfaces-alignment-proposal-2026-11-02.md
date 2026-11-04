@@ -741,7 +741,10 @@ bindings, per CLAUDE.md, or a rendered mockup for the HUD) and a review of it.
   ([[ADR-300-one-owner-for-the-widgets-settings]]): one reader and writer for the widget, the
   control centre and Studio; a save writes only what its person changed. Carried into integration
   from S4: the widget does not press through an engine that ignores `--armed-in` (ADR-299).
-- **S6: command templates and completion (§5.4), rendered first.** Then Director proposals in the
+- **S6: command templates and completion (§5.4), rendered first.** **Done for the widget**
+  ([[ADR-301-the-command-line-reads-back-what-it-will-run]]): the three forms, exact-name first,
+  missing values completed in place, Director proposals reviewed on the line, identity and version
+  bound to the run. Then Director proposals in the
   read-back through the ADR-277 flow.
 - **S7: edits converge.** `marco rename` reviewed (R7); Studio Forget-one (R8); narrate's window
   (F7).

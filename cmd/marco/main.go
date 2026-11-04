@@ -123,6 +123,9 @@ func main() {
 	case "bindings":
 		runBindings(os.Args[2:])
 		return
+	case "line":
+		runLine(os.Args[2:])
+		return
 	case "forget":
 		runForget(os.Args[2:])
 		return

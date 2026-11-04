@@ -494,6 +494,18 @@ centre's Config view and Studio. Each shows the settings the widget runs with (i
 set in `MARCO_OVERLAY_LEADER`), and a save writes only what was changed there: every other setting
 in the file, including ones this version does not know, is kept.
 
+In the widget's **command line** (`` `m ``), a routine that types text takes its value right after its
+name. `cloud pull stone`, `cloud pull with stone` and `cloud pull resource:stone` are the same
+request. A routine that takes several values needs them named (`greet name:sam message:see you at
+8`). A line that is exactly a routine's name is that routine, so `cloud pull stone` runs a routine
+called *cloud pull stone* if there is one. While you type, the value still needed shows muted
+after the line (`cloud pull ‹resource›`). Once the line can run, a read-back shows under it:
+*Cloud pull · resource: stone*. Enter runs exactly what the read-back shows. If the read-back has
+not appeared yet, the first Enter shows it and the next one runs it. With a value missing, nothing
+runs and the line stays open for you to type it. When Director finds the routine you meant and
+proposes a value from what you said, the command line opens on it with the value filled in. You
+can edit it, and it runs only when you press Enter.
+
 In **Studio**, each routine has a **Shortcut** tab with the same rules: it shows the leader, the
 keys that run the routine (also shown as chips on its row), and lets you Set, Change or Remove one,
 listened for in the routine's own application, everywhere, or in an application you name. A key
@@ -655,6 +667,7 @@ marco bind [--everywhere|--in=<app>] <key> "<cmd>"   leader shortcut to a routin
 marco bind --reassign <key>   make a shortcut set up by name run the routine it names, after asking
 marco unbind [--everywhere|--in=<app>] <key>   remove a shortcut, saying what it ran
 marco bindings [--here] [--json]   list shortcuts, or what each key does in the app in front
+marco line --json -- "<line>"   what the widget's command line would run, read back (runs nothing)
 marco secret set|list|rm <name>   manage stored passwords
 
 marco run   [--host …] <file.marco>     run a Marco program

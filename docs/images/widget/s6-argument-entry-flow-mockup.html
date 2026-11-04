@@ -1,0 +1,109 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>S6 argument entry</title>
+<style>
+/* The widget's "default" theme (plugins/overlay/view.go) at its default 340px width. A MOCKUP of
+   the agreed S6 flow, drawn before it is built: the HUD is drawn by ebiten, which cannot render
+   without opening a window. Every sentence here is the one the engine's `marco line` answer and
+   the widget's read-back will carry. */
+:root{--bg:#0A0A0A;--name:#00E5CC;--cmd:#DDDDDD;--last:#4A8A8A;--sep:#2A4A4A;--desc:#6A9A98;
+--idle:#A0A8A5;--listen:#5AB4F5;--run:#4DC94D;--err:#F56565;--val:#E6C07B;--mute:#4f5a58}
+body{margin:0;padding:16px;background:#3a3f44;font-family:"Segoe UI",sans-serif;display:grid;grid-template-columns:repeat(4,340px);gap:16px 16px;align-items:start}
+.col{display:flex;flex-direction:column;gap:6px}
+.cap{color:#ddd;font-size:12px;width:340px;line-height:16px}
+.hud{width:340px;box-sizing:border-box;background:var(--bg);border:1px solid var(--sep);border-radius:8px;padding:8px}
+.sepl{border-top:1px solid var(--sep);margin:5px 0}
+.state{font-size:14px;display:flex;align-items:center;gap:8px;margin:2px 0}
+.dot{width:7px;height:7px;border-radius:50%}
+.term{font-size:15px;font-family:Consolas,monospace;white-space:pre-wrap;color:var(--cmd)}
+.badge{color:var(--listen)} .hint{color:var(--mute)} .v{color:var(--val)} .lab{color:var(--desc)}
+.read{font-size:12px;line-height:16px;white-space:pre-wrap;margin-top:3px;color:var(--cmd)}
+.read .ok{color:var(--run)} .read .need{color:var(--val)} .read .no{color:var(--err)} .read .m{color:var(--mute)}
+.hist div{font-size:11px;line-height:15px;color:var(--last);display:flex;justify-content:space-between;white-space:pre-wrap}
+.hist .t{display:flex;gap:6px}
+.tbl{font-size:11px;color:#ccc;width:340px;border-collapse:collapse}
+.tbl td{border-top:1px solid #555;padding:3px 4px;font-family:Consolas,monospace}
+</style></head><body>
+
+<div class="col"><div class="cap">1 · <b>`m cloud p</b> then Tab: the name completes and the value it takes is a muted hint</div>
+<div class="hud">
+ <div class="state" style="color:var(--listen)"><span class="dot" style="background:var(--listen)"></span>game b  command</div>
+ <div class="sepl"></div>
+ <div class="term"><span class="badge">`m</span> cloud pull <span class="hint">‹resource›</span>▌</div>
+ <div class="read"><span class="need">Resource needed</span><span class="m"> · cloud pull ‹resource›</span></div>
+</div></div>
+
+<div class="col"><div class="cap">2 · a value typed: the read-back names the routine and each value with its label. Enter runs exactly this</div>
+<div class="hud">
+ <div class="state" style="color:var(--listen)"><span class="dot" style="background:var(--listen)"></span>game b  command</div>
+ <div class="sepl"></div>
+ <div class="term"><span class="badge">`m</span> cloud pull <span class="v">stone</span>▌</div>
+ <div class="read"><span class="ok">Cloud pull</span> · <span class="lab">resource:</span> <span class="v">stone</span><span class="m">   Enter runs it</span></div>
+</div></div>
+
+<div class="col"><div class="cap">3 · the three agreed forms are one reading: the same routine identity, the same version, <b>{resource: stone}</b>, no model asked</div>
+<table class="tbl">
+<tr><td>cloud pull stone</td><td>Cloud pull · resource: stone</td></tr>
+<tr><td>cloud pull with stone</td><td>Cloud pull · resource: stone</td></tr>
+<tr><td>cloud pull resource:stone</td><td>Cloud pull · resource: stone</td></tr>
+</table>
+<div class="cap" style="color:#aaa">Runs as <span style="font-family:Consolas">marco do --source=typed --play=cloud-pull --app=game-b --expect=&lt;version read&gt; --arg=resource=stone</span>. The words are not read again.</div>
+</div>
+
+<div class="col"><div class="cap">4 · an exact name wins: with routines <b>cloud pull</b> and <b>cloud pull stone</b>, the line is the second routine, with no values</div>
+<div class="hud">
+ <div class="state" style="color:var(--listen)"><span class="dot" style="background:var(--listen)"></span>game b  command</div>
+ <div class="sepl"></div>
+ <div class="term"><span class="badge">`m</span> cloud pull stone▌</div>
+ <div class="read"><span class="ok">Cloud pull stone</span><span class="m"> · a routine of that name, no values</span></div>
+</div></div>
+
+<div class="col"><div class="cap">5 · Enter with the value missing runs nothing: the line stays open with the text, for the value to be typed in place</div>
+<div class="hud">
+ <div class="state" style="color:var(--listen)"><span class="dot" style="background:var(--listen)"></span>game b  command</div>
+ <div class="sepl"></div>
+ <div class="term"><span class="badge">`m</span> cloud pull <span class="hint">‹resource›</span>▌</div>
+ <div class="read"><span class="need">Resource needed</span><span class="m"> · cloud pull ‹resource› — nothing was run</span></div>
+</div></div>
+
+<div class="col"><div class="cap">6 · two values with no labels are asked about, never guessed. Named, each value runs to the next label</div>
+<div class="hud">
+ <div class="state" style="color:var(--listen)"><span class="dot" style="background:var(--listen)"></span>notepad  command</div>
+ <div class="sepl"></div>
+ <div class="term"><span class="badge">`m</span> greet sam see you at 8▌</div>
+ <div class="read"><span class="need">Two values needed — say which:</span><span class="m"> greet name:‹name› message:‹message›</span></div>
+ <div class="sepl"></div>
+ <div class="term"><span class="badge">`m</span> greet <span class="lab">name:</span><span class="v">sam</span> <span class="lab">message:</span><span class="v">see you at 8</span>▌</div>
+ <div class="read"><span class="ok">Greet</span> · <span class="lab">name:</span> <span class="v">sam</span> · <span class="lab">message:</span> <span class="v">see you at 8</span><span class="m">   Enter runs it</span></div>
+</div></div>
+
+<div class="col"><div class="cap">7 · Director named the routine and PROPOSED a value: the line opens on it, editable, and nothing runs until Enter on the read-back</div>
+<div class="hud">
+ <div class="state" style="color:var(--listen)"><span class="dot" style="background:var(--listen)"></span>game b  command</div>
+ <div class="read" style="color:var(--desc)">you asked: pull some stone down from the cloud</div>
+ <div class="sepl"></div>
+ <div class="term"><span class="badge">`m</span> cloud pull <span class="lab">resource:</span><span class="v">stone</span>▌</div>
+ <div class="read"><span class="ok">Cloud pull</span> · <span class="lab">resource:</span> <span class="v">stone</span> <span class="m">(read out of what you said)</span><span class="m">   Enter runs it · edit to change</span></div>
+ <div class="sepl"></div>
+ <div class="term"><span class="badge">`m</span> cloud pull <span class="lab">resource:</span><span class="v">granite</span>▌</div>
+ <div class="read"><span class="ok">Cloud pull</span> · <span class="lab">resource:</span> <span class="v">granite</span> <span class="m">(as you corrected it)</span><span class="m">   Enter runs it</span></div>
+</div></div>
+
+<div class="col"><div class="cap">8 · the version shown is the version run: a routine saved between the read-back and Enter is refused, and so is a proposal for an earlier revision</div>
+<div class="hud">
+ <div class="state" style="color:var(--err)"><span class="dot" style="background:var(--err)"></span>game b  refused</div>
+ <div class="sepl"></div>
+ <div class="read"><span class="no">refused:</span> "cloud pull" has been saved again since this was prepared, so what it would do is not what the confirmation showed — look at it again</div>
+ <div class="sepl"></div>
+ <div class="read"><span class="no">"cloud pull" has been saved again since those values were read out of what you said, so nothing has been proposed for what it now does — say it again</span></div>
+</div></div>
+
+<div class="col"><div class="cap">9 · what ran is in the history as its read-back</div>
+<div class="hud">
+ <div class="hist">
+  <div><span class="t"><span style="color:var(--run)">●</span>Cloud pull · resource: stone</span><span>1.4s</span></div>
+  <div><span class="t"><span style="color:var(--run)">●</span>Greet · name: sam · message: see you at 8</span><span>0.9s</span></div>
+  <div><span class="t"><span style="color:var(--err)">●</span>Cloud pull · resource: granite — saved again since…</span><span>0ms</span></div>
+ </div>
+</div></div>
+
+</body></html>

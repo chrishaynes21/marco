@@ -280,6 +280,12 @@ func dispatch(h *model, req request) response {
 			stopRunningPlays()
 		}
 
+		// A TYPED LINE THAT NAMES A ROUTINE TAKING VALUES runs as its read-back, or waits for one
+		// (line.go). Typed only: a spoken phrase has no read-back on screen, and keeps the intake's
+		// own grammar and Director. Not a control phrase, which must not wait for a reading.
+		if source == invoke.SourceTyped && !intent.IsControlPhrase(name) && typedLine(h, name) {
+			return okData(nil)
+		}
 		h.setStatus("running: " + name)
 		dispatchIntake(h, name, source)
 		return okData(nil)

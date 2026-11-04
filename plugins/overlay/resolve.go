@@ -54,6 +54,13 @@ type resolved struct {
 		} `json:"context"`
 		Source   string `json:"source"`
 		Resolver string `json:"resolver"`
+		// Values is what Director PROPOSED for the routine's arguments, and SourceAt the
+		// revision they were read against. Never sent as they are: see reviewProposal.
+		Values []struct {
+			Name  string `json:"name"`
+			Value string `json:"value"`
+		} `json:"values"`
+		SourceAt string `json:"sourceAt"`
 	} `json:"answer"`
 	Mismatch string `json:"mismatch"`
 	Why      string `json:"why"`
@@ -178,6 +185,20 @@ func offerWhatMarcoHas(h *model, phrase string) disposition {
 			h.log(a.Context.Says)
 		}
 		h.log(a.Resolver)
+		// A ROUTINE THAT TAKES VALUES IS REVIEWED ON THE COMMAND LINE, with what Director
+		// proposed written in and editable; it is not offered as a yes that runs it with
+		// values nobody looked at, or with none (line.go).
+		proposed := map[string]string{}
+		for _, v := range a.Values {
+			proposed[strings.ToLower(v.Name)] = v.Value
+		}
+		switch reviewProposal(h, a.Name, a.App, a.Slug, a.Focus, proposed, a.SourceAt) {
+		case reviewed:
+			h.log("you asked: " + phrase)
+			return offeredRun
+		case refusedReview:
+			return saidWhyNot
+		}
 		offerRoutine(h, a.Name, a.ID, a.App, a.Slug, a.Focus)
 		return offeredRun
 	case a.Kind == "learn":

@@ -23,6 +23,8 @@ source_paths:
   - plugins/overlay/outcome.go
   - internal/widgetconfig
   - plugins/overlay/compat.go
+  - cmd/marco/line.go
+  - plugins/overlay/line.go
 ---
 
 # Invocation
@@ -113,6 +115,11 @@ it without reading `Request.Text` at all.
   by the widget, the control centre and Studio: the widget's precedence everywhere, and a save
   writes only the keys its person changed, keeping every other field (F5). See
   [[ADR-300-one-owner-for-the-widgets-settings]].
+- The widget's command line reads back what Enter would run (`marco line --json`, read-only): an
+  exact name first, then the intake's grammar, then a routine taking one value followed by it.
+  A line with values runs as its identity and the version read (`--play`, `--expect`, `--arg`),
+  only once its read-back has been on screen; values Director proposed are reviewed there before
+  they run. See [[ADR-301-the-command-line-reads-back-what-it-will-run]].
 
 `invoke.Plays` is a one-method interface partly for exactly this reason: a test can hand in a
 resolver that records every call and assert it was **not** asked

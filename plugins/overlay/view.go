@@ -551,7 +551,19 @@ func drawTerminalLine(dst *ebiten.Image, pad, y, innerW float64, s snapshot, sco
 		bw := drawText(dst, keyShown("m"), pad, y, faceBody, scol) // accent badge, with the configured leader
 		// Render the typed command with the verb accented and the arg labels woven into
 		// the "with" clause, wrapping across rows under the badge.
-		drawEditLine(dst, s.input, blink, s.argHints, pad+bw, y, innerW-bw, scol)
+		pending := ""
+		if s.hasReading {
+			pending = s.reading.Pending
+		}
+		drawEditLine(dst, s.input, blink, s.argHints, pending, pad+bw, y, innerW-bw, scol)
+		// AND WHAT ENTER WOULD RUN, under it (line.go): the read-back, or what is needed.
+		if rs := readingRuns(s); len(rs) > 0 {
+			_, row := layoutRuns(editRuns(s.input, s.argHints, th.name), 0, innerW-bw, nil)
+			ry := y + float64(row+1)*termContH
+			layoutRuns(rs, pad, innerW, func(str string, col color.RGBA, ax float64, r int) {
+				drawText(dst, str, ax, ry+float64(r)*termContH, faceBody, col)
+			})
+		}
 		return
 	}
 	bw := drawText(dst, "> ", pad, y, faceBody, scol)
@@ -584,6 +596,10 @@ func terminalRows(s snapshot, innerW float64) int {
 		// Count rows the way drawEditLine lays them out (the labels widen the line, so a
 		// plain wrapText of the raw input would under-count).
 		_, row := layoutRuns(editRuns(s.input, s.argHints, th.name), 0, innerW-bw, nil)
+		if rs := readingRuns(s); len(rs) > 0 {
+			_, rrow := layoutRuns(rs, 0, innerW, nil)
+			row += rrow + 1
+		}
 		return row + 1
 	}
 	bw, _ := text.Measure("> ", faceBody, 0)
@@ -693,13 +709,23 @@ func layoutRuns(rs []editRun, x0, avail float64, emit func(s string, col color.R
 // drawEditLine renders the command being typed, wrapping across rows from (x, y).
 // Before a "with" clause exists, the arg labels trail as a "name:  (tab)" suggestion;
 // once it does, they sit in front of each value (see editRuns).
-func drawEditLine(dst *ebiten.Image, in, blink string, names []string, x, y, avail float64, accent color.RGBA) {
+func drawEditLine(dst *ebiten.Image, in, blink string, names []string, pending string, x, y, avail float64, accent color.RGBA) {
 	rs := editRuns(in, names, accent)
 	endX, row := layoutRuns(rs, x, avail, func(s string, col color.RGBA, ax float64, r int) {
 		drawText(dst, s, ax, y+float64(r)*termContH, faceBody, col)
 	})
 	ry := y + float64(row)*termContH
 	drawText(dst, blink, endX, ry, faceBody, th.cmd)
+	if pending != "" {
+		// THE VALUE STILL TO TYPE, muted, where it goes: `cloud pull ‹resource›` (line.go).
+		bw, _ := text.Measure(blink, faceBody, 0)
+		sep := " "
+		if strings.HasSuffix(in, " ") {
+			sep = ""
+		}
+		drawText(dst, sep+pending, endX+bw, ry, faceBody, th.lastCmd)
+		return
+	}
 	if !strings.Contains(strings.ToLower(in), " with ") {
 		drawArgSuggestion(dst, names, endX, ry) // prompt to start the args clause
 	}

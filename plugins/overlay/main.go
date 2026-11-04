@@ -38,6 +38,7 @@ func main() {
 	go pollActiveApp(m)     // keep the state line's app context fresh
 	go pollMetrics(m)       // feed the optional CPU/RAM widget
 	go pollArgHints(m)      // auto-pop "name:" labels for the route being typed
+	go pollLineReading(m)   // what Enter would run, read back under the line (line.go)
 	go pollCursor(m)        // feed the optional screen-coords tooltip
 	go pollRoutes(m)        // known route names, for Tab autocomplete
 	go pollInsight(m)       // frozen perception snapshot panel (only polls while open)

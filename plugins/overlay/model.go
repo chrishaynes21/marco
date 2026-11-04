@@ -81,7 +81,13 @@ type model struct {
 	// armApp is the application that was in front when the current leader was pressed: the
 	// context the list is of and the key is checked against (arm.go, hotkey.go).
 	armApp string
-	quit   bool
+	// reading is the engine's reading of the line being typed, for readingLine, set at readingAt;
+	// proposal is what Director proposed for the routine the line was opened on. See line.go.
+	reading     lineReading
+	readingLine string
+	readingAt   time.Time
+	proposal    *lineProposal
+	quit        bool
 }
 
 // beginArm starts a new press of the leader in app and returns its number. A list fetched for an
@@ -270,6 +276,7 @@ func (h *model) idle() { h.mu.Lock(); h.state, h.status = "idle", "ready"; h.mu.
 // dismiss cancels any command/help/echo and fades the panel out now (Esc).
 func (h *model) dismiss() {
 	h.mu.Lock()
+	h.proposal, h.readingLine = nil, ""
 	h.editing, h.helpOn, h.input, h.leaderEcho = false, false, "", ""
 	h.armSeq++
 	h.armOn, h.arm = false, nil
@@ -652,9 +659,12 @@ type snapshot struct {
 	prompt, promptPending              string
 	learnLog                           []string
 	argHints                           []string
-	logs, help, config                 []string
-	arm                                []string
-	history                            []histEntry
+	// reading is the engine's reading of what is typed now, when hasReading (line.go).
+	reading            lineReading
+	hasReading         bool
+	logs, help, config []string
+	arm                []string
+	history            []histEntry
 	// wmode, watch and headline are the three readings of one account.
 	wmode    watchLevel
 	watch    playbill.View
@@ -674,6 +684,7 @@ func (h *model) snapshot() snapshot {
 	copy(hist, h.history)
 	tlog := make([]string, len(h.learnLog))
 	copy(tlog, h.learnLog)
+	rd, hasRd := h.shownReadingLocked()
 	hints := make([]string, len(h.argHints))
 	copy(hints, h.argHints)
 	ins := make([]string, len(h.insight))
@@ -687,8 +698,10 @@ func (h *model) snapshot() snapshot {
 		curX: h.curX, curY: h.curY, curHasPos: h.curHasPos, learnSession: h.learnSession,
 		learnStart: h.learnStart, configSel: h.configSel,
 		prompt: h.prompt, promptPending: h.promptPending, learnLog: tlog,
-		argHints:  hints,
-		insightOn: h.insightOn, inspectorOn: h.inspectorOn, insight: ins,
+		argHints:   hints,
+		reading:    rd,
+		hasReading: hasRd,
+		insightOn:  h.insightOn, inspectorOn: h.inspectorOn, insight: ins,
 		wmode: h.wmode, watch: h.watch, headline: h.headline,
 		logs: logs, help: help, config: conf, history: hist, arm: arm,
 	}
