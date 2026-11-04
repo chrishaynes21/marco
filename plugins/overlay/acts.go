@@ -291,8 +291,9 @@ func dispatch(h *model, req request) response {
 		mlogD("overlay: hotkey", "key", key)
 		// A hotkey is an EXPLICIT IDENTITY, not a phrase: `marco hotkey` resolves the
 		// binding to a play once and hands the intake that identity, so the words are
-		// never read back. Nothing about that decision belongs here.
-		if r := runMarco(h, "hotkey", key); r.err != nil {
+		// never read back. Nothing about that decision belongs here. How it ended does: it is
+		// in the status line and the history like any other run (hotkey.go).
+		if r := pressShortcut(h, key); r.err != nil {
 			mlogE("overlay: hotkey failed", "key", key, "err", r.err)
 			return fail(r.err.Error())
 		}
@@ -697,7 +698,7 @@ func streamChild(h *model, trackCancel bool, args ...string) childRun {
 		_ = inW.Close()
 	}()
 
-	route, result := "", ""
+	route, result, said := "", "", ""
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
@@ -743,6 +744,7 @@ func streamChild(h *model, trackCancel bool, args ...string) childRun {
 			if st, ok := directorStatusLine(s); ok {
 				h.setStatus(st)
 			}
+			said = s
 			h.log(s)
 		}
 		for {
@@ -798,7 +800,7 @@ func streamChild(h *model, trackCancel bool, args ...string) childRun {
 	if trackCancel {
 		stopped = untrackRun(cmd)
 	}
-	return childRun{err: err, killed: stopped, route: route, result: result}
+	return childRun{err: err, killed: stopped, route: route, result: result, said: said}
 }
 
 // trackRun and untrackRun are the in-flight-child registration.

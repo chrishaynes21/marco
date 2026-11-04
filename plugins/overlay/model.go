@@ -73,7 +73,49 @@ type model struct {
 	headline   playbill.Headline
 	argHints   []string // arg labels to auto-pop for the route being typed ("name:" …)
 	routeNames []string // known route display names, for Tab autocomplete
-	quit       bool
+	// armSeq names the current press of the leader, armOn is whether it is still armed, and arm
+	// is the list of what each key does here, once it has arrived. See arm.go.
+	armSeq int
+	armOn  bool
+	arm    []string
+	// armApp is the application that was in front when the current leader was pressed: the
+	// context the list is of and the key is checked against (arm.go, hotkey.go).
+	armApp string
+	quit   bool
+}
+
+// beginArm starts a new press of the leader in app and returns its number. A list fetched for an
+// older press is never shown under this one.
+func (h *model) beginArm(app string) int {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.armSeq++
+	h.armOn, h.arm, h.armApp = true, nil, app
+	h.lastActive = time.Now()
+	return h.armSeq
+}
+
+// setArmList shows lines as the list for press seq, if that press is still armed. It reports
+// whether it did.
+func (h *model) setArmList(seq int, lines []string) bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if seq != h.armSeq || !h.armOn {
+		return false
+	}
+	h.arm = lines
+	h.lastActive = time.Now()
+	return true
+}
+
+// endArm puts the list away (the key after the leader was pressed, or the leader timed out) and
+// returns the application that leader was pressed in.
+func (h *model) endArm() string {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.armSeq++
+	h.armOn, h.arm = false, nil
+	return h.armApp
 }
 
 // inputForHint returns the current command text and whether the line is open, so the
@@ -229,6 +271,8 @@ func (h *model) idle() { h.mu.Lock(); h.state, h.status = "idle", "ready"; h.mu.
 func (h *model) dismiss() {
 	h.mu.Lock()
 	h.editing, h.helpOn, h.input, h.leaderEcho = false, false, "", ""
+	h.armSeq++
+	h.armOn, h.arm = false, nil
 	h.state, h.status = "idle", "ready"
 	h.lastActive = time.Now().Add(-2 * idleAfter) // fade immediately, no 5s wait
 	h.mu.Unlock()
@@ -609,6 +653,7 @@ type snapshot struct {
 	learnLog                           []string
 	argHints                           []string
 	logs, help, config                 []string
+	arm                                []string
 	history                            []histEntry
 	// wmode, watch and headline are the three readings of one account.
 	wmode    watchLevel
@@ -633,6 +678,8 @@ func (h *model) snapshot() snapshot {
 	copy(hints, h.argHints)
 	ins := make([]string, len(h.insight))
 	copy(ins, h.insight)
+	arm := make([]string, len(h.arm))
+	copy(arm, h.arm)
 	return snapshot{
 		visible: h.visible, editing: h.editing, helpOn: h.helpOn, configOn: h.configOn,
 		status: h.status, state: h.state, input: h.input, lastRun: h.lastRun, app: h.app,
@@ -643,6 +690,6 @@ func (h *model) snapshot() snapshot {
 		argHints:  hints,
 		insightOn: h.insightOn, inspectorOn: h.inspectorOn, insight: ins,
 		wmode: h.wmode, watch: h.watch, headline: h.headline,
-		logs: logs, help: help, config: conf, history: hist,
+		logs: logs, help: help, config: conf, history: hist, arm: arm,
 	}
 }

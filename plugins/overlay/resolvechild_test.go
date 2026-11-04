@@ -19,6 +19,7 @@ package main
 
 import (
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -33,11 +34,35 @@ func TestMain(m *testing.M) {
 		time.Sleep(30 * time.Second)
 		os.Exit(0)
 	}
+	// ONE SUBCOMMAND HANGS, or answers late, while the others answer: the list of keys and the
+	// press of one are two children, and what is worth holding is the one not waiting for the other.
+	if len(os.Args) > 1 && os.Args[1] == os.Getenv("MARCO_OVERLAY_HANG_ON") {
+		time.Sleep(30 * time.Second)
+		os.Exit(0)
+	}
+	if s := os.Getenv("MARCO_OVERLAY_SLOW_IF"); s != "" && strings.Contains(strings.Join(os.Args[1:], " "), s) {
+		time.Sleep(800 * time.Millisecond)
+	}
 	// AND THE CHILD THAT ANSWERS, which is the control beside it: one JSON object on
 	// stdout and out, which is what the real `marco resolve --json` does.
 	if said := os.Getenv("MARCO_OVERLAY_ANSWER"); said != "" {
+		// What it was asked, for a test that holds which subcommand a surface spawns.
+		// One line per child, appended, since a leader and its key are two.
+		if p := os.Getenv("MARCO_OVERLAY_ARGV"); p != "" {
+			if f, err := os.OpenFile(p, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600); err == nil {
+				_, _ = f.WriteString(strings.Join(os.Args[1:], " ") + "\n")
+				_ = f.Close()
+			}
+		}
+		// {armed} is the application the leader carried, so a list says whose it is.
+		for _, a := range os.Args[1:] {
+			if v, ok := strings.CutPrefix(a, "--armed-in="); ok {
+				said = strings.ReplaceAll(said, "{armed}", v)
+			}
+		}
 		os.Stdout.WriteString(said)
-		os.Exit(0)
+		code, _ := strconv.Atoi(os.Getenv("MARCO_OVERLAY_ANSWER_EXIT"))
+		os.Exit(code)
 	}
 	os.Exit(m.Run())
 }

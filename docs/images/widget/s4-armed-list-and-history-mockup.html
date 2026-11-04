@@ -1,0 +1,76 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>S4 HUD mockup</title>
+<style>
+/* The widget's "default" theme (plugins/overlay/view.go), at its default 340px width. A MOCKUP:
+   the HUD is drawn by ebiten, which cannot render without opening a window. The text in each
+   panel is the exact output of armLines / hotkeyRow asserted in plugins/overlay/arm_test.go. */
+:root{--bg:#0A0A0A;--name:#00E5CC;--cmd:#DDDDDD;--last:#4A8A8A;--sep:#2A4A4A;--desc:#6A9A98;
+--idle:#A0A8A5;--listen:#5AB4F5;--run:#4DC94D;--err:#F56565}
+body{margin:0;padding:16px;background:#3a3f44;font-family:"Segoe UI",sans-serif;display:flex;gap:16px;align-items:flex-start}
+.col{display:flex;flex-direction:column;gap:6px}
+.cap{color:#ddd;font-size:12px;width:340px}
+.hud{width:340px;box-sizing:border-box;background:var(--bg);border:1px solid var(--sep);border-radius:8px;padding:8px}
+.clock{color:var(--name);text-align:center;font-size:17px;margin-top:4px}
+.date{color:#556;text-align:center;font-size:11px}
+.brand{color:#3a4040;text-align:center;font-size:11px;margin-bottom:6px}
+.sepl{border-top:1px solid var(--sep);margin:5px 0}
+.descl{color:#4a5250;font-size:11px}
+.state{font-size:14px;display:flex;align-items:center;gap:8px;margin:4px 0}
+.dot{width:7px;height:7px;border-radius:50%}
+.term{font-size:15px;font-family:Consolas,monospace}
+.menu div,.hist span{white-space:pre-wrap}
+.menu div{font-size:11px;line-height:14px;color:var(--desc)}
+.menu .head{color:var(--cmd)} .menu .mark{color:var(--idle)} .menu .foot{color:#4a5250}
+.hist div{font-size:11px;line-height:15px;color:var(--last);display:flex;justify-content:space-between}
+.hist .t{display:flex;gap:6px}
+</style></head><body>
+
+<div class="col"><div class="cap">1 · leader pressed in Notepad: what each key does here</div>
+<div class="hud">
+ <div class="clock">9:41 PM</div><div class="date">Tuesday, Nov 3</div><div class="brand">Marco</div>
+ <div class="sepl"></div><div class="descl">`m plays  ·  `m learn  ·  `m bind</div>
+ <div class="state" style="color:var(--listen)"><span class="dot" style="background:var(--listen)"></span>notepad  listening</div>
+ <div class="sepl"></div><div class="term" style="color:var(--listen)">&gt; `_</div>
+ <div class="sepl"></div>
+ <div class="menu">
+  <div class="head">`  in notepad</div>
+  <div>e  save draft</div>
+  <div class="mark">l  open mouse settings  · set up by name: reassign it to run it</div>
+  <div class="mark">s  soon gone  (everywhere)  · its routine is gone: change or remove it</div>
+  <div>c  copy  (everywhere)</div>
+  <div class="mark">p  save as pdf  (everywhere)  · "save as pdf" works only in acrobat</div>
+  <div class="mark">f5  refresh  (everywhere)  · the widget cannot send this key</div>
+  <div class="foot">m command line · h help · Esc closes</div>
+ </div>
+</div></div>
+
+<div class="col"><div class="cap">2 · CapsLock leader, a recording in progress, nothing bound here</div>
+<div class="hud">
+ <div class="clock">9:42 PM</div><div class="date">Tuesday, Nov 3</div><div class="brand">Marco</div>
+ <div class="sepl"></div><div class="descl">CapsLock then m plays  ·  CapsLock then m learn</div>
+ <div class="state" style="color:var(--listen)"><span class="dot" style="background:var(--listen)"></span>game b  listening</div>
+ <div class="sepl"></div><div class="term" style="color:var(--listen)">&gt; CapsLock_</div>
+ <div class="sepl"></div>
+ <div class="menu">
+  <div class="head">CapsLock  in game b</div>
+  <div class="mark">a recording of "save draft" is in progress, so shortcuts are held off until it ends</div>
+  <div>no shortcuts in game b</div>
+  <div class="foot">m command line · h help · Esc closes</div>
+ </div>
+</div></div>
+
+<div class="col"><div class="cap">3 · after four presses: each in the history with how it ended</div>
+<div class="hud">
+ <div class="clock">9:44 PM</div><div class="date">Tuesday, Nov 3</div><div class="brand">Marco</div>
+ <div class="sepl"></div><div class="descl">`m plays  ·  `m learn  ·  `m bind</div>
+ <div class="state" style="color:var(--idle)"><span class="dot" style="background:var(--idle)"></span>notepad  ready</div>
+ <div class="sepl"></div><div class="term" style="color:var(--last)">&gt; nothing on `x in notepad</div>
+ <div class="sepl"></div>
+ <div class="hist">
+  <div><span>nothing on `x in notepad</span><span class="t"></span></div>
+  <div><span>`s — `s everywhere ran soon-gone, which is no longer in the library — nothing was performed. Change or remove the shortcut</span><span class="t" style="color:var(--idle)">⁄ 0.2s</span></div>
+  <div><span>`c  copy</span><span class="t" style="color:var(--idle)">■ 0.4s</span></div>
+  <div><span>`e  save draft</span><span class="t" style="color:var(--run)">✓ 1.2s</span></div>
+ </div>
+</div></div>
+</body></html>

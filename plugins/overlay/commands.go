@@ -268,14 +268,14 @@ func panelCommand(line string) (panelKind, bool) {
 //
 // Deleting the generation must fail TestTheListingIsGeneratedFromTheTable.
 func commandListing() []string {
-	lines := []string{"`m then type:"}
+	lines := []string{keyShown("m") + " then type:"}
 	for _, c := range hudCommands {
 		if !c.Listed {
 			continue
 		}
 		lines = append(lines, "  "+padTo(c.Word+" "+c.Arg, 22)+c.What)
 	}
-	lines = append(lines, "`<key>  run the routine bound to it   Esc  cancel", "")
+	lines = append(lines, keyShown("<key>")+"  run the routine bound to it   Esc  cancel", "")
 	return append(lines, playGroups(activeApp(), listRoutesFull())...)
 }
 
@@ -392,7 +392,7 @@ func idleHint() string {
 			// The word only, never its argument: the line is about 49 characters wide at
 			// the default size and four words with their arguments do not fit on it. What
 			// each one takes is one keystroke away, in the listing `plays` opens.
-			parts = append(parts, "`m "+c.Word)
+			parts = append(parts, keyShown("m")+" "+c.Word)
 		}
 	}
 	return strings.Join(parts, "  ·  ")

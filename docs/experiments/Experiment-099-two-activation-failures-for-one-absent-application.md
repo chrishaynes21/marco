@@ -75,6 +75,7 @@ stamp does not decide it; this record does not claim that yet.
 | when | what | this test |
 |---|---|---|
 | 2026-11-03, the S3 working tree | full `go test -count=1 ./...`, complete output kept outside the repository | passed |
+| 2026-11-03, the S4 working tree | full `go test -count=1 ./...`, complete output in `Roadmap-38-output/` | passed |
 
 A pass is not evidence the cause is gone; it was not run to establish a rate, and this record still
 claims nothing about the cause.

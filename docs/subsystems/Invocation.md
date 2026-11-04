@@ -9,7 +9,7 @@ used_by:
   - service
   - visibility
   - learned-plays
-updated: 2026-08-20
+updated: 2026-11-03
 source_paths:
   - internal/invoke
   - cmd/marco/intake.go
@@ -96,6 +96,14 @@ it without reading `Request.Text` at all.
   or a rename could redirect it (`TestAPressedShortcutIsTheRoutineItWasAssigned`). A shortcut set
   up by name before that refuses until reassigned. See
   [[ADR-297-a-shortcut-names-its-routine-and-has-one-owner]].
+- The widget's leader lists `marco bindings --here --json` and a key then runs `marco hotkey`; the
+  two are held together key by key (`TestTheArmListIsWhatAPressWouldFire`). A key with nothing on it
+  says so and announces no outcome. A press ends in the widget's status line and history
+  (`TestAPressedShortcutIsInTheHistory`). The session is bound to the application in front at the
+  leader: the list is of it (`--armed-in=`), the key carries it, and the engine refuses before
+  selecting a binding if another application is in front when it reads
+  (`TestAKeyPressedAfterTheFocusMovedRunsNothing`, `TestAKeyIsForTheApplicationItsLeaderWasPressedIn`).
+  See [[ADR-299-the-widget-explains-its-keys]].
 
 `invoke.Plays` is a one-method interface partly for exactly this reason: a test can hand in a
 resolver that records every call and assert it was **not** asked

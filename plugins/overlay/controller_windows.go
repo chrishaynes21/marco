@@ -160,7 +160,7 @@ const (
 )
 
 // leaderTimeout disarms the leader if no key follows the backtick.
-const leaderTimeout = 2 * time.Second
+const leaderTimeout = armWindow // two seconds; see arm.go
 
 var (
 	editing   atomic.Bool // marco command line open
@@ -196,15 +196,20 @@ func startInput(h *model, emit func(event)) error {
 }
 
 // processActions applies hook actions to the HUD and emits feed events.
-func processActions(h *model, emit func(event)) {
-	for a := range actCh {
+func processActions(h *model, emit func(event)) { processFrom(actCh, h, emit) }
+
+// processFrom is the action loop over a channel it is given, so a test can enter the production
+// loop with actions of its own and end it by closing the channel.
+func processFrom(ch <-chan action, h *model, emit func(event)) {
+	for a := range ch {
 		switch a.kind {
 		case actArm:
 			h.closeHelp()
-			h.setLeaderEcho("`")   // show the leader in the terminal
+			startArm(h)            // the leader as configured, and the list of what each key does here (arm.go)
 			h.setStatus("command") // wakes; listen colour
 		case actBeginEdit:
 			h.closeHelp()
+			h.endArm()
 			h.setLeaderEcho("")
 			h.setEditing(true)
 			h.setInput("")
@@ -260,8 +265,9 @@ func processActions(h *model, emit func(event)) {
 			h.closeInsight()
 			h.dismiss()
 		case actHelp:
-			h.setLeaderEcho("`" + string(a.r)) // show "`h" in the terminal
-			openPanel(h, panelHelpBrowser)     // the same place the word `help` goes
+			h.endArm()
+			h.setLeaderEcho(keyShown(string(a.r))) // show "`h" in the terminal
+			openPanel(h, panelHelpBrowser)         // the same place the word `help` goes
 		case actCfgUp:
 			h.configMove(-1, configFieldCount)
 		case actCfgDown:
@@ -313,8 +319,10 @@ func processActions(h *model, emit func(event)) {
 			cancelRun()
 		case actHotkey:
 			h.closeHelp()
+			// The key is for the application its leader was pressed in, and carries it (hotkey.go).
+			carryPress(string(a.r), h.endArm())
 			if a.r != 0 {
-				h.setLeaderEcho("`" + string(a.r))
+				h.setLeaderEcho(keyShown(string(a.r)))
 			}
 			// `<key> → run whatever route is bound to that key in the current app
 			// (overlay.marco: when Hotkeys reads Key? → Overlay Hotkey → marco hotkey).

@@ -291,6 +291,8 @@ func layoutHeight(s snapshot) int {
 	switch {
 	case s.configOn:
 		y += 8 + menuLineH*float64(configRowCount(s, innerW)) + 18 // sep + rows + footer
+	case len(s.arm) > 0:
+		y += 8 + menuLineH*float64(armRowCount(s, innerW))
 	case s.wmode != watchOff:
 		y += 8 + watchLineH*float64(watchRowCount(s, innerW))
 	case s.insightOn:
@@ -443,6 +445,26 @@ func (g *view) Draw(screen *ebiten.Image) {
 			}
 		}
 		drawText(screen, "↑↓ pick  ←→ change  S save  Esc", pad, y+2, faceSmall, lerp(th.bg, th.idle, 0.4))
+	case len(s.arm) > 0:
+		// What each key does here, while the leader is armed (arm.go). The first row names
+		// the leader and the application; a row with a mark after it does not run as listed.
+		sep(screen, pad, y-4, innerW)
+		y += 8
+		for i, line := range s.arm {
+			col := th.desc
+			switch {
+			case i == 0:
+				col = th.cmd
+			case i == len(s.arm)-1:
+				col = lerp(th.bg, th.idle, 0.4)
+			case strings.Contains(line, "  · "), strings.Contains(line, " held off"):
+				col = th.idle
+			}
+			for _, ln := range wrapText(line, faceSmall, innerW) {
+				drawText(screen, ln, pad, y, faceSmall, col)
+				y += menuLineH
+			}
+		}
 	case s.wmode != watchOff:
 		// The Director's playbill: WATCH, or DIAGNOSTICS. One account, two readings —
 		// and the status chip at its top is the same one word a consumer surface would
@@ -526,7 +548,7 @@ func drawTerminalLine(dst *ebiten.Image, pad, y, innerW float64, s snapshot, sco
 	// The input renders flush against it — no auto-inserted gap; the separating
 	// space is one you type (`m + space + command), shown verbatim.
 	if s.editing {
-		bw := drawText(dst, "`m", pad, y, faceBody, scol) // accent badge
+		bw := drawText(dst, keyShown("m"), pad, y, faceBody, scol) // accent badge, with the configured leader
 		// Render the typed command with the verb accented and the arg labels woven into
 		// the "with" clause, wrapping across rows under the badge.
 		drawEditLine(dst, s.input, blink, s.argHints, pad+bw, y, innerW-bw, scol)
@@ -558,7 +580,7 @@ func terminalRows(s snapshot, innerW float64) int {
 		return 1
 	}
 	if s.editing {
-		bw, _ := text.Measure("`m", faceBody, 0)
+		bw, _ := text.Measure(keyShown("m"), faceBody, 0)
 		// Count rows the way drawEditLine lays them out (the labels widen the line, so a
 		// plain wrapText of the raw input would under-count).
 		_, row := layoutRuns(editRuns(s.input, s.argHints, th.name), 0, innerW-bw, nil)
@@ -858,6 +880,15 @@ func configRowCount(s snapshot, innerW float64) int {
 			prefix = "› "
 		}
 		n += len(wrapText(prefix+line, faceSmall, innerW))
+	}
+	return n
+}
+
+// armRowCount is the armed list's wrapped rows.
+func armRowCount(s snapshot, innerW float64) int {
+	n := 0
+	for _, line := range s.arm {
+		n += len(wrapText(line, faceSmall, innerW))
 	}
 	return n
 }

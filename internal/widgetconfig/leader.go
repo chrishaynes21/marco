@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -66,34 +67,42 @@ func Leader() string {
 // leader, "CapsLock then e" for a named one. It is the form every surface writes a shortcut in.
 func Pressed(leader, key string) string {
 	key = strings.TrimSpace(key)
-	switch l := strings.TrimSpace(leader); {
-	case len([]rune(l)) == 1:
+	l := Named(leader)
+	if len([]rune(l)) == 1 {
 		return l + key
-	case l == "":
-		return key
-	default:
-		return named(l) + " then " + key
 	}
+	return l + " then " + key
 }
 
-// named is a leader's readable name.
-func named(l string) string {
-	switch strings.ToLower(l) {
-	case "capslock":
+// Named is the leader as a person reads it: the key the widget ACTUALLY LISTENS FOR when it is
+// configured with leader. That is the widget's `parseLeader` (plugins/overlay/controller_windows.go),
+// spelling for spelling, including its fallback: a setting it does not recognise, or an empty one,
+// leaves it listening for the backtick, so that is what is shown. Showing the setting as typed
+// would name a key that does nothing. Held against the widget by the overlay's
+// TestTheLeaderIsShownAsTheKeyItListensFor.
+func Named(leader string) string {
+	switch s := strings.ToLower(strings.TrimSpace(leader)); s {
+	case "`", "backtick", "grave", "tilde":
+		return "`"
+	case "capslock", "caps":
 		return "CapsLock"
 	case "tab":
 		return "Tab"
+	case "\\", "backslash":
+		return "\\"
+	case "/", "slash":
+		return "/"
+	case "[", "lbracket":
+		return "["
+	default:
+		if len(s) == 1 && (s[0] >= 'a' && s[0] <= 'z' || s[0] >= '0' && s[0] <= '9') {
+			return s
+		}
+		if len(s) >= 2 && s[0] == 'f' {
+			if n, err := strconv.Atoi(s[1:]); err == nil && n >= 1 && n <= 12 {
+				return "F" + s[1:]
+			}
+		}
+		return "`"
 	}
-	if len(l) >= 2 && (l[0] == 'f' || l[0] == 'F') {
-		return "F" + l[1:]
-	}
-	return l
-}
-
-// Named is the leader as a person reads it: the character itself, or "CapsLock", "Tab", "F13".
-func Named(leader string) string {
-	if l := strings.TrimSpace(leader); len([]rune(l)) != 1 {
-		return named(l)
-	}
-	return strings.TrimSpace(leader)
 }

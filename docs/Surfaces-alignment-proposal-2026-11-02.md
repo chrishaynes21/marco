@@ -735,7 +735,8 @@ bindings, per CLAUDE.md, or a rendered mockup for the HUD) and a review of it.
   library chips are done** ([[ADR-298-studio-sets-shortcuts-through-the-one-owner]]); the scope
   labels, the run-strip sentence and `--source=studio` are not started.
 - **S4: the widget explains itself, rendered first.** Arm list off the hook thread, "nothing on
-  x", configured leader in the echo, hotkey runs tracked (F9), one Enter meaning (F6).
+  x", configured leader in the echo, hotkey runs tracked (F9), one Enter meaning (F6). **Done except F6**
+  ([[ADR-299-the-widget-explains-its-keys]]); one Enter meaning is not started.
 - **S5: one `overlay.json` reader preserving unknown fields** (F5).
 - **S6: command templates and completion (§5.4), rendered first.** Then Director proposals in the
   read-back through the ADR-277 flow.

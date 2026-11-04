@@ -68,6 +68,9 @@ type childRun struct {
 	// result is the raw word from `[result] `; "" when the child never announced one —
 	// every subcommand except the intake (`bind`, `forget`, `learn`, …).
 	result string
+	// said is the last line the child printed for a person (not a wire line), e.g. why a press
+	// refused, or that there is nothing on a key.
+	said string
 	// dur is how long it took, for the history row.
 	dur time.Duration
 }

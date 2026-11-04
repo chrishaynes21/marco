@@ -1,0 +1,710 @@
+?   	github.com/chaynes-simpleclouds/marco/bridges/echo-bridge	[no test files]
+?   	github.com/chaynes-simpleclouds/marco/cmd/bakeoff	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/cmd/cleanroom	2.328s
+director: the authorisation is for "an Act nobody composed" and this run performs "the window in front"
+director: the authorisation was given for "the graphics tab" meaning interaction 0 of the demonstration, and in "two-taps" it now means interaction 1 — it has been composed again since, so this would press something nobody authorised
+--- FAIL: TestAGrantedRunAsksNobodyAnything (3.61s)
+    actgrant_test.go:754: the run could not establish its screen and never said so: [starting ended]
+director: fixtures looks like a durable corpus. Captures are private until a person has reviewed them; write them to a scratch directory instead.
+director: fixtures/vision/v2/rocketleague looks like a durable corpus. Captures are private until a person has reviewed them; write them to a scratch directory instead.
+director: docs/experiments looks like a durable corpus. Captures are private until a person has reviewed them; write them to a scratch directory instead.
+director: --session and one of --application, --foreground, --pid or --window-id are required
+  example: director capture-game-session --application rocketleague --session rocketleague-menu-steps --seconds 45
+  or:      director capture-game-session --foreground --session whatever-is-in-front --seconds 20
+director: --session and one of --application, --foreground, --pid or --window-id are required
+  example: director capture-game-session --application rocketleague --session rocketleague-menu-steps --seconds 45
+  or:      director capture-game-session --foreground --session whatever-is-in-front --seconds 20
+director: --fps must be between 1 and 60
+director: --fps must be between 1 and 60
+director: --fps must be between 1 and 60
+director: --fps must be between 1 and 60
+Saved "graphics preset", composed from "ark graphics live".
+
+// graphics preset — an Act: the interactions below, in this order.
+//
+// Composed from what somebody demonstrated as "ark graphics live".
+//
+// Each interaction is asked for by the name the person gave it. Every one is found again in
+// a fresh look, agreed to at the moment it happens, and checked afterwards — and the next
+// one is inside the last one's `when ok?`, so nothing follows an action that did not work.
+use demonstrated.
+
+the GraphicsTab is a scene.
+this can Press.
+this's Press does...
+    do Demonstrated's Press with "the graphics tab".
+    this is that!
+
+the ApplyChanges is a scene.
+this can Press.
+this's Press does...
+    do Demonstrated's Press with "apply changes".
+    this is that!
+
+the GraphicsPreset is an actor.
+this can Run.
+this's Run does...
+    do GraphicsTab's Press...
+        when ok?
+            do ApplyChanges's Press...
+                when ok?
+                    this is ok!
+                or?
+                    this is that!
+        or?
+            this is that!
+
+the App is a script.
+
+do GraphicsPreset's Run...
+    when ok?
+        log "graphics preset: every action verified".
+    or?
+        log that's error.
+
+  play       C:\Users\chris\AppData\Local\Temp\TestAnActComposedByTheCommandPreflights2326965228\001\routes\global\graphics-preset.marco
+  bindings   C:\Users\chris\AppData\Local\Temp\TestAnActComposedByTheCommandPreflights2326965228\001\routes\global\graphics-preset.scenes.json
+
+  Run it, one authorised press at a time:
+    director perform-workflow --play "graphics preset" --application ArkAscended.exe --hotkeys
+
+  Nothing is pressed without --live, and every press is asked about either way.
+Saved "just apply", composed from "ark graphics live".
+
+// just apply — an Act: the interactions below, in this order.
+//
+// Composed from what somebody demonstrated as "ark graphics live".
+//
+// Each interaction is asked for by the name the person gave it. Every one is found again in
+// a fresh look, agreed to at the moment it happens, and checked afterwards — and the next
+// one is inside the last one's `when ok?`, so nothing follows an action that did not work.
+use demonstrated.
+
+the ApplyChanges is a scene.
+this can Press.
+this's Press does...
+    do Demonstrated's Press with "apply changes".
+    this is that!
+
+the JustApply is an actor.
+this can Run.
+this's Run does...
+    do ApplyChanges's Press...
+        when ok?
+            this is ok!
+        or?
+            this is that!
+
+the App is a script.
+
+do JustApply's Run...
+    when ok?
+        log "just apply: every action verified".
+    or?
+        log that's error.
+
+  play       C:\Users\chris\AppData\Local\Temp\TestAnActMayBeASubsetOrReordered2998578104\001\routes\global\just-apply.marco
+  bindings   C:\Users\chris\AppData\Local\Temp\TestAnActMayBeASubsetOrReordered2998578104\001\routes\global\just-apply.scenes.json
+
+  Run it, one authorised press at a time:
+    director perform-workflow --play "just apply" --application ArkAscended.exe --hotkeys
+
+  Nothing is pressed without --live, and every press is asked about either way.
+Saved "backwards", composed from "ark graphics live".
+
+// backwards — an Act: the interactions below, in this order.
+//
+// Composed from what somebody demonstrated as "ark graphics live".
+//
+// Each interaction is asked for by the name the person gave it. Every one is found again in
+// a fresh look, agreed to at the moment it happens, and checked afterwards — and the next
+// one is inside the last one's `when ok?`, so nothing follows an action that did not work.
+use demonstrated.
+
+the ApplyChanges is a scene.
+this can Press.
+this's Press does...
+    do Demonstrated's Press with "apply changes".
+    this is that!
+
+the GraphicsTab is a scene.
+this can Press.
+this's Press does...
+    do Demonstrated's Press with "the graphics tab".
+    this is that!
+
+the Backwards is an actor.
+this can Run.
+this's Run does...
+    do ApplyChanges's Press...
+        when ok?
+            do GraphicsTab's Press...
+                when ok?
+                    this is ok!
+                or?
+                    this is that!
+        or?
+            this is that!
+
+the App is a script.
+
+do Backwards's Run...
+    when ok?
+        log "backwards: every action verified".
+    or?
+        log that's error.
+
+  play       C:\Users\chris\AppData\Local\Temp\TestAnActMayBeASubsetOrReordered2998578104\001\routes\global\backwards.marco
+  bindings   C:\Users\chris\AppData\Local\Temp\TestAnActMayBeASubsetOrReordered2998578104\001\routes\global\backwards.scenes.json
+
+  Run it, one authorised press at a time:
+    director perform-workflow --play "backwards" --application ArkAscended.exe --hotkeys
+
+  Nothing is pressed without --live, and every press is asked about either way.
+director: name the demonstration to compose from.
+  director compose-act --from "ark graphics live" \
+      --name "graphics preset" \
+      --interaction '0=the graphics tab' \
+      --interaction '1=apply changes'
+director: name the Act. An Act is a play you will run by name, so it needs one of its own.
+director: name at least one interaction to perform, as --interaction '0=what you call it'.
+invalid value "0=" for flag -interaction: interaction 0 needs a name — the words you would use for it, which is what the play will say
+Usage of compose-act:
+  -from director sequences
+    	the demonstration to compose from, by the name you saved it under (director sequences lists them)
+  -interaction <number>=<name>
+    	an interaction to perform, as <number>=<name> — repeat it, in the order you want them performed
+  -name string
+    	what to call the Act. Must not be a play you already have: replacing one is your decision, not this command's
+invalid value "0" for flag -interaction: write it as <interaction>=<name>, for example 0="the graphics tab" (got "0")
+Usage of compose-act:
+  -from director sequences
+    	the demonstration to compose from, by the name you saved it under (director sequences lists them)
+  -interaction <number>=<name>
+    	an interaction to perform, as <number>=<name> — repeat it, in the order you want them performed
+  -name string
+    	what to call the Act. Must not be a play you already have: replacing one is your decision, not this command's
+director: nothing called "nothing" has been saved.
+  director sequences    what you have shown it
+director: "a" names interaction 7 and "ark graphics live" has 2
+
+  "ark graphics live" has 2 interaction(s):
+    0  press control_1 on screen_a
+    1  press control_2 on screen_b
+director: two interactions are both called "a"; a name in a play has to mean one thing
+
+  "ark graphics live" has 2 interaction(s):
+    0  press control_1 on screen_a
+    1  press control_2 on screen_b
+Saved "mine", composed from "ark graphics live".
+
+// mine — an Act: the interactions below, in this order.
+//
+// Composed from what somebody demonstrated as "ark graphics live".
+//
+// Each interaction is asked for by the name the person gave it. Every one is found again in
+// a fresh look, agreed to at the moment it happens, and checked afterwards — and the next
+// one is inside the last one's `when ok?`, so nothing follows an action that did not work.
+use demonstrated.
+
+the GraphicsTab is a scene.
+this can Press.
+this's Press does...
+    do Demonstrated's Press with "the graphics tab".
+    this is that!
+
+the Mine is an actor.
+this can Run.
+this's Run does...
+    do GraphicsTab's Press...
+        when ok?
+            this is ok!
+        or?
+            this is that!
+
+the App is a script.
+
+do Mine's Run...
+    when ok?
+        log "mine: every action verified".
+    or?
+        log that's error.
+
+  play       C:\Users\chris\AppData\Local\Temp\TestComposingAnActRefusesWhatItCannotDo1380607002\001\routes\global\mine.marco
+  bindings   C:\Users\chris\AppData\Local\Temp\TestComposingAnActRefusesWhatItCannotDo1380607002\001\routes\global\mine.scenes.json
+
+  Run it, one authorised press at a time:
+    director perform-workflow --play "mine" --application ArkAscended.exe --hotkeys
+
+  Nothing is pressed without --live, and every press is asked about either way.
+director: there is already a play called "mine"; give this one a different name rather than replacing it
+
+  Which saved screen are you looking at?
+    screen_a   arrangement agrees 1.000
+    screen_b   arrangement agrees 0.000
+    (a ranking cannot say whether the right answer is in the list; that is what you are adding)
+
+  Marco thinks the screen in front of you is screen_a (its arrangement agrees 1.000).
+  Is that the screen you are on?  F7 yes   F8 no   F9 stop   (2s)
+  answered approve
+  screen_a established by key, in observation 3/2
+
+  Which saved screen are you looking at?
+    screen_a   arrangement agrees 1.000
+    screen_b   arrangement agrees 0.000
+    (a ranking cannot say whether the right answer is in the list; that is what you are adding)
+
+  Marco thinks the screen in front of you is screen_a (its arrangement agrees 1.000).
+  Is that the screen you are on?  F7 yes   F8 no   F9 stop   (2s)
+  answered refuse
+
+  Which saved screen are you looking at?
+    screen_a   arrangement agrees 1.000
+    screen_b   arrangement agrees 0.000
+    (a ranking cannot say whether the right answer is in the list; that is what you are adding)
+
+  Marco thinks the screen in front of you is screen_a (its arrangement agrees 1.000).
+  Is that the screen you are on?  F7 yes   F8 no   F9 stop   (2s)
+  nobody answered within 2s, so the screen is not established and nothing was pressed
+
+  Which saved screen are you looking at?
+    screen_a   arrangement agrees 1.000
+    screen_b   arrangement agrees 0.000
+    (a ranking cannot say whether the right answer is in the list; that is what you are adding)
+
+  Marco thinks the screen in front of you is screen_a (its arrangement agrees 1.000).
+  Is that the screen you are on?  F7 yes   F8 no   F9 stop   (2s)
+  answered stop
+
+  Which saved screen are you looking at?
+    screen_b   arrangement agrees 1.000
+    screen_a   arrangement agrees 0.000
+    (a ranking cannot say whether the right answer is in the list; that is what you are adding)
+  screen_b established by key, in observation 3/2
+
+  START — 4 controls I recognise this screen by. This is what I mean.
+
+  START — 4 controls I recognise this screen by. This is what I mean.
+
+  START — 4 controls I recognise this screen by. This is what I mean.
+director: nothing called "graphics tap" has been saved.
+  director sequences                   what you have shown it
+  director demonstrate-visual "graphics tap" ...   show it this one
+director: --name and --workflow both given; one names a saved demonstration and the other names a file, and
+  running whichever was meant is not a guess this command makes
+director: open C:\Users\chris\AppData\Local\Temp\TestAnUnreadableFileAndAnUnreadableNameSayDifferentThings2703192337\001\absent.json: The system cannot find the file specified.
+director: nothing called "never taught" has been saved.
+  director sequences                   what you have shown it
+  director demonstrate-visual "never taught" ...   show it this one
+director: --play names a saved play, and --name or --workflow names what to perform directly; running whichever was
+  meant is not a guess this command makes
+director: nothing called "something nobody demonstrated" has been saved as a play.
+  director sequences    what you have demonstrated
+director: this play is not the one these bindings describe: rebuilding it from them gives different source. Only a play Marco wrote from a demonstration runs here, and it runs only while its bindings still match it — save it again to bind the interactions it names now
+  run run-20261103-170050-0b57   C:\Users\chris\AppData\Local\Temp\TestAPlayAimedAtAnotherApplicationIsRefused3762551735\001\runs\run-20261103-170050-0b57.json
+director: no current window matches application notepad (unavailable)
+  run run-20261103-170050-0b57   C:\Users\chris\AppData\Local\Temp\TestAPlayAimedAtAnotherApplicationIsRefused3762551735\001\runs\run-20261103-170050-0b57.json   (failed)
+director: --play and --step cannot be used together.
+  An Act already says which interactions it performs, and --step renumbers
+  the demonstration underneath it — so the play's first Scene would perform
+  whichever interaction --step moved into its place. Run the whole Act, or
+  compose one from the interaction you want.
+director: --play and --step cannot be used together.
+  An Act already says which interactions it performs, and --step renumbers
+  the demonstration underneath it — so the play's first Scene would perform
+  whichever interaction --step moved into its place. Run the whole Act, or
+  compose one from the interaction you want.
+  run run-20261103-170050-0283   C:\Users\chris\AppData\Local\Temp\TestPlayWithStepIsRefusedOnUsage2988646038\001\runs\run-20261103-170050-0283.json
+Performing step 1 of "ark graphics live (step 1)" on its own: screen_b -> screen_b via control_2
+  the steps before it are not in this run and are not implied by it
+director: no current window matches application notepad (unavailable)
+  run run-20261103-170050-0283   C:\Users\chris\AppData\Local\Temp\TestPlayWithStepIsRefusedOnUsage2988646038\001\runs\run-20261103-170050-0283.json   (failed)
+director: name what to perform.
+  --name "graphics tab"      a demonstration you saved
+  --play "graphics tab"      a play composed from one
+  --workflow routine.json   an artifact file
+director: name what to perform.
+  --name "graphics tab"      a demonstration you saved
+  --play "graphics tab"      a play composed from one
+  --workflow routine.json   an artifact file
+director: --seconds must be between 1 and 300
+director: --fps must be between 1 and 60
+director: workflowstore: version 1 is older than this build's 3, and no migration exists
+  run run-20261103-170051-1c21   C:\Users\chris\AppData\Local\Temp\director-tests-1623293275\runs\run-20261103-170051-1c21.json
+director: no current window matches application notepad (unavailable)
+  run run-20261103-170051-1c21   C:\Users\chris\AppData\Local\Temp\director-tests-1623293275\runs\run-20261103-170051-1c21.json   (failed)
+  run run-20261103-170051-f66b   C:\Users\chris\AppData\Local\Temp\director-tests-1623293275\runs\run-20261103-170051-f66b.json
+director: no current window matches application notepad (unavailable)
+  run run-20261103-170051-f66b   C:\Users\chris\AppData\Local\Temp\director-tests-1623293275\runs\run-20261103-170051-f66b.json   (failed)
+  run run-20261103-170051-3ac2   C:\Users\chris\AppData\Local\Temp\director-tests-1623293275\runs\run-20261103-170051-3ac2.json
+  run run-20261103-170051-3ac2   C:\Users\chris\AppData\Local\Temp\director-tests-1623293275\runs\run-20261103-170051-3ac2.json   (failed)
+  run run-20261103-170109-6b3f   C:\Users\chris\AppData\Local\Temp\TestAnAbsentOptionalSourceIsRecordedAsAStartupFailurethe_learne4230232586\001\runs\run-20261103-170109-6b3f.json
+Performing "a routine" against statedwindow window, generation 1, at 1280x800+0+0
+  1 step(s), 1 screen(s), 1 control(s)
+  DRY: every program is compiled and run, and the Host writes it down instead of pressing anything.
+  Ctrl-C stops the run. Nothing is written to disk.
+  Starting in 0s.
+
+director: --learned asked for the detector and it is not available: no detector in this test
+  run run-20261103-170109-6b3f   C:\Users\chris\AppData\Local\Temp\TestAnAbsentOptionalSourceIsRecordedAsAStartupFailurethe_learne4230232586\001\runs\run-20261103-170109-6b3f.json   (failed)
+  run run-20261103-170109-2c34   C:\Users\chris\AppData\Local\Temp\TestAnAbsentOptionalSourceIsRecordedAsAStartupFailureOCR_beside82015228\001\runs\run-20261103-170109-2c34.json
+Performing "a routine" against statedwindow window, generation 1, at 1280x800+0+0
+  1 step(s), 1 screen(s), 1 control(s)
+  DRY: every program is compiled and run, and the Host writes it down instead of pressing anything.
+  Ctrl-C stops the run. Nothing is written to disk.
+  Starting in 0s.
+
+director: --reading asked for OCR and it is not available: no OCR in this test
+  run run-20261103-170109-2c34   C:\Users\chris\AppData\Local\Temp\TestAnAbsentOptionalSourceIsRecordedAsAStartupFailureOCR_beside82015228\001\runs\run-20261103-170109-2c34.json   (failed)
+  run run-20261103-170109-50a7   C:\Users\chris\AppData\Local\Temp\TestRepairWithoutOCRIsRecordedAsAStartupFailure2984951420\001\runs\run-20261103-170109-50a7.json
+director: --repair needs the OCR plugin and it is not available: no OCR in this test
+  run run-20261103-170109-50a7   C:\Users\chris\AppData\Local\Temp\TestRepairWithoutOCRIsRecordedAsAStartupFailure2984951420\001\runs\run-20261103-170109-50a7.json   (failed)
+  run run-20261103-170109-2058   C:\Users\chris\AppData\Local\Temp\TestAWindowThatCannotBeAcquiredIsRecordedAsFailed1103002546\001\runs\run-20261103-170109-2058.json
+director: no current window matches application nosuchapplicationanywhere (unavailable)
+  run run-20261103-170109-2058   C:\Users\chris\AppData\Local\Temp\TestAWindowThatCannotBeAcquiredIsRecordedAsFailed1103002546\001\runs\run-20261103-170109-2058.json   (failed)
+  run run-20261103-170109-8ca2   C:\Users\chris\AppData\Local\Temp\TestAStartPromptCancellationIsRecordedAsCancelled2790878180\001\runs\run-20261103-170109-8ca2.json
+  Prepare the application, then press F7 to start.  F9 or Ctrl-C cancels.  (starts by itself in 10s)
+  cancelled before anything was observed; no input was sent
+  run run-20261103-170109-8ca2   C:\Users\chris\AppData\Local\Temp\TestAStartPromptCancellationIsRecordedAsCancelled2790878180\001\runs\run-20261103-170109-8ca2.json   (cancelled)
+  run run-20261103-170109-3ffd   C:\Users\chris\AppData\Local\Temp\TestAStopSaidAnywhereReachesASupervisedRun2022955887\001\runs\run-20261103-170109-3ffd.json
+  Prepare the application, then press F7 to start.  F9 or Ctrl-C cancels.  (starts by itself in 30s)
+  cancelled before anything was observed; no input was sent
+  run run-20261103-170109-3ffd   C:\Users\chris\AppData\Local\Temp\TestAStopSaidAnywhereReachesASupervisedRun2022955887\001\runs\run-20261103-170109-3ffd.json   (cancelled)
+Saved "refused early", composed from "ark graphics live".
+
+// refused early — an Act: the interactions below, in this order.
+//
+// Composed from what somebody demonstrated as "ark graphics live".
+//
+// Each interaction is asked for by the name the person gave it. Every one is found again in
+// a fresh look, agreed to at the moment it happens, and checked afterwards — and the next
+// one is inside the last one's `when ok?`, so nothing follows an action that did not work.
+use demonstrated.
+
+the GraphicsTab is a scene.
+this can Press.
+this's Press does...
+    do Demonstrated's Press with "the graphics tab".
+    this is that!
+
+the RefusedEarly is an actor.
+this can Run.
+this's Run does...
+    do GraphicsTab's Press...
+        when ok?
+            this is ok!
+        or?
+            this is that!
+
+the App is a script.
+
+do RefusedEarly's Run...
+    when ok?
+        log "refused early: every action verified".
+    or?
+        log that's error.
+
+  play       C:\Users\chris\AppData\Local\Temp\TestAnEarlyRefusalEndsTheEventStream2695853816\001\routes\global\refused-early.marco
+  bindings   C:\Users\chris\AppData\Local\Temp\TestAnEarlyRefusalEndsTheEventStream2695853816\001\routes\global\refused-early.scenes.json
+
+  Run it, one authorised press at a time:
+    director perform-workflow --play "refused early" --application ArkAscended.exe --hotkeys
+
+  Nothing is pressed without --live, and every press is asked about either way.
+  run run-20261103-170109-cd73   C:\Users\chris\AppData\Local\Temp\TestAnEarlyRefusalEndsTheEventStream2695853816\001\runs\run-20261103-170109-cd73.json
+director: no current window matches application notepad (unavailable)
+  run run-20261103-170109-cd73   C:\Users\chris\AppData\Local\Temp\TestAnEarlyRefusalEndsTheEventStream2695853816\001\runs\run-20261103-170109-cd73.json   (failed)
+Saved "same output", composed from "ark graphics live".
+
+// same output — an Act: the interactions below, in this order.
+//
+// Composed from what somebody demonstrated as "ark graphics live".
+//
+// Each interaction is asked for by the name the person gave it. Every one is found again in
+// a fresh look, agreed to at the moment it happens, and checked afterwards — and the next
+// one is inside the last one's `when ok?`, so nothing follows an action that did not work.
+use demonstrated.
+
+the GraphicsTab is a scene.
+this can Press.
+this's Press does...
+    do Demonstrated's Press with "the graphics tab".
+    this is that!
+
+the SameOutput is an actor.
+this can Run.
+this's Run does...
+    do GraphicsTab's Press...
+        when ok?
+            this is ok!
+        or?
+            this is that!
+
+the App is a script.
+
+do SameOutput's Run...
+    when ok?
+        log "same output: every action verified".
+    or?
+        log that's error.
+
+  play       C:\Users\chris\AppData\Local\Temp\TestAskingForEventsDoesNotChangeWhatIsPrinted4196843110\001\routes\global\same-output.marco
+  bindings   C:\Users\chris\AppData\Local\Temp\TestAskingForEventsDoesNotChangeWhatIsPrinted4196843110\001\routes\global\same-output.scenes.json
+
+  Run it, one authorised press at a time:
+    director perform-workflow --play "same output" --application ArkAscended.exe --hotkeys
+
+  Nothing is pressed without --live, and every press is asked about either way.
+director: no current window matches application notepad (unavailable)
+director: no current window matches application notepad (unavailable)
+Saved "quiet", composed from "ark graphics live".
+
+// quiet — an Act: the interactions below, in this order.
+//
+// Composed from what somebody demonstrated as "ark graphics live".
+//
+// Each interaction is asked for by the name the person gave it. Every one is found again in
+// a fresh look, agreed to at the moment it happens, and checked afterwards — and the next
+// one is inside the last one's `when ok?`, so nothing follows an action that did not work.
+use demonstrated.
+
+the GraphicsTab is a scene.
+this can Press.
+this's Press does...
+    do Demonstrated's Press with "the graphics tab".
+    this is that!
+
+the Quiet is an actor.
+this can Run.
+this's Run does...
+    do GraphicsTab's Press...
+        when ok?
+            this is ok!
+        or?
+            this is that!
+
+the App is a script.
+
+do Quiet's Run...
+    when ok?
+        log "quiet: every action verified".
+    or?
+        log that's error.
+
+  play       C:\Users\chris\AppData\Local\Temp\TestNoEventsAreWrittenWithoutTheFlag1454481437\001\routes\global\quiet.marco
+  bindings   C:\Users\chris\AppData\Local\Temp\TestNoEventsAreWrittenWithoutTheFlag1454481437\001\routes\global\quiet.scenes.json
+
+  Run it, one authorised press at a time:
+    director perform-workflow --play "quiet" --application ArkAscended.exe --hotkeys
+
+  Nothing is pressed without --live, and every press is asked about either way.
+  run run-20261103-170117-430f   C:\Users\chris\AppData\Local\Temp\TestNoEventsAreWrittenWithoutTheFlag1454481437\001\runs\run-20261103-170117-430f.json
+director: no current window matches application notepad (unavailable)
+  run run-20261103-170117-430f   C:\Users\chris\AppData\Local\Temp\TestNoEventsAreWrittenWithoutTheFlag1454481437\001\runs\run-20261103-170117-430f.json   (failed)
+Saved "nowhere", composed from "ark graphics live".
+
+// nowhere — an Act: the interactions below, in this order.
+//
+// Composed from what somebody demonstrated as "ark graphics live".
+//
+// Each interaction is asked for by the name the person gave it. Every one is found again in
+// a fresh look, agreed to at the moment it happens, and checked afterwards — and the next
+// one is inside the last one's `when ok?`, so nothing follows an action that did not work.
+use demonstrated.
+
+the GraphicsTab is a scene.
+this can Press.
+this's Press does...
+    do Demonstrated's Press with "the graphics tab".
+    this is that!
+
+the Nowhere is an actor.
+this can Run.
+this's Run does...
+    do GraphicsTab's Press...
+        when ok?
+            this is ok!
+        or?
+            this is that!
+
+the App is a script.
+
+do Nowhere's Run...
+    when ok?
+        log "nowhere: every action verified".
+    or?
+        log that's error.
+
+  play       C:\Users\chris\AppData\Local\Temp\TestAnUnwritableEventPathRefusesTheRun227671655\001\routes\global\nowhere.marco
+  bindings   C:\Users\chris\AppData\Local\Temp\TestAnUnwritableEventPathRefusesTheRun227671655\001\routes\global\nowhere.scenes.json
+
+  Run it, one authorised press at a time:
+    director perform-workflow --play "nowhere" --application ArkAscended.exe --hotkeys
+
+  Nothing is pressed without --live, and every press is asked about either way.
+  run run-20261103-170117-0c66   C:\Users\chris\AppData\Local\Temp\TestAnUnwritableEventPathRefusesTheRun227671655\001\runs\run-20261103-170117-0c66.json
+director: runstate: opening C:\Users\chris\AppData\Local\Temp\TestAnUnwritableEventPathRefusesTheRun227671655\002\no-such-dir\events.jsonl: open C:\Users\chris\AppData\Local\Temp\TestAnUnwritableEventPathRefusesTheRun227671655\002\no-such-dir\events.jsonl: The system cannot find the path specified.
+  run run-20261103-170117-0c66   C:\Users\chris\AppData\Local\Temp\TestAnUnwritableEventPathRefusesTheRun227671655\001\runs\run-20261103-170117-0c66.json   (failed)
+director: --application is required
+  example: director showing --application applicationframehost
+  Prepare the application, then press F7 to start.  F9 or Ctrl-C cancels.  (starts by itself in 10s)
+  Prepare the application, then press F7 to start.  F9 or Ctrl-C cancels.  (starts by itself in 10s)
+  Prepare the application, then press F7 to start.  F9 or Ctrl-C cancels.  (starts by itself in 10s)
+  Prepare the application, then press F7 to start.  F9 or Ctrl-C cancels.  (starts by itself in 30ms)
+  Prepare the application, then press F7 to start.  F9 or Ctrl-C cancels.  (starts by itself in 1h0m0s)
+nothing to reset in C:\Users\chris\AppData\Local\Temp\TestEveryRefusalEndsInExactlyOneCheckpointemptying_the_disposab608167277\001\sandbox
+FAIL
+FAIL	github.com/chaynes-simpleclouds/marco/cmd/director	221.046s
+?   	github.com/chaynes-simpleclouds/marco/cmd/docscheck	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/cmd/gate	114.946s
+?   	github.com/chaynes-simpleclouds/marco/cmd/identityprobe	[no test files]
+?   	github.com/chaynes-simpleclouds/marco/cmd/localizetrial	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/cmd/marco	87.358s
+?   	github.com/chaynes-simpleclouds/marco/cmd/marco-macros	[no test files]
+?   	github.com/chaynes-simpleclouds/marco/cmd/nameprobe	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/cmd/perceptionreplay	14.855s
+?   	github.com/chaynes-simpleclouds/marco/cmd/twinprobe	[no test files]
+?   	github.com/chaynes-simpleclouds/marco/cmd/variance	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/internal/acceptance	2.893s
+ok  	github.com/chaynes-simpleclouds/marco/internal/activate	0.538s
+?   	github.com/chaynes-simpleclouds/marco/internal/ast	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/internal/bridgehost	0.648s
+ok  	github.com/chaynes-simpleclouds/marco/internal/buildid	0.465s
+ok  	github.com/chaynes-simpleclouds/marco/internal/codegen	6.189s
+?   	github.com/chaynes-simpleclouds/marco/internal/compile	[no test files]
+?   	github.com/chaynes-simpleclouds/marco/internal/demonstratedmod	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/internal/director	5.106s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/actiongraph	0.710s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/ambient	0.550s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/binding	0.666s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/collections	0.622s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/controlevidence	19.435s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/demo	3.324s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/demonstrated	0.740s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/edit	0.473s
+?   	github.com/chaynes-simpleclouds/marco/internal/director/edit/clipboard	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/edit/planner	0.609s
+?   	github.com/chaynes-simpleclouds/marco/internal/director/edit/providers	[no test files]
+?   	github.com/chaynes-simpleclouds/marco/internal/director/edit/verification	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/execute	6.683s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/fastobserve	64.134s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/game	0.819s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/goal	0.647s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/inline	0.606s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/intent	1.584s
+?   	github.com/chaynes-simpleclouds/marco/internal/director/internal/fixtures	[no test files]
+?   	github.com/chaynes-simpleclouds/marco/internal/director/internal/recorded	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/interpret	1.001s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/learn	69.340s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/learnstate	0.661s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/localizetrial	68.793s
+?   	github.com/chaynes-simpleclouds/marco/internal/director/marcoexec	[no test files]
+?   	github.com/chaynes-simpleclouds/marco/internal/director/match	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/meaning	37.440s
+?   	github.com/chaynes-simpleclouds/marco/internal/director/memory	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/observe	80.215s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/observe/screenfixture	0.807s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/observesession	77.431s
+?   	github.com/chaynes-simpleclouds/marco/internal/director/perception/capture	[no test files]
+?   	github.com/chaynes-simpleclouds/marco/internal/director/perception/diagnostics	[no test files]
+?   	github.com/chaynes-simpleclouds/marco/internal/director/perception/explain	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/perception/fusion	0.883s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/perception/observation	0.877s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/perception/providers	0.913s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/perception/providers/ocr	1.803s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/perception/providers/structure	1.678s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/perception/providers/vision	5.798s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/perception/providers/visualstate	2.831s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/perception/selection	7.880s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/perception/shadow	1.253s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/perception/structure	9.728s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/perception/timeline	0.814s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/perception/windowref	1.235s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/plan	1.186s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/policy	1.144s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/preview	1.637s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/program	0.847s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/rehearse	64.678s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/rephrase	0.809s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/runref	0.822s
+?   	github.com/chaynes-simpleclouds/marco/internal/director/runstate	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/satisfied	1.141s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/search	0.704s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/semanticmemory	42.104s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/service	11.688s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/shadowreplay	0.698s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/surface	0.750s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/target	0.973s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/trace	1.083s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/uiact	0.533s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/values	0.625s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/variables	0.797s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/verify	0.736s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/visionbench	11.939s
+?   	github.com/chaynes-simpleclouds/marco/internal/director/wait/conditions	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/wait/engine	1.298s
+?   	github.com/chaynes-simpleclouds/marco/internal/director/wait/evaluation	[no test files]
+?   	github.com/chaynes-simpleclouds/marco/internal/director/wait/history	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/workflow	44.973s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/workflowrun	63.582s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/workflowstore	45.420s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/world	0.893s
+ok  	github.com/chaynes-simpleclouds/marco/internal/dispatch	27.934s
+ok  	github.com/chaynes-simpleclouds/marco/internal/docsindex	1.408s
+ok  	github.com/chaynes-simpleclouds/marco/internal/driver	1.596s
+ok  	github.com/chaynes-simpleclouds/marco/internal/gamepacks/palworld	0.807s
+ok  	github.com/chaynes-simpleclouds/marco/internal/gate	1.779s
+?   	github.com/chaynes-simpleclouds/marco/internal/graph	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/internal/invoke	1.206s
+ok  	github.com/chaynes-simpleclouds/marco/internal/lexer	0.909s
+?   	github.com/chaynes-simpleclouds/marco/internal/macroir	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/internal/marcopaths	0.767s
+?   	github.com/chaynes-simpleclouds/marco/internal/mlog	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/internal/nlu	0.611s
+ok  	github.com/chaynes-simpleclouds/marco/internal/orchestrator	26.138s
+ok  	github.com/chaynes-simpleclouds/marco/internal/oshost	26.967s
+ok  	github.com/chaynes-simpleclouds/marco/internal/osmod	2.380s
+ok  	github.com/chaynes-simpleclouds/marco/internal/outcome	0.509s
+ok  	github.com/chaynes-simpleclouds/marco/internal/parser	0.363s
+ok  	github.com/chaynes-simpleclouds/marco/internal/platform/homelock	0.693s
+ok  	github.com/chaynes-simpleclouds/marco/internal/platform/marcorunner	3.635s
+ok  	github.com/chaynes-simpleclouds/marco/internal/platform/navsource	8.393s
+?   	github.com/chaynes-simpleclouds/marco/internal/platform/ocrclient	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/internal/platform/padsource	0.878s
+?   	github.com/chaynes-simpleclouds/marco/internal/platform/recordhost	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/internal/platform/screenhost	10.040s
+ok  	github.com/chaynes-simpleclouds/marco/internal/platform/theaterhost	0.628s
+ok  	github.com/chaynes-simpleclouds/marco/internal/platform/uiaclient	0.624s
+ok  	github.com/chaynes-simpleclouds/marco/internal/platform/visionclient	0.449s
+ok  	github.com/chaynes-simpleclouds/marco/internal/platform/wincapture	0.670s
+ok  	github.com/chaynes-simpleclouds/marco/internal/platform/winprovider	0.443s
+ok  	github.com/chaynes-simpleclouds/marco/internal/plays	0.967s
+?   	github.com/chaynes-simpleclouds/marco/internal/production	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/internal/recorder	25.840s
+ok  	github.com/chaynes-simpleclouds/marco/internal/recordingnow	0.552s
+ok  	github.com/chaynes-simpleclouds/marco/internal/resolver	25.280s
+ok  	github.com/chaynes-simpleclouds/marco/internal/resolveroute	0.641s
+ok  	github.com/chaynes-simpleclouds/marco/internal/routes	2.284s
+ok  	github.com/chaynes-simpleclouds/marco/internal/runs	0.905s
+ok  	github.com/chaynes-simpleclouds/marco/internal/runtime	0.872s
+ok  	github.com/chaynes-simpleclouds/marco/internal/screen	0.912s
+?   	github.com/chaynes-simpleclouds/marco/internal/screenmod	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/internal/secrets	0.609s
+ok  	github.com/chaynes-simpleclouds/marco/internal/simplify	0.738s
+ok  	github.com/chaynes-simpleclouds/marco/internal/spectest	4.051s
+ok  	github.com/chaynes-simpleclouds/marco/internal/stopsignal	0.843s
+?   	github.com/chaynes-simpleclouds/marco/internal/textmod	[no test files]
+?   	github.com/chaynes-simpleclouds/marco/internal/theatermod	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/internal/token	0.546s
+?   	github.com/chaynes-simpleclouds/marco/internal/uiamod	[no test files]
+?   	github.com/chaynes-simpleclouds/marco/internal/visionmod	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/internal/voicelearn	0.744s
+ok  	github.com/chaynes-simpleclouds/marco/internal/widgetconfig	0.651s
+ok  	github.com/chaynes-simpleclouds/marco/internal/winctx	2.571s
+ok  	github.com/chaynes-simpleclouds/marco/internal/wiringcheck	11.396s
+ok  	github.com/chaynes-simpleclouds/marco/pkg/directorapi	0.527s
+ok  	github.com/chaynes-simpleclouds/marco/pkg/playbill	0.768s
+ok  	github.com/chaynes-simpleclouds/marco/pkg/referent	0.454s
+ok  	github.com/chaynes-simpleclouds/marco/plugins/fixture	0.539s
+FAIL
+engine exit 1

@@ -43,7 +43,13 @@ func TestAShortcutReadsWithItsLeader(t *testing.T) {
 	for _, c := range []struct{ leader, key, want string }{
 		{"`", "e", "`e"},
 		{"capslock", "e", "CapsLock then e"},
-		{"f13", "c", "F13 then c"},
+		{"f12", "c", "F12 then c"},
+		// The widget falls back to the backtick for what it does not recognise, so that is shown.
+		{"f13", "c", "`c"},
+		{"", "c", "`c"},
+		{"backtick", "e", "`e"},
+		{"caps", "e", "CapsLock then e"},
+		{"E", "c", "ec"},
 		{"tab", "c", "Tab then c"},
 	} {
 		if got := Pressed(c.leader, c.key); got != c.want {

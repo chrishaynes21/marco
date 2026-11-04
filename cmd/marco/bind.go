@@ -243,35 +243,59 @@ func unbindKey(d orchestrator.Deps, listenIn, key string, out io.Writer) error {
 	return nil
 }
 
-// runBindings: `marco bindings [--here] [--json]` — every shortcut, or what each key fires here.
+// runBindings: `marco bindings [--here] [--armed-in=<app>] [--json]` — every shortcut, or what
+// each key fires here. --armed-in is the widget's: the application that was in front when its
+// leader was pressed, so the list is of the context the key will be checked against (see
+// pressArmed), not of whatever is in front by the time this process reads it.
 func runBindings(args []string) {
-	here, asJSON := false, false
-	for _, a := range args {
-		switch a {
-		case "--here":
-			here = true
-		case "--json":
-			asJSON = true
-		default:
-			fmt.Fprintln(os.Stderr, "usage: marco bindings [--here] [--json]")
-			os.Exit(2)
-		}
-	}
-	app := ""
-	if here {
-		app = winctx.Active()
+	app, here, asJSON, ok := bindingsArgs(args, winctx.Active)
+	if !ok {
+		fmt.Fprintln(os.Stderr, "usage: marco bindings [--here] [--armed-in=<app>] [--json]")
+		os.Exit(2)
 	}
 	listShortcuts(newDeps(), app, here, asJSON, os.Stdout)
 }
 
+// bindingsArgs reads `marco bindings`'s arguments. The application listed is the one the leader
+// carried, else with --here the one in front (read only then), else none.
+func bindingsArgs(args []string, front func() string) (app string, here, asJSON, ok bool) {
+	armed := false
+	for _, a := range args {
+		switch {
+		case a == "--here":
+			here = true
+		case a == "--json":
+			asJSON = true
+		case strings.HasPrefix(a, armedFlag):
+			app, armed = strings.TrimPrefix(a, armedFlag), true
+		default:
+			return "", false, false, false
+		}
+	}
+	if armed {
+		here = true
+	} else if here {
+		app = front()
+	}
+	return app, here, asJSON, true
+}
+
 func listShortcuts(d orchestrator.Deps, app string, here, asJSON bool, out io.Writer) {
 	rows := d.ListShortcuts(app, here)
+	held := heldOff()
 	if asJSON {
 		if rows == nil {
 			rows = []orchestrator.ListedShortcut{}
 		}
-		_ = json.NewEncoder(out).Encode(map[string]any{"app": app, "shortcuts": rows})
+		doc := map[string]any{"app": app, "shortcuts": rows}
+		if held != "" {
+			doc["held"] = held
+		}
+		_ = json.NewEncoder(out).Encode(doc)
 		return
+	}
+	if held != "" {
+		fmt.Fprintln(out, held)
 	}
 	if len(rows) == 0 {
 		if here {
@@ -304,13 +328,86 @@ func listShortcuts(d orchestrator.Deps, app string, here, asJSON bool, out io.Wr
 // binary exiting underneath it. Production never reassigns it.
 var exitProcess = os.Exit
 
+// heldOff is why every shortcut is held off right now, or "". It is the press's own reading (see
+// pressHotkey), so a list never says a key runs while a press of it would refuse.
+//
+// The press's sentence, without its "nothing was performed": a list is read before anything is
+// pressed. TestTheArmListSaysARecordingHoldsShortcutsOff holds that the press still says it.
+func heldOff() string {
+	const performed = " — nothing was performed"
+	switch m, st := recordingnow.InProgress(recordingHome()); st {
+	case recordingnow.Recording:
+		return strings.TrimSuffix(m.Says(), performed)
+	case recordingnow.Unknown:
+		return "Marco cannot tell whether a recording is in progress, so shortcuts are held off"
+	}
+	return ""
+}
+
 // runHotkey: `marco hotkey <key>` — run the shortcut on the leader key in the current foreground
-// app, or do nothing if none is bound (silent, so an unbound key over a game is harmless).
+// app. A key with nothing on it performs nothing and says so; it announces no outcome, because
+// nothing was invoked.
+//
+// `--armed-in=<app>` is the widget's: the application that was in front when its leader was
+// pressed. With it, the press is checked against the foreground it reads itself (pressArmed).
 func runHotkey(args []string) {
-	if len(args) < 1 {
+	key, armedIn, carried := hotkeyArgs(args)
+	if key == "" {
 		return
 	}
-	pressHotkey(newDeps(), winctx.Active(), strings.ToLower(args[0]))
+	pressArmed(newDeps(), winctx.Active(), armedIn, carried, key)
+}
+
+// hotkeyArgs reads `marco hotkey`'s arguments: the key, lower-cased, and the application its
+// leader was pressed in if one was carried.
+func hotkeyArgs(args []string) (key, armedIn string, carried bool) {
+	for _, a := range args {
+		if v, ok := strings.CutPrefix(a, armedFlag); ok {
+			armedIn, carried = v, true
+		} else if key == "" {
+			key = strings.ToLower(a)
+		}
+	}
+	return key, armedIn, carried
+}
+
+// armedFlag carries the application a leader was pressed in, from the widget to the engine.
+const armedFlag = "--armed-in="
+
+// pressArmed is a press that knows which application its leader was pressed in.
+//
+// THE KEY IS FOR THE APPLICATION THE LEADER WAS PRESSED IN. The widget lists what each key does
+// there, and a person who reads `e  cloud pull stone` and presses e means that routine. If
+// another application has come to the front in between, the same key can be bound to something
+// else there, and each lookup on its own would be correct while the press ran a routine nobody
+// was shown. So the foreground this process reads is compared with the one the leader carried,
+// BEFORE any binding is selected, and a change refuses and asks for the leader again. A press
+// with no context carried (a script calling `marco hotkey`) is a press in whatever is in front.
+//
+// Deleting the comparison must fail TestAKeyPressedAfterTheFocusMovedRunsNothing.
+func pressArmed(d orchestrator.Deps, front, armedIn string, carried bool, key string) {
+	if carried && front != armedIn {
+		fmt.Fprintln(os.Stdout, contextMoved(armedIn, front, key))
+		announce(OutcomeRefused)
+		exitProcess(OutcomeRefused.Exit())
+		return
+	}
+	pressHotkey(d, front, key)
+}
+
+// contextMoved is what a press says when the application in front is not the one its leader was
+// pressed in.
+func contextMoved(armedIn, front, key string) string {
+	named := func(app string) string {
+		if app == "" {
+			return "nothing that could be read"
+		}
+		return app
+	}
+	leader := configuredLeader()
+	return widgetconfig.Pressed(leader, key) + " was pressed for " + named(armedIn) + ", and " +
+		named(front) + " is in front now — nothing was performed; press " +
+		widgetconfig.Named(leader) + " again"
 }
 
 // betweenPressAndRun is the instant after a press resolved its routines and before it runs them,
@@ -334,6 +431,15 @@ func pressHotkey(d orchestrator.Deps, app, key string) {
 	// Deleting this must fail TestARecordingHoldsShortcutsOff.
 	p := d.ShortcutPressed(app, key)
 	if !p.Found {
+		// ── NOTHING ON IT IS SAID, AND NOTHING IS ANNOUNCED ──
+		//
+		// It used to be silent, which left the widget nothing to say about a key that did
+		// nothing. No `[result] ` line: no routine was asked to do anything, so none of the
+		// seven words is true of it. The widget reads "exited cleanly, announced nothing" as
+		// exactly this. The foreground named is the one this press read.
+		//
+		// Deleting the sentence must fail TestTheArmListIsWhatAPressWouldFire.
+		fmt.Fprintln(os.Stdout, nothingOn(app, key))
 		return
 	}
 	// UNKNOWN IS REFUSED TOO. A press that cannot tell whether somebody is recording does not
@@ -389,4 +495,12 @@ func pressHotkey(d orchestrator.Deps, app, key string) {
 			return
 		}
 	}
+}
+
+// nothingOn is what a press of a key with no shortcut on it says.
+func nothingOn(app, key string) string {
+	if app == "" {
+		return "nothing on " + widgetconfig.Pressed(configuredLeader(), key)
+	}
+	return "nothing on " + widgetconfig.Pressed(configuredLeader(), key) + " in " + app
 }

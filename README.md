@@ -479,6 +479,14 @@ set up by an older Marco named its routine only by words: it is kept, does not r
 `marco bind --reassign <key>` shows which routine it would run and asks. Shortcuts are held off
 while a recording is in progress.
 
+In the **widget**, pressing the leader lists what each key does with the application in front
+(the same answer as `marco bindings --here`), and says when a key will not run as listed: set up by
+name, its routine gone, or a key the widget cannot send. A key with nothing on it says
+``nothing on `x in <app>``. Every press ends in the status line and the history with how it went, and the leader
+still stops a run. The leader is shown as configured (`CapsLock then e`, not `` `e ``). The list and
+the key are for the application that was in front when the leader was pressed: if another one has
+come forward by the time the key arrives, nothing runs and the widget asks for the leader again.
+
 In **Studio**, each routine has a **Shortcut** tab with the same rules: it shows the leader, the
 keys that run the routine (also shown as chips on its row), and lets you Set, Change or Remove one,
 listened for in the routine's own application, everywhere, or in an application you name. A key

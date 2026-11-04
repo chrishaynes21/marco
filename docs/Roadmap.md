@@ -1655,6 +1655,21 @@ run gives of itself — or because the precondition is environmental and the tes
 own desktop the way the tagged ones do. Deciding that is worth more than another rerun. See
 [[ADR-269-a-screen-free-gate-and-the-tests-that-need-the-screen]].
 
+**THIS TEST AGAIN, ITS THIRD RECORDED OCCURRENCE, 2026-11-03** (the 2026-10-31 entry above is the
+sibling test), `go test -count=1 ./...` over the UNCOMMITTED S4
+working tree ([[ADR-299-the-widget-explains-its-keys]]) on `491a20c`. Solo: nothing else was
+started against the machine. The same assertion, word for word:
+
+> `actgrant_test.go:754: the run could not establish its screen and never said so:
+> [starting ended]`
+
+`cmd/director` FAILED (221s); every other engine package (116), Studio and the overlay passed. The
+complete, unfiltered output is kept in `docs/experiments/Roadmap-38-output/`.
+
+**Recorded and NOT re-run for green.** On attribution, narrowing only: `go list -deps
+./cmd/director` includes none of what S4 changed (`internal/widgetconfig`, `cmd/marco`,
+`plugins/overlay`). That narrows an interaction; it does not rule one out, the same as above.
+
 ## 39. An Act with no application still grounds against whatever is in front — OPEN
 
 [[ADR-272-the-window-a-run-acts-in-is-chosen-and-carried]] closed this for a saved ROUTINE: the

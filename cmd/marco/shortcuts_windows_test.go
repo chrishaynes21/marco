@@ -40,3 +40,30 @@ func TestARecordingHoldsShortcutsOff(t *testing.T) {
 		t.Errorf("the shortcut does not run once the recording ended:\n%s", said)
 	}
 }
+
+// AND THE ARM LIST SAYS SO, from the press's own reading, so the widget never lists a key as
+// running while a press of it would refuse.
+//
+// Deleting `held` from listShortcuts must fail this.
+func TestTheArmListSaysARecordingHoldsShortcutsOff(t *testing.T) {
+	d, _ := hotkeyWorld(t)
+	home := noRecording(t)
+	if err := d.Reg.Save(routes.Route{Slug: "open-dad-s-settings"}, runnableSrc); err != nil {
+		t.Fatal(err)
+	}
+	bindOK(t, d, "discord", "", "d", "open dad s settings")
+	m, err := recordingnow.Mark(home, "save draft")
+	if err != nil {
+		t.Fatalf("this process could not be announced as recording: %v", err)
+	}
+	got := listedHere(t, d, "discord")
+	said := press(t, d, "discord", "d")
+	if !strings.Contains(got.Held, "recording of \"save draft\" is in progress") ||
+		!strings.Contains(said, got.Held) {
+		t.Errorf("the list says held %q while a press says:\n%s", got.Held, said)
+	}
+	recordingnow.Clear(m)
+	if got := listedHere(t, d, "discord"); got.Held != "" {
+		t.Errorf("the list still says held once the recording ended: %q", got.Held)
+	}
+}
