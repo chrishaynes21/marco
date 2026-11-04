@@ -151,8 +151,7 @@ func TestTheWidgetIsNeverStartedTwice(t *testing.T) {
 	}
 	other.running = []gate.Process{{PID: 4242, Name: "overlay.exe", Path: filepath.Join(elsewhere, "overlay.exe")}}
 	st := other.a.OpenWidget()
-	if st.State != "running" || other.starts() != 0 || !strings.Contains(st.Says, "4242") ||
-		!strings.Contains(st.Says, "not this installation's") {
+	if st.State != "running" || other.starts() != 0 || !strings.Contains(st.Says, "Widget already running from "+elsewhere) {
 		t.Errorf("with another widget running: %+v, %d started", st, other.starts())
 	}
 	// An overlay.exe that is not a widget (no program beside it) is not taken for one.
@@ -267,5 +266,57 @@ func TestAFailedLaunchIsNotRetriedOverAMismatch(t *testing.T) {
 	st := w.a.OpenWidget()
 	if w.starts() != 0 || st.State != "failed" || len(st.Problems) != 1 {
 		t.Errorf("after a failure and a mismatch: %+v, %d started", st, w.starts())
+	}
+}
+
+// A WIDGET STARTED ELSEWHERE IS NOT GIVEN STUDIO'S CONTEXT. Its executable's location says nothing
+// about its library or the leader it listens for, so it is said to be running with neither
+// claimed, even when it is this installation's own overlay.exe. The widget this window started
+// (the overlay whose parent is the marco serve it started) is described with Studio's leader. In
+// neither case is a second started, and nothing is done to the one running.
+//
+// Announcing Studio's leader for every widget must fail this.
+func TestAWidgetStartedElsewhereIsNotGivenStudiosContext(t *testing.T) {
+	w := aWidgetWorld(t)
+	t.Setenv("MARCO_OVERLAY_LEADER", "capslock")
+	own := filepath.Join(w.dir, "overlay.exe")
+	w.running = []gate.Process{{PID: 51, Parent: 9, Name: "overlay.exe", Path: own}}
+	st := w.a.OpenWidget()
+	want := "Widget already running from " + w.dir + ". Its library and active settings haven't been verified."
+	if st.State != "running" || st.Says != want || w.starts() != 0 {
+		t.Errorf("a widget somebody else started: %+v, %d started", st, w.starts())
+	}
+	if strings.Contains(st.Says, "CapsLock") || strings.Contains(st.Says, "press") {
+		t.Errorf("a widget started elsewhere was given Studio's leader: %q", st.Says)
+	}
+
+	// The one this window started.
+	mine := aWidgetWorld(t)
+	t.Setenv("MARCO_OVERLAY_LEADER", "capslock")
+	prev := widgetPid
+	widgetPid = func(*exec.Cmd) int { return 700 }
+	t.Cleanup(func() { widgetPid = prev })
+	mine.a.OpenWidget()
+	mine.mu.Lock()
+	mine.running = []gate.Process{{PID: 701, Parent: 700, Name: "overlay.exe", Path: filepath.Join(mine.dir, "overlay.exe")}}
+	mine.mu.Unlock()
+	if st := mine.a.WidgetStatus(); st.State != "running" || !strings.Contains(st.Says, "press CapsLock over your game") {
+		t.Errorf("the widget this window started reads as %+v", st)
+	}
+	// While it runs, an overlay that is not its child is still somebody else's.
+	mine.mu.Lock()
+	mine.running = []gate.Process{{PID: 88, Parent: 9, Name: "overlay.exe", Path: filepath.Join(mine.dir, "overlay.exe")}}
+	mine.mu.Unlock()
+	if st := mine.a.WidgetStatus(); !strings.HasPrefix(st.Says, "Widget already running from ") {
+		t.Errorf("a widget that is not this window's child reads as %+v", st)
+	}
+	mine.mu.Lock()
+	mine.running = []gate.Process{{PID: 701, Parent: 700, Name: "overlay.exe", Path: filepath.Join(mine.dir, "overlay.exe")}}
+	mine.mu.Unlock()
+	// And once the marco serve this window started has ended, an overlay left behind is not its.
+	mine.release <- nil
+	time.Sleep(50 * time.Millisecond)
+	if st := mine.a.WidgetStatus(); !strings.HasPrefix(st.Says, "Widget already running from ") {
+		t.Errorf("an overlay outliving the stack this window started reads as %+v", st)
 	}
 }

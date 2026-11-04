@@ -62,9 +62,13 @@ Before building anything, I traced how the widget is started today.
   - The console is hidden (`hideConsole`), so no window takes the foreground.
   - The child's stdout and stderr go nowhere. Studio keeps none of the widget's output, so
     nothing typed into it is written anywhere by this.
-- **Never two.** A running Marco widget, from this installation or any other, is reused and said:
-  *The widget is running (process N) — press ` over your game*, with where it is from when it is
-  not this installation's. Here "a Marco widget" means an `overlay.exe` with `overlay.marco`
+- **Never two.** A running Marco widget, from this installation or any other, suppresses a second
+  launch. Only the widget THIS window started is described with Studio's context: the overlay
+  whose parent is the `marco serve` it started, while that is still running. That one reads
+  *The widget is running (process N) — press <leader> over your game*. Any other reads *Widget
+  already running from <location>. Its library and active settings haven't been verified.* An
+  executable's location says nothing about which library it reads or which leader it listens
+  for, and there is no channel to ask. It is not reconfigured or ended. Here "a Marco widget" means an `overlay.exe` with `overlay.marco`
   beside it, so an unrelated `overlay.exe` is not taken for one. A launch this window has in
   progress is not repeated.
 - **Never mixed.** Every piece must exist, and every Go program among them must carry the same
@@ -127,6 +131,23 @@ Mutations: 13 runs, all killed. In Studio:
 In the stack package:
 - the host order against the installer's;
 - recognising an overlay with no program beside it.
+
+## Corrected after commit (owner review)
+
+The first version announced Studio's own configured leader for ANY running widget, including one
+started elsewhere with other settings. Now an instance whose context cannot be verified is said to
+be running from its location, with its library and settings unverified, and only Studio's own child
+is given Studio's leader. `TestAWidgetStartedElsewhereIsNotGivenStudiosContext` checks three
+cases: this installation's own `overlay.exe` started some other way, an unrelated overlay while
+Studio's launch is alive, and an overlay outliving Studio's `marco serve`. None of them acquires
+the CapsLock leader Studio is configured with, and a duplicate launch stays suppressed.
+
+Mutations on the correction, 4 runs, all killed:
+
+- claiming every widget;
+- dropping the parent check *(survived first; the unrelated-overlay case was added)*;
+- treating an ended stack as alive;
+- not recording the started pid.
 
 ## Checks
 

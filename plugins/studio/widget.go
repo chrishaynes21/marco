@@ -100,6 +100,31 @@ type widgetRun struct {
 	err     error // when it ended; nil while it runs
 	ended   time.Time
 	failed  string // why it did not start, kept until the next Open
+	pid     int    // the marco serve this window started, whose child the overlay is
+}
+
+// ours is whether a running widget is the one this window started and is still tracking: its
+// parent is the `marco serve` this window started, which is still running.
+func ours(p gate.Process) bool {
+	r := widgetNow
+	if r == nil || r.pid == 0 || p.Parent != uint32(r.pid) {
+		return false
+	}
+	select {
+	case <-r.done:
+		return false
+	default:
+		return true
+	}
+}
+
+// widgetPid is the process a started command became. A seam, because a test's start starts
+// nothing.
+var widgetPid = func(c *exec.Cmd) int {
+	if c.Process == nil {
+		return 0
+	}
+	return c.Process.Pid
 }
 
 var (
@@ -139,7 +164,7 @@ func (a *Acts) OpenWidget() WidgetState {
 		widgetNow = &widgetRun{failed: "the widget could not be started: " + err.Error()}
 		return withShort(a.widgetStatusLocked())
 	}
-	run := &widgetRun{started: time.Now(), done: make(chan struct{})}
+	run := &widgetRun{started: time.Now(), done: make(chan struct{}), pid: widgetPid(cmd)}
 	widgetNow = run
 	go func() {
 		err := widgetWait(cmd)
@@ -204,11 +229,26 @@ func (a *Acts) widgetStatusLocked() WidgetState {
 
 	if p, ok := runningWidget(); ok {
 		base.State = "running"
-		base.Says = fmt.Sprintf("The widget is running (process %d) — press %s over your game",
-			p.PID, widgetconfig.Named(widgetconfig.Leader()))
-		if p.Path != "" && !samePath(p.Path, l.Overlay) {
-			base.Says += ". It is the one from " + filepath.Dir(p.Path) + ", not this installation's"
+		// ONLY A WIDGET THIS WINDOW STARTED IS DESCRIBED WITH THIS WINDOW'S CONTEXT. Studio gave
+		// that one its library, its store and its settings file, so the leader Studio reads is
+		// the leader it listens for. Any other is a widget somebody started some other way, with
+		// an environment Studio never saw: where its executable is says nothing about which
+		// library it reads or which leader it is listening for, and there is no channel to ask.
+		// It is still a widget, so a second is still not started.
+		//
+		// Describing every running widget with Studio's leader must fail
+		// TestAWidgetStartedElsewhereIsNotGivenStudiosContext.
+		if ours(p) {
+			base.Says = fmt.Sprintf("The widget is running (process %d) — press %s over your game",
+				p.PID, widgetconfig.Named(widgetconfig.Leader()))
+			return base
 		}
+		where := "an unknown location"
+		if p.Path != "" {
+			where = filepath.Dir(p.Path)
+		}
+		base.Says = "Widget already running from " + where + ". Its library and active settings " +
+			"haven't been verified."
 		return base
 	}
 	if r := widgetNow; r != nil {
@@ -292,8 +332,4 @@ func widgetFix(l widgetstack.Layout) string {
 			"the overlay, and plugins/studio/build.cmd)"
 	}
 	return "reinstall Marco"
-}
-
-func samePath(a, b string) bool {
-	return strings.EqualFold(filepath.Clean(a), filepath.Clean(b))
 }
