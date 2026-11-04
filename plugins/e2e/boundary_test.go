@@ -135,12 +135,24 @@ func TestTheHarnessBuildsStudioLikeTheScript(t *testing.T) {
 // copies again, and this one fails open in the worst way: a page that built its ids differently
 // would leave the harness unable to find any card, and the report would say Studio is not
 // offering the routine it had just seeded.
+//
+// The page builds the id in two parts, and both are held. It used to be one inline expression;
+// ce296c0 moved the same replacement into `routineKey`, unchanged, and the guard went on demanding
+// the inline text. So: `routineKey` is defined once with exactly the replacement cardID makes, and
+// EVERY card id the page assigns is `'routine-' + routineKey(r.id)`, so a second assignment that
+// built an id another way would be found too.
 func TestTheCardIdIsBuiltTheSameWayThePageBuildsIt(t *testing.T) {
 	page := read(t, filepath.Join("..", "studio", "frontend", "index.html"))
-	const expression = `card.id = 'routine-' + r.id.replace(/[^a-z0-9]+/gi, '-')`
-	if !strings.Contains(page, expression) {
-		t.Fatalf("the page no longer builds a card's id with %q, so cardID here is "+
-			"addressing something that does not exist", expression)
+	const key = `function routineKey(id){ return id.replace(/[^a-z0-9]+/gi, '-') }`
+	if n := strings.Count(page, "function routineKey("); n != 1 || !strings.Contains(page, key) {
+		t.Fatalf("the page does not define routineKey once as %q (%d definition(s)), so "+
+			"cardID here may be addressing something that does not exist", key, n)
+	}
+	const assign = `card.id = 'routine-' + routineKey(r.id)`
+	if all, built := strings.Count(page, "card.id ="), strings.Count(page, assign); all == 0 ||
+		all != built {
+		t.Fatalf("the page assigns a card id %d time(s) and %d of them are %q, so a card "+
+			"can be given an id cardID does not make", all, built, assign)
 	}
 	for _, c := range []struct{ identity, want string }{
 		{"fixture/focus/fixture-save", "routine-fixture-focus-fixture-save"},
