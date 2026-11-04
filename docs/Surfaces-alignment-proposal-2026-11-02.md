@@ -749,7 +749,10 @@ bindings, per CLAUDE.md, or a rendered mockup for the HUD) and a review of it.
 - **S7: edits converge.** `marco rename` reviewed (R7); Studio Forget-one (R8); narrate's window
   (F7). **Done as the owner's S8**, with F6: R7 (commit `df11f4a`), R8
   ([[ADR-303-studio-forgets-one-routine]]), F7 ([[ADR-304-narration-is-of-a-window-settled-first]]),
-  F6 ([[ADR-305-enter-means-no]]).
+  F6 ([[ADR-305-enter-means-no]]). Boundary run (Windows only, 2026-11-03): `go build ./...`, the full engine
+  suite (118 packages), Studio and the overlay all passed, with binaries unchanged. Outputs are in
+  `docs/experiments/Roadmap-38-output/2026-11-03-s8-*.txt`. `cmd/director` passed this time, which
+  does not resolve [[Roadmap]] 38.
 - **S8: Start the widget from Studio (R5), separately reviewed.** **Done, run as S7 in the owner's
   renumbering** ([[ADR-302-studio-opens-the-widget]]). The owner's order after it: S8 the
   remaining operation alignment (this list's S7), S9 guarded in-place routines, then shared
