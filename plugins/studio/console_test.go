@@ -13,7 +13,6 @@ package main
 import (
 	"os"
 	"os/exec"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -77,82 +76,5 @@ func TestAHiddenConsoleStillHandsBackWhatTheChildSaid(t *testing.T) {
 	if strings.TrimSpace(string(out)) == "" {
 		t.Error("a child started with its console hidden handed back nothing, so " +
 			"Studio would report every recording as silent")
-	}
-}
-
-// AND THE DIRECTOR BESIDE STUDIO IS BUILT WITH IT.
-//
-// `directorBin` spawns `director.exe` from Studio's OWN directory, so the recorder a window
-// uses is the one next to it and not the one next to `marco.exe`. With two copies of Studio in
-// the tree — one here, one at the repo root — that makes a stale sibling invisible: every
-// binary looks freshly built, the window is current, and the recordings come from yesterday.
-//
-// It cost the owner several recordings before the contradiction gave it away. Their stream said
-// `start_known=1` with `screen_read=0`, which cannot happen — `Identifies` implies `Said` — and
-// the only way to see both is a recorder that has never heard of the second field.
-//
-// So the build script makes all four, and this reads the script. It cannot check what is ON
-// disk: these are build outputs, gitignored, and absent on a machine that has not built yet.
-// What it can check is that the one command anybody is told to run still makes them.
-func TestTheBuildScriptMakesTheDirectorStudioWillSpawn(t *testing.T) {
-	raw, err := os.ReadFile("build.cmd")
-	if err != nil {
-		t.Fatal(err)
-	}
-	// THE COMMANDS, NOT THE PROSE. The comments in this script quote the commands
-	// they explain, so a blob search finds `go build -o director.exe` inside the
-	// paragraph about why it is there — and a mutation commenting the real line out
-	// survived exactly that way.
-	// THE COMMANDS, NOT THE PROSE. The comments in this script quote the
-	// commands they explain, so searching the whole file finds
-	// `go build -o director.exe` inside the paragraph about why it is there —
-	// and a mutation commenting the real line out survived exactly that way.
-	var script string
-	for _, line := range strings.Split(string(raw), "\n") {
-		if t := strings.TrimSpace(line); !strings.HasPrefix(
-			strings.ToLower(t), "rem ") {
-			script += line + "\n"
-		}
-	}
-	for _, want := range []struct{ text, why string }{
-		{`go build -o "%~dp0director.exe"`, "the script does not build a " +
-			"director into this directory, so the one Studio spawns is " +
-			"whatever was left there last"},
-		// FROM THE ROOT MODULE, which is not a detail: `go build` stamps a VCS
-		// revision only into a package in the MAIN module, so building the
-		// director from in here produced one that could not say what it was —
-		// and saying what it is is the whole point of internal/buildid.
-		{`pushd "%~dp0..\.."`, "the director is not built from the root " +
-			"module, so it carries no revision and cannot say which build " +
-			"it is"},
-		{`copy /y director.exe "%~dp0..\..\director.exe"`, "the director is not " +
-			"put beside marco.exe, so the repo-root Studio spawns a stale one"},
-		{`copy /y studio.exe "%~dp0..\..\studio.exe"`, "the window is not put " +
-			"beside marco.exe"},
-		// AND THE MARCO STUDIO SPAWNS TO PERFORM A ROUTINE, which is the same
-		// sibling trap as the director above: pressing Play spawns the marco.exe
-		// beside Studio, so a copy of Studio without one performs routines
-		// through whatever is on PATH — or refuses, in a way that reads as a
-		// broken routine rather than a missing binary.
-		{`go build -o "%~dp0marco.exe"`, "the script does not build a marco " +
-			"into this directory, so the one Studio spawns to perform a " +
-			"routine is whatever was left there last — or nothing"},
-		{`copy /y marco.exe "%~dp0..\..\marco.exe"`, "marco is not put at the " +
-			"repo root, so the Studio there spawns a stale one"},
-	} {
-		if !strings.Contains(script, want.text) {
-			t.Errorf("%s (looked for %q)", want.why, want.text)
-		}
-	}
-	// AND IT IS THE ONE THE INSTRUCTIONS NAME. A script nobody is told to run is a
-	// script that goes stale with the thing it builds.
-	doc, err := os.ReadFile(filepath.Join("..", "..", "CLAUDE.md"))
-	if err != nil {
-		t.Skip("no CLAUDE.md to check against")
-	}
-	if !strings.Contains(string(doc), "plugins/studio/build.cmd") {
-		t.Error("the build instructions do not name this script, so somebody " +
-			"following them builds Studio with a plain `go build` and gets a " +
-			"binary that opens no window")
 	}
 }

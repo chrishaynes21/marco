@@ -17,6 +17,19 @@
 //	tree        a development tree: marco.exe, director.exe and marco-macros.exe at the root,
 //	            the overlay and its program under plugins\overlay, as overlay.cmd uses them
 //
+// # A tree is recognised from where Studio's build script puts Studio
+//
+// plugins\studio\build.cmd leaves a studio.exe in TWO places: in plugins\studio and at the
+// repository root. Both are the same tree, and the stack is the one at the root either way. The
+// first version looked for the overlay only beside the directory it was given, so a Studio
+// opened from plugins\studio found nothing beside itself, fell back to the installed layout's
+// paths, and told a developer to reinstall Marco.
+//
+// A tree is therefore recognised by its SOURCE, not by its build outputs: a root holding go.mod
+// and plugins\studio\build.cmd. The outputs are what is being checked, so they cannot also be
+// what decides which layout is checked — an overlay.exe not built yet must read as missing at
+// its tree path, with the build command beside it, and not as a missing installation.
+//
 // Nothing here starts anything, and nothing here decides whether the pieces belong together: that
 // is the caller's question, asked of every piece's build revision (internal/buildid).
 package widgetstack
@@ -45,28 +58,65 @@ type Component struct {
 	Program bool
 }
 
-// Beside finds the stack laid out beside dir: the installed layout when the overlay is there,
-// else the tree layout when it is under plugins\overlay, else the installed layout's paths
-// (whose pieces are then reported as missing).
+// Beside finds the stack for a Studio in dir. In a development tree — dir is its root, or its
+// plugins\studio — it is the tree layout at the root, whichever pieces have been built.
+// Anywhere else it is the installed layout, flat beside dir, whose missing pieces are then
+// reported as missing.
 func Beside(dir string) Layout {
-	installed := Layout{Kind: "installed", Dir: dir,
+	if root, ok := TreeRoot(dir); ok {
+		return Layout{Kind: "tree", Dir: root,
+			Marco:    filepath.Join(root, "marco.exe"),
+			Director: filepath.Join(root, "director.exe"),
+			Macros:   filepath.Join(root, "marco-macros.exe"),
+			Overlay:  filepath.Join(root, "plugins", "overlay", "overlay.exe"),
+			Script:   filepath.Join(root, "plugins", "overlay", "overlay.marco"),
+		}
+	}
+	return Layout{Kind: "installed", Dir: dir,
 		Marco:    filepath.Join(dir, "marco.exe"),
 		Director: filepath.Join(dir, "director.exe"),
 		Macros:   filepath.Join(dir, "marco-macros.exe"),
 		Overlay:  filepath.Join(dir, "overlay.exe"),
 		Script:   filepath.Join(dir, "overlay.marco"),
 	}
-	if exists(installed.Overlay) {
-		return installed
+}
+
+// TreeRoot is the development tree a Studio in dir belongs to: dir itself when it is a tree's
+// root, or the root two levels up when dir is that tree's plugins\studio. These are the two
+// places plugins\studio\build.cmd puts studio.exe. A tree root holds go.mod and
+// plugins\studio\build.cmd, which an installation never does.
+func TreeRoot(dir string) (string, bool) {
+	if isTreeRoot(dir) {
+		return dir, true
 	}
-	tree := installed
-	tree.Kind = "tree"
-	tree.Overlay = filepath.Join(dir, "plugins", "overlay", "overlay.exe")
-	tree.Script = filepath.Join(dir, "plugins", "overlay", "overlay.marco")
-	if exists(tree.Overlay) {
-		return tree
+	parent := filepath.Dir(dir)
+	if equalFold(filepath.Base(dir), "studio") && equalFold(filepath.Base(parent), "plugins") {
+		if root := filepath.Dir(parent); isTreeRoot(root) {
+			return root, true
+		}
 	}
-	return installed
+	return "", false
+}
+
+func isTreeRoot(dir string) bool {
+	return exists(filepath.Join(dir, "go.mod")) && exists(BuildScript(dir))
+}
+
+// BuildScript is the one command that builds Studio and the whole widget stack in the tree at
+// root, from one commit, into every place Beside looks.
+func BuildScript(root string) string {
+	return filepath.Join(root, "plugins", "studio", "build.cmd")
+}
+
+// Rebuild is what a person must run to make this layout's pieces present and from one build:
+// the tree's build script, or a reinstall.
+func (l Layout) Rebuild() string {
+	if l.Kind == "tree" {
+		return "close Studio, commit or set aside any uncommitted change, then run " +
+			BuildScript(l.Dir) + " (it builds Studio and the whole widget stack from that one " +
+			"commit)"
+	}
+	return "reinstall Marco"
 }
 
 // Components is every piece the stack needs, in the order a report lists them. director.exe is

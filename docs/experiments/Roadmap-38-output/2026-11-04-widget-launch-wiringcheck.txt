@@ -1,0 +1,4 @@
+# 2026-11-04 widget launch: go test -count=1 ./cmd/gate ./internal/wiringcheck, after rewording the vault (Windows only)
+ok  	github.com/chaynes-simpleclouds/marco/cmd/gate	32.723s
+ok  	github.com/chaynes-simpleclouds/marco/internal/wiringcheck	5.609s
+no problems

@@ -234,25 +234,118 @@ func TestAWidgetClosedLaterIsReadyAgain(t *testing.T) {
 	}
 }
 
-// The tree layout is found and named with its own launcher.
-func TestTheTreeLayoutIsOpenedFromItsOwnPlaces(t *testing.T) {
+// aTreeWorld is aWidgetWorld moved into a development tree as plugins\studio\build.cmd leaves
+// it: the stack at the root, the overlay under plugins\overlay, and this Studio in from, which is
+// the root or plugins\studio. Every piece is rev1, as this Studio is.
+func aTreeWorld(t *testing.T, inStudioDir bool) (*widgetWorld, string) {
+	t.Helper()
 	w := aWidgetWorld(t)
-	for _, f := range []string{"overlay.exe", "overlay.marco"} {
-		if err := os.Remove(filepath.Join(w.dir, f)); err != nil {
-			t.Fatal(err)
-		}
-		p := filepath.Join(w.dir, "plugins", "overlay", f)
+	root := t.TempDir()
+	for _, f := range []string{"go.mod", "plugins/studio/build.cmd", "marco.exe", "director.exe",
+		"marco-macros.exe", "studio.exe", "plugins/studio/studio.exe", "plugins/studio/marco.exe",
+		"plugins/studio/director.exe", "plugins/overlay/overlay.exe", "plugins/overlay/overlay.marco"} {
+		p := filepath.Join(root, filepath.FromSlash(f))
 		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 			t.Fatal(err)
 		}
-		if err := os.WriteFile(p, nil, 0o644); err != nil {
+		if err := os.WriteFile(p, []byte("stand-in"), 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}
-	st := w.a.WidgetStatus()
-	if st.State != "ready" || st.Layout != "tree" || !strings.HasSuffix(st.Launcher, "overlay.cmd") {
-		t.Errorf("the tree layout reads as %+v", st)
+	from := root
+	if inStudioDir {
+		from = filepath.Join(root, "plugins", "studio")
 	}
+	w.dir = from
+	return w, root
+}
+
+// OPEN WIDGET FINDS THE TREE'S STACK FROM EITHER STUDIO. build.cmd puts studio.exe in
+// plugins\studio and at the root; from both, the widget is the root's marco serve with the root's
+// bridge and the overlay under plugins\overlay, run from the root, with the root's marco as
+// MARCO_BIN. The first version looked only beside itself, so the plugins\studio copy found
+// nothing and told a developer to reinstall Marco.
+//
+// Recognising the tree from only one of the two places must fail this.
+func TestTheTreeStackIsFoundFromEitherStudio(t *testing.T) {
+	for _, inStudioDir := range []bool{false, true} {
+		w, root := aTreeWorld(t, inStudioDir)
+		st := w.a.WidgetStatus()
+		if st.State != "ready" || st.Layout != "tree" || st.Dir != root ||
+			st.Launcher != filepath.Join(root, "overlay.cmd") {
+			t.Errorf("from %s the stack reads as %+v", w.dir, st)
+			continue
+		}
+		st = w.a.OpenWidget()
+		if st.State != "starting" || w.starts() != 1 {
+			t.Errorf("from %s, after Open: %+v, %d started", w.dir, st, w.starts())
+			continue
+		}
+		c := w.started[0]
+		want := []string{"serve",
+			"--host", "OS=bridge:" + filepath.Join(root, "marco-macros.exe"),
+			"--host", "Overlay=bridge:" + filepath.Join(root, "plugins", "overlay", "overlay.exe"),
+			filepath.Join(root, "plugins", "overlay", "overlay.marco")}
+		if c.Path != filepath.Join(root, "marco.exe") || c.Dir != root ||
+			strings.Join(c.Args[1:], "|") != strings.Join(want, "|") {
+			t.Errorf("from %s started %s %q in %s", w.dir, c.Path, c.Args, c.Dir)
+		}
+		if !hasEnv(c.Env, "MARCO_BIN="+filepath.Join(root, "marco.exe")) {
+			t.Errorf("from %s the child's MARCO_BIN is not the root marco", w.dir)
+		}
+	}
+}
+
+// IN A TREE THE FIX IS THE BUILD COMMAND, and in an installation it is a reinstall. A missing
+// piece, a piece of another build and a piece with no stamp are each refused, at their tree
+// paths, with the exact script that rebuilds every piece together, never with "reinstall Marco"
+// and never with anything that would copy one piece in.
+//
+// Reporting a tree's missing overlay at the installed layout's path, or relaxing the revision
+// check for a tree, must fail this.
+func TestATreeIsToldTheBuildCommand(t *testing.T) {
+	w, root := aTreeWorld(t, true)
+	if err := os.Remove(filepath.Join(root, "plugins", "overlay", "overlay.exe")); err != nil {
+		t.Fatal(err)
+	}
+	w.revs["marco-macros.exe"] = "1c2d35f"
+	w.revs["director.exe"] = "unknown"
+	st := w.a.OpenWidget()
+	if st.State != "unavailable" || w.starts() != 0 || len(st.Problems) != 3 {
+		t.Fatalf("a mixed tree: %+v, %d started", st, w.starts())
+	}
+	all := ""
+	script := filepath.Join(root, "plugins", "studio", "build.cmd")
+	for _, p := range st.Problems {
+		all += p.Says + "\n"
+		if !strings.Contains(p.Do, script) || strings.Contains(p.Do, "reinstall") || strings.Contains(p.Do, "copy") {
+			t.Errorf("a tree's problem is to be fixed by %q", p.Do)
+		}
+	}
+	for _, want := range []string{
+		"overlay.exe is not where it is looked for: " + filepath.Join(root, "plugins", "overlay", "overlay.exe"),
+		"marco-macros.exe is build 1c2d35f and this Studio is build rev1",
+		"director.exe is build unknown"} {
+		if !strings.Contains(all, want) {
+			t.Errorf("the problems do not say %q:\n%s", want, all)
+		}
+	}
+
+	// The installed layout keeps its own fix.
+	inst := aWidgetWorld(t)
+	inst.revs["overlay.exe"] = "rev2"
+	if st := inst.a.WidgetStatus(); st.State != "unavailable" || len(st.Problems) != 1 || st.Problems[0].Do != "reinstall Marco" {
+		t.Errorf("an installation's mismatch reads as %+v", st)
+	}
+}
+
+func hasEnv(env []string, kv string) bool {
+	for _, e := range env {
+		if strings.EqualFold(e, kv) {
+			return true
+		}
+	}
+	return false
 }
 
 // A launch that failed is tried again only if the pieces would still let it start: one that has

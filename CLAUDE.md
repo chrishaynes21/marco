@@ -131,7 +131,7 @@ go build -o marco.exe ./cmd/marco
 go build -o director.exe ./cmd/director   # REQUIRED beside marco.exe: see below
 go build -o marco-macros.exe ./cmd/marco-macros
 go -C plugins/overlay build -o overlay.exe .
-plugins/studio/build.cmd                 # Studio: NEVER a plain `go build` — see below
+plugins/studio/build.cmd                 # Studio AND the whole widget stack, one commit — NEVER a plain `go build`: see below
 plugins/vision/build.cmd                 # Windows: the ONNX backend (needs gcc)
 .\overlay.cmd                          # Windows: launches the overlay stack
 .\gate.ps1                             # the release gate: suites, a clean checkout, bundle, install, EVERY scenario
@@ -158,7 +158,13 @@ go run ./cmd/cleanroom                 # its second: builds the COMMITTED source
   and another at the repo root, that makes a stale sibling invisible: every binary looks
   freshly built, the window is current, and the recordings come from whenever that director
   was last made. It cost the owner a day of recordings. `build.cmd` now makes all of them and
-  puts them in both places; `TestTheBuildScriptMakesTheDirectorStudioWillSpawn` holds it.
+  puts them in both places. **It builds the widget stack too** (`marco-macros.exe` at the root,
+  `overlay.exe` under `plugins\overlay`), because Open widget starts the ROOT stack from either
+  `studio.exe` and refuses any piece whose revision is not that Studio's — before, a freshly
+  built Studio could never open the widget. It refuses a dirty tree and anything running from a
+  destination, stages every build and checks every stamp against HEAD before replacing anything.
+  Never copy a piece in to satisfy the check. `TestTheBuildScriptMakesTheWholeStackFromOneCommit`
+  holds it; see [[ADR-302-studio-opens-the-widget]].
   **And close Studio before building it.** Studio installs the input hooks and makes the draft
   in its OWN process, so a window left open across a build records through the old recorder
   while every binary on disk is current — the same trap one step further in, and this one no

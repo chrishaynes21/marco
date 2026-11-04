@@ -1,0 +1,7 @@
+# 2026-11-04 widget launch, scratch clone of 17e3a7f + this change committed in the clone only (ee08908). Windows only.
+studio: building ee08908 into C:\Users\chris\AppData\Local\Temp\marco-stack-ee08908-29641
+studio: built ee08908, every piece from that one commit:
+        C:\Users\chris\AppData\Local\Temp\claude\a8d5243e92db8bc9\20a633ba-dab9-4c69-85d7-3024729bc7e0\scratchpad\stackclone\plugins\studio\  studio.exe (windowed), studio-console.exe (keeps stdout), director.exe, marco.exe
+        C:\Users\chris\AppData\Local\Temp\claude\a8d5243e92db8bc9\20a633ba-dab9-4c69-85d7-3024729bc7e0\scratchpad\stackclone\  studio.exe, director.exe, marco.exe, marco-macros.exe
+        C:\Users\chris\AppData\Local\Temp\claude\a8d5243e92db8bc9\20a633ba-dab9-4c69-85d7-3024729bc7e0\scratchpad\stackclone\plugins\overlay\  overlay.exe
+exit=0

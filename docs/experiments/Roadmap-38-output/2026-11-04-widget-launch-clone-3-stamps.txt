@@ -1,0 +1,13 @@
+# 2026-11-04 widget launch, scratch clone of 17e3a7f + this change committed in the clone only (ee08908). Windows only.
+plugins/studio/studio.exe            vcs.revision=ee08908 vcs.modified=false
+plugins/studio/studio-console.exe    vcs.revision=ee08908 vcs.modified=false
+plugins/studio/director.exe          vcs.revision=ee08908 vcs.modified=false
+plugins/studio/marco.exe             vcs.revision=ee08908 vcs.modified=false
+studio.exe                           vcs.revision=ee08908 vcs.modified=false
+director.exe                         vcs.revision=ee08908 vcs.modified=false
+marco.exe                            vcs.revision=ee08908 vcs.modified=false
+marco-macros.exe                     vcs.revision=ee08908 vcs.modified=false
+plugins/overlay/overlay.exe          vcs.revision=ee08908 vcs.modified=false
+wails guard string in studio.exe: 0
+stage dirs left: 0
+clone status after build:

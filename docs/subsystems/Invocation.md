@@ -126,7 +126,9 @@ it without reading `Request.Text` at all.
 - Studio opens the widget (Open widget). It starts the installer's own stack beside it, with
   Studio's library and store, never a second one beside one already running, and never from pieces
   of different builds. A widget Studio did not start is said to be running with its library and
-  settings unverified. See [[ADR-302-studio-opens-the-widget]].
+  settings unverified. In a development tree the stack is the root's, from either `studio.exe`,
+  and a problem names the exact command, `plugins\studio\build.cmd`, which builds Studio and the
+  whole stack from one clean commit (repaired 2026-11-04). See [[ADR-302-studio-opens-the-widget]].
 - Studio forgets one routine through the one forget, after a confirmation naming every part. The
   confirmation is sealed so that nothing it did not show is removed, and each part is reported as
   found afterwards. See [[ADR-303-studio-forgets-one-routine]].

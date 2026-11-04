@@ -1,0 +1,23 @@
+# 2026-11-04 widget launch, scratch clone of 17e3a7f + this change committed in the clone only (ee08908). Windows only.
+=== RUN   TestRealStack
+    zz_realstack_test.go:49: from the root: state=ready layout=tree dir=C:\Users\chris\AppData\Local\Temp\claude\a8d5243e92db8bc9\20a633ba-dab9-4c69-85d7-3024729bc7e0\scratchpad\stackclone
+          says: Opens the HUD and the leader key, for use over a game
+    zz_realstack_test.go:49: from plugins/studio: state=ready layout=tree dir=C:\Users\chris\AppData\Local\Temp\claude\a8d5243e92db8bc9\20a633ba-dab9-4c69-85d7-3024729bc7e0\scratchpad\stackclone
+          says: Opens the HUD and the leader key, for use over a game
+    zz_realstack_test.go:49: mixed, from plugins/studio: state=unavailable layout=tree dir=C:\Users\chris\AppData\Local\Temp\claude\a8d5243e92db8bc9\20a633ba-dab9-4c69-85d7-3024729bc7e0\scratchpad\stackclone
+          says: The widget cannot be opened from here: marco-macros.exe is build fcc5f07+dirty and this Studio is build ee08908, so they were not built together
+    zz_realstack_test.go:51:   problem: marco-macros.exe is build fcc5f07+dirty and this Studio is build ee08908, so they were not built together
+            do: close Studio, commit or set aside any uncommitted change, then run C:\Users\chris\AppData\Local\Temp\claude\a8d5243e92db8bc9\20a633ba-dab9-4c69-85d7-3024729bc7e0\scratchpad\stackclone\plugins\studio\build.cmd (it builds Studio and the whole widget stack from that one commit)
+    zz_realstack_test.go:49: missing overlay, from the root: state=unavailable layout=tree dir=C:\Users\chris\AppData\Local\Temp\claude\a8d5243e92db8bc9\20a633ba-dab9-4c69-85d7-3024729bc7e0\scratchpad\stackclone
+          says: The widget cannot be opened from here: overlay.exe is not where it is looked for: C:\Users\chris\AppData\Local\Temp\claude\a8d5243e92db8bc9\20a633ba-dab9-4c69-85d7-3024729bc7e0\scratchpad\stackclone\plugins\overlay\overlay.exe
+    zz_realstack_test.go:51:   problem: overlay.exe is not where it is looked for: C:\Users\chris\AppData\Local\Temp\claude\a8d5243e92db8bc9\20a633ba-dab9-4c69-85d7-3024729bc7e0\scratchpad\stackclone\plugins\overlay\overlay.exe
+            do: close Studio, commit or set aside any uncommitted change, then run C:\Users\chris\AppData\Local\Temp\claude\a8d5243e92db8bc9\20a633ba-dab9-4c69-85d7-3024729bc7e0\scratchpad\stackclone\plugins\studio\build.cmd (it builds Studio and the whole widget stack from that one commit)
+    zz_realstack_test.go:49: installed: state=ready layout=installed dir=C:\Users\chris\AppData\Local\Temp\TestRealStack1662802469\006
+          says: Opens the HUD and the leader key, for use over a game
+    zz_realstack_test.go:49: installed, overlay missing: state=unavailable layout=installed dir=C:\Users\chris\AppData\Local\Temp\TestRealStack1662802469\006
+          says: The widget cannot be opened from here: overlay.exe is not where it is looked for: C:\Users\chris\AppData\Local\Temp\TestRealStack1662802469\006\overlay.exe
+    zz_realstack_test.go:51:   problem: overlay.exe is not where it is looked for: C:\Users\chris\AppData\Local\Temp\TestRealStack1662802469\006\overlay.exe
+            do: reinstall Marco
+--- PASS: TestRealStack (0.81s)
+PASS
+ok  	github.com/chaynes-simpleclouds/marco/plugins/studio	0.915s

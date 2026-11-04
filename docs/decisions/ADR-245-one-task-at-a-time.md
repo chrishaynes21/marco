@@ -955,7 +955,7 @@ beautiful picture of its result and no recorded outcome is still not presented a
   `TestAPressThatOpenedAnUnreadableScreenSaysThatIsWhatHappened`, which also holds the other
   side: a press the screen sat still through is still described by its words, and must not be
   swallowed by the sentence about opening something.
-- `plugins/studio/console_test.go` — `TestTheBuildScriptMakesTheDirectorStudioWillSpawn`.
+- `plugins/studio/buildscript_test.go` — `TestTheBuildScriptMakesTheWholeStackFromOneCommit` (since 2026-11-04; it replaced the director-and-marco build-script test in `console_test.go` and keeps its requirements).
 - `internal/director/learnstate/learnstate_test.go` —
   `TestTheStreamVersionMovesWithTheEventsShape` (the pair, and that no two versions share a
   shape, which would be two versions nothing can tell apart);

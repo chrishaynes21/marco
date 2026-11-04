@@ -1,0 +1,5 @@
+# 2026-11-04 widget launch, scratch clone of 17e3a7f + this change committed in the clone only (ee08908). Windows only.
+  process 50524  C:\Users\chris\AppData\Local\Temp\claude\a8d5243e92db8bc9\20a633ba-dab9-4c69-85d7-3024729bc7e0\scratchpad\stackclone\plugins\overlay\overlay.exe
+studio: the processes above are running from files this script replaces. Close Studio and
+        the widget, or end them, then run this again. Nothing was built.
+exit=1

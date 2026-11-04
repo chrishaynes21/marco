@@ -1,0 +1,20 @@
+# 2026-11-04 widget launch: go test -count=1 ./cmd/gate ./internal/wiringcheck, FIRST RUN, FAILED (Windows only)
+# the vault still named the two replaced tests in '(until ...)' notes
+ok  	github.com/chaynes-simpleclouds/marco/cmd/gate	33.168s
+--- FAIL: TestEveryTestNamedInTheDocsVaultExists (2.46s)
+    wiringcheck_test.go:397: a note in the docs vault names a test that does not exist.
+        CLAUDE.md: "An ADR needs an Enforced by entry naming a real test." Each line below
+        cites a test as the thing holding a decision in place. No such test is declared
+        anywhere, so the decision is held by nothing and the note says otherwise.
+        Point it at the real test, write it, or say plainly that nothing holds it.
+          docs/decisions/ADR-245-one-task-at-a-time.md:958  cites TestTheBuildScriptMakesTheDirectorStudioWillSpawn
+              did you mean TestTheBuildScriptMakesTheWholeStackFromOneCommit ?
+          docs/decisions/ADR-252-a-library-is-a-place-and-a-routine-is-played-where-it-was-made.md:297  cites TestTheBuildScriptMakesTheDirectorStudioWillSpawn
+              did you mean TestTheBuildScriptMakesTheWholeStackFromOneCommit ?
+          docs/decisions/ADR-302-studio-opens-the-widget.md:110  cites TestTheTreeLayoutIsOpenedFromItsOwnPlaces
+              did you mean TestTheSameStructureFromEitherProviderIsTheSamePlaces ?
+          docs/decisions/ADR-302-studio-opens-the-widget.md:275  cites TestTheBuildScriptMakesTheDirectorStudioWillSpawn
+              did you mean TestTheBuildScriptMakesTheWholeStackFromOneCommit ?
+FAIL
+FAIL	github.com/chaynes-simpleclouds/marco/internal/wiringcheck	5.635s
+FAIL

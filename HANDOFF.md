@@ -12443,3 +12443,45 @@ Recorded and not fixed: a routine saved from a SIMPLIFIED draft cannot be step-e
 because a fresh save writes no step account. Pre-existing, now reachable from one window.
 
 See [[ADR-278-the-text-a-step-types-can-be-made-something-you-supply]].
+
+### 2026-11-04 — Open widget finds a coherently built widget in a development tree
+
+S10 closed at 17e3a7f: Studio draws the widget's theme
+([[ADR-307-studio-draws-the-widgets-theme]]). Open widget (S7) could not work in a development
+tree, for two reasons.
+
+- **Studio looked only beside itself.** The `studio.exe` in `plugins\studio` found nothing
+  there and said "reinstall Marco".
+- **`build.cmd` never built the widget.** It made Studio, director and marco, so the bridge and
+  overlay were always another build. Here they were `fcc5f07+dirty` and `b84fd52+dirty` against
+  Studio's `1c2d35f+dirty`, and the revision check refused them. That refusal was correct.
+
+**The repaired contract:**
+
+- **Where the stack is.** A tree is recognised by its source: `go.mod` plus
+  `plugins\studio\build.cmd`. From either Studio location, the stack is the root's, with the
+  overlay under `plugins\overlay`. The flat installed layout is unchanged.
+- **The checks are unchanged.** Every piece must be present and carry this Studio's revision.
+- **What a problem says.** In a tree it names the exact build command; in an installation it
+  still says reinstall. It never suggests copying a piece in.
+- **One build command:** `plugins\studio\build.cmd`.
+  - It builds Studio, with the Wails tags, and every piece of the widget stack, from one commit.
+  - It refuses a dirty tree, and refuses anything running from a destination.
+  - It stages every build and checks every stamp against HEAD before replacing anything.
+
+**Verified with temporary build outputs, in a scratch clone (Windows only).** Each case behaved
+as intended:
+
+- a dirty clone, refused;
+- a clean build: nine outputs, all stamped HEAD and unmodified;
+- a stand-in process running from a destination, refused;
+- the real `WidgetStatus` over the built files: from both locations, mixed, missing, and the
+  installed layout.
+
+**Not done:**
+
+- Nothing in the owner's tree was rebuilt, and nothing was launched.
+- Their stack stays mixed until the script is run there, with Studio and the widget closed.
+- Desktop confirmation of the widget opening is pending.
+
+See [[ADR-302-studio-opens-the-widget]] ("Repaired: the launch and build contract").

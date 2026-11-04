@@ -2,7 +2,7 @@
 type: adr
 status: accepted
 date: 2026-11-03
-decision: "ACCEPTED — STUDIO HAS A SECONDARY OPEN WIDGET ACTION THAT STARTS THE INSTALLER'S OWN WIDGET STACK BESIDE ITSELF, NEVER A SECOND ONE, AND NEVER ONE BUILT FROM MIXED SOURCES. The action is in the rail below the destinations and in Help (Use Marco while you play). It starts `marco serve` with the macros bridge and the overlay, exactly the installer's `Marco.exe --overlay` command (`internal/widgetstack`, held to the installer's source by a test), from the installed or the tree layout beside Studio, with Studio's library, store and marco stated to the child. Any Marco widget already running (an overlay.exe with overlay.marco beside it, from anywhere) is reused and said, and a launch already in progress is not repeated. Every piece must be present and every Go program in it must carry the same known build revision as this Studio (`buildid.Same`, read from the files without running them), so the mismatched binaries at the repository root are refused and each piece is named. States: ready, starting, running, unavailable, failed (a start refused, or a stack that ended within four seconds, with the launcher to run by hand)."
+decision: "ACCEPTED — STUDIO HAS A SECONDARY OPEN WIDGET ACTION THAT STARTS THE INSTALLER'S OWN WIDGET STACK BESIDE ITSELF, NEVER A SECOND ONE, AND NEVER ONE BUILT FROM MIXED SOURCES. The action is in the rail below the destinations and in Help (Use Marco while you play). It starts `marco serve` with the macros bridge and the overlay, exactly the installer's `Marco.exe --overlay` command (`internal/widgetstack`, held to the installer's source by a test), from the installed or the tree layout beside Studio, with Studio's library, store and marco stated to the child. Any Marco widget already running (an overlay.exe with overlay.marco beside it, from anywhere) is reused and said, and a launch already in progress is not repeated. Every piece must be present and every Go program in it must carry the same known build revision as this Studio (`buildid.Same`, read from the files without running them), so the mismatched binaries at the repository root are refused and each piece is named. States: ready, starting, running, unavailable, failed (a start refused, or a stack that ended within four seconds, with the launcher to run by hand). REPAIRED 2026-11-04: in a development tree, recognised by its source (go.mod and plugins\\studio\\build.cmd), the stack is the ROOT's from either studio.exe build.cmd makes; a tree's fix is that exact build command, an installation's is still a reinstall; and plugins\\studio\\build.cmd builds Studio and every piece of the stack from one clean commit, staged and stamp-checked against HEAD before anything is replaced."
 supersedes: []
 affects:
   - interface
@@ -11,6 +11,7 @@ source_paths:
   - plugins/studio/frontend/index.html
   - internal/widgetstack/widgetstack.go
   - internal/buildid/buildid.go
+  - plugins/studio/build.cmd
 ---
 
 # Studio opens the widget
@@ -53,6 +54,9 @@ Before building anything, I traced how the widget is started today.
   engine Studio plays with. There are two layouts:
   - **installed:** every piece flat;
   - **tree:** the overlay under `plugins\overlay`.
+
+  *Corrected 2026-11-04:* in a tree, the stack is the ROOT stack from either `studio.exe`. See
+  "Repaired: the launch and build contract" below.
 - **What the child is given.** Studio's environment, plus three variables, each stated once:
   `MARCO_BIN` (the marco beside it, as the installer sets it), `MARCO_HOME` and `MARCO_ROUTES`
   (Studio's own, already absolute from `internal/marcopaths`). The widget therefore uses the same
@@ -103,7 +107,7 @@ each state. They are the page's own layout and text, not a desktop run.
 
 - `plugins/studio`: `TestTheWidgetIsOpenedAsTheInstallerOpensIt`, `TestTheWidgetIsNeverStartedTwice`,
   `TestTheWidgetIsOnlyOpenedWhenItCanBe`, `TestALaunchThatFailedSaysSo`,
-  `TestAWidgetClosedLaterIsReadyAgain`, `TestTheTreeLayoutIsOpenedFromItsOwnPlaces`,
+  `TestAWidgetClosedLaterIsReadyAgain`, `TestTheTreeStackIsFoundFromEitherStudio` (since 2026-11-04, replacing a tree test that covered only a Studio at the root),
   `TestAFailedLaunchIsNotRetriedOverAMismatch`, and `TestEveryMethodThePageCallsIsOnTheBackend` for
   the page's two calls. Every outward act is a seam:
   - the directory beside, filled with stand-in files;
@@ -182,6 +186,160 @@ All three outputs are kept in `docs/experiments/Roadmap-38-output/`:
   four-second failure window applies only to one Studio started.
 - The revision check needs every piece built from one commit. In a development tree that is a
   whole rebuild: `marco-macros.exe` and `overlay.exe` are rarely rebuilt, and they block the action
-  until they are.
+  until they are. *(2026-11-04: `plugins\studio\build.cmd` now rebuilds them. See below.)*
 - F6 (one meaning for Enter) and Roadmap 38 remain open and are unchanged, as is the
   binary-mismatch warning.
+
+## Repaired: the launch and build contract (2026-11-04)
+
+Open widget could not work in the development layout that Studio's own build script produced.
+There were two separate faults.
+
+1. **Studio looked only beside itself.** `plugins\studio\build.cmd` puts a `studio.exe` in
+   `plugins\studio` and another at the root. From `plugins\studio`, `widgetstack.Beside` found no
+   overlay beside it or under `plugins\studio\plugins\overlay`. It fell back to the installed
+   layout's paths, reported every piece missing there, and said "reinstall Marco" to a developer.
+2. **The build script never built the widget.** It made Studio, the director and marco, but not
+   `marco-macros.exe` or `overlay.exe`. A freshly built Studio was therefore always a different
+   revision from the bridge and the overlay, and the check refused it. That refusal is correct.
+   In this tree, before the repair, Studio, marco and director were `1c2d35f+dirty`,
+   `marco-macros.exe` was `fcc5f07+dirty` and `overlay.exe` was `b84fd52+dirty`.
+
+### The contract now
+
+- **Where the stack is** (`widgetstack.Beside`, `TreeRoot`):
+  - **A tree is recognised by its source,** not its build outputs: a root holding `go.mod` and
+    `plugins\studio\build.cmd`.
+  - **Either studio.exe finds the root's stack.** From the root, or from that root's
+    `plugins\studio`, the stack is the root's `marco.exe`, `director.exe` and
+    `marco-macros.exe`, with `overlay.exe` and `overlay.marco` under `plugins\overlay`.
+  - **The working directory and `MARCO_BIN`** are the root and the root's marco.
+  - **Unbuilt pieces read as missing at their tree paths.** The outputs are what is being
+    checked, so they cannot also decide which layout is checked, and an unbuilt overlay never
+    reads as a missing installation.
+  - **A stray flat overlay at a tree's root does not make the tree an installation.**
+- **The installed layout is unchanged:** every piece flat beside Studio. Anything that is not a
+  tree, including an installation that happens to sit in a folder called `plugins\studio`, is
+  read as installed.
+- **The checks are unchanged.** Every piece must be present, and every Go program must carry
+  the same known revision as the Studio asking (`buildid.Same`).
+- **What to do** (`Layout.Rebuild`):
+  - **In a tree,** each problem names the exact command: close Studio, commit or set aside any
+    change, then run `<root>\plugins\studio\build.cmd`.
+  - **In an installation,** it is still "reinstall Marco".
+  - **Never a copy.** Nothing offers to copy a piece in, because the check exists to refuse
+    exactly that.
+- **One build command:** `plugins\studio\build.cmd`, from the repository. It builds Studio with
+  the Wails tags (`desktop,production`) and every piece of the stack, from one commit, into
+  every place either Studio and the widget look. In order, it:
+  1. **refuses a tree with any change** `git status` reports. A dirty tree stamps every binary
+     `+dirty`, and two different dirty builds carry the same stamp.
+  2. **refuses when any process is running from a destination file,** and names each one.
+     Windows cannot replace a running executable, so carrying on would leave a mixed stack.
+  3. **builds everything into a temporary directory:**
+     - Studio from its module;
+     - the director, marco and `marco-macros` from the root module;
+     - the overlay from its own module (`go -C plugins\overlay`), as `pack.ps1` builds it.
+  4. **checks every stamp** with `go version -m`: `vcs.revision` is HEAD and
+     `vcs.modified=false`.
+  5. **only then copies each piece into place:**
+     - `plugins\studio\`: `studio.exe`, `studio-console.exe`, `director.exe`, `marco.exe`;
+     - the root: `studio.exe`, `director.exe`, `marco.exe`, `marco-macros.exe`;
+     - `plugins\overlay\`: `overlay.exe`.
+
+     A copy that fails part-way says the stack is now mixed, and the revision check refuses it
+     until the script is run again.
+
+### Enforced by (the repair)
+
+- `internal/widgetstack` `TestTheStackIsFoundWhereEachLayoutPutsIt`:
+  - both tree locations, case-insensitively;
+  - an unbuilt tree;
+  - a stray flat overlay;
+  - neither marker alone;
+  - an installation in a `plugins\studio`.
+- `plugins/studio`:
+  - `TestTheTreeStackIsFoundFromEitherStudio`: the command, the working directory and
+    `MARCO_BIN`, from both;
+  - `TestATreeIsToldTheBuildCommand`: missing, mismatched and unstamped pieces at their tree
+    paths, each with the build script and never "reinstall" or a copy; an installation's
+    mismatch still says "reinstall Marco";
+  - `TestTheBuildScriptMakesTheWholeStackFromOneCommit`, which reads the script's commands with
+    the comments stripped:
+    - each piece built from the right module, Studio with the Wails tags;
+    - the refusals placed before the build;
+    - the stamp check covering every staged binary;
+    - no copy before it;
+    - each piece copied to every path `widgetstack.Beside` resolves from both Studio locations.
+
+  It replaces the earlier director-and-marco build-script test in `console_test.go` and keeps all of its
+  requirements.
+
+Mutations: 18, all killed. Two first attempts did not apply to the file and were rewritten. In
+`widgetstack` and Studio:
+
+- recognising the tree only from its root, checked in both packages;
+- go.mod alone as the marker;
+- the tree's root taken as Studio's own directory;
+- `Rebuild` always "reinstall", and the fix hard-coded to it;
+- the overlay looked for flat in a tree.
+
+In the script:
+
+- dropping the `marco-macros`, overlay or `plugins\studio` director copy;
+- the dirty and running refusals not exiting;
+- no `vcs.modified` check;
+- a revision check that accepts any revision;
+- a copy before the check;
+- the overlay left out of the check;
+- the Wails tags dropped;
+- `marco-macros` built straight into place.
+
+### Verified with temporary build outputs (Windows only)
+
+Nothing in the owner's tree was rebuilt or replaced, and nothing was launched. The script ran in
+a scratch clone of 17e3a7f with this change committed in the clone only (`ee08908`). Outputs are
+in `docs/experiments/Roadmap-38-output/2026-11-04-widget-launch-*.txt`.
+
+- **With one untracked file,** it refused and built nothing.
+- **Clean, it built all nine outputs.** `go version -m` read `vcs.revision=ee08908` and
+  `vcs.modified=false` on each. `studio.exe` does not contain the Wails guard's sentence. The
+  stage directory was removed afterwards.
+- **With a stand-in process running from a destination,** it refused, named the process and
+  built nothing. The stand-in was a copy of Windows' `ping.exe` at the overlay's path, so no
+  Marco binary ran. A first attempt at this was refused as dirty instead, because the real
+  overlay had been set aside inside the clone. Its output file was overwritten by the second
+  attempt, so it is not kept.
+- **`WidgetStatus` on those real files.** This was a temporary test in the clone, with the
+  process list stated empty and the start set to fail if called.
+  - From the root and from `plugins\studio`: ready, as the tree at the root.
+  - With the owner's own `marco-macros.exe` (`fcc5f07+dirty`) copied into the clone: refused,
+    naming it, with the clone's build script as the fix.
+  - With the overlay absent: refused at `plugins\overlay\overlay.exe`.
+  - The same pieces laid out flat: ready, as installed. With the overlay removed: refused, with
+    "reinstall Marco".
+
+### Checks (the repair; Windows only, affected checks)
+
+- **Passed:** `go build ./...`, `go vet` (`widgetstack`, `buildid`, `plugins/studio`), gofmt,
+  `internal/widgetstack`, `internal/buildid`, `cmd/gate`, and docscheck.
+- **The full `plugins/studio` suite** passed on its first run.
+- **`internal/wiringcheck` FAILED on its first run.**
+  - `TestEveryTestNamedInTheDocsVaultExists` found four lines still naming the two replaced
+    tests, in "until 2026-11-04" notes in ADR-245, ADR-252 and this ADR.
+  - The guard is right. The lines now describe the old tests without naming them, and the
+    second run passed.
+- **The full engine suite was not run.**
+
+### Not established (the repair)
+
+- **Not launched.** No widget has been started from either Studio location. The command,
+  environment and four-second window are still unexercised against a real stack. Desktop
+  confirmation is pending.
+- **The owner's tree is still mixed** until `plugins\studio\build.cmd` is run there from a
+  clean commit, with Studio and the widget closed.
+- **A partial copy cannot be undone by the script.** If a copy fails after earlier ones
+  succeeded, the stack is mixed until the script is run again. The revision check refuses it
+  meanwhile, and the script says so.
+- **The running-process check compares exact paths.** A process whose path Windows does not
+  report to this user is not seen. Its file then fails to copy, which is the mixed case above.

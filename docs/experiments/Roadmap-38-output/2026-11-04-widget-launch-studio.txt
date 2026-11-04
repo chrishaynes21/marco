@@ -1,0 +1,4 @@
+# 2026-11-04 widget launch: go test -count=1 ./plugins/studio (Windows only)
+# tree: working tree on 17e3a7f with the widget-launch change, uncommitted
+ok  	github.com/chaynes-simpleclouds/marco/plugins/studio	146.789s
+exit=0

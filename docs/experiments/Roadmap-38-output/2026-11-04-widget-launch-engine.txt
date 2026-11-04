@@ -1,0 +1,7 @@
+# 2026-11-04 widget launch: build, vet, widgetstack, buildid, gofmt (Windows only)
+go build ./...: ok
+go vet engine pkgs: ok
+go vet plugins/studio: ok
+ok  	github.com/chaynes-simpleclouds/marco/internal/widgetstack	0.260s
+ok  	github.com/chaynes-simpleclouds/marco/internal/buildid	0.242s
+gofmt -l: []

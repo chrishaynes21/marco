@@ -294,7 +294,7 @@ which stays separately scoped.
   `TestPlayingARoutineRunsItAndReportsWhatItSaid`,
   `TestEveryMethodThePageCallsIsOnTheBackend`,
   `TestTheSavedRoutinesAreDrawnAndPlayIsOfferedForTheOneThatCanRun`,
-  `TestTheBuildScriptMakesTheDirectorStudioWillSpawn`,
+  `TestTheBuildScriptMakesTheWholeStackFromOneCommit` (since 2026-11-04, replacing the earlier director-and-marco build-script test),
   `TestTheTrialNoteShapeMovesWithItsVersion`
 - **And that saving does not replace a routine unless somebody says so**: `plugins/studio`
   `TestSavingOverARoutineIsRefusedAndLeavesItAlone` (the refusal names what is there, and the

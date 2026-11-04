@@ -10,8 +10,12 @@ package main
 // # What it starts, and from where
 //
 // The installer's own stack (internal/widgetstack): `marco serve` with the macros bridge and the
-// overlay, laid out beside this Studio. That is the same directory Studio spawns marco.exe and
-// director.exe from, so the widget performs with the same engine Studio plays with. The child is
+// overlay. Installed, it is flat beside this Studio, the directory Studio spawns marco.exe and
+// director.exe from. In a development tree it is the tree's root stack (marco, director and the
+// macros bridge at the root, the overlay under plugins\overlay), whether this Studio is the copy
+// at the root or the one in plugins\studio: build.cmd makes both, and the root marco and director
+// from the same build as the ones beside plugins\studio, which the revision check below holds.
+// The child is
 // given the library and the store Studio is using (`MARCO_ROUTES`, `MARCO_HOME`, both already
 // absolute from internal/marcopaths) and the marco it must use (`MARCO_BIN`, as the installer
 // sets it). Everything else is Studio's own environment, so the widget's settings file
@@ -326,10 +330,8 @@ func (a *Acts) widgetProblems(l widgetstack.Layout) []Problem {
 	return out
 }
 
-func widgetFix(l widgetstack.Layout) string {
-	if l.Kind == "tree" {
-		return "rebuild the whole stack from one commit (go build of marco, director, marco-macros, " +
-			"the overlay, and plugins/studio/build.cmd)"
-	}
-	return "reinstall Marco"
-}
+// widgetFix is the one thing to do about a missing or mismatched piece: in a development tree the
+// exact build command, which rebuilds every piece together; in an installation, a reinstall.
+// Copying a piece in from elsewhere is never offered, because the revision check exists to
+// refuse exactly that.
+func widgetFix(l widgetstack.Layout) string { return l.Rebuild() }
