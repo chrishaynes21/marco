@@ -258,7 +258,7 @@ func (a AskFirst) Allow(r Resolved) Decision {
 			Sentence: "Marco learned this play by watching you, and cannot ask you about it " +
 				"from here."}
 	}
-	fmt.Fprint(a.Deps.Out, AskToRun(r)+" [y]es / [n]o: ")
+	fmt.Fprint(a.Deps.Out, AskToRun(r)+" [y]es / [N]o: ")
 	switch strings.TrimSpace(strings.ToLower(readLine(a.Deps.In))) {
 	case "y", "yes":
 		return Decision{Verdict: Allowed, Reason: ReasonLearnedFirstUse}

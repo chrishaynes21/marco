@@ -735,8 +735,8 @@ bindings, per CLAUDE.md, or a rendered mockup for the HUD) and a review of it.
   library chips are done** ([[ADR-298-studio-sets-shortcuts-through-the-one-owner]]); the scope
   labels, the run-strip sentence and `--source=studio` are not started.
 - **S4: the widget explains itself, rendered first.** Arm list off the hook thread, "nothing on
-  x", configured leader in the echo, hotkey runs tracked (F9), one Enter meaning (F6). **Done except F6**
-  ([[ADR-299-the-widget-explains-its-keys]]); one Enter meaning is not started.
+  x", configured leader in the echo, hotkey runs tracked (F9), one Enter meaning (F6). **Done**: S4 in
+  [[ADR-299-the-widget-explains-its-keys]], and F6 in S8 ([[ADR-305-enter-means-no]]).
 - **S5: one `overlay.json` reader preserving unknown fields** (F5). **Done**
   ([[ADR-300-one-owner-for-the-widgets-settings]]): one reader and writer for the widget, the
   control centre and Studio; a save writes only what its person changed. Carried into integration
@@ -747,7 +747,9 @@ bindings, per CLAUDE.md, or a rendered mockup for the HUD) and a review of it.
   bound to the run. Then Director proposals in the
   read-back through the ADR-277 flow.
 - **S7: edits converge.** `marco rename` reviewed (R7); Studio Forget-one (R8); narrate's window
-  (F7).
+  (F7). **Done as the owner's S8**, with F6: R7 (commit `df11f4a`), R8
+  ([[ADR-303-studio-forgets-one-routine]]), F7 ([[ADR-304-narration-is-of-a-window-settled-first]]),
+  F6 ([[ADR-305-enter-means-no]]).
 - **S8: Start the widget from Studio (R5), separately reviewed.** **Done, run as S7 in the owner's
   renumbering** ([[ADR-302-studio-opens-the-widget]]). The owner's order after it: S8 the
   remaining operation alignment (this list's S7), S9 guarded in-place routines, then shared

@@ -135,7 +135,7 @@ func converseTurn(d orchestrator.Deps, line string) bool {
 		// AND THE QUESTION NAMES THE WHOLE IDENTITY, because a name is not unique:
 		// "Run \"settings\"?" is not a question somebody can answer when two
 		// routines answer to it.
-		if !askYes(fmt.Sprintf("Run %q (%s)? [y]es / [n]o: ",
+		if !askYes(fmt.Sprintf("Run %q (%s)? [y]es / [N]o: ",
 			prettyRoute(p.slug()), p.ID)) {
 			fmt.Printf("Left alone.\n")
 			return true
@@ -153,7 +153,7 @@ func converseTurn(d orchestrator.Deps, line string) bool {
 		if p.Reply != "" {
 			fmt.Println(p.Reply)
 		}
-		if askYes(fmt.Sprintf("Learn %q now? [y]es / [n]o: ", p.Name)) {
+		if askYes(fmt.Sprintf("Learn %q now? [y]es / [N]o: ", p.Name)) {
 			if err := d.Learn(p.Name); err != nil {
 				fmt.Fprintln(os.Stderr, err)
 			}

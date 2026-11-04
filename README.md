@@ -258,7 +258,7 @@ close match rather than requiring the exact words. It **asks first** —
 ```sh
 marco assistant
 > open the inventory
-Did you mean "open inventory"? [y]es / [n]o: y
+Did you mean "open inventory"? [y]es / [N]o: y
 ```
 
 and whatever you confirm takes the same path everything else does. For loosely
@@ -488,6 +488,10 @@ the key are for the application that was in front when the leader was pressed: i
 come forward by the time the key arrives, nothing runs and the widget asks for the leader again.
 If the `marco` beside the widget is older than the widget and would not make that check, the widget
 says shortcuts are off and does not send the key.
+
+At every yes/no question (in the terminal and in the widget) **Enter means no**: questions show
+`[y]es / [N]o`, and only `y` runs, records, deletes, replaces or saves. Enter still runs a command you
+typed, and a read-back on screen.
 
 The widget's settings file (`overlay.json`) is shared by the widget's settings panel, the control
 centre's Config view and Studio. Each shows the settings the widget runs with (including a leader

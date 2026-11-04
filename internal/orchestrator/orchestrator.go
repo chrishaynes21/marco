@@ -915,7 +915,7 @@ func (d Deps) SimplifyRoute(name string) error {
 	// What it skips is the QUESTION. It does not skip the preparation, the digests or the
 	// checked replacement below, so an unattended save still cannot truncate an image or
 	// write over a file that moved while this was deciding.
-	if !d.SimplifySaves && !d.confirm("Save the simplified version? [y]es / [n]o: ") {
+	if !d.SimplifySaves && !d.confirmDefaultNo("Save the simplified version? [y]es / [N]o: ") {
 		fmt.Fprintln(d.Out, "Left unchanged.")
 		return nil
 	}
@@ -1396,17 +1396,18 @@ const (
 func (d Deps) chooseSave(name string, canSimplify bool) learnAction {
 	for {
 		if canSimplify {
-			fmt.Fprintf(d.Out, "Save this as %q? [y]es / [n]o / [s]implify: ", name)
+			fmt.Fprintf(d.Out, "Save this as %q? [y]es / [N]o / [s]implify: ", name)
 		} else {
-			fmt.Fprintf(d.Out, "Save this as %q? [y]es / [n]o: ", name)
+			fmt.Fprintf(d.Out, "Save this as %q? [y]es / [N]o: ", name)
 		}
 		if d.In == nil {
 			return actionSave
 		}
+		// ENTER MEANS NO (F6): a bare Enter discards, and only an explicit yes saves.
 		switch strings.TrimSpace(strings.ToLower(readLine(d.In))) {
-		case "", "y", "yes":
+		case "y", "yes":
 			return actionSave
-		case "n", "no":
+		case "", "n", "no":
 			return actionDiscard
 		case "s", "simplify", "simplify further":
 			if canSimplify {
@@ -1448,18 +1449,6 @@ func (d Deps) confirmDefaultNo(prompt string) bool {
 		return true
 	}
 	return false
-}
-
-// confirm prints a prompt and reports whether the reply is affirmative
-// (empty/"y"/"yes"). It reads one line without buffering ahead, so it can share
-// In (e.g. os.Stdin) with an interactive caller without stealing its input.
-func (d Deps) confirm(prompt string) bool {
-	fmt.Fprint(d.Out, prompt)
-	if d.In == nil {
-		return false
-	}
-	line := strings.TrimSpace(strings.ToLower(readLine(d.In)))
-	return line == "" || line == "y" || line == "yes"
 }
 
 // readLine reads up to and including a newline from r, one byte at a time (no

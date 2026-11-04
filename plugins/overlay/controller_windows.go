@@ -293,30 +293,9 @@ func processFrom(ch <-chan action, h *model, emit func(event)) {
 			// Show the answer as you type it (y/n/s), not yet submitted.
 			h.setPromptPending(a.hot)
 		case actPromptSubmit:
-			// Enter: commit the pending answer to the transcript. If this is the
-			// unknown-command learn OFFER (not a child prompt), y/Enter starts a
-			// demonstration learn and anything else declines; otherwise send the
-			// answer to the live child. Off the hook thread, so the write is safe.
+			// Enter: commit the pending answer (acts.go answerPrompt). Off the hook thread.
 			if ans, ok := h.submitPromptPending(); ok {
-				promptAsk.Store(false)
-				// A ROUTINE DIRECTOR NAMED, offered before the learn offer.
-				// Checked first because the two offers are different slots and
-				// only one of them is ever set; see offerRoutine.
-				if r := takePendingRoutine(); r.id != "" {
-					h.clearPrompt()
-					if ans == "" || ans == "y" || ans == "yes" {
-						runOfferedRoutine(h, r)
-					}
-				} else if name := takePendingLearn(); name != "" {
-					// Unknown-command learn OFFER (no child runs on decline), so wipe the
-					// prompt/transcript ourselves — otherwise it lingers in the HUD.
-					h.clearPrompt()
-					if ans == "" || ans == "y" || ans == "yes" {
-						startLearn(h, name)
-					}
-				} else {
-					writePromptAnswer(ans)
-				}
+				answerPrompt(h, ans)
 			}
 		case actCancelRun:
 			cancelRun()

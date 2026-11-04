@@ -780,7 +780,7 @@ func streamChild(h *model, trackCancel bool, args ...string) childRun {
 			// Prompts carry NO trailing newline (the engine blocks on stdin), so we
 			// detect them on the partial line. A complete prompt has the bracketed
 			// options "? [" AND ends with ": " (the answer cursor) — waiting for the
-			// ": " captures the FULL menu, e.g. "...? [y]es / [n]o / [s]implify: ",
+			// ": " captures the FULL menu, e.g. "...? [y]es / [N]o / [s]implify: ",
 			// not just a truncated "? [y]", and re-arms cleanly for a re-ask.
 			if !promptAsk.Load() && bytes.Contains(line, []byte("? [")) && bytes.HasSuffix(line, []byte(": ")) {
 				h.setPrompt(strings.TrimRight(string(line), "\r"))
@@ -1138,7 +1138,7 @@ var (
 	pendingPrompt   string
 )
 
-// offerLearn shows an in-HUD "Learn \"name\"? [y]es / [n]o" prompt for an unknown
+// offerLearn shows an in-HUD "Learn \"name\"? [y]es / [N]o" prompt for an unknown
 // command, reusing the prompt answering path (promptAsk). The controller starts
 // a demonstration on yes (see actPromptSubmit) and clears it on no.
 func offerLearn(h *model, name string) {
@@ -1146,7 +1146,7 @@ func offerLearn(h *model, name string) {
 	pendingPrompt = name
 	pendingPromptMu.Unlock()
 	h.setStatus("unknown: " + name)
-	h.setPrompt(fmt.Sprintf("Learn %q? [y]es / [n]o: ", name))
+	h.setPrompt(fmt.Sprintf("Learn %q? [y]es / [N]o: ", name))
 	promptAsk.Store(true)
 }
 
@@ -1182,7 +1182,7 @@ func offerRoutine(h *model, name, id, app, slug string, focus bool) {
 		shown = id
 	}
 	h.setStatus("found: " + shown)
-	h.setPrompt(fmt.Sprintf("Run %q? [y]es / [n]o: ", shown))
+	h.setPrompt(fmt.Sprintf("Run %q? [y]es / [N]o: ", shown))
 	promptAsk.Store(true)
 }
 
@@ -1276,3 +1276,37 @@ var windowNow = windowInFront
 // errNoWindowToNarrate is narrate learn with no window it could be of.
 var errNoWindowToNarrate = errors.New("Marco could not tell which window you are in, so narration " +
 	"was not started — bring the window forward and say it again")
+
+// answerPrompt is what an answer to the prompt on screen does: the widget's own offers (a routine
+// Director named, a recording of an unknown command) are answered here, and anything else is the
+// running child's question and goes to it.
+//
+// ENTER MEANS NO (F6). An offer runs a routine or begins a recording, and only an explicit yes
+// does either: a bare Enter is the empty answer, which declines. The child's own questions follow
+// the same rule on their side. Enter still SUBMITS A COMMAND, and runs a read-back on screen; that
+// is the command line, not a yes/no prompt (line.go).
+//
+// Taking Enter as yes again must fail TestEnterDeclinesAnOfferAndStillSubmitsACommand.
+func answerPrompt(h *model, ans string) {
+	promptAsk.Store(false)
+	yes := ans == "y" || ans == "yes"
+	// A ROUTINE DIRECTOR NAMED, offered before the learn offer. Checked first because the two
+	// offers are different slots and only one of them is ever set; see offerRoutine.
+	if r := takePendingRoutine(); r.id != "" {
+		h.clearPrompt()
+		if yes {
+			runOfferedRoutine(h, r)
+		}
+		return
+	}
+	if name := takePendingLearn(); name != "" {
+		// Unknown-command learn OFFER (no child runs on decline), so wipe the prompt and
+		// transcript here, or it lingers in the HUD.
+		h.clearPrompt()
+		if yes {
+			startLearn(h, name)
+		}
+		return
+	}
+	writePromptAnswer(ans)
+}

@@ -570,7 +570,7 @@ func runForget(args []string) {
 			fmt.Println("No plays to forget.")
 			return
 		}
-		if !askYes(fmt.Sprintf("Forget ALL %d plays? This can't be undone. [y]es / [n]o: ", len(all))) {
+		if !askYes(fmt.Sprintf("Forget ALL %d plays? This can't be undone. [y]es / [N]o: ", len(all))) {
 			fmt.Println("Kept them.")
 			return
 		}
@@ -595,7 +595,7 @@ func runForget(args []string) {
 	// Confirm a destructive delete. On a non-interactive stdin (EOF) askYes returns
 	// true, so piped/scripted `marco forget` still deletes; an interactive caller
 	// (CLI or the overlay's prompt handshake) gets to decline.
-	if !askYes(fmt.Sprintf("Forget %q? [y]es / [n]o: ", prettyRoute(rt.Slug))) {
+	if !askYes(fmt.Sprintf("Forget %q? [y]es / [N]o: ", prettyRoute(rt.Slug))) {
 		fmt.Printf("Kept %q.\n", prettyRoute(rt.Slug))
 		return
 	}
@@ -1037,7 +1037,7 @@ func runAssistant(_ []string) {
 		}
 		switch {
 		case m.Route != "" && m.Score >= 0.6:
-			if askYes(fmt.Sprintf("Did you mean %q? [y]es / [n]o: ", prettyRoute(m.Route))) {
+			if askYes(fmt.Sprintf("Did you mean %q? [y]es / [N]o: ", prettyRoute(m.Route))) {
 				runDo(d, m.Route)
 			} else {
 				runDo(d, line) // learn as a new command under the typed name
@@ -1046,7 +1046,7 @@ func runAssistant(_ []string) {
 			// Deterministic matcher unsure → optional external resolver plugin
 			// ($MARCO_RESOLVER). A no-op when unset.
 			if r := resolver.Resolve(context.Background(), line, d.Reg.Slugs()); r != "" &&
-				askYes(fmt.Sprintf("Did you mean %q? [y]es / [n]o: ", prettyRoute(r))) {
+				askYes(fmt.Sprintf("Did you mean %q? [y]es / [N]o: ", prettyRoute(r))) {
 				runDo(d, r)
 			} else {
 				runDo(d, line) // unknown → learn
@@ -1074,8 +1074,9 @@ func runDo(d orchestrator.Deps, name string) {
 func askYes(prompt string) bool {
 	fmt.Fprint(os.Stdout, prompt)
 	a, _ := readStdinLine()
+	// ENTER MEANS NO (F6). Only an explicit yes confirms, and an EOF is no answer at all.
 	a = strings.TrimSpace(strings.ToLower(a))
-	return a == "" || a == "y" || a == "yes"
+	return a == "y" || a == "yes"
 }
 
 // readStdinLine reads one line from stdin without buffering ahead (so it never
