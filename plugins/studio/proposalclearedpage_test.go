@@ -58,6 +58,7 @@ window.go = {main: {
   Acts: {
     // THE WIDGET ACTION (S7), polled from start-up: the page draws whatever it says.
     WidgetStatus: () => Promise.resolve({state: 'ready', says: '', problems: []}),
+    Theme: () => Promise.resolve({asked: '', theme: 'default', light: false, accentFrom: 'name', tokens: {}}),
     SuggestTargets: () => Promise.resolve([{app: 'notepad', open: true, context: 1}]),
     SuggestRoutine: () => Promise.resolve({kind: 'none'}),
     Demonstrations: () => Promise.resolve([]),

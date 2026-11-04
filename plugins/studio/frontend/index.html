@@ -35,9 +35,11 @@
     and Cascadia Mono with the terminal, so this holds up with the network off,
     which a local window beside a game had better do.
 
-    Both themes are built from the tokens below and nothing sets a colour outside
-    them. A desktop window follows the desktop, so `prefers-color-scheme` decides
-    and `[data-theme]` wins if anything ever sets it. ── */
+    Every colour is built from the tokens below and nothing sets a colour outside
+    them. THE THEME IS THE WIDGET'S (S10): the page asks `acts.Theme()` and sets
+    each token from the widget's palette (see applyTheme), so the values below,
+    and the desktop's light or dark, are only what is drawn until that answer
+    arrives, or if it never does. ── */
  :root{
    /* A warm near-black, biased toward the accent rather than the blue-grey of a
       code editor. The neutrals are hue-biased on purpose: a flat mid-grey reads
@@ -109,7 +111,9 @@
  body{font:400 14.5px/1.65 var(--text);background:var(--ground);color:var(--ink);
       margin:0;height:100vh;display:flex;overflow:hidden;
       -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
- ::selection{background:var(--spot-dim);color:#fff}
+ /* The ground on the accent, which internal/widgetconfig holds to 4.5:1 for every palette;
+    a fixed white on a palette's own accent was not. */
+ ::selection{background:var(--spot);color:var(--spot-ink)}
  /* THE SCROLLBAR IS PART OF THE WINDOW. The host's default is a wide light-grey
     gutter that belongs to no theme on this page, and it is on screen for the whole
     of the longest view. Inset by its own transparent border so the thumb reads as a
@@ -510,7 +514,9 @@
  /* Stop is live for the whole of a run and must never be the quietest thing on
     screen, nor loud enough to invite a press. */
  button.stop{background:none;border-color:var(--no);color:var(--no);font-weight:600}
- button.stop:hover:not(:disabled){background:var(--no);color:#fff}
+ /* The ground on the refusal colour: the pair is held to 4.5:1 for every palette, where a
+    fixed white on a light refusal red was under 3:1. */
+ button.stop:hover:not(:disabled){background:var(--no);color:var(--ground)}
 
  input[type=text]{font:400 14px var(--text);background:var(--sink);color:var(--ink);
         border:1px solid var(--line);border-radius:var(--r-sm);padding:7px 11px;
@@ -3589,6 +3595,9 @@
  function pollReady(){
    const busy = captureActive || runActive
    const next = () => setTimeout(pollReady, 10000)
+   // THE THEME RIDES THIS POLL, and before the busy check: it is a read of the widget's
+   // settings file and touches nothing else. See applyTheme.
+   pollTheme()
    if (busy) { next(); return }
    acts.Ready().then(r => {
      const sig = JSON.stringify(r)
@@ -3596,6 +3605,33 @@
      shownReady = sig
      drawReady(r)
    }).finally(next)
+ }
+
+ // THE WIDGET'S THEME (S10). Studio has no theme of its own: it draws with the palette the
+ // widget's `theme` setting names, `default` included, with each token made readable on the
+ // surfaces it sits on by internal/widgetconfig. Asked at start-up (the first pollReady) and on
+ // this slow poll, so a theme chosen in the widget or the control centre reaches an open window
+ // within ten seconds. The widget reads its settings once at launch, so a theme changed here
+ // or in the control centre reaches the widget only when it is restarted; nothing here claims
+ // otherwise. If the answer never comes, the page keeps the tokens in its stylesheet.
+ let shownTheme = ''
+ function pollTheme(){
+   acts.Theme().then(applyTheme).catch(() => {})
+ }
+ function applyTheme(t){
+   if (!t || !t.tokens) { return }
+   const sig = JSON.stringify(t)
+   if (sig === shownTheme) { return }
+   shownTheme = sig
+   const root = document.documentElement
+   for (const [k, v] of Object.entries(t.tokens)) {
+     if (k.startsWith('--')) { root.style.setProperty(k, v) }
+   }
+   // The palette decides light or dark, and the host's own controls (scrollbars, a select's
+   // list, a checkbox) follow it rather than the desktop.
+   root.dataset.theme = t.light ? 'light' : 'dark'
+   root.dataset.palette = t.theme
+   root.style.colorScheme = t.light ? 'light' : 'dark'
  }
 
  function drawReady(r){

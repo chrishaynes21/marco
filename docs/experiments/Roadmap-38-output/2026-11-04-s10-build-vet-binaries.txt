@@ -1,0 +1,34 @@
+go build ./... exit 0
+go vet ./internal/widgetconfig ./cmd/marco exit 0
+go vet plugins/studio exit 0
+binaries before:
+18497024 1793816490 director.exe
+13875200 1793816491 marco.exe
+18497024 1793816490 plugins/studio/director.exe
+13875200 1793816491 plugins/studio/marco.exe
+15654912 1793816484 plugins/studio/studio.exe
+21772288 1793816485 plugins/studio/studio-console.exe
+binaries after:
+18497024 1793816490 director.exe
+13875200 1793816491 marco.exe
+18497024 1793816490 plugins/studio/director.exe
+13875200 1793816491 plugins/studio/marco.exe
+15654912 1793816484 plugins/studio/studio.exe
+21772288 1793816485 plugins/studio/studio-console.exe
+docscheck:
+485 notes, 3399 links
+  adr          93
+  decision     214
+  decision-record 1
+  experiment   100
+  guide        4
+  index        1
+  map          2
+  milestone    20
+  proposal     2
+  reference    22
+  roadmap      1
+  subsystem    25
+  3 notes nothing links to (not an error): [ADR-134-where-every-tallied-control-went README Studio-coherence-implementation-2026-11-02]
+
+no problems

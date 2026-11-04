@@ -1,0 +1,1 @@
+ok  	github.com/chaynes-simpleclouds/marco/cmd/marco	1.041s

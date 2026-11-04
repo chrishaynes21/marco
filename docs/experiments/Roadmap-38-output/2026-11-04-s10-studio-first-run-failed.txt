@@ -1,0 +1,389 @@
+studio: the trial journal could not be written, so this flow will leave no evidence of itself: open C:\Users\chris\AppData\Local\Temp\TestOnlyOneSupervisedRunAtATime3453733040\001\trials\20261104-183317.jsonl: The system cannot find the path specified.
+[10:33:36][INFO] draft - recorded route=ark graphics events=6 steps=5 app=arkascended stopped_by=the Stop button
+[10:33:36][INFO] draft - saved route=ark graphics app=arkascended steps=5 path=C:\Users\chris\AppData\Local\Temp\TestRecordAgainStartsWithTheRoutinesOwnNameAndScope1222438410\001\arkascended\focus\ark-graphics.marco
+[10:33:36][INFO] draft - recorded route=ark graphics events=5 steps=5 app=arkascended stopped_by=the Stop button
+[10:33:36][INFO] draft - recorded route=ark graphics events=6 steps=5 app=arkascended stopped_by=the Stop button
+[10:33:36][INFO] draft - saved route=ark graphics app=arkascended steps=5 path=C:\Users\chris\AppData\Local\Temp\TestRecordAgainCannotOverwriteThroughOrdinarySave2163792444\001\arkascended\focus\ark-graphics.marco
+[10:33:36][INFO] draft - recorded route=ark graphics events=5 steps=5 app=arkascended stopped_by=the Stop button
+[10:33:36][INFO] draft - recorded route=ark graphics events=6 steps=5 app=arkascended stopped_by=the Stop button
+[10:33:36][INFO] draft - saved route=ark graphics app=arkascended steps=5 path=C:\Users\chris\AppData\Local\Temp\TestAfterRecordAgainReplacingIsStillAnExplicitChoice2273991913\001\arkascended\focus\ark-graphics.marco
+[10:33:36][INFO] draft - recorded route=ark graphics events=5 steps=5 app=arkascended stopped_by=the Stop button
+[10:33:36][INFO] draft - saved route=ark graphics app=arkascended steps=5 path=C:\Users\chris\AppData\Local\Temp\TestAfterRecordAgainReplacingIsStillAnExplicitChoice2273991913\001\arkascended\focus\ark-graphics.marco
+[10:33:36][INFO] draft - recorded route=ark graphics events=6 steps=5 app=arkascended stopped_by=the Stop button
+[10:33:36][INFO] draft - saved route=ark graphics app=arkascended steps=5 path=C:\Users\chris\AppData\Local\Temp\TestCancelAfterRecordAgainLeavesTheRoutineAlone3968194334\001\arkascended\focus\ark-graphics.marco
+[10:33:36][INFO] draft - recorded route=ark graphics events=5 steps=5 app=arkascended stopped_by=the Stop button
+[10:33:36][INFO] draft - recorded route=ark graphics events=6 steps=5 app=arkascended stopped_by=the Stop button
+[10:33:36][INFO] draft - saved route=ark graphics app=arkascended steps=5 path=C:\Users\chris\AppData\Local\Temp\TestARecordingMadeInAnotherApplicationSaysSoBeforeSave1866742202\001\arkascended\focus\ark-graphics.marco
+[10:33:36][INFO] draft - recorded route=ark graphics events=5 steps=5 app=notepad stopped_by=the Stop button
+[10:33:36][INFO] draft - recorded route=ark graphics events=5 steps=5 app=arkascended stopped_by=the Stop button
+[10:33:36][INFO] draft - recorded route=ark graphics events=6 steps=5 app=arkascended stopped_by=the Stop button
+[10:33:36][INFO] draft - saved route=ark graphics app=arkascended steps=5 path=C:\Users\chris\AppData\Local\Temp\TestRecordAgainRefusesARoutineThatIsGone1066470248\001\arkascended\focus\ark-graphics.marco
+[10:33:36][INFO] draft - recorded route=ark graphics events=6 steps=5 app=arkascended stopped_by=the Stop button
+[10:33:36][INFO] draft - recorded route=ark graphics events=6 steps=5 app=arkascended stopped_by=the Stop button
+[10:33:36][INFO] draft - saved route=ark graphics app=arkascended steps=5 path=C:\Users\chris\AppData\Local\Temp\TestRecordAgainRefusesWhileSomethingElseIsHappening76679505\001\arkascended\focus\ark-graphics.marco
+[10:33:36][INFO] draft - recorded route=ark graphics events=5 steps=5 app=arkascended stopped_by=the Stop button
+[10:33:36][INFO] draft - recorded route=a thing events=6 steps=5 app=arkascended stopped_by=the Stop button
+[10:33:36][INFO] draft - saved route=a thing app=arkascended steps=5 path=C:\Users\chris\AppData\Local\Temp\TestRecordAgainKeepsTheRoutineItMatchedWhileTheLibraryChanges158485870\001\arkascended\focus\a-thing.marco
+[10:33:36][INFO] draft - recorded route=b thing events=5 steps=5 app=arkascended stopped_by=the Stop button
+[10:33:36][INFO] draft - saved route=b thing app=arkascended steps=5 path=C:\Users\chris\AppData\Local\Temp\TestRecordAgainKeepsTheRoutineItMatchedWhileTheLibraryChanges158485870\001\arkascended\focus\b-thing.marco
+[10:33:36][INFO] draft - recorded route=c thing events=5 steps=5 app=arkascended stopped_by=the Stop button
+[10:33:36][INFO] draft - saved route=c thing app=arkascended steps=5 path=C:\Users\chris\AppData\Local\Temp\TestRecordAgainKeepsTheRoutineItMatchedWhileTheLibraryChanges158485870\001\arkascended\focus\c-thing.marco
+[10:33:36][INFO] draft - recorded route=b thing events=5 steps=5 app=arkascended stopped_by=the Stop button
+[10:33:36][INFO] draft - recorded route=c thing events=5 steps=5 app=arkascended stopped_by=the Stop button
+[10:33:36][INFO] draft - recorded route=b thing events=5 steps=5 app=arkascended stopped_by=the Stop button
+[10:33:36][INFO] draft - recorded route=c thing events=5 steps=5 app=arkascended stopped_by=the Stop button
+[10:33:36][INFO] draft - recorded route=b thing events=5 steps=5 app=arkascended stopped_by=the Stop button
+[10:33:36][INFO] draft - recorded route=c thing events=5 steps=5 app=arkascended stopped_by=the Stop button
+[10:33:36][INFO] draft - recorded route=b thing events=5 steps=5 app=arkascended stopped_by=the Stop button
+[10:33:36][INFO] draft - recorded route=c thing events=5 steps=5 app=arkascended stopped_by=the Stop button
+[10:33:36][INFO] draft - recorded route=b thing events=5 steps=5 app=arkascended stopped_by=the Stop button
+[10:33:36][INFO] draft - recorded route=c thing events=5 steps=5 app=arkascended stopped_by=the Stop button
+[10:33:36][INFO] draft - recorded route=b thing events=5 steps=5 app=arkascended stopped_by=the Stop button
+[10:33:36][INFO] draft - recorded route=c thing events=5 steps=5 app=arkascended stopped_by=the Stop button
+[10:33:36][INFO] draft - recorded route=b thing events=5 steps=5 app=arkascended stopped_by=the Stop button
+[10:33:36][INFO] draft - recorded route=c thing events=5 steps=5 app=arkascended stopped_by=the Stop button
+[10:33:36][INFO] draft - recorded route=b thing events=5 steps=5 app=arkascended stopped_by=the Stop button
+[10:33:36][INFO] draft - recorded route=c thing events=5 steps=5 app=arkascended stopped_by=the Stop button
+[10:33:36][INFO] draft - recorded route=b thing events=5 steps=5 app=arkascended stopped_by=the Stop button
+[10:33:36][INFO] draft - recorded route=c thing events=5 steps=5 app=arkascended stopped_by=the Stop button
+[10:33:36][INFO] draft - recorded route=b thing events=5 steps=5 app=arkascended stopped_by=the Stop button
+[10:33:36][INFO] draft - recorded route=c thing events=5 steps=5 app=arkascended stopped_by=the Stop button
+[10:33:36][INFO] draft - recorded route=b thing events=5 steps=5 app=arkascended stopped_by=the Stop button
+[10:33:36][INFO] draft - recorded route=c thing events=5 steps=5 app=arkascended stopped_by=the Stop button
+[10:33:36][INFO] draft - recorded route=b thing events=5 steps=5 app=arkascended stopped_by=the Stop button
+[10:33:36][INFO] draft - recorded route=c thing events=5 steps=5 app=arkascended stopped_by=the Stop button
+[10:33:36][INFO] draft - recorded route=b thing events=5 steps=5 app=arkascended stopped_by=the Stop button
+[10:33:40][INFO] draft - saved route=type two letters app=notepad steps=7 path=C:\Users\chris\AppData\Local\Temp\TestARoutineWithNoPhrasesIsOfferedTheControlAndNoComplaint2294483534\001\notepad\focus\type-two-letters.marco
+[10:33:40][INFO] draft - saved route=type two letters app=notepad steps=7 path=C:\Users\chris\AppData\Local\Temp\TestAPhraseAddedInStudioIsWhatTheDoorAnswersTo4188192018\001\notepad\focus\type-two-letters.marco
+[10:33:40][INFO] draft - saved route=type two letters app=notepad steps=7 path=C:\Users\chris\AppData\Local\Temp\TestAPhraseIsListedAsItWasTyped2822646527\001\notepad\focus\type-two-letters.marco
+[10:33:40][INFO] draft - saved route=type two letters app=notepad steps=7 path=C:\Users\chris\AppData\Local\Temp\TestAPhraseThatReducesToTheRoutinesOwnNameIsSaidRatherThanStored1768070206\001\notepad\focus\type-two-letters.marco
+[10:33:40][INFO] draft - saved route=type two letters app=notepad steps=7 path=C:\Users\chris\AppData\Local\Temp\TestACollidingPhraseIsRefusedWithTheBackendsOwnSentence437576068\001\notepad\focus\type-two-letters.marco
+[10:33:40][INFO] draft - saved route=type two letters app=notepad steps=7 path=C:\Users\chris\AppData\Local\Temp\TestARefusedPhraseIsShownAsTheContractsOwnRefusal2437596450\001\notepad\focus\type-two-letters.marco
+[10:33:40][INFO] draft - saved route=type two letters app=notepad steps=7 path=C:\Users\chris\AppData\Local\Temp\TestAPhraseIsRemovedFromTheCardByNamingIt2570776347\001\notepad\focus\type-two-letters.marco
+[10:33:41][INFO] draft - saved route=type two letters app=notepad steps=7 path=C:\Users\chris\AppData\Local\Temp\TestThePhrasePanelHoldsOffWhileRecording3373231457\001\notepad\focus\type-two-letters.marco
+[10:33:41][INFO] draft - recorded route=something else events=0 steps=0 app=chatgpt stopped_by=the Stop button
+[10:33:41][INFO] draft - saved route=type two letters app=notepad steps=7 path=C:\Users\chris\AppData\Local\Temp\TestPhrasesForARoutineThatIsNotThereSayWhy98119797\001\notepad\focus\type-two-letters.marco
+[10:33:51][INFO] draft - recorded route=ark graphics events=4 steps=3 app=arkascended stopped_by=the Stop button
+[10:33:51][INFO] draft - saved route=ark graphics app=arkascended steps=3 path=C:\Users\chris\AppData\Local\Temp\TestADemonstratedDragIsOfferedAndSaved22094600\001\arkascended\focus\ark-graphics.marco
+[10:33:51][INFO] draft - recorded route=ark graphics events=4 steps=3 app=arkascended stopped_by=the Stop button
+[10:33:51][INFO] draft - recorded route=ark graphics events=4 steps=3 app=arkascended stopped_by=the Stop button
+[10:33:51][INFO] draft - recorded route=ark graphics events=4 steps=3 app=arkascended stopped_by=the Stop button
+[10:33:51][INFO] draft - recorded route=ark graphics events=3 steps=3 app=arkascended stopped_by=the Stop button
+[10:33:51][INFO] draft - recorded route=ark graphics events=4 steps=3 app=arkascended stopped_by=the Stop button
+[10:33:57][INFO] draft - saved route=cloud pull app=notepad steps=3 path=C:\Users\chris\AppData\Local\Temp\TestForgettingOneRoutineIsWhatWasShown1642676612\001\notepad\focus\cloud-pull.marco
+[10:33:57][INFO] draft - saved route=cloud pull app=notepad steps=3 path=C:\Users\chris\AppData\Local\Temp\TestAForgetOverAChangeRemovesNothing47817571\001\notepad\focus\cloud-pull.marco
+[10:33:57][INFO] draft - saved route=cloud pull app=notepad steps=3 path=C:\Users\chris\AppData\Local\Temp\TestAPartialForgetSaysWhatIsStillThere3278575106\001\notepad\focus\cloud-pull.marco
+[10:33:57][INFO] draft - recorded route=a thing events=6 steps=5 app=arkascended stopped_by=the Stop button
+[10:33:57][INFO] draft - saved route=a thing app=arkascended steps=5 path=C:\Users\chris\AppData\Local\Temp\TestTheListingSaysWhichGenerationWroteARoutine2982115738\001\arkascended\focus\a-thing.marco
+[10:33:57][INFO] draft - recorded route=a thing events=6 steps=5 app=arkascended stopped_by=the Stop button
+[10:33:57][INFO] draft - saved route=a thing app=arkascended steps=5 path=C:\Users\chris\AppData\Local\Temp\TestARoutineWithNoDemonstrationIsListedAsNotOfferable4203159675\001\arkascended\focus\a-thing.marco
+[10:33:57][INFO] draft - recorded route=a thing events=6 steps=5 app=arkascended stopped_by=the Stop button
+[10:33:57][INFO] draft - saved route=a thing app=arkascended steps=5 path=C:\Users\chris\AppData\Local\Temp\TestARoutineFromALaterBuildIsNotOfferedAReviewAndIsUntouched3886225720\001\arkascended\focus\a-thing.marco
+[10:33:57][INFO] draft - recorded route=a thing events=6 steps=5 app=arkascended stopped_by=the Stop button
+[10:33:57][INFO] draft - saved route=a thing app=arkascended steps=5 path=C:\Users\chris\AppData\Local\Temp\TestNothingIsReplacedWithoutAReviewInHand2649170536\001\arkascended\focus\a-thing.marco
+[10:33:57][INFO] review - replaced from its own recording route=a-thing was=current now=current scope=app-anywhere
+[10:33:57][INFO] draft - recorded route=a thing events=6 steps=5 app=arkascended stopped_by=the Stop button
+[10:33:57][INFO] draft - saved route=a thing app=arkascended steps=5 path=C:\Users\chris\AppData\Local\Temp\TestCancellingAReviewLetsGoOfTheVersion2381803087\001\arkascended\focus\a-thing.marco
+[10:33:57][INFO] draft - recorded route=a thing events=6 steps=5 app=arkascended stopped_by=the Stop button
+[10:33:57][INFO] draft - saved route=a thing app=arkascended steps=5 path=C:\Users\chris\AppData\Local\Temp\TestAReviewIsOfTheRoutineThatWasAskedAbout2725958442\001\arkascended\focus\a-thing.marco
+[10:33:57][INFO] draft - recorded route=b thing events=5 steps=5 app=arkascended stopped_by=the Stop button
+[10:33:57][INFO] draft - saved route=b thing app=arkascended steps=5 path=C:\Users\chris\AppData\Local\Temp\TestAReviewIsOfTheRoutineThatWasAskedAbout2725958442\001\arkascended\focus\b-thing.marco
+[10:33:57][INFO] draft - recorded route=c thing events=5 steps=5 app=arkascended stopped_by=the Stop button
+[10:33:57][INFO] draft - saved route=c thing app=arkascended steps=5 path=C:\Users\chris\AppData\Local\Temp\TestAReviewIsOfTheRoutineThatWasAskedAbout2725958442\001\arkascended\focus\c-thing.marco
+[10:33:58][INFO] review - replaced from its own recording route=c-thing was=current now=current scope=app-anywhere
+[10:33:58][INFO] draft - recorded route=ark graphics events=3 steps=3 app=arkascended stopped_by=the Stop button
+[10:33:58][INFO] draft - saved route=ark graphics app=arkascended steps=3 path=C:\Users\chris\AppData\Local\Temp\TestAReviewOfTwoSameNamedRoutinesIsOfTheOneAddressed3201322495\001\arkascended\focus\ark-graphics.marco
+[10:33:58][INFO] draft - recorded route=ark graphics events=3 steps=3 app=discord stopped_by=the Stop button
+[10:33:58][INFO] draft - saved route=ark graphics app=discord steps=3 path=C:\Users\chris\AppData\Local\Temp\TestAReviewOfTwoSameNamedRoutinesIsOfTheOneAddressed3201322495\001\discord\focus\ark-graphics.marco
+[10:33:58][INFO] review - replaced from its own recording route=ark-graphics was=current now=current scope=app-anywhere
+[10:33:58][INFO] draft - recorded route=a thing events=6 steps=5 app=arkascended stopped_by=the Stop button
+[10:33:58][INFO] draft - saved route=a thing app=arkascended steps=5 path=C:\Users\chris\AppData\Local\Temp\TestTwoReviewsOfOneRoutineAreTwoReviews2266857247\001\arkascended\focus\a-thing.marco
+[10:33:58][INFO] review - replaced from its own recording route=a-thing was=unstated now=current scope=app-anywhere
+[10:33:58][INFO] review - replaced from its own recording route=a-thing was=current now=current scope=app-anywhere
+[10:33:58][INFO] draft - recorded route=a thing events=6 steps=5 app=arkascended stopped_by=the Stop button
+[10:33:58][INFO] draft - saved route=a thing app=arkascended steps=5 path=C:\Users\chris\AppData\Local\Temp\TestTwoRoutinesWithTheSameContentsAreTwoReviews3961304031\001\arkascended\focus\a-thing.marco
+[10:33:58][INFO] review - replaced from its own recording route=shared-thing was=current now=current scope=app
+[10:34:06][INFO] draft - recorded route=ark graphics events=3 steps=3 app=arkascended stopped_by=the Stop button
+[10:34:06][INFO] draft - saved route=ark graphics app=arkascended steps=3 path=C:\Users\chris\AppData\Local\Temp\TestReportingAProblemWithARoutineGathersItsSource1048062591\001\arkascended\focus\ark-graphics.marco
+[10:34:06][INFO] draft - recorded route=ark graphics events=3 steps=3 app=arkascended stopped_by=the Stop button
+[10:34:06][INFO] draft - saved route=ark graphics app=arkascended steps=3 path=C:\Users\chris\AppData\Local\Temp\TestAReportSaysWhenTheRoutineHasBeenSavedAgainSince651068377\001\arkascended\focus\ark-graphics.marco
+studio: the trial journal could not be written, so this flow will leave no evidence of itself: open C:\Users\chris\AppData\Local\Temp\TestAnActComposedAgainSinceItWasListedIsRefused637027515\001\trials\20261104-183424.jsonl: The system cannot find the path specified.
+[10:34:24][INFO] draft - saved route=type two letters app=notepad steps=7 path=C:\Users\chris\AppData\Local\Temp\TestARoutineThatNeedsNothingIsOfferedNoFields1708823256\001\notepad\focus\type-two-letters.marco
+[10:34:24][INFO] draft - recorded route=something else events=0 steps=0 app=chatgpt stopped_by=the Stop button
+[10:34:30][INFO] draft - saved route=press the thing app=notepad steps=5 path=C:\Users\chris\AppData\Local\Temp\TestAMeasuredPressCanBeMovedAndKeepsWhatItIsCheckedAgainst1636496342\001\notepad\focus\press-the-thing.marco
+[10:34:30][INFO] edit - saved from its own step list route=press-the-thing edits=1 steps=5 scope=app-anywhere
+[10:34:30][INFO] draft - saved route=press the thing app=notepad steps=5 path=C:\Users\chris\AppData\Local\Temp\TestAPressThatCannotBeMovedSaysSoOnItsRow3007759904\001\notepad\focus\press-the-thing.marco
+[10:34:30][INFO] draft - saved route=press the thing app=notepad steps=5 path=C:\Users\chris\AppData\Local\Temp\TestAMoveCountedAgainstAListThatHasMovedIsRefused2083063703\001\notepad\focus\press-the-thing.marco
+[10:34:30][INFO] edit - saved from its own step list route=press-the-thing edits=1 steps=5 scope=app-anywhere
+[10:34:41][INFO] draft - recorded route=save draft events=0 steps=0 app=chatgpt stopped_by=the Stop button
+[10:34:41][INFO] draft - recorded route=ark graphics events=6 steps=5 app=arkascended stopped_by=the Stop button
+[10:34:41][INFO] draft - recorded route=ark graphics events=6 steps=5 app=arkascended stopped_by=the Stop button
+[10:34:41][INFO] draft - recorded route=ark graphics events=6 steps=5 app=arkascended stopped_by=the Stop button
+[10:34:41][INFO] draft - recorded route=ark graphics again events=6 steps=5 app=arkascended stopped_by=the Stop button
+[10:34:41][INFO] draft - recorded route=ark graphics events=6 steps=5 app=arkascended stopped_by=the Stop button
+[10:34:41][INFO] draft - saved route=ark graphics app=arkascended steps=5 path=C:\Users\chris\AppData\Local\Temp\TestSaveKeepsTheRecordingUnderTheStatedScopeapp3683523027\001\arkascended\context\ark-graphics.marco
+[10:34:41][INFO] draft - recorded route=ark graphics events=6 steps=5 app=arkascended stopped_by=the Stop button
+[10:34:41][INFO] draft - saved route=ark graphics app=arkascended steps=5 path=C:\Users\chris\AppData\Local\Temp\TestSaveKeepsTheRecordingUnderTheStatedScopeapp-anywhere3139640426\001\arkascended\focus\ark-graphics.marco
+[10:34:41][INFO] draft - recorded route=ark graphics events=6 steps=5 app=arkascended stopped_by=the Stop button
+[10:34:41][INFO] draft - saved route=ark graphics app=arkascended steps=5 path=C:\Users\chris\AppData\Local\Temp\TestSaveKeepsTheRecordingUnderTheStatedScopeeverywhere792215651\001\global\ark-graphics.marco
+[10:34:41][INFO] draft - recorded route=ark graphics events=6 steps=5 app=arkascended stopped_by=the Stop button
+[10:34:41][INFO] draft - saved route=ark graphics app=arkascended steps=5 path=C:\Users\chris\AppData\Local\Temp\TestTheWindowRecordsAgainAfterSaving4018479552\001\arkascended\context\ark-graphics.marco
+[10:34:41][INFO] draft - recorded route=ark audio events=6 steps=5 app=arkascended stopped_by=the Stop button
+[10:34:41][INFO] draft - recorded route=ark graphics events=6 steps=5 app=arkascended stopped_by=the Stop button
+[10:34:41][INFO] draft - saved route=ark graphics app=arkascended steps=5 path=C:\Users\chris\AppData\Local\Temp\TestAnUnknownScopeIsRefusedAndTheDraftSurvives3222208849\001\arkascended\context\ark-graphics.marco
+[10:34:41][INFO] draft - recorded route=ark graphics events=3 steps=3 app=arkascended stopped_by=the Stop button
+[10:34:41][INFO] draft - recorded route=ark graphics events=3 steps=3 app=arkascended stopped_by=the Stop button
+[10:34:41][INFO] draft - saved route=ark graphics app=arkascended steps=3 path=C:\Users\chris\AppData\Local\Temp\TestReviewExplainsAMeasurementThatFailed39464236\001\arkascended\focus\ark-graphics.marco
+[10:34:41][INFO] draft - recorded route=ark graphics events=3 steps=3 app=arkascended stopped_by=the Stop button
+[10:34:41][INFO] draft - recorded route=ark graphics events=3 steps=3 app=arkascended stopped_by=the Stop button
+[10:34:41][INFO] draft - recorded route=a change of mind events=1 steps=0 app=chatgpt stopped_by=the Stop button
+[10:34:41][INFO] draft - recorded route=ark graphics events=6 steps=5 app=arkascended stopped_by=the Stop button
+[10:34:41][INFO] draft - recorded route=ark graphics events=3 steps=3 app=arkascended stopped_by=the Stop button
+[10:34:41][INFO] draft - recorded route=ark graphics events=3 steps=3 app=arkascended stopped_by=the Stop button
+[10:34:41][INFO] draft - recorded route=ark graphics events=3 steps=3 app=arkascended stopped_by=the Stop button
+[10:34:41][INFO] draft - recorded route=ark graphics events=3 steps=3 app=arkascended stopped_by=the Stop button
+studio: the trial journal could not be written, so this flow will leave no evidence of itself: open C:\Users\chris\AppData\Local\Temp\TestARecordingAndARunExcludeEachOther978155403\001\trials\20261104-183441.jsonl: The system cannot find the path specified.
+[10:34:41][INFO] draft - recorded route=ark graphics events=3 steps=3 app=arkascended stopped_by=the Stop button
+[10:34:41][INFO] draft - recorded route=ark graphics events=5 steps=5 app=arkascended stopped_by=the Stop button
+[10:34:41][INFO] draft - recorded route=ark graphics events=3 steps=3 app=arkascended stopped_by=the Stop button
+[10:34:41][INFO] draft - recorded route=ark graphics events=3 steps=3 app=arkascended stopped_by=the Stop button
+[10:34:41][INFO] draft - recorded route=ark graphics events=3 steps=3 app=arkascended stopped_by=the Stop button
+[10:34:41][INFO] draft - saved route=ark graphics app=arkascended steps=3 path=C:\Users\chris\AppData\Local\Temp\TestSavingAGuardedRecordingUnderAnImpossibleScopeIsRefusedevery1914832023\001\arkascended\focus\ark-graphics.marco
+[10:34:41][INFO] draft - recorded route=ark graphics events=3 steps=3 app=arkascended stopped_by=the Stop button
+[10:34:41][INFO] draft - saved route=ark graphics app=arkascended steps=3 path=C:\Users\chris\AppData\Local\Temp\TestARoutineThatCannotPressAnythingIsListedAndSavedAgain3140963172\001\global\ark-graphics.marco
+[10:34:41][INFO] draft - saved route=ark graphics app=arkascended steps=3 path=C:\Users\chris\AppData\Local\Temp\TestARoutineThatCannotPressAnythingIsListedAndSavedAgain3140963172\001\arkascended\focus\ark-graphics.marco
+[10:34:41][INFO] resave - saved again so its presses have a window route=ark graphics was=app now=app-anywhere recorded_as=coordinates
+[10:34:41][INFO] draft - recorded route=ark graphics events=3 steps=3 app=arkascended stopped_by=the Stop button
+[10:34:41][INFO] draft - saved route=ark graphics app=arkascended steps=3 path=C:\Users\chris\AppData\Local\Temp\TestARightOrMiddlePressIsSavedAndTheReviewSaysWhichButtonright1343793891\001\arkascended\focus\ark-graphics.marco
+[10:34:41][INFO] draft - recorded route=ark graphics events=3 steps=3 app=arkascended stopped_by=the Stop button
+[10:34:41][INFO] draft - saved route=ark graphics app=arkascended steps=3 path=C:\Users\chris\AppData\Local\Temp\TestARightOrMiddlePressIsSavedAndTheReviewSaysWhichButtonmiddle533520623\001\arkascended\focus\ark-graphics.marco
+[10:34:41][INFO] draft - recorded route=ark graphics events=3 steps=3 app=arkascended stopped_by=the Stop button
+[10:34:41][INFO] draft - saved route=ark graphics app=arkascended steps=3 path=C:\Users\chris\AppData\Local\Temp\TestAnOrdinaryRecordingIsSavedWithoutComplaint4209851496\001\arkascended\focus\ark-graphics.marco
+[10:34:41][INFO] draft - recorded route=ark graphics events=3 steps=3 app=arkascended stopped_by=the Stop button
+[10:34:41][INFO] draft - saved route=ark graphics app=arkascended steps=3 path=C:\Users\chris\AppData\Local\Temp\TestARightClickInALegacyRecordingIsStillSaved3183515421\001\arkascended\context\ark-graphics.marco
+[10:34:41][INFO] draft - recorded route=ark graphics events=8 steps=5 app=arkascended stopped_by=the Stop button
+[10:34:41][INFO] draft - saved route=ark graphics app=arkascended steps=5 path=C:\Users\chris\AppData\Local\Temp\TestAVisitToStudioLeavesARecordingThatStillSaves1345767415\001\arkascended\focus\ark-graphics.marco
+[10:34:41][INFO] draft - recorded route=ark graphics events=3 steps=3 app=arkascended stopped_by=the Stop button
+[10:34:41][INFO] draft - saved route=ark graphics app=arkascended steps=3 path=C:\Users\chris\AppData\Local\Temp\TestAGuardedRecordingCanBeSavedOnlyIn948325195\001\arkascended\context\ark-graphics.marco
+[10:34:53][INFO] draft - recorded route=ark graphics events=6 steps=5 app=arkascended stopped_by=the Stop button
+[10:34:53][INFO] draft - recorded route=ark graphics events=6 steps=5 app=arkascended stopped_by=the Stop button
+[10:34:53][INFO] draft - saved route=type my address app=notepad steps=3 path=C:\Users\chris\AppData\Local\Temp\TestARoutineCanBeCalledSomethingElse1554805350\001\notepad\focus\type-my-address.marco
+[10:34:53][INFO] rescope - moved route=type my address from=notepad/focus/type-my-address to=notepad/focus/post-my-address scope=app-anywhere replaced=false residue=0
+[10:34:53][INFO] draft - saved route=type my address app=notepad steps=2 path=C:\Users\chris\AppData\Local\Temp\TestARenameKeepsTheValuesTheRoutineAsksFor1732420134\001\notepad\focus\type-my-address.marco
+[10:34:53][INFO] edit - saved from its own step list route=type-my-address edits=1 steps=2 scope=app-anywhere
+[10:34:53][INFO] rescope - moved route=type my address from=notepad/focus/type-my-address to=notepad/focus/post-my-address scope=app-anywhere replaced=false residue=0
+[10:34:53][INFO] draft - saved route=type my address app=notepad steps=2 path=C:\Users\chris\AppData\Local\Temp\TestAClauseTypedIntoTheRenameBoxIsRefused1213881414\001\notepad\focus\type-my-address.marco
+[10:34:53][INFO] edit - saved from its own step list route=type-my-address edits=1 steps=2 scope=app-anywhere
+[10:34:53][INFO] draft - saved route=type my address app=notepad steps=3 path=C:\Users\chris\AppData\Local\Temp\TestARenameOntoAnExistingNameIsRefused3675496202\001\notepad\focus\type-my-address.marco
+[10:34:53][INFO] draft - saved route=post my address app=notepad steps=3 path=C:\Users\chris\AppData\Local\Temp\TestARenameOntoAnExistingNameIsRefused3675496202\001\notepad\focus\post-my-address.marco
+[10:34:53][INFO] draft - saved route=type my address app=notepad steps=3 path=C:\Users\chris\AppData\Local\Temp\TestRenamingARoutineToItsOwnNameIsRefused2237964257\001\notepad\focus\type-my-address.marco
+[10:34:53][INFO] draft - saved route=type my address app=notepad steps=3 path=C:\Users\chris\AppData\Local\Temp\TestARoutineThatReadsACredentialUnderItsOwnNameRefusesToBeRename1938693887\001\notepad\focus\type-my-address.marco
+[10:34:54][INFO] draft - recorded route=ark graphics events=3 steps=3 app=arkascended stopped_by=the Stop button
+[10:34:54][INFO] draft - saved route=ark graphics app=arkascended steps=3 path=C:\Users\chris\AppData\Local\Temp\TestSavingOverARoutineIsRefusedAndLeavesItAlone2170502414\001\arkascended\focus\ark-graphics.marco
+[10:34:54][INFO] draft - recorded route=ark graphics events=3 steps=3 app=arkascended stopped_by=the Stop button
+[10:34:54][INFO] draft - recorded route=ark graphics events=3 steps=3 app=arkascended stopped_by=the Stop button
+[10:34:54][INFO] draft - saved route=ark graphics app=arkascended steps=3 path=C:\Users\chris\AppData\Local\Temp\TestSavingUnderAnotherNameKeepsBoth2603688289\001\arkascended\focus\ark-graphics.marco
+[10:34:54][INFO] draft - recorded route=ark graphics events=3 steps=3 app=arkascended stopped_by=the Stop button
+[10:34:54][INFO] draft - saved route=ark graphics two app=arkascended steps=3 path=C:\Users\chris\AppData\Local\Temp\TestSavingUnderAnotherNameKeepsBoth2603688289\001\arkascended\focus\ark-graphics-two.marco
+[10:34:54][INFO] draft - recorded route=ark graphics three events=3 steps=3 app=arkascended stopped_by=the Stop button
+[10:34:54][INFO] draft - recorded route=settings events=3 steps=3 app=arkascended stopped_by=the Stop button
+[10:34:54][INFO] draft - saved route=settings app=arkascended steps=3 path=C:\Users\chris\AppData\Local\Temp\TestReplacingChangesOnlyTheOneChosen3933328079\001\arkascended\focus\settings.marco
+[10:34:54][INFO] draft - recorded route=settings events=3 steps=3 app=arkascended stopped_by=the Stop button
+[10:34:54][INFO] draft - saved route=settings app=discord steps=3 path=C:\Users\chris\AppData\Local\Temp\TestReplacingChangesOnlyTheOneChosen3933328079\001\discord\focus\settings.marco
+[10:34:54][INFO] draft - recorded route=settings events=3 steps=3 app=arkascended stopped_by=the Stop button
+[10:34:54][INFO] draft - saved route=settings app=arkascended steps=3 path=C:\Users\chris\AppData\Local\Temp\TestReplacingChangesOnlyTheOneChosen3933328079\001\arkascended\focus\settings.marco
+[10:34:54][INFO] draft - recorded route=settings events=3 steps=3 app=arkascended stopped_by=the Stop button
+[10:34:54][INFO] draft - saved route=settings app=arkascended steps=3 path=C:\Users\chris\AppData\Local\Temp\TestAReplacementRefusesWhenTheRoutineChangedSinceTheCardWasDrawn1433381746\001\arkascended\focus\settings.marco
+[10:34:54][INFO] draft - recorded route=settings events=3 steps=3 app=arkascended stopped_by=the Stop button
+[10:34:54][INFO] draft - recorded route=settings events=3 steps=3 app=arkascended stopped_by=the Stop button
+[10:34:54][INFO] draft - saved route=settings app=arkascended steps=3 path=C:\Users\chris\AppData\Local\Temp\TestReplacingSomethingElseIsRefused1341376812\001\arkascended\focus\settings.marco
+[10:34:54][INFO] draft - recorded route=settings events=3 steps=3 app=arkascended stopped_by=the Stop button
+[10:34:54][INFO] draft - saved route=settings app=discord steps=3 path=C:\Users\chris\AppData\Local\Temp\TestReplacingSomethingElseIsRefused1341376812\001\discord\focus\settings.marco
+[10:34:54][INFO] draft - recorded route=settings events=3 steps=3 app=arkascended stopped_by=the Stop button
+[10:34:54][INFO] draft - saved route=ark graphics app=arkascended steps=1 path=C:\Users\chris\AppData\Local\Temp\TestTheOrchestratorStillOverwritesForEverybodyElse1042516679\001\arkascended\focus\ark-graphics.marco
+[10:34:54][INFO] draft - saved route=ark graphics app=arkascended steps=1 path=C:\Users\chris\AppData\Local\Temp\TestTheOrchestratorStillOverwritesForEverybodyElse1042516679\001\arkascended\focus\ark-graphics.marco
+[10:34:57][INFO] draft - saved route=type my address app=notepad steps=3 path=C:\Users\chris\AppData\Local\Temp\TestEveryScopeIsAnsweredForAChosenRoutine2231032165\001\notepad\focus\type-my-address.marco
+[10:34:57][INFO] draft - saved route=ark graphics app=notepad steps=5 path=C:\Users\chris\AppData\Local\Temp\TestAGuardedRoutineIsRefusedTheScopesThatBringNoWindow4018405397\001\notepad\focus\ark-graphics.marco
+[10:34:57][INFO] draft - saved route=type my address app=notepad steps=3 path=C:\Users\chris\AppData\Local\Temp\TestARoutineWithNoDemonstrationIsOfferedNoMove842328731\001\notepad\focus\type-my-address.marco
+[10:34:57][INFO] draft - saved route=type my address app=notepad steps=3 path=C:\Users\chris\AppData\Local\Temp\TestAPreparedMoveShowsBothEndsAndWritesNothing3903896279\001\notepad\focus\type-my-address.marco
+[10:34:57][INFO] draft - saved route=type my address app=notepad steps=3 path=C:\Users\chris\AppData\Local\Temp\TestAReviewedMoveLandsAtTheNewIdentityAndSaysSo3574405776\001\notepad\focus\type-my-address.marco
+[10:34:57][INFO] rescope - moved route=type my address from=notepad/focus/type-my-address to=notepad/context/type-my-address scope=app replaced=false residue=0
+[10:34:57][INFO] draft - saved route=type my address app=notepad steps=3 path=C:\Users\chris\AppData\Local\Temp\TestAMoveWithATokenThisWindowNeverPreparedIsRefused3672727872\001\notepad\focus\type-my-address.marco
+[10:34:57][INFO] draft - saved route=type my address app=notepad steps=3 path=C:\Users\chris\AppData\Local\Temp\TestAMoveOntoAnOccupiedIdentityNeedsItsOwnYes1068108219\001\notepad\focus\type-my-address.marco
+[10:34:57][INFO] rescope - moved route=type my address from=notepad/focus/type-my-address to=notepad/context/type-my-address scope=app replaced=true residue=0
+[10:34:57][INFO] draft - saved route=type my address app=notepad steps=3 path=C:\Users\chris\AppData\Local\Temp\TestAYesToReplaceDoesNotCoverARoutineSavedSince1062939630\001\notepad\focus\type-my-address.marco
+[10:34:57][INFO] draft - saved route=type my address app=notepad steps=3 path=C:\Users\chris\AppData\Local\Temp\TestAMoveOfARoutineSavedAgainSinceTheReviewIsRefused425608258\001\notepad\focus\type-my-address.marco
+[10:35:09][INFO] draft - recorded route=ark graphics events=3 steps=3 app=arkascended stopped_by=the Stop button
+[10:35:09][INFO] draft - saved route=ark graphics app=arkascended steps=3 path=C:\Users\chris\AppData\Local\Temp\TestASavedRoutineIsListedAndReadyToPlay1747725718\001\arkascended\focus\ark-graphics.marco
+[10:35:09][INFO] draft - recorded route=ark graphics events=3 steps=3 app=arkascended stopped_by=the Stop button
+[10:35:09][INFO] draft - saved route=ark graphics app=arkascended steps=3 path=C:\Users\chris\AppData\Local\Temp\TestAnActIsNotListedAsARoutine556895710\001\arkascended\focus\ark-graphics.marco
+[10:35:09][INFO] draft - recorded route=ark graphics events=3 steps=3 app=arkascended stopped_by=the Stop button
+[10:35:09][INFO] draft - saved route=ark graphics app=arkascended steps=3 path=C:\Users\chris\AppData\Local\Temp\TestAModuleBesideTheRoutinesIsNotOfferedAsOne676619212\001\arkascended\focus\ark-graphics.marco
+[10:35:09][INFO] draft - recorded route=ark graphics events=3 steps=3 app=arkascended stopped_by=the Stop button
+[10:35:09][INFO] draft - saved route=ark graphics app=arkascended steps=3 path=C:\Users\chris\AppData\Local\Temp\TestARoutineThatCannotPressAnythingIsNotOfferedForPlay3171423693\001\global\ark-graphics.marco
+[10:35:09][INFO] draft - recorded route=ark graphics events=3 steps=3 app=arkascended stopped_by=the Stop button
+[10:35:09][INFO] draft - saved route=ark graphics app=arkascended steps=3 path=C:\Users\chris\AppData\Local\Temp\TestARoutineMissingAMeasurementIsNotOfferedForPlay1486365846\001\arkascended\focus\ark-graphics.marco
+[10:35:09][INFO] draft - recorded route=ark graphics events=3 steps=3 app=arkascended stopped_by=the Stop button
+[10:35:09][INFO] draft - saved route=ark graphics app=arkascended steps=3 path=C:\Users\chris\AppData\Local\Temp\TestNothingInTheRoutinePanelIsSaidTwiceeverything_was_measured2144366226\001\arkascended\focus\ark-graphics.marco
+[10:35:09][INFO] draft - recorded route=ark graphics events=3 steps=3 app=arkascended stopped_by=the Stop button
+[10:35:09][INFO] draft - saved route=ark graphics app=arkascended steps=3 path=C:\Users\chris\AppData\Local\Temp\TestNothingInTheRoutinePanelIsSaidTwicethe_scale_could_not_be_r1328013311\001\arkascended\focus\ark-graphics.marco
+[10:35:09][INFO] draft - recorded route=ark graphics events=3 steps=3 app=arkascended stopped_by=the Stop button
+[10:35:09][INFO] draft - saved route=ark graphics app=arkascended steps=3 path=C:\Users\chris\AppData\Local\Temp\TestNothingInTheRoutinePanelIsSaidTwicethe_window_would_not_say266669368\001\arkascended\focus\ark-graphics.marco
+[10:35:09][INFO] draft - recorded route=ark graphics events=3 steps=3 app=arkascended stopped_by=the Stop button
+[10:35:09][INFO] draft - saved route=ark graphics app=arkascended steps=3 path=C:\Users\chris\AppData\Local\Temp\TestPlayingAnUnknownRoutineNamesTheLibrary2168424432\001\arkascended\focus\ark-graphics.marco
+[10:35:09][INFO] draft - recorded route=ark graphics events=3 steps=3 app=arkascended stopped_by=the Stop button
+[10:35:09][INFO] draft - saved route=ark graphics app=arkascended steps=3 path=C:\Users\chris\AppData\Local\Temp\TestPlayingARoutineByNameAloneIsRefused1607861084\001\arkascended\focus\ark-graphics.marco
+[10:35:09][INFO] draft - recorded route=ark graphics events=3 steps=3 app=arkascended stopped_by=the Stop button
+[10:35:09][INFO] draft - saved route=ark graphics app=arkascended steps=3 path=C:\Users\chris\AppData\Local\Temp\TestARoutineWillNotRunWhileSomethingElseIs4285838885\001\arkascended\focus\ark-graphics.marco
+[10:35:09][INFO] draft - recorded route=ark graphics events=3 steps=3 app=arkascended stopped_by=the Stop button
+[10:35:09][INFO] draft - saved route=ark graphics app=arkascended steps=3 path=C:\Users\chris\AppData\Local\Temp\TestARoutineWillNotRunWhileSomethingIsBeingRecorded3282034580\001\arkascended\focus\ark-graphics.marco
+[10:35:09][INFO] draft - recorded route=ark graphics events=3 steps=3 app=arkascended stopped_by=the Stop button
+[10:35:09][INFO] draft - saved route=ark graphics app=arkascended steps=3 path=C:\Users\chris\AppData\Local\Temp\TestTheChosenWindowIsBroughtForwardBeforeTheRunStarts721527569\001\arkascended\focus\ark-graphics.marco
+[10:35:09][INFO] draft - recorded route=ark graphics events=3 steps=3 app=arkascended stopped_by=the Stop button
+[10:35:09][INFO] draft - saved route=ark graphics app=arkascended steps=3 path=C:\Users\chris\AppData\Local\Temp\TestARoutineThatNamesNoApplicationIsPlayedIntoAChosenWindow2654589984\001\global\ark-graphics.marco
+[10:35:09][INFO] draft - recorded route=ark graphics events=3 steps=3 app=arkascended stopped_by=the Stop button
+[10:35:09][INFO] draft - saved route=ark graphics app=arkascended steps=3 path=C:\Users\chris\AppData\Local\Temp\TestARoutineWithNowhereToPressIsNotPlayed1120502526\001\arkascended\focus\ark-graphics.marco
+[10:35:09][INFO] draft - recorded route=ark graphics events=3 steps=3 app=arkascended stopped_by=the Stop button
+[10:35:09][INFO] draft - saved route=ark graphics app=arkascended steps=3 path=C:\Users\chris\AppData\Local\Temp\TestTheCommandCarriesTheRoutesIdentityAndTheLibrary2966840424\001\arkascended\focus\ark-graphics.marco
+[10:35:09][INFO] draft - recorded route=ark graphics events=3 steps=3 app=arkascended stopped_by=the Stop button
+[10:35:09][INFO] draft - saved route=ark graphics app=arkascended steps=3 path=C:\Users\chris\AppData\Local\Temp\TestAContextRoutineIsNotAskedForAsAFocusOne3461826184\001\arkascended\context\ark-graphics.marco
+[10:35:09][INFO] draft - recorded route=ark graphics events=3 steps=3 app=arkascended stopped_by=the Stop button
+[10:35:09][INFO] draft - saved route=ark graphics app=arkascended steps=3 path=C:\Users\chris\AppData\Local\Temp\TestTwoRoutinesOfOneNameAreTwoRoutines1790649789\001\arkascended\focus\ark-graphics.marco
+[10:35:09][INFO] draft - recorded route=ark graphics events=3 steps=3 app=discord stopped_by=the Stop button
+[10:35:09][INFO] draft - saved route=ark graphics app=discord steps=3 path=C:\Users\chris\AppData\Local\Temp\TestTwoRoutinesOfOneNameAreTwoRoutines1790649789\001\discord\focus\ark-graphics.marco
+[10:35:09][INFO] draft - recorded route=ark graphics events=3 steps=3 app=arkascended stopped_by=the Stop button
+[10:35:09][INFO] draft - saved route=ark graphics app=arkascended steps=3 path=C:\Users\chris\AppData\Local\Temp\TestAnUnrunnableNamesakeDoesNotDisableTheValidRoutine3097647091\001\global\ark-graphics.marco
+[10:35:09][INFO] draft - saved route=ark graphics app=arkascended steps=3 path=C:\Users\chris\AppData\Local\Temp\TestAnUnrunnableNamesakeDoesNotDisableTheValidRoutine3097647091\001\arkascended\focus\ark-graphics.marco
+[10:35:09][INFO] draft - recorded route=ark graphics events=3 steps=3 app=arkascended stopped_by=the Stop button
+[10:35:09][INFO] draft - saved route=ark graphics app=arkascended steps=3 path=C:\Users\chris\AppData\Local\Temp\TestSavingOneOfTwoNamesakesAgainRepairsTheOneAskedFor1905553483\001\global\ark-graphics.marco
+[10:35:09][INFO] draft - recorded route=ark graphics events=3 steps=3 app=discord stopped_by=the Stop button
+[10:35:09][INFO] draft - saved route=ark graphics app=discord steps=3 path=C:\Users\chris\AppData\Local\Temp\TestSavingOneOfTwoNamesakesAgainRepairsTheOneAskedFor1905553483\001\discord\focus\ark-graphics.marco
+[10:35:09][INFO] draft - saved route=ark graphics app=discord steps=3 path=C:\Users\chris\AppData\Local\Temp\TestSavingOneOfTwoNamesakesAgainRepairsTheOneAskedFor1905553483\001\discord\context\ark-graphics.marco
+[10:35:09][INFO] draft - saved route=ark graphics app=arkascended steps=3 path=C:\Users\chris\AppData\Local\Temp\TestSavingOneOfTwoNamesakesAgainRepairsTheOneAskedFor1905553483\001\arkascended\focus\ark-graphics.marco
+[10:35:09][INFO] resave - saved again so its presses have a window route=ark graphics was=app now=app-anywhere recorded_as=coordinates
+[10:35:09][INFO] draft - recorded route=ark graphics events=3 steps=3 app=arkascended stopped_by=the Stop button
+[10:35:09][INFO] draft - saved route=ark graphics app=arkascended steps=3 path=C:\Users\chris\AppData\Local\Temp\TestSavingAgainKeepsWhatTheRoutineSaysItRecorded4048133902\001\global\ark-graphics.marco
+[10:35:09][INFO] draft - saved route=ark graphics app=arkascended steps=3 path=C:\Users\chris\AppData\Local\Temp\TestSavingAgainKeepsWhatTheRoutineSaysItRecorded4048133902\001\arkascended\focus\ark-graphics.marco
+[10:35:09][INFO] resave - saved again so its presses have a window route=ark graphics was=app now=app-anywhere recorded_as=coordinates
+[10:35:13][INFO] draft - saved route=type two letters app=notepad steps=3 path=C:\Users\chris\AppData\Local\Temp\TestTheShortcutTabOffersTheLeaderAndTheRoutinesOwnApplicationFir3886487191\002\notepad\focus\type-two-letters.marco
+[10:35:13][INFO] draft - saved route=save as pdf app=notepad steps=3 path=C:\Users\chris\AppData\Local\Temp\TestTheShortcutTabOffersTheLeaderAndTheRoutinesOwnApplicationFir3886487191\002\notepad\context\save-as-pdf.marco
+[10:35:13][INFO] draft - saved route=type two letters app=notepad steps=3 path=C:\Users\chris\AppData\Local\Temp\TestAKeySetInStudioIsWhatAPressRuns578129520\002\notepad\focus\type-two-letters.marco
+[10:35:13][INFO] draft - saved route=save as pdf app=notepad steps=3 path=C:\Users\chris\AppData\Local\Temp\TestAKeySetInStudioIsWhatAPressRuns578129520\002\notepad\context\save-as-pdf.marco
+[10:35:13][INFO] draft - saved route=type two letters app=notepad steps=3 path=C:\Users\chris\AppData\Local\Temp\TestAKeyInUseIsShownAndReplacedOnlyWithItsVersion2797446570\002\notepad\focus\type-two-letters.marco
+[10:35:13][INFO] draft - saved route=save as pdf app=notepad steps=3 path=C:\Users\chris\AppData\Local\Temp\TestAKeyInUseIsShownAndReplacedOnlyWithItsVersion2797446570\002\notepad\context\save-as-pdf.marco
+[10:35:13][INFO] draft - saved route=type two letters app=notepad steps=3 path=C:\Users\chris\AppData\Local\Temp\TestAChangeInStudioMovesTheKey4220205612\002\notepad\focus\type-two-letters.marco
+[10:35:13][INFO] draft - saved route=save as pdf app=notepad steps=3 path=C:\Users\chris\AppData\Local\Temp\TestAChangeInStudioMovesTheKey4220205612\002\notepad\context\save-as-pdf.marco
+[10:35:13][INFO] draft - saved route=type two letters app=notepad steps=3 path=C:\Users\chris\AppData\Local\Temp\TestRemovingInStudioNeedsTheVersionShown2069669680\002\notepad\focus\type-two-letters.marco
+[10:35:13][INFO] draft - saved route=save as pdf app=notepad steps=3 path=C:\Users\chris\AppData\Local\Temp\TestRemovingInStudioNeedsTheVersionShown2069669680\002\notepad\context\save-as-pdf.marco
+[10:35:13][INFO] draft - saved route=type two letters app=notepad steps=3 path=C:\Users\chris\AppData\Local\Temp\TestAnOnlyInRoutineIsNotOfferedEverywhere1186516270\002\notepad\focus\type-two-letters.marco
+[10:35:13][INFO] draft - saved route=save as pdf app=notepad steps=3 path=C:\Users\chris\AppData\Local\Temp\TestAnOnlyInRoutineIsNotOfferedEverywhere1186516270\002\notepad\context\save-as-pdf.marco
+[10:35:13][INFO] draft - saved route=type two letters app=notepad steps=3 path=C:\Users\chris\AppData\Local\Temp\TestAShortcutSetUpByNameIsReassignedOnlyOnRequest2869023153\002\notepad\focus\type-two-letters.marco
+[10:35:13][INFO] draft - saved route=save as pdf app=notepad steps=3 path=C:\Users\chris\AppData\Local\Temp\TestAShortcutSetUpByNameIsReassignedOnlyOnRequest2869023153\002\notepad\context\save-as-pdf.marco
+[10:35:13][INFO] draft - saved route=type two letters app=notepad steps=3 path=C:\Users\chris\AppData\Local\Temp\TestTheShortcutTabHoldsOffWhileRecording3268568230\002\notepad\focus\type-two-letters.marco
+[10:35:13][INFO] draft - saved route=save as pdf app=notepad steps=3 path=C:\Users\chris\AppData\Local\Temp\TestTheShortcutTabHoldsOffWhileRecording3268568230\002\notepad\context\save-as-pdf.marco
+[10:35:13][INFO] draft - recorded route=something else events=0 steps=0 app=chatgpt stopped_by=the Stop button
+[10:35:13][INFO] draft - saved route=type two letters app=notepad steps=3 path=C:\Users\chris\AppData\Local\Temp\TestAnUnreadableShortcutsFileIsSaidAndNothingIsOffered1782638727\002\notepad\focus\type-two-letters.marco
+[10:35:13][INFO] draft - saved route=save as pdf app=notepad steps=3 path=C:\Users\chris\AppData\Local\Temp\TestAnUnreadableShortcutsFileIsSaidAndNothingIsOffered1782638727\002\notepad\context\save-as-pdf.marco
+[10:35:13][INFO] draft - saved route=type two letters app=notepad steps=3 path=C:\Users\chris\AppData\Local\Temp\TestAGlobalShortcutSaysWhereItIsHidden136033817\002\notepad\focus\type-two-letters.marco
+[10:35:13][INFO] draft - saved route=save as pdf app=notepad steps=3 path=C:\Users\chris\AppData\Local\Temp\TestAGlobalShortcutSaysWhereItIsHidden136033817\002\notepad\context\save-as-pdf.marco
+[10:35:13][INFO] draft - recorded route=settings events=3 steps=3 app=arkascended stopped_by=the Stop button
+[10:35:13][INFO] draft - saved route=settings app=arkascended steps=3 path=C:\Users\chris\AppData\Local\Temp\TestTheReplaceQuestionSaysItsShortcutsAreKept3203403528\002\arkascended\focus\settings.marco
+[10:35:13][INFO] draft - recorded route=settings events=3 steps=3 app=arkascended stopped_by=the Stop button
+[10:35:13][INFO] draft - saved route=settings app=arkascended steps=3 path=C:\Users\chris\AppData\Local\Temp\TestTheReplaceQuestionSaysItsShortcutsAreKept3203403528\002\arkascended\focus\settings.marco
+--- FAIL: TestTheShortcutTabDoesWhatItShows (0.73s)
+    shortcutspage_test.go:52: the page threw: "err=1 chips=1 rows=1 rowsays=1 legacy=1 leader=1 defaultwhere=1 setdisabledempty=1 boxlower=1 taken=1 kept=1 firstset=1 replacesent=1 replacenotform=1 takengone=1 changelabel=1 cancelshown=1 changesent=1 reassignsent=1 reassignsaid=1 removesent=1 removesaid=1 refused=1 refusedbad=1 refusedkept=1 copyclean=1 copynodefault=1 copyshadow=1 copysetdisabled=1 pdfeverywhere=1 pdfwhy=1 calls=9"
+[10:35:14][INFO] draft - saved route=say hi app=notepad steps=4 path=C:\Users\chris\AppData\Local\Temp\TestSimplifyingADraftThatTakesTextKeepsItTyped4262147161\001\notepad\context\say-hi.marco
+[10:35:14][INFO] draft - saved with its own basis route=say-hi basis=simplify-typing changed=false steps=4
+[10:35:14][INFO] draft - saved route=say hello app=notepad steps=2 path=C:\Users\chris\AppData\Local\Temp\TestSaveWritesTheVersionOnScreen1249845662\001\notepad\context\say-hello.marco
+[10:35:14][INFO] draft - saved with its own basis route=say-hello basis=simplify-typing changed=false steps=2
+[10:35:14][INFO] draft - saved route=say hello app=notepad steps=2 path=C:\Users\chris\AppData\Local\Temp\TestASimplifiedSaveCanBeStepEditedAndSavedAgain2829383392\001\notepad\context\say-hello.marco
+[10:35:14][INFO] draft - saved with its own basis route=say-hello basis=simplify-typing changed=false steps=2
+[10:35:14][INFO] edit - saved from its own step list route=say-hello edits=1 steps=2 scope=app
+[10:35:14][INFO] draft - saved route=say plainly app=notepad steps=7 path=C:\Users\chris\AppData\Local\Temp\TestAPlainSaveIsEditedFromItsDemonstration1551573791\001\notepad\context\say-plainly.marco
+[10:35:14][INFO] draft - recorded route=ark graphics events=6 steps=5 app=arkascended stopped_by=the Stop button
+[10:35:14][INFO] draft - recorded route=ark graphics events=6 steps=5 app=arkascended stopped_by=the Stop button
+[10:35:14][INFO] draft - saved route=ark graphics app=arkascended steps=5 path=C:\Users\chris\AppData\Local\Temp\TestASavedRoutineSaysHowItWasRecorded4118651995\001\arkascended\focus\ark-graphics.marco
+[10:35:14][INFO] draft - saved route=say hello app=notepad steps=2 path=C:\Users\chris\AppData\Local\Temp\TestTheStepPanelSaysWhichStepTypesText6502029\001\notepad\focus\say-hello.marco
+[10:35:14][INFO] draft - saved route=say hello app=notepad steps=2 path=C:\Users\chris\AppData\Local\Temp\TestSupplyingAStepsTextMakesTheRoutineAskForIt3150075656\001\notepad\focus\say-hello.marco
+[10:35:14][INFO] edit - saved from its own step list route=say-hello edits=1 steps=2 scope=app-anywhere
+[10:35:14][INFO] draft - saved route=say hello app=notepad steps=2 path=C:\Users\chris\AppData\Local\Temp\TestAnAlreadySuppliedStepSaysSoInsteadOfOfferingAgain1365386470\001\notepad\focus\say-hello.marco
+[10:35:14][INFO] edit - saved from its own step list route=say-hello edits=1 steps=2 scope=app-anywhere
+[10:35:14][INFO] draft - saved route=say hello app=notepad steps=2 path=C:\Users\chris\AppData\Local\Temp\TestTheEditedRoutineTypesTheValueRatherThanReadingACredential477826873\001\notepad\focus\say-hello.marco
+[10:35:14][INFO] draft - saved route=say two things app=notepad steps=4 path=C:\Users\chris\AppData\Local\Temp\TestAnEditedRoutineCanBeEditedAgain1603501566\001\notepad\focus\say-two-things.marco
+[10:35:14][INFO] edit - saved from its own step list route=say-two-things edits=1 steps=4 scope=app-anywhere
+[10:35:14][INFO] edit - saved from its own step list route=say-two-things edits=1 steps=4 scope=app-anywhere
+[10:35:14][INFO] draft - saved route=say hello app=notepad steps=2 path=C:\Users\chris\AppData\Local\Temp\TestARebuildOfAnEditedRoutineNeverReadsACredential2455098074\001\notepad\focus\say-hello.marco
+[10:35:14][INFO] edit - saved from its own step list route=say-hello edits=1 steps=2 scope=app-anywhere
+[10:35:14][INFO] draft - saved route=say hello app=notepad steps=2 path=C:\Users\chris\AppData\Local\Temp\TestTodaysRulesKeepsTheSuppliedValueAndSimplifyingGivesBackTheTe3101129768\001\notepad\focus\say-hello.marco
+[10:35:14][INFO] edit - saved from its own step list route=say-hello edits=1 steps=2 scope=app-anywhere
+[10:35:14][INFO] review - replaced from its own recording route=say-hello was=current now=current scope=app-anywhere
+[10:35:14][INFO] draft - saved route=say hello app=notepad steps=2 path=C:\Users\chris\AppData\Local\Temp\TestTodaysRulesKeepsTheSuppliedValueAndSimplifyingGivesBackTheTe3101129768\003\notepad\focus\say-hello.marco
+[10:35:14][INFO] edit - saved from its own step list route=say-hello edits=1 steps=2 scope=app-anywhere
+[10:35:14][INFO] review - replaced from its own recording route=say-hello was=current now=current scope=app-anywhere
+[10:35:14][INFO] draft - saved route=say hello app=notepad steps=2 path=C:\Users\chris\AppData\Local\Temp\TestTheWindowRefusesANameThePlaceholderCannotHave368075018\001\notepad\focus\say-hello.marco
+[10:35:16][INFO] draft - saved route=type two letters app=notepad steps=7 path=C:\Users\chris\AppData\Local\Temp\TestTheStepPanelListsEveryStepWithWhatCanBeDoneToIt583330462\001\notepad\focus\type-two-letters.marco
+[10:35:16][INFO] draft - saved route=hold shift app=notepad steps=9 path=C:\Users\chris\AppData\Local\Temp\TestTheStepPanelSaysWhichRemovalsTakeTwoSteps3937050477\001\notepad\focus\hold-shift.marco
+[10:35:16][INFO] draft - saved route=type two letters app=notepad steps=7 path=C:\Users\chris\AppData\Local\Temp\TestTheStepPanelRefusesChangesWithoutTheListTheyWereReadOff1878688325\001\notepad\focus\type-two-letters.marco
+[10:35:16][INFO] draft - saved route=type two letters app=notepad steps=7 path=C:\Users\chris\AppData\Local\Temp\TestChangesAreRefusedWhenTheRoutineWasWrittenSinceItsStepsWereLi2807400399\001\notepad\focus\type-two-letters.marco
+[10:35:16][INFO] draft - saved route=type two letters app=notepad steps=9 path=C:\Users\chris\AppData\Local\Temp\TestChangesAreRefusedWhenTheRoutineWasWrittenSinceItsStepsWereLi2807400399\001\notepad\focus\type-two-letters.marco
+[10:35:17][INFO] draft - saved route=type two letters app=notepad steps=7 path=C:\Users\chris\AppData\Local\Temp\TestAStepEditIsSavedByItsReviewsTokenAlone2356863869\001\notepad\focus\type-two-letters.marco
+[10:35:17][INFO] edit - saved from its own step list route=type-two-letters edits=1 steps=7 scope=app-anywhere
+[10:35:17][INFO] draft - saved route=type two letters app=notepad steps=7 path=C:\Users\chris\AppData\Local\Temp\TestCancellingAStepEditWritesNothingAndCannotBeSavedAfterwards3950829837\001\notepad\focus\type-two-letters.marco
+[10:35:17][INFO] draft - saved route=type two letters app=notepad steps=7 path=C:\Users\chris\AppData\Local\Temp\TestAStepEditThatLandedWithoutItsStepListSaysSo683562896\001\notepad\focus\type-two-letters.marco
+[10:35:17][INFO] edit - saved from its own step list route=type-two-letters edits=1 steps=7 scope=app-anywhere
+[10:35:17][INFO] draft - saved route=type two letters app=notepad steps=7 path=C:\Users\chris\AppData\Local\Temp\TestTheStepPanelHoldsOffWhileRecording2927358956\001\notepad\focus\type-two-letters.marco
+[10:35:25][INFO] draft - recorded route=ark graphics events=3 steps=3 app=arkascended stopped_by=the Stop button
+[10:35:25][INFO] draft - saved route=ark graphics app=arkascended steps=3 path=C:\Users\chris\AppData\Local\Temp\TestTheTargetsAreTheApplicationsWithInPlaceRoutines2829500306\001\arkascended\context\ark-graphics.marco
+[10:35:25][INFO] draft - saved route=say hello app=notepad steps=2 path=C:\Users\chris\AppData\Local\Temp\TestASuppliedValueSavesAsSomethingTheRoutineAsksFor1582025467\001\notepad\context\say-hello.marco
+[10:35:25][INFO] draft - saved with its own basis route=say-hello basis=simplify-typing changed=true steps=2
+[10:35:25][INFO] draft - saved route=cloud pull stone app=notepad steps=2 path=C:\Users\chris\AppData\Local\Temp\TestAMarkedOrdinaryRecordingCanStillBeEditedAndRebuilt2155362282\001\notepad\context\cloud-pull-stone.marco
+[10:35:25][INFO] draft - saved with its own basis route=cloud-pull-stone basis= changed=true steps=2
+[10:35:29][INFO] draft - recorded route=ark graphics events=3 steps=3 app=arkascended stopped_by=the Stop button
+[10:35:29][INFO] draft - saved route=ark graphics app=arkascended steps=3 path=C:\Users\chris\AppData\Local\Temp\TestTwoWindowsOfOneProgramAreOfferedAndNeitherIsChosen4201594503\001\arkascended\focus\ark-graphics.marco
+[10:35:29][INFO] draft - recorded route=ark graphics events=3 steps=3 app=arkascended stopped_by=the Stop button
+[10:35:29][INFO] draft - saved route=ark graphics app=arkascended steps=3 path=C:\Users\chris\AppData\Local\Temp\TestAWindowOfAnotherProgramIsNeitherOfferedNorAccepted958193819\001\arkascended\focus\ark-graphics.marco
+[10:35:29][INFO] draft - recorded route=ark graphics events=3 steps=3 app=arkascended stopped_by=the Stop button
+[10:35:29][INFO] draft - saved route=ark graphics app=arkascended steps=3 path=C:\Users\chris\AppData\Local\Temp\TestAWindowThatHasClosedSinceTheListWasDrawnIsRefused551258769\001\arkascended\focus\ark-graphics.marco
+[10:35:29][INFO] draft - recorded route=ark graphics events=3 steps=3 app=arkascended stopped_by=the Stop button
+[10:35:29][INFO] draft - saved route=ark graphics app=arkascended steps=3 path=C:\Users\chris\AppData\Local\Temp\TestNothingIsBroughtForwardForARunThatCannotStart98028205\001\arkascended\focus\ark-graphics.marco
+ACT SURFACE
+  build      unknown
+  director   director.exe
+  store      C:\Users\chris\AppData\Local\Temp\TestReadingAStoreLeavesNoTrialInIt2475072707\001
+  routes     C:\Users\chris\AppData\Local\Temp\TestReadingAStoreLeavesNoTrialInIt2475072707\001\routes
+  made of    a tree build, with no manifest of what these binaries are
+  PROBLEM    this Studio cannot say which build it is, so it cannot be compared with the marco and director beside it
+             build it with plugins\studio\build.cmd, which builds each binary from inside its own module so the revision is stamped
+  PROBLEM    there is no marco.exe beside this window. D:\Macros\marco\marco.exe is on PATH, so Play would run whichever marco.exe is on PATH, which may be a different build of a different age
+             run plugins\studio\build.cmd with this window CLOSED, which puts a freshly built one beside it
+  PROBLEM    there is no director.exe beside this window. D:\Macros\marco\director.exe is on PATH, so it would run whichever director.exe is on PATH, which may be a different build of a different age
+             run plugins\studio\build.cmd with this window CLOSED, which puts a freshly built one beside it
+
+DEMONSTRATIONS  1
+  ark graphics live            ArkAscended.exe    2026-10-19 05:00
+      0  press control_1 on screen_a                    presses, no outcome recorded
+      1  press control_2 on screen_b                    presses, can verify
+      2  screen_b to screen_a — nothing was pressed     presses nothing, no outcome recorded
+
+ACTS  0
+
+RUNS  0 kept
+
+WATCH  {"act":"","live":false,"reference":"","outcome":"","transcript":null,"active":false,"complete":false,"incomplete":false}
+
+  Nothing was run, nothing was pressed, and no window was opened.
+TRIALS  none in C:\Users\chris\AppData\Local\Temp\TestReadingAStoreLeavesNoTrialInIt2475072707\001
+
+  Studio writes one while somebody uses it: record a demonstration, review it, compose an Act, press Play.
+[10:35:44][INFO] draft - saved route=cloud pull stone app=notepad steps=2 path=C:\Users\chris\AppData\Local\Temp\TestADeclaredRunSurvivesSaveAndEditingAndARebuild1143946514\001\notepad\context\cloud-pull-stone.marco
+[10:35:44][INFO] draft - saved with its own basis route=cloud-pull-stone basis= changed=true steps=2
+[10:35:46][INFO] draft - saved route=cloud pull stone app=notepad steps=16 path=C:\Users\chris\AppData\Local\Temp\TestASavedRolloverCanBeDeclaredTypedText546724874\001\notepad\context\cloud-pull-stone.marco
+[10:35:46][INFO] edit - saved from its own step list route=cloud-pull-stone edits=1 steps=2 scope=app
+[10:35:46][INFO] draft - saved route=cloud pull stone app=notepad steps=16 path=C:\Users\chris\AppData\Local\Temp\TestARepairedRoutineCanBeAskedForItsValue3207549644\001\notepad\context\cloud-pull-stone.marco
+[10:35:46][INFO] edit - saved from its own step list route=cloud-pull-stone edits=1 steps=2 scope=app
+[10:35:46][INFO] edit - saved from its own step list route=cloud-pull-stone edits=1 steps=2 scope=app
+[10:35:46][INFO] draft - saved route=cloud pull stone app=notepad steps=16 path=C:\Users\chris\AppData\Local\Temp\TestADeclarationAskedWithAnotherChangeIsRefused3836436958\001\notepad\context\cloud-pull-stone.marco
+[10:35:46][INFO] draft - saved route=cloud pull stone app=notepad steps=16 path=C:\Users\chris\AppData\Local\Temp\TestASavedDeclarationObeysTheSameRules3213519640\001\notepad\context\cloud-pull-stone.marco
+FAIL
+FAIL	github.com/chaynes-simpleclouds/marco/plugins/studio	150.475s
+FAIL

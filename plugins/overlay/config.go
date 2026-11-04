@@ -9,7 +9,6 @@ package main
 import (
 	"fmt"
 	"strconv"
-	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -27,10 +26,7 @@ var winH atomic.Int32
 type Config = widgetconfig.Settings
 
 var corners = []string{"top-right", "top-left", "bottom-right", "bottom-left", "top-center"}
-var themeNames = []string{
-	"default", "dracula", "solarized-dark", "monokai", "nord",
-	"tokyo-night", "catppuccin-mocha", "gruvbox-dark", "rose-pine", "light",
-}
+var themeNames = widgetconfig.PaletteNames()
 var leaderNames = []string{"`", "/", "capslock", "tab", "f8"}
 
 var (
@@ -237,11 +233,11 @@ func configChange(sel, delta int) {
 	}
 }
 
+// themeByName resolves a theme name through the shared rule (widgetconfig.PaletteFor), which
+// Studio uses too: case-insensitive, and the default palette for a name that is not one.
 func themeByName(n string) theme {
-	if t, ok := themes[strings.ToLower(n)]; ok {
-		return t
-	}
-	return themes["default"]
+	_, p := widgetconfig.PaletteFor(n)
+	return themeFrom(p)
 }
 
 func cycle(opts []string, cur string, delta int) string {

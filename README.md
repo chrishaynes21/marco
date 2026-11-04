@@ -638,7 +638,8 @@ plugs in over the host boundary:
     routine's arguments (Tab to step between slots), and answers prompts in the HUD.
     `` `m config `` opens an in-HUD editor (theme, opacity, monitor/corner, width,
     mini mode, the CPU/RAM widget, and a live **screen-coords tooltip** — handy when
-    a demonstration crosses monitors). Its behaviour lives
+    a demonstration crosses monitors). Studio draws with the same theme; a theme
+    changed outside this editor reaches the widget when it restarts. Its behaviour lives
     in Marco ([`plugins/overlay/overlay.marco`](plugins/overlay/overlay.marco)); it fulfils a
     clean `Overlay` act and pushes input events back over a bidirectional bridge.
   - [`plugins/web-ui`](plugins/web-ui) — a reference local web control panel.

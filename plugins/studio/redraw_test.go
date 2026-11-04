@@ -101,6 +101,7 @@ window.go = {main: {
   Acts: {
     // THE WIDGET ACTION (S7), polled from start-up: the page draws whatever it says.
     WidgetStatus: () => Promise.resolve({state: 'ready', says: '', problems: []}),
+    Theme: () => Promise.resolve({asked: '', theme: 'default', light: false, accentFrom: 'name', tokens: {}}),
     // THE ASK BOX. Bound at startup, so a stub without it is a page that paints
     // nothing - which is the right failure: a binding the page calls and the window
     // does not export is exactly the defect these harnesses exist to catch.
@@ -261,6 +262,7 @@ window.go = {main: {
   Acts: {
     // THE WIDGET ACTION (S7), polled from start-up: the page draws whatever it says.
     WidgetStatus: () => Promise.resolve({state: 'ready', says: '', problems: []}),
+    Theme: () => Promise.resolve({asked: '', theme: 'default', light: false, accentFrom: 'name', tokens: {}}),
     // THE ASK BOX. Bound at startup, so a stub without it is a page that paints
     // nothing - which is the right failure: a binding the page calls and the window
     // does not export is exactly the defect these harnesses exist to catch.
@@ -439,6 +441,7 @@ window.go = {main: {
   Acts: {
     // THE WIDGET ACTION (S7), polled from start-up: the page draws whatever it says.
     WidgetStatus: () => Promise.resolve({state: 'ready', says: '', problems: []}),
+    Theme: () => Promise.resolve({asked: '', theme: 'default', light: false, accentFrom: 'name', tokens: {}}),
     // THE ASK BOX. Bound at startup, so a stub without it is a page that paints
     // nothing - which is the right failure: a binding the page calls and the window
     // does not export is exactly the defect these harnesses exist to catch.
@@ -573,6 +576,7 @@ window.go = {main: {
   Acts: {
     // THE WIDGET ACTION (S7), polled from start-up: the page draws whatever it says.
     WidgetStatus: () => Promise.resolve({state: 'ready', says: '', problems: []}),
+    Theme: () => Promise.resolve({asked: '', theme: 'default', light: false, accentFrom: 'name', tokens: {}}),
     // THE ASK BOX. Bound at startup, so a stub without it is a page that paints
     // nothing - which is the right failure: a binding the page calls and the window
     // does not export is exactly the defect these harnesses exist to catch.
@@ -785,6 +789,7 @@ window.go = {main: {
   Acts: {
     // THE WIDGET ACTION (S7), polled from start-up: the page draws whatever it says.
     WidgetStatus: () => Promise.resolve({state: 'ready', says: '', problems: []}),
+    Theme: () => Promise.resolve({asked: '', theme: 'default', light: false, accentFrom: 'name', tokens: {}}),
     // THE ASK BOX. Bound at startup, so a stub without it is a page that paints
     // nothing - which is the right failure: a binding the page calls and the window
     // does not export is exactly the defect these harnesses exist to catch.
@@ -906,6 +911,7 @@ window.go = {main: {
   Acts: {
     // THE WIDGET ACTION (S7), polled from start-up: the page draws whatever it says.
     WidgetStatus: () => Promise.resolve({state: 'ready', says: '', problems: []}),
+    Theme: () => Promise.resolve({asked: '', theme: 'default', light: false, accentFrom: 'name', tokens: {}}),
     // THE ASK BOX. Bound at startup, so a stub without it is a page that paints
     // nothing - which is the right failure: a binding the page calls and the window
     // does not export is exactly the defect these harnesses exist to catch.

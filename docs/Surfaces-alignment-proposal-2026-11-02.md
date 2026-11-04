@@ -760,6 +760,9 @@ bindings, per CLAUDE.md, or a rendered mockup for the HUD) and a review of it.
 - **S9: R1, after its generation/compatibility review.** **Done** without a generation bump
   ([[ADR-306-a-guarded-routine-may-be-only-in-its-application]]; review
   [[S9-guarded-only-in-review-2026-11-03]]).
+- **Shared styling and themes (after S9).** **Done**: Studio draws the widget's palette, with no
+  theme preference of its own ([[ADR-307-studio-draws-the-widgets-theme]]; review and renders
+  [[S10-shared-themes-review-2026-11-04]]).
 
 ---
 

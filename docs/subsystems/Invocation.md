@@ -138,6 +138,10 @@ it without reading `Request.Text` at all.
 - A guarded "Only in" routine is bound at admission to the window in front, read once, with no raise
   or search, and every press still checks it. Legacy in-place routines are admitted as before. See
   [[ADR-306-a-guarded-routine-may-be-only-in-its-application]].
+- Studio draws the widget's theme. The ten palettes live in `internal/widgetconfig` as data, and
+  one Go mapping gives Studio tokens whose text reads at 4.5:1 on every surface. The page applies
+  them at start-up and on its slow poll. The widget still reads its settings only at launch. See
+  [[ADR-307-studio-draws-the-widgets-theme]].
 
 `invoke.Plays` is a one-method interface partly for exactly this reason: a test can hand in a
 resolver that records every call and assert it was **not** asked

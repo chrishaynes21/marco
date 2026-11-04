@@ -1,0 +1,1 @@
+ok  	github.com/chaynes-simpleclouds/marco/internal/widgetconfig	0.628s

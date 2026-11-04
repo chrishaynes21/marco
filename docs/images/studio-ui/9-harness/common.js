@@ -38,6 +38,10 @@ window.go = {main: {
     BuildStatus: call('BuildStatus', {build: 'ce296c0'}),
     Help: call('Help', {sections: []}),
     Ready: call('Ready', {build: 'ce296c0', problems: [], limits: ''}),
+    WidgetStatus: call('WidgetStatus', {state: 'ready', says: '', problems: []}),
+    // THE WIDGET'S THEME (S10). null keeps the stylesheet's tokens; a render that sets F.Theme
+    // to a StudioTokens answer (themes/s10-tokens.json) draws that palette.
+    Theme: call('Theme', null),
     Recording: call('Recording', {active: false, review: false}),
     StartRecording: call('StartRecording', ''),
     StopRecording: call('StopRecording', ''),

@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/chaynes-simpleclouds/marco/internal/outcome"
+	"github.com/chaynes-simpleclouds/marco/internal/widgetconfig"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/text/v2"
@@ -57,67 +58,15 @@ type theme struct {
 	logInfo                           color.RGBA
 }
 
-var themes = map[string]theme{
-	"default": {
-		bg: hex("0A0A0A"), name: hex("00E5CC"), cmd: hex("DDDDDD"), lastCmd: hex("4A8A8A"),
-		sep: hex("2A4A4A"), desc: hex("6A9A98"),
-		idle: hex("A0A8A5"), listen: hex("5AB4F5"), run: hex("4DC94D"), errc: hex("F56565"),
-		logInfo: hex("8AC8DE"),
-	},
-	"dracula": {
-		bg: hex("282A36"), name: hex("BD93F9"), cmd: hex("F8F8F2"), lastCmd: hex("6272A4"),
-		sep: hex("44475A"), desc: hex("6272A4"),
-		idle: hex("9291CD"), listen: hex("8BE9FD"), run: hex("50FA7B"), errc: hex("FF5555"),
-		logInfo: hex("8BE9FD"),
-	},
-	"solarized-dark": {
-		bg: hex("002B36"), name: hex("2AA198"), cmd: hex("EEE8D5"), lastCmd: hex("2AA198"),
-		sep: hex("0F4A5A"), desc: hex("586E75"),
-		idle: hex("6F979B"), listen: hex("268BD2"), run: hex("859900"), errc: hex("DC322F"),
-		logInfo: hex("93A1A1"),
-	},
-	"monokai": {
-		bg: hex("272822"), name: hex("A6E22E"), cmd: hex("F8F8F2"), lastCmd: hex("75715E"),
-		sep: hex("3E3D32"), desc: hex("75715E"),
-		idle: hex("9AA470"), listen: hex("66D9E8"), run: hex("A6E22E"), errc: hex("F92672"),
-		logInfo: hex("F8F8F2"),
-	},
-	"nord": {
-		bg: hex("2E3440"), name: hex("88C0D0"), cmd: hex("ECEFF4"), lastCmd: hex("4C566A"),
-		sep: hex("434C5E"), desc: hex("4C566A"),
-		idle: hex("7287A0"), listen: hex("81A1C1"), run: hex("A3BE8C"), errc: hex("BF616A"),
-		logInfo: hex("88C0D0"),
-	},
-	"tokyo-night": {
-		bg: hex("1A1B26"), name: hex("BB9AF7"), cmd: hex("C0CAF5"), lastCmd: hex("565F89"),
-		sep: hex("292E42"), desc: hex("565F89"),
-		idle: hex("6A6A97"), listen: hex("7AA2F7"), run: hex("9ECE6A"), errc: hex("F7768E"),
-		logInfo: hex("7AA2F7"),
-	},
-	"catppuccin-mocha": {
-		bg: hex("1E1E2E"), name: hex("CBA6F7"), cmd: hex("CDD6F4"), lastCmd: hex("6C7086"),
-		sep: hex("313244"), desc: hex("7F849C"),
-		idle: hex("8E8BAA"), listen: hex("89B4FA"), run: hex("A6E3A1"), errc: hex("F38BA8"),
-		logInfo: hex("89DCEB"),
-	},
-	"gruvbox-dark": {
-		bg: hex("282828"), name: hex("FE8019"), cmd: hex("EBDBB2"), lastCmd: hex("7C6F64"),
-		sep: hex("3C3836"), desc: hex("928374"),
-		idle: hex("A78461"), listen: hex("83A598"), run: hex("B8BB26"), errc: hex("FB4934"),
-		logInfo: hex("83A598"),
-	},
-	"rose-pine": {
-		bg: hex("191724"), name: hex("C4A7E7"), cmd: hex("E0DEF4"), lastCmd: hex("6E6A86"),
-		sep: hex("26233A"), desc: hex("908CAA"),
-		idle: hex("7F76A0"), listen: hex("9CCFD8"), run: hex("31748F"), errc: hex("EB6F92"),
-		logInfo: hex("9CCFD8"),
-	},
-	"light": {
-		bg: hex("FAFAFA"), name: hex("6F42C1"), cmd: hex("1A1A2E"), lastCmd: hex("606060"),
-		sep: hex("A0A8B0"), desc: hex("3A4A54"),
-		idle: hex("505050"), listen: hex("0969DA"), run: hex("1A7F37"), errc: hex("CF222E"),
-		logInfo: hex("0969DA"),
-	},
+// themeFrom is a shared palette (internal/widgetconfig, S10) as the colours this view draws with.
+// The palettes moved there so Studio could use the same ones; their values are unchanged.
+func themeFrom(p widgetconfig.Palette) theme {
+	return theme{
+		bg: hex(p.Bg), name: hex(p.Name), cmd: hex(p.Cmd), lastCmd: hex(p.LastCmd),
+		sep: hex(p.Sep), desc: hex(p.Desc),
+		idle: hex(p.Idle), listen: hex(p.Listen), run: hex(p.Run), errc: hex(p.Errc),
+		logInfo: hex(p.LogInfo),
+	}
 }
 
 // th is the active theme. It starts from the saved config and is reassigned live

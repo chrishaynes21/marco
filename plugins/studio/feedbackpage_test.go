@@ -34,6 +34,7 @@ window.go = {main: {
   Acts: {
     // THE WIDGET ACTION (S7), polled from start-up: the page draws whatever it says.
     WidgetStatus: () => Promise.resolve({state: 'ready', says: '', problems: []}),
+    Theme: () => Promise.resolve({asked: '', theme: 'default', light: false, accentFrom: 'name', tokens: {}}),
     // NOTHING RUNNING, so the selector is built from an empty answer.
     SuggestTargets: () => Promise.resolve([]),
     Demonstrations: () => Promise.resolve([]),
