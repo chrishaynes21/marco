@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -176,7 +177,7 @@ func dispatch(h *model, req request) response {
 				h.setLearnSession(false)
 				if err != nil {
 					mlogE("overlay: narrate-learn failed", "name", vname, "err", err)
-					h.log("narrate learn failed: " + vname)
+					h.log("narrate learn failed: " + vname + " — " + err.Error())
 				} else {
 					mlogI("overlay: narrate-learn done", "name", vname)
 				}
@@ -607,7 +608,18 @@ func runNarrateLearn(h *model, name string) error {
 	_ = os.WriteFile(lock, nil, 0o600)
 	defer os.Remove(lock)
 
-	cmd := exec.Command(marcoBin(), "learn", "--narrate", name)
+	// THE WINDOW IS SETTLED BEFORE NARRATION STARTS (F7). Without one the engine asks "Which window"
+	// on the stdin this surface writes narration into, and the first phrase would be taken as
+	// the answer. So the window in front is given, as the interactive learn gives it, and with
+	// none to give, nothing is started.
+	//
+	// Starting without --window must fail TestNarrationStartsInAWindowItWasGiven.
+	w := windowNow()
+	if w == "" {
+		voiceActive.Store(false) // set by the caller; no session will clear it
+		return errNoWindowToNarrate
+	}
+	cmd := exec.Command(marcoBin(), "learn", "--narrate", "--window", w, name)
 	cmd.Env = append(os.Environ(), "MARCO_NO_PANIC_STOP=1")
 	inW, err := cmd.StdinPipe()
 	if err != nil {
@@ -1257,3 +1269,10 @@ func argHints(phrase string) []string {
 	}
 	return hints
 }
+
+// windowNow is the window in front as the HUD reads it. A variable so a test can state it.
+var windowNow = windowInFront
+
+// errNoWindowToNarrate is narrate learn with no window it could be of.
+var errNoWindowToNarrate = errors.New("Marco could not tell which window you are in, so narration " +
+	"was not started — bring the window forward and say it again")

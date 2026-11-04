@@ -801,7 +801,7 @@ func runAssistantLearn(args []string) {
 		return
 	}
 	if narrate {
-		if err := runNarrateLearn(name); err != nil {
+		if err := runNarrateLearn(d, name); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}
@@ -860,7 +860,7 @@ func runArgs(cliArgs []string) {
 // runNarrateLearn drives a narration-built play: each line on stdin is one phrase
 // ("click this", "type hello", "wait for this screen", "done") — TYPED at a console
 // or piped from the voice plugin's Final transcripts, same path either way.
-func runNarrateLearn(name string) error {
+func runNarrateLearn(d orchestrator.Deps, name string) error {
 	phrases := make(chan string)
 	go func() {
 		defer close(phrases)
@@ -872,7 +872,39 @@ func runNarrateLearn(name string) error {
 			}
 		}
 	}()
-	return newDeps().LearnVoice(name, voicelearn.NewOSEnv(), phrases, nil)
+	d, env := narrationIn(d)
+	return d.LearnVoice(name, env, phrases, nil)
+}
+
+// narrationIn is a narration session in the window chosen before it started (F7): a click is
+// placed relative to THAT window, and the routine is filed under its application, not whatever
+// happens to be in front when each phrase lands. With no window chosen (--whole-desktop) it is
+// the foreground, as it always was.
+//
+// Dropping the chosen window again must fail TestANarrationIsOfTheChosenWindow.
+func narrationIn(d orchestrator.Deps) (orchestrator.Deps, voicelearn.Env) {
+	if !d.Window.Chosen() {
+		return d, voicelearn.NewOSEnv()
+	}
+	if app := winctx.ProcessImage(d.Window.PID); app != "" {
+		d.App = func() string { return app }
+	}
+	return d, chosenWindowEnv{OSEnv: voicelearn.NewOSEnv(), hwnd: d.Window.HWnd, pid: d.Window.PID}
+}
+
+// chosenWindowEnv is the OS narration env with the window origin read from the chosen window.
+type chosenWindowEnv struct {
+	voicelearn.OSEnv
+	hwnd uintptr
+	pid  uint32
+}
+
+func (e chosenWindowEnv) WindowOrigin() (int, int, bool) {
+	if !winctx.WindowAlive(e.hwnd, e.pid) {
+		return 0, 0, false
+	}
+	l, t, _, _, _, ok := winctx.WindowShape(e.hwnd)
+	return l, t, ok
 }
 
 // runAssistantSimplify re-simplifies ONE named play, and it is the play the person named.
@@ -1106,3 +1138,9 @@ func accessibilityBridge() string {
 }
 
 func exists(p string) bool { _, err := os.Stat(p); return err == nil }
+
+// readWindowAnswer reads the answer to "Which window" and nothing after it. See chooseTheWindow.
+func readWindowAnswer() string {
+	line, _ := readStdinLine()
+	return line
+}
