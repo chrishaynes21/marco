@@ -30,6 +30,7 @@ func withLeader(t *testing.T, leader string) {
 // reading back the arguments it was given.
 func marcoAnswers(t *testing.T, said string, code int) func() string {
 	t.Helper()
+	engineIsCurrent(t)
 	argv := filepath.Join(t.TempDir(), "argv.txt")
 	t.Setenv("MARCO_BIN", os.Args[0])
 	t.Setenv("MARCO_OVERLAY_ANSWER", said)
@@ -131,6 +132,7 @@ func TestAListThatCouldNotBeHadIsNeverNone(t *testing.T) {
 // list says it did not arrive, and the child is bounded.
 func TestTheArmListIsFetchedOffTheActionLoop(t *testing.T) {
 	withFront(t, "notepad")
+	engineIsCurrent(t)
 	withLeader(t, "`")
 	t.Setenv("MARCO_BIN", os.Args[0])
 	t.Setenv("MARCO_OVERLAY_HANG", "1")
@@ -426,5 +428,142 @@ func TestTheListIsOfTheApplicationTheLeaderWasPressedIn(t *testing.T) {
 	}
 	if got := h.endArm(); got != "discord" {
 		t.Errorf("the key after it would carry %q", got)
+	}
+}
+
+// ── NOT THROUGH AN ENGINE THAT WOULD IGNORE THE CHECK ──
+
+// engineIsCurrent states that the engine checks a carried press, for a test about something else.
+func engineIsCurrent(t *testing.T) {
+	t.Helper()
+	prev := contextCheck
+	contextCheck = func() (bool, string) { return true, "" }
+	t.Cleanup(func() { contextCheck = prev })
+}
+
+// theRealEngineCheck puts the production check back after marcoAnswers, with nothing kept.
+func theRealEngineCheck(t *testing.T) {
+	t.Helper()
+	contextCheck = engineChecksContext
+	forgetEngineCheck()
+	t.Cleanup(forgetEngineCheck)
+}
+
+func countLines(s, prefix string) (n int) {
+	for _, l := range strings.Split(s, "\n") {
+		if strings.HasPrefix(l, prefix) {
+			n++
+		}
+	}
+	return n
+}
+
+// An engine from S2 refuses `--armed-in` and one from before has no `bindings`: with either, a
+// key after the leader is not sent at all, and the history says why. The leader's list says it too.
+//
+// Deleting the check from pressShortcut must fail this.
+func TestAPressIsNotSentToAnEngineThatWouldNotCheckIt(t *testing.T) {
+	withLeader(t, "`")
+	for _, old := range []struct{ name, said string }{
+		{"S2", "usage: marco bindings [--here] [--json]\n"},
+		{"before S2", "unknown command: bindings\n"},
+		{"a listing that does not say it was for the armed application", `{"app":"notepad","shortcuts":[]}`},
+	} {
+		t.Run(old.name, func(t *testing.T) {
+			withFront(t, "discord")
+			asked := marcoAnswers(t, old.said, 2)
+			theRealEngineCheck(t)
+			h := &model{}
+			carryPress("e", "discord")
+			dispatch(h, request{Action: "Hotkey", Input: "e"})
+			if got := asked(); countLines(got, "hotkey") != 0 {
+				t.Fatalf("the press was sent to an engine that would not check it:\n%s", got)
+			}
+			e := lastHistory(t, h)
+			if e.outcome != "refused" || !strings.Contains(e.cmd, "older than this widget") {
+				t.Errorf("the press is in the history as %q / %q", e.cmd, e.outcome)
+			}
+			startArm(h)
+			deadline := time.Now().Add(5 * time.Second)
+			for s := h.snapshot(); len(s.arm) == 0; s = h.snapshot() {
+				if time.Now().After(deadline) {
+					t.Fatal("the leader's list never said anything")
+				}
+				time.Sleep(10 * time.Millisecond)
+			}
+			if s := h.snapshot(); !hasLine(s.arm, "shortcuts are off: "+os.Args[0]+" is older than this widget "+
+				"and does not check which application a key was pressed for — rebuild marco beside the widget") {
+				t.Errorf("the leader's list is %q", s.arm)
+			}
+		})
+	}
+}
+
+// A current engine is asked once for the binary it is, and its presses carry the context. A press
+// no leader carried is not gated, because it never had the check.
+func TestACurrentEngineIsAskedOnceAndPressed(t *testing.T) {
+	withLeader(t, "`")
+	withFront(t, "discord")
+	asked := marcoAnswers(t, `{"app":"{armed}","armed_in":"{armed}","shortcuts":[]}`, 0)
+	theRealEngineCheck(t)
+	h := &model{}
+	carryPress("e", "discord")
+	dispatch(h, request{Action: "Hotkey", Input: "e"})
+	carryPress("e", "discord")
+	dispatch(h, request{Action: "Hotkey", Input: "e"})
+	got := asked()
+	if countLines(got, "hotkey e --armed-in=discord") != 2 || countLines(got, "bindings --here --armed-in= --json") != 1 {
+		t.Errorf("two presses through a current engine asked:\n%s", got)
+	}
+
+	// And an old engine does not stop a press a script made, which carries nothing.
+	asked = marcoAnswers(t, "usage: marco bindings [--here] [--json]\n", 2)
+	theRealEngineCheck(t)
+	dispatch(h, request{Action: "Hotkey", Input: "e"})
+	if got := asked(); countLines(got, "hotkey e") != 1 || countLines(got, "bindings") != 0 {
+		t.Errorf("an uncarried press asked:\n%s", got)
+	}
+}
+
+// An engine that does not answer in time is a no for that press, and is asked again.
+func TestAnEngineThatDidNotAnswerIsAskedAgain(t *testing.T) {
+	withLeader(t, "`")
+	withFront(t, "discord")
+	marcoAnswers(t, `{"app":"","armed_in":"","shortcuts":[]}`, 0)
+	theRealEngineCheck(t)
+	was := armListWithin
+	armListWithin = 300 * time.Millisecond
+	t.Cleanup(func() { armListWithin = was })
+	t.Setenv("MARCO_OVERLAY_HANG_ON", "bindings")
+	if ok, why := contextCheck(); ok || !strings.Contains(why, "for now") {
+		t.Fatalf("an engine that never answered: %v %q", ok, why)
+	}
+	t.Setenv("MARCO_OVERLAY_HANG_ON", "")
+	if ok, why := contextCheck(); !ok {
+		t.Errorf("the slow answer was kept, and a current engine is refused: %q", why)
+	}
+}
+
+// A `marco` rebuilt under a running widget is asked again: the kept answer is keyed by the path,
+// size and modification time it was asked under. (Here the "rebuild" is the stand-in's modification time moving.)
+func TestARebuiltEngineIsAskedAgain(t *testing.T) {
+	marcoAnswers(t, "usage: marco bindings [--here] [--json]\n", 2)
+	theRealEngineCheck(t)
+	if ok, _ := contextCheck(); ok {
+		t.Fatal("an S2 engine was taken as current")
+	}
+	st, err := os.Stat(os.Args[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	marcoAnswers(t, `{"app":"","armed_in":"","shortcuts":[]}`, 0)
+	contextCheck = engineChecksContext
+	later := st.ModTime().Add(time.Second)
+	if err := os.Chtimes(os.Args[0], later, later); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chtimes(os.Args[0], st.ModTime(), st.ModTime()) })
+	if ok, why := contextCheck(); !ok {
+		t.Errorf("the rebuilt engine is still refused: %q", why)
 	}
 }

@@ -248,18 +248,17 @@ func unbindKey(d orchestrator.Deps, listenIn, key string, out io.Writer) error {
 // leader was pressed, so the list is of the context the key will be checked against (see
 // pressArmed), not of whatever is in front by the time this process reads it.
 func runBindings(args []string) {
-	app, here, asJSON, ok := bindingsArgs(args, winctx.Active)
+	app, here, carried, asJSON, ok := bindingsArgs(args, winctx.Active)
 	if !ok {
 		fmt.Fprintln(os.Stderr, "usage: marco bindings [--here] [--armed-in=<app>] [--json]")
 		os.Exit(2)
 	}
-	listShortcuts(newDeps(), app, here, asJSON, os.Stdout)
+	listShortcuts(newDeps(), app, here, carried, asJSON, os.Stdout)
 }
 
 // bindingsArgs reads `marco bindings`'s arguments. The application listed is the one the leader
 // carried, else with --here the one in front (read only then), else none.
-func bindingsArgs(args []string, front func() string) (app string, here, asJSON, ok bool) {
-	armed := false
+func bindingsArgs(args []string, front func() string) (app string, here, armed, asJSON, ok bool) {
 	for _, a := range args {
 		switch {
 		case a == "--here":
@@ -269,7 +268,7 @@ func bindingsArgs(args []string, front func() string) (app string, here, asJSON,
 		case strings.HasPrefix(a, armedFlag):
 			app, armed = strings.TrimPrefix(a, armedFlag), true
 		default:
-			return "", false, false, false
+			return "", false, false, false, false
 		}
 	}
 	if armed {
@@ -277,10 +276,14 @@ func bindingsArgs(args []string, front func() string) (app string, here, asJSON,
 	} else if here {
 		app = front()
 	}
-	return app, here, asJSON, true
+	return app, here, armed, asJSON, true
 }
 
-func listShortcuts(d orchestrator.Deps, app string, here, asJSON bool, out io.Writer) {
+// listShortcuts writes the list. carried is whether app is the one a leader was pressed in, which a
+// JSON listing echoes as `armed_in`: that echo is how the widget knows this engine checks a press
+// against it (pressArmed), since an engine older than the check either refuses `--armed-in` or has
+// no `bindings` at all. Dropping the echo must fail TestAListingSaysItWasForTheArmedApplication.
+func listShortcuts(d orchestrator.Deps, app string, here, carried, asJSON bool, out io.Writer) {
 	rows := d.ListShortcuts(app, here)
 	held := heldOff()
 	if asJSON {
@@ -288,6 +291,9 @@ func listShortcuts(d orchestrator.Deps, app string, here, asJSON bool, out io.Wr
 			rows = []orchestrator.ListedShortcut{}
 		}
 		doc := map[string]any{"app": app, "shortcuts": rows}
+		if carried {
+			doc["armed_in"] = app
+		}
 		if held != "" {
 			doc["held"] = held
 		}

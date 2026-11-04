@@ -109,6 +109,11 @@ func startArm(h *model) {
 	seq := h.beginArm(app)
 	h.setLeaderEcho(leaderShown())
 	go func() {
+		// An engine that would not check the key is said before anything is listed (compat.go).
+		if ok, why := contextCheck(); !ok {
+			h.setArmList(seq, []string{leaderShown(), why, armFooter})
+			return
+		}
 		l, why := fetchArmList(app)
 		h.setArmList(seq, armLines(l, why))
 	}()

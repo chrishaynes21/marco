@@ -486,6 +486,8 @@ name, its routine gone, or a key the widget cannot send. A key with nothing on i
 still stops a run. The leader is shown as configured (`CapsLock then e`, not `` `e ``). The list and
 the key are for the application that was in front when the leader was pressed: if another one has
 come forward by the time the key arrives, nothing runs and the widget asks for the leader again.
+If the `marco` beside the widget is older than the widget and would not make that check, the widget
+says shortcuts are off and does not send the key.
 
 In **Studio**, each routine has a **Shortcut** tab with the same rules: it shows the leader, the
 keys that run the routine (also shown as chips on its row), and lets you Set, Change or Remove one,

@@ -180,7 +180,7 @@ func TestTheBindingsListIsWhatAPressWouldFire(t *testing.T) {
 	bindOK(t, d, "discord", "discord", "d", "open mouse settings")
 	bindOK(t, d, "discord", "", "g", "open mouse settings")
 	var out bytes.Buffer
-	listShortcuts(d, "discord", true, true, &out)
+	listShortcuts(d, "discord", true, false, true, &out)
 	var got struct {
 		App       string                        `json:"app"`
 		Shortcuts []orchestrator.ListedShortcut `json:"shortcuts"`

@@ -27,6 +27,15 @@ func pressShortcut(h *model, key string) childRun {
 	h.setStatus("running: " + shown)
 	args := []string{"hotkey", key}
 	if app, ok := takeCarried(key); ok {
+		// NOT THROUGH AN ENGINE THAT WOULD IGNORE IT (compat.go). Deleting this must fail
+		// TestAPressIsNotSentToAnEngineThatWouldNotCheckIt.
+		if ok, why := contextCheck(); !ok {
+			row := shown + " — " + why
+			h.setStatus(statusLine(outcome.Refused, row))
+			h.addHistory(row, string(outcome.Refused), 0)
+			mlogW2("overlay: shortcut not pressed", "key", key, "why", why)
+			return childRun{}
+		}
 		args = append(args, armedFlag+app)
 	}
 	start := time.Now()

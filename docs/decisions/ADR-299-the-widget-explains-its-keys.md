@@ -8,6 +8,7 @@ affects:
   - interface
 source_paths:
   - plugins/overlay/arm.go
+  - plugins/overlay/compat.go
   - plugins/overlay/hotkey.go
   - plugins/overlay/controller_windows.go
   - plugins/overlay/model.go
@@ -158,3 +159,41 @@ foreground into the press, after checking that the two are equal.
   `docs/experiments/Roadmap-38-output/2026-11-03-s4-context-{engine,overlay}.txt`.
 - Unchanged: the Linux `go vet` failure (S2) and
   [[Experiment-099-two-activation-failures-for-one-absent-application]].
+
+## After closing: not through an engine that would not check the key
+
+Added 2026-11-03, at the owner's requirement when S4 was closed at `91d8bbf`. The context check
+only exists if the engine performs it. An engine older than this change takes
+`marco hotkey e --armed-in=discord`, reads the key and ignores the rest, so the press would run
+unchecked and nothing would say so. So the widget asks before it sends a carried press
+(`plugins/overlay/compat.go`).
+
+- There is no version handshake between the widget and `marco`, so the question is the feature
+  itself. `marco bindings --here --armed-in= --json` from an engine with the check carries
+  `armed_in`, which `listShortcuts` echoes only for a carried listing. An S2 engine refuses the
+  argument, and an older one has no `bindings`. An engine that answered with a listing and no
+  `armed_in` counts as no as well.
+- With an engine that says no, a key after the leader is **not sent**. The status line and the
+  history say `` `e — shortcuts are off: <bin> is older than this widget and does not check which
+  application a key was pressed for — rebuild marco beside the widget ``, and the leader's list says
+  the same before listing anything.
+- The answer is kept under the path, size and modification time of the `marco` it was asked of.
+  That key is a cheap sign the file has not changed, **not proof that its contents are the same**:
+  a different binary copied in with the same size and its modification time preserved (`cp -p`)
+  would be taken for the one already asked. A press costs one stat, and a `marco` rebuilt under a
+  running widget gets a new time and is asked again. It is asked once at
+  start-up so the first press does not wait for it. An engine that does not answer in time is a no
+  for that press and is asked again, so a slow first start does not switch shortcuts off for the
+  session.
+- A press no leader carried (a script calling `Overlay Hotkey`) is not gated: it never had the
+  check.
+
+Enforced by `TestAPressIsNotSentToAnEngineThatWouldNotCheckIt` (S2, before S2, and a listing
+without the echo), `TestACurrentEngineIsAskedOnceAndPressed`, `TestAnEngineThatDidNotAnswerIsAskedAgain`,
+`TestARebuiltEngineIsAskedAgain`, and in `cmd/marco` `TestAListingSaysItWasForTheArmedApplication`.
+Nine mutations: eight killed (no gate on the press, no gate on the list, any JSON taken as yes,
+asking every time, keeping a timeout, the cache ignoring the binary, and the echo dropped or
+always given). The "any JSON taken as yes" mutation survived its first run; the case of a listing
+without the echo killed it. One survived and is recorded rather than tested: the start-up ask,
+which is latency only and sits in `main`, which no test enters. The mismatched dev stack in this
+tree would therefore show that shortcuts are off, which is the intended reading of it.

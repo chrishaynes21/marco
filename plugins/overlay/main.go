@@ -42,6 +42,7 @@ func main() {
 	go pollRoutes(m)        // known route names, for Tab autocomplete
 	go pollInsight(m)       // frozen perception snapshot panel (only polls while open)
 	go pollWatch(m)         // Watch / Diagnostics — one account, two readings (only while open)
+	warmEngineCheck()       // does the engine check a carried press? asked once, before the first one
 	go pollHeadline(m)      // the NORMAL reading, so a pending question is never invisible
 	emit := func(ev event) { out <- ev }
 	if err := startInput(m, emit); err != nil { // controller: input → model + intents

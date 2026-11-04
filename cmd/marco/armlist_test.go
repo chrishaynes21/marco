@@ -27,7 +27,7 @@ type armListing struct {
 func listedHere(t *testing.T, d orchestrator.Deps, app string) armListing {
 	t.Helper()
 	var out bytes.Buffer
-	listShortcuts(d, app, true, true, &out)
+	listShortcuts(d, app, true, false, true, &out)
 	var got armListing
 	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
 		t.Fatalf("%v: %s", err, out.String())
@@ -195,19 +195,19 @@ func TestAKeyPressedWhereTheLeaderWasPressedRuns(t *testing.T) {
 // press with nothing carried reads the foreground as before.
 func TestTheCarriedApplicationIsWhatIsReadFromTheArguments(t *testing.T) {
 	front := func() string { return "notepad" }
-	if app, here, js, ok := bindingsArgs([]string{"--here", "--armed-in=discord", "--json"}, front); !ok || app != "discord" || !here || !js {
-		t.Errorf("a carried list reads as %q here=%v json=%v ok=%v", app, here, js, ok)
+	if app, here, armed, js, ok := bindingsArgs([]string{"--here", "--armed-in=discord", "--json"}, front); !ok || app != "discord" || !here || !armed || !js {
+		t.Errorf("a carried list reads as %q here=%v armed=%v json=%v ok=%v", app, here, armed, js, ok)
 	}
-	if app, here, _, ok := bindingsArgs([]string{"--armed-in="}, front); !ok || app != "" || !here {
+	if app, here, armed, _, ok := bindingsArgs([]string{"--armed-in="}, front); !ok || app != "" || !here || !armed {
 		t.Errorf("a list carried from nothing readable reads as %q here=%v", app, here)
 	}
-	if app, _, _, ok := bindingsArgs([]string{"--here", "--json"}, front); !ok || app != "notepad" {
+	if app, _, armed, _, ok := bindingsArgs([]string{"--here", "--json"}, front); !ok || app != "notepad" || armed {
 		t.Errorf("an uncarried list here reads as %q", app)
 	}
-	if app, _, _, ok := bindingsArgs(nil, front); !ok || app != "" {
+	if app, _, _, _, ok := bindingsArgs(nil, front); !ok || app != "" {
 		t.Errorf("the whole list reads as %q", app)
 	}
-	if _, _, _, ok := bindingsArgs([]string{"--nonsense"}, front); ok {
+	if _, _, _, _, ok := bindingsArgs([]string{"--nonsense"}, front); ok {
 		t.Error("an unknown argument was accepted")
 	}
 	if k, in, c := hotkeyArgs([]string{"E", "--armed-in=discord"}); k != "e" || in != "discord" || !c {
@@ -218,5 +218,28 @@ func TestTheCarriedApplicationIsWhatIsReadFromTheArguments(t *testing.T) {
 	}
 	if k, _, c := hotkeyArgs([]string{"e"}); k != "e" || c {
 		t.Errorf("an uncarried press reads as %q carried=%v", k, c)
+	}
+}
+
+// A listing for the application a leader was pressed in says so, and an ordinary one does not:
+// the echo is what tells the widget this engine checks the press, so it is said only when it is
+// true. An empty application (nothing could be read at the leader) is echoed too.
+func TestAListingSaysItWasForTheArmedApplication(t *testing.T) {
+	d, _ := hotkeyWorld(t)
+	noRecording(t)
+	for _, c := range []struct {
+		app     string
+		carried bool
+	}{{"discord", true}, {"", true}, {"discord", false}} {
+		var out bytes.Buffer
+		listShortcuts(d, c.app, true, c.carried, true, &out)
+		var doc map[string]any
+		if err := json.Unmarshal(out.Bytes(), &doc); err != nil {
+			t.Fatal(err)
+		}
+		v, echoed := doc["armed_in"]
+		if echoed != c.carried || (echoed && v != c.app) {
+			t.Errorf("a listing for %q carried=%v echoes %v (%v)", c.app, c.carried, v, echoed)
+		}
 	}
 }

@@ -21,6 +21,7 @@ source_paths:
   - internal/director/runref
   - plugins/overlay/intake.go
   - plugins/overlay/outcome.go
+  - plugins/overlay/compat.go
 ---
 
 # Invocation
@@ -104,6 +105,9 @@ it without reading `Request.Text` at all.
   selecting a binding if another application is in front when it reads
   (`TestAKeyPressedAfterTheFocusMovedRunsNothing`, `TestAKeyIsForTheApplicationItsLeaderWasPressedIn`).
   See [[ADR-299-the-widget-explains-its-keys]].
+  A carried press is not sent through an engine that would ignore the context: the widget asks the
+  engine first (an `armed_in` echo on a carried listing) and otherwise says shortcuts are off
+  (`TestAPressIsNotSentToAnEngineThatWouldNotCheckIt`).
 
 `invoke.Plays` is a one-method interface partly for exactly this reason: a test can hand in a
 resolver that records every call and assert it was **not** asked
