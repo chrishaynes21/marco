@@ -43,6 +43,7 @@ package main
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -203,6 +204,10 @@ type run struct {
 	covered  map[string]bool
 	failures []string
 	findings []string
+
+	// unnamed is what the suite being read said OUTSIDE any test: each package that failed at
+	// package level or did not build, with its own last lines. Reset per suite. See unnamedFailure.
+	unnamed []string
 }
 
 func newRun(root, skips, out string) (*run, error) {
@@ -305,7 +310,34 @@ func (r *run) suite(m module) {
 		r.failures = append(r.failures, fmt.Sprintf("%s: %v", m.dir, err))
 		return
 	}
+	// THE WHOLE OF WHAT THE SUITE SAID IS KEPT, the test stream and stderr, beside the
+	// summary. An unnamed failure has no test to quote, and a run whose output went only to a
+	// terminal leaves nothing to establish its cause from afterwards.
+	name := slug(m.dir)
+	if name == "" {
+		name = "root"
+	}
+	streamPath := filepath.Join(r.dir, name+"-go-test.json")
+	stderrPath := filepath.Join(r.dir, name+"-stderr.txt")
+	var kept []string
+	var stream io.Reader = stdout
+	if f, ferr := os.Create(streamPath); ferr == nil {
+		defer f.Close()
+		stream = io.TeeReader(stdout, f)
+		kept = append(kept, streamPath)
+	} else {
+		r.findings = append(r.findings, fmt.Sprintf("%s: its test stream could not be "+
+			"kept: %v", m.dir, ferr))
+	}
 	cmd.Stderr = os.Stderr
+	if f, ferr := os.Create(stderrPath); ferr == nil {
+		defer f.Close()
+		cmd.Stderr = io.MultiWriter(os.Stderr, f)
+		kept = append(kept, stderrPath)
+	} else {
+		r.findings = append(r.findings, fmt.Sprintf("%s: its stderr could not be kept: %v",
+			m.dir, ferr))
+	}
 	if err := cmd.Start(); err != nil {
 		fmt.Printf("NOT RUN: %v\n", err)
 		r.failures = append(r.failures, fmt.Sprintf("%s: %v", m.dir, err))
@@ -323,17 +355,16 @@ func (r *run) suite(m module) {
 		r.findings = append(r.findings, fmt.Sprintf("%s: %v", m.dir, err))
 	}
 	settled := r.watchWhatItStarts()
-	failed, skipped := r.readTestStream(stdout)
+	failed, skipped := r.readTestStream(stream)
 	waitErr := cmd.Wait()
 	settled()
 
 	// A NON-ZERO EXIT WITH NOTHING NAMED IS STILL A FAILURE. A module that does not
-	// compile reports a package failure and no test failure at all, and a gate that
-	// counted only named tests would call that a clean run.
+	// compile, a TestMain that exits, a panic outside a test: none names a failing test, and a
+	// gate that counted only named tests would call that a clean run. It is charged with its
+	// exit code and what it said outside any test, and where its whole output is.
 	if waitErr != nil && failed == 0 {
-		r.failures = append(r.failures, fmt.Sprintf("%s: the suite exited with %v and "+
-			"named no failing test, which is what a module that does not build "+
-			"looks like", m.dir, waitErr))
+		r.failures = append(r.failures, unnamedFailure(m.dir, waitErr, r.unnamed, kept))
 		failed++
 	}
 	words := fmt.Sprintf("%d failed, %d skipped, in %s", failed, skipped,
@@ -393,12 +424,17 @@ func (r *run) watchWhatItStarts() func() {
 // readTestStream reads `go test -json` and records what failed and what declined.
 func (r *run) readTestStream(stdout io.Reader) (failed, skipped int) {
 	type event struct {
-		Action  string
-		Package string
-		Test    string
-		Output  string
+		Action     string
+		Package    string
+		ImportPath string // build-output and build-fail name the package here
+		Test       string
+		Output     string
 	}
 	says := map[string][]string{}
+	// pkgSays is what each package said outside any test: a TestMain's last words, a panic
+	// before the first test, a build error. It is the only account an unnamed failure has.
+	pkgSays := map[string][]string{}
+	r.unnamed = nil
 	dec := json.NewDecoder(bufio.NewReader(stdout))
 	for {
 		var e event
@@ -411,16 +447,28 @@ func (r *run) readTestStream(stdout io.Reader) (failed, skipped int) {
 		key := e.Package + " " + e.Test
 		switch e.Action {
 		case "output":
-			if e.Test != "" {
-				if line := strings.TrimSpace(e.Output); line != "" {
+			if line := strings.TrimSpace(e.Output); line != "" {
+				if e.Test != "" {
 					says[key] = append(says[key], line)
+				} else if e.Package != "" {
+					pkgSays[e.Package] = append(pkgSays[e.Package], line)
 				}
 			}
+		case "build-output":
+			if line := strings.TrimSpace(e.Output); line != "" && e.ImportPath != "" {
+				pkgSays[e.ImportPath] = append(pkgSays[e.ImportPath], line)
+			}
+		case "build-fail":
+			r.unnamed = append(r.unnamed, packageSaid("did not build", e.ImportPath,
+				pkgSays[e.ImportPath]))
 		case "fail":
 			if e.Test != "" {
 				failed++
 				r.failures = append(r.failures, fmt.Sprintf("%s  %s\n    %s",
 					e.Package, e.Test, lastSaid(says[key])))
+			} else if e.Package != "" {
+				r.unnamed = append(r.unnamed, packageSaid("failed", e.Package,
+					pkgSays[e.Package]))
 			}
 		case "skip":
 			if e.Test != "" {
@@ -431,6 +479,46 @@ func (r *run) readTestStream(stdout io.Reader) (failed, skipped int) {
 		}
 	}
 	return failed, skipped
+}
+
+// packageSaid is one package that failed outside any test, with the last lines it said there.
+func packageSaid(what, pkg string, lines []string) string {
+	const keep = 20
+	if len(lines) > keep {
+		lines = lines[len(lines)-keep:]
+	}
+	said := "(it said nothing outside a test)"
+	if len(lines) > 0 {
+		said = strings.Join(lines, "\n        ")
+	}
+	return fmt.Sprintf("%s %s:\n        %s", pkg, what, said)
+}
+
+// unnamedFailure is the failure a suite is charged with when it exited non-zero and named no
+// failing test. It says the exit code, every package that failed at package level with what it
+// said there, and where the whole of the suite's output was kept, because a cause stated without
+// that is a guess. A module that does not build is ONE way to get here, not the only one.
+func unnamedFailure(dir string, waitErr error, unnamed []string, kept []string) string {
+	code := "an unknown code"
+	var ee *exec.ExitError
+	if errors.As(waitErr, &ee) {
+		code = fmt.Sprintf("exit code %d", ee.ExitCode())
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "%s: the suite exited with %s (%v) and named no failing test", dir, code,
+		waitErr)
+	if len(unnamed) == 0 {
+		b.WriteString("; no package reported a failure in the test stream either")
+	} else {
+		b.WriteString("; what failed outside any test:")
+		for _, u := range unnamed {
+			b.WriteString("\n    " + u)
+		}
+	}
+	if len(kept) > 0 {
+		b.WriteString("\n    the whole of its output is kept in " + strings.Join(kept, " and "))
+	}
+	return b.String()
 }
 
 // lastSaid is the line a test left behind, which for a skip is its reason.

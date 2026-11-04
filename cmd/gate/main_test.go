@@ -371,3 +371,104 @@ func TestTheGateCallsWhatItIsFor(t *testing.T) {
 		}
 	}
 }
+
+// AN UNNAMED FAILURE KEEPS WHAT IT SAID. A package that fails outside any test, or does not
+// build, is read out of the stream with its own last lines, so the failure the suite is charged
+// with can say what happened instead of guessing.
+func TestWhatAPackageSaidOutsideAnyTestIsKept(t *testing.T) {
+	r := &run{covered: map[string]bool{}}
+	failed, _ := r.readTestStream(strings.NewReader(`
+{"Action":"output","Package":"example.com/m","Output":"panic: the store could not be opened\n"}
+{"Action":"output","Package":"example.com/m","Output":"FAIL\texample.com/m\t0.1s\n"}
+{"Action":"fail","Package":"example.com/m"}
+{"ImportPath":"example.com/b","Action":"build-output","Output":"b.go:3: undefined: thing\n"}
+{"ImportPath":"example.com/b","Action":"build-fail"}
+`))
+	if failed != 0 {
+		t.Fatalf("package-level failures were counted as %d named test(s)", failed)
+	}
+	all := strings.Join(r.unnamed, "\n")
+	for _, want := range []string{"example.com/m failed", "panic: the store could not be opened",
+		"example.com/b did not build", "undefined: thing"} {
+		if !strings.Contains(all, want) {
+			t.Errorf("what failed outside a test does not say %q:\n%s", want, all)
+		}
+	}
+}
+
+// AND THE SUITE IS CHARGED WITH ITS EXIT CODE, WHAT IT SAID AND WHERE ALL OF IT IS. A real
+// `go test` over a throwaway module whose TestMain exits 3 before any test runs: the shape that
+// names no failing test. The exit code charged is the suite's, `go test`'s own.
+func TestAnUnnamedFailureKeepsItsOutputAndExitCode(t *testing.T) {
+	root := t.TempDir()
+	files := map[string]string{
+		"go.mod": "module example.com/unnamed\n\ngo 1.26\n",
+		"x_test.go": "package unnamed\n\nimport (\n\t\"fmt\"\n\t\"os\"\n\t\"testing\"\n)\n\n" +
+			"func TestMain(m *testing.M) {\n\tfmt.Println(\"boom: TestMain gave up before any test\")\n" +
+			"\tos.Exit(3)\n}\n\nfunc TestNothing(t *testing.T) {}\n",
+	}
+	for name, body := range files {
+		if err := os.WriteFile(filepath.Join(root, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	diag := t.TempDir()
+	r := &run{root: root, dir: diag, covered: map[string]bool{},
+		own: gate.Owned(uint32(os.Getpid()))}
+	r.suite(module{dir: "."})
+
+	// The throwaway module has no product binaries, so the survivor watch reports that too; the
+	// failure under test is the one about the suite.
+	f := ""
+	for _, x := range r.failures {
+		if strings.Contains(x, "named no failing test") {
+			f = x
+		}
+	}
+	if f == "" {
+		t.Fatalf("the unnamed failure was not charged: %q", r.failures)
+	}
+	// THE CODE IS `go test`'s, which is 1 for any failure: it does not pass on the test
+	// binary's own status (3 here). What the binary said is kept, and so is the whole stream.
+	for _, want := range []string{"exit code 1", "named no failing test", "example.com/unnamed failed",
+		"boom: TestMain gave up before any test", filepath.Join(diag, "root-go-test.json")} {
+		if !strings.Contains(f, want) {
+			t.Errorf("the failure does not say %q:\n%s", want, f)
+		}
+	}
+	kept, err := os.ReadFile(filepath.Join(diag, "root-go-test.json"))
+	if err != nil || !strings.Contains(string(kept), "boom: TestMain gave up") {
+		t.Errorf("the suite's whole stream was not kept (%v):\n%s", err, kept)
+	}
+	if _, err := os.Stat(filepath.Join(diag, "root-stderr.txt")); err != nil {
+		t.Errorf("the suite's stderr was not kept: %v", err)
+	}
+}
+
+// AND WHEN THE STREAM HAS NOTHING AT ALL, stderr is the only account, so it is kept. A go.mod
+// the go command cannot parse fails before any test event is written.
+func TestAFailureWithNoStreamKeepsItsStderr(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "go.mod"),
+		[]byte("module example.com/broken\n\ngo 1.26\nthis is not a directive\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	diag := t.TempDir()
+	r := &run{root: root, dir: diag, covered: map[string]bool{},
+		own: gate.Owned(uint32(os.Getpid()))}
+	r.suite(module{dir: "."})
+
+	f := ""
+	for _, x := range r.failures {
+		if strings.Contains(x, "named no failing test") {
+			f = x
+		}
+	}
+	if !strings.Contains(f, "no package reported a failure in the test stream either") {
+		t.Fatalf("the failure does not say the stream had nothing: %q", r.failures)
+	}
+	said, err := os.ReadFile(filepath.Join(diag, "root-stderr.txt"))
+	if err != nil || !strings.Contains(string(said), "go.mod") {
+		t.Fatalf("what the go command said was not kept (%v):\n%s", err, said)
+	}
+}

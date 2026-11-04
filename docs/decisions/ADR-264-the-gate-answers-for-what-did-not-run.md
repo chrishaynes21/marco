@@ -229,6 +229,26 @@ The eleven-scenario run recorded above was a selection. The twelve this adds are
 in four forms, the chord, the three holds, the right and middle press with its moved and resized
 refusals, and the recording path.
 
+## An unnamed failure keeps its account (2026-11-04)
+
+A suite that exits non-zero and names no failing test is charged with a failure. The charge used
+to say only that, and add that a module that does not build "looks like" this. Nothing else was
+kept: the stream reader dropped every line said outside a test, and the stream itself went
+nowhere. So a root-module failure on 2026-11-04 left a sentence and no way to find its cause.
+
+Now:
+
+- **Every suite's whole test stream and stderr are kept** in the diagnostics directory, as
+  `<module>-go-test.json` and `<module>-stderr.txt` (`root` for the repository module).
+- **What a package said outside any test is read:** a package-level `fail` and a `build-fail`
+  are each recorded with the package's last 20 lines from outside a test.
+- **The charge states the exit code,** every such package with what it said, and where the whole
+  output is. If the stream recorded no package failure either, it says that. A module that does
+  not build is one cause, and the sentence no longer offers it as the explanation.
+
+The exit code is the suite's, `go test`'s own, which is 1 for any failure: `go test` does not
+pass on a test binary's own exit status. What the binary said is in the stream.
+
 ## What this does not establish
 
 - **The eight orphans' cause.** Nothing here diagnoses it, and one clean run does not close it.
@@ -326,3 +346,8 @@ refusals, and the recording path.
   two snapshots it needs and starts the lineage watcher exactly once. By walking the package
   rather than naming the two places, because naming one place is how the second was missed the
   last time.
+- `cmd/gate` `TestWhatAPackageSaidOutsideAnyTestIsKept`, `TestAnUnnamedFailureKeepsItsOutputAndExitCode`
+  and `TestAFailureWithNoStreamKeepsItsStderr`: package-level failures and build failures are read
+  with what they said. A real `go test` over a module whose `TestMain` exits before any test is
+  charged with its exit code, the package's own words and the path of the kept stream. A go.mod the
+  go command cannot parse leaves no stream, and its stderr is kept.
