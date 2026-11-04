@@ -59,6 +59,18 @@ type Assignment struct {
 	// for "it was free when I looked". Not a routine ID: the same routine can stay on a key
 	// while its binding changes.
 	Consent string
+	// Changing, when set, is the shortcut this one REPLACES: a change of key or of where it is
+	// listened for. It is taken off in the same write the new one is put on, and only if it
+	// is still the version shown, so a change can never leave both keys, or neither.
+	Changing *Slot
+}
+
+// Slot is one shortcut as somebody was shown it: where it is listened for, its key, and the
+// version of the entry.
+type Slot struct {
+	ListenIn string
+	Key      string
+	Version  string
 }
 
 // ShortcutState is what is on one app+key now, for a surface to show before anything is written.
@@ -170,16 +182,40 @@ func (d Deps) AssignShortcut(a Assignment) (routes.Binding, error) {
 			"were named", cmd, n, len(ids))
 	}
 	nb := routes.Binding{App: a.ListenIn, Key: key, Cmd: cmd, Routes: ids}
+	var from *Slot
+	if a.Changing != nil {
+		c := *a.Changing
+		c.Key = strings.ToLower(strings.TrimSpace(c.Key))
+		from = &c
+	}
 	err = d.Reg.UpdateBindings(SaveWithin, func(bs []routes.Binding) ([]routes.Binding, error) {
 		var out []routes.Binding
 		var there *routes.Binding
+		changed := false
 		for _, b := range bs {
+			if from != nil && b.App == from.ListenIn && b.Key == from.Key {
+				// THE ONE BEING CHANGED goes in this write, and only as it was shown.
+				if b.Version() != from.Version {
+					return nil, fmt.Errorf("not changed: `%s %s has changed since "+
+						"you were shown it — it now runs %s; look again", b.Key,
+						listenedFor(b.App), describe(b))
+				}
+				// When it is also the slot being written, its own version is the
+				// consent, so nothing further is asked about it below.
+				changed = true
+				continue
+			}
 			if b.App == a.ListenIn && b.Key == key {
 				bb := b
 				there = &bb
 				continue
 			}
 			out = append(out, b)
+		}
+		if from != nil && !changed {
+			return nil, fmt.Errorf("not changed: the shortcut on `%s %s that you were "+
+				"changing has gone since you were shown it; look again", from.Key,
+				listenedFor(from.ListenIn))
 		}
 		switch {
 		case there != nil && a.Consent == "":
@@ -559,10 +595,10 @@ func (d Deps) ListShortcuts(here string, onlyHere bool) []ListedShortcut {
 
 // shortcutsKeptSays adds to a replacement's sentence the shortcuts that run rt and will run what
 // replaces it. Unreadable shortcuts are said as that, never as none.
-func (d Deps) shortcutsKeptSays(rt routes.Route, says string) ([]string, string) {
+func (d Deps) shortcutsKeptSays(rt routes.Route, says string) ([]string, string, bool) {
 	bs, err := d.Reg.ReadBindings()
 	if err != nil {
-		return nil, says + " Whether it has shortcuts could not be read; any it has are kept."
+		return nil, says + " Whether it has shortcuts could not be read; any it has are kept.", true
 	}
 	var keys []string
 	for _, b := range bs {
@@ -572,13 +608,13 @@ func (d Deps) shortcutsKeptSays(rt routes.Route, says string) ([]string, string)
 	}
 	switch len(keys) {
 	case 0:
-		return nil, says
+		return nil, says, false
 	case 1:
 		return keys, says + fmt.Sprintf(" Its shortcut (%s) is kept and will run the new "+
-			"version.", keys[0])
+			"version.", keys[0]), false
 	default:
 		return keys, says + fmt.Sprintf(" Its shortcuts (%s) are kept and will run the new "+
-			"version.", strings.Join(keys, "; "))
+			"version.", strings.Join(keys, "; ")), false
 	}
 }
 
@@ -702,3 +738,8 @@ func (d Deps) failedRename(from, to routes.Route, why error) error {
 			from.ID(), why, to.ID(), from.ID())
 	}
 }
+
+// WiderThanItsRoutine is why a shortcut for rt listened for in listenIn ("" everywhere) would be
+// wider than rt allows, or "" when it would not. The owner's own rule, for a surface that offers
+// the choice before anybody makes it.
+func WiderThanItsRoutine(rt routes.Route, listenIn string) string { return wider(rt, listenIn) }

@@ -12,6 +12,7 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/orchestrator"
 	"github.com/chaynes-simpleclouds/marco/internal/recordingnow"
 	"github.com/chaynes-simpleclouds/marco/internal/routes"
+	"github.com/chaynes-simpleclouds/marco/internal/widgetconfig"
 	"github.com/chaynes-simpleclouds/marco/internal/winctx"
 )
 
@@ -84,8 +85,9 @@ func runBind(args []string) {
 	}
 }
 
-// configuredLeader is the leader key the widget is using, which cannot itself be bound.
-var configuredLeader = func() string { return loadOverlayConfig().Leader }
+// configuredLeader is the leader key the widget is using, which cannot itself be bound. Read the
+// way the widget reads it, by the one reader Studio uses too (internal/widgetconfig).
+var configuredLeader = widgetconfig.Leader
 
 // resolveSteps resolves each step of cmd EXACTLY, once, in the foreground's context — the same
 // lookup a typed name gets — and returns the routines. This is the only place a shortcut's words

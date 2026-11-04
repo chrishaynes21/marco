@@ -479,6 +479,13 @@ set up by an older Marco named its routine only by words: it is kept, does not r
 `marco bind --reassign <key>` shows which routine it would run and asks. Shortcuts are held off
 while a recording is in progress.
 
+In **Studio**, each routine has a **Shortcut** tab with the same rules: it shows the leader, the
+keys that run the routine (also shown as chips on its row), and lets you Set, Change or Remove one,
+listened for in the routine's own application, everywhere, or in an application you name. A key
+already in use is shown with what it runs, and only **Replace** takes it. A shortcut set up by name
+is shown with exactly what it would run and **Reassign** makes it run that. Replacing a routine
+keeps its shortcuts, and the Replace card says so.
+
 ### Learn by talking
 
 Instead of demonstrating, you can **narrate** a routine — typed or spoken — and each

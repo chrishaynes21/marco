@@ -731,7 +731,9 @@ bindings, per CLAUDE.md, or a rendered mockup for the HUD) and a review of it.
   bindings refuse (R6), the "recording now" fact blocks shortcuts; `bindKey`, the control centre
   and the widget words call it; `everywhere`; `marco bindings` (list). CLI only, no new control.
 - **S3: Studio, rendered first.** Then the scope labels, the run-strip sentence per scope,
-  `--source=studio`, the shortcut line and library chips (§7.1–7.4).
+  `--source=studio`, the shortcut line and library chips (§7.1–7.4). **The shortcut controls and
+  library chips are done** ([[ADR-298-studio-sets-shortcuts-through-the-one-owner]]); the scope
+  labels, the run-strip sentence and `--source=studio` are not started.
 - **S4: the widget explains itself, rendered first.** Arm list off the hook thread, "nothing on
   x", configured leader in the echo, hotkey runs tracked (F9), one Enter meaning (F6).
 - **S5: one `overlay.json` reader preserving unknown fields** (F5).

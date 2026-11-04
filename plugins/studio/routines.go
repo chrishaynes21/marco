@@ -49,6 +49,7 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/outcome"
 	"github.com/chaynes-simpleclouds/marco/internal/routes"
 	"github.com/chaynes-simpleclouds/marco/internal/runs"
+	"github.com/chaynes-simpleclouds/marco/internal/widgetconfig"
 )
 
 // kindAct and kindRoutine are what the one run slot is holding, which the page has to know
@@ -126,6 +127,10 @@ type Routine struct {
 	// Marco so that somebody can read what they kept and recognise it — the same reason
 	// an Act shows its play.
 	Source string `json:"source,omitempty"`
+	// Keys are the shortcuts that run it, as chips ("`e notepad", "`c everywhere"), off the one
+	// shortcuts file. Shortcuts set up by name are not here: they are on its Shortcut tab, to be
+	// reassigned. See shortcuts.go.
+	Keys []string `json:"keys,omitempty"`
 	// Clause is what this routine asks for, written the way a name declares it —
 	// `with item` — and "" when it asks for nothing.
 	//
@@ -233,6 +238,7 @@ func (a *Acts) Routines() []Routine {
 			"those presses to be checked against and every one of them would " +
 			"refuse. Save it again from its own demonstration"
 	}
+	keys := shortcutLabels(a.reg().Bindings(), widgetconfig.Leader())
 	for _, rt := range a.reg().List() {
 		if _, _, err := demonstrated.Load(a.reg(), rt); err == nil {
 			continue // AN ACT. It is in the other list, performed by the other thing.
@@ -307,6 +313,7 @@ func (a *Acts) Routines() []Routine {
 				r.Runnable = true
 			}
 		}
+		r.Keys = keys[r.ID]
 		out = append(out, r)
 	}
 	// BY NAME, AND THEN BY THE REST OF THE IDENTITY, so the order is total.

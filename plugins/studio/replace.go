@@ -36,6 +36,7 @@ import (
 
 	"github.com/chaynes-simpleclouds/marco/internal/orchestrator"
 	"github.com/chaynes-simpleclouds/marco/internal/routes"
+	"github.com/chaynes-simpleclouds/marco/internal/widgetconfig"
 )
 
 // Collision is what is already saved where this recording would go.
@@ -63,7 +64,16 @@ func (a *Acts) collisionFor(dr *orchestrator.Draft, scope, app string) Collision
 		return Collision{Why: why}
 	}
 	d := orchestrator.Deps{Reg: a.reg(), Out: &strings.Builder{}}
-	return d.Collision(dr, want, app)
+	c := d.Collision(dr, want, app)
+	// ITS SHORTCUTS, AS THEY ARE PRESSED. The owner writes each as "<key> <where>"; the card
+	// shows the key with the widget's leader in front, the way every other surface does.
+	leader := widgetconfig.Leader()
+	for i, s := range c.Shortcuts {
+		if key, where, ok := strings.Cut(s, " "); ok {
+			c.Shortcuts[i] = widgetconfig.Pressed(leader, key) + " " + where
+		}
+	}
+	return c
 }
 
 // draftToSave is the recording waiting to be kept, or why there is nothing to keep.

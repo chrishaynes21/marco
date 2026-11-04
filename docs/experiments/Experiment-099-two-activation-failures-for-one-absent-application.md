@@ -69,3 +69,12 @@ cannot say how often each outcome happened there.
 Keep the complete output (as here) and add it to this record. A second instance of the
 *did not open within the launch timeout* outcome on the UNSTAMPED run would be evidence that the
 stamp does not decide it; this record does not claim that yet.
+
+## Later runs
+
+| when | what | this test |
+|---|---|---|
+| 2026-11-03, the S3 working tree | full `go test -count=1 ./...`, complete output kept outside the repository | passed |
+
+A pass is not evidence the cause is gone; it was not run to establish a rate, and this record still
+claims nothing about the cause.

@@ -127,6 +127,9 @@ type Collision struct {
 	// Shortcuts are the keys that run the routine that is there, each as "<key> <where>". A
 	// replacement keeps them: they run the new version.
 	Shortcuts []string `json:"shortcuts,omitempty"`
+	// ShortcutsUnknown is that the shortcuts file could not be read, so whether it has any is not
+	// known. Never reported as none.
+	ShortcutsUnknown bool `json:"shortcuts_unknown,omitempty"`
 }
 
 // Consent is permission to replace ONE routine, as it was when somebody was shown it.
@@ -245,7 +248,7 @@ func (d Deps) Collision(dr *Draft, scope Scope, app string) Collision {
 	// agrees to is a new version of the same routine, so the keys that ran it run the new
 	// version. That is the opposite of a forget followed by an unrelated routine saved under
 	// the name, which inherits nothing. Said here, once, with no question per shortcut.
-	c.Shortcuts, c.Says = d.shortcutsKeptSays(rt, c.Says)
+	c.Shortcuts, c.Says, c.ShortcutsUnknown = d.shortcutsKeptSays(rt, c.Says)
 	return c
 }
 

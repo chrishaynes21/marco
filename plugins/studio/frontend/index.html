@@ -345,6 +345,20 @@
    text-transform:uppercase;padding:2px 6px;border-radius:999px;
    background:var(--sink);color:var(--dim);border:1px solid var(--line);
    white-space:nowrap}
+
+ /* A SHORTCUT, AS IT IS PRESSED. Not a `.chip`: that one is uppercase, and `e and `E are
+    two different keys. The machine face, because it is something typed. */
+ .keycap{font:600 12px var(--mach);padding:1px 6px;border:1px solid var(--line);
+   border-radius:var(--r-sm);background:var(--spot-bg);color:var(--ink);white-space:nowrap}
+ .keychips{display:inline-flex;gap:6px;margin-left:8px;flex-wrap:wrap;vertical-align:middle}
+ .keyrows .kr{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;
+   padding:8px 0;border-bottom:1px solid var(--line)}
+ .keyrows .kr:last-child{border-bottom:0}
+ .keyrows .kr .kwhat{min-width:0;overflow-wrap:anywhere}
+ .keyrows .kr .kdo{display:flex;gap:6px}
+ #routineKeyWhere{flex:0 1 auto;max-width:20em;min-width:0}
+ .row > input.keybox[type=text]{flex:0 0 3.2em;width:3.2em;max-width:3.2em;text-align:center;
+   font:600 14px var(--mach)}
  .steprows .basis.win{background:var(--spot-bg);color:var(--spot);
    border-color:transparent}
 
@@ -1567,6 +1581,9 @@
         <button role="tab" type="button" id="routineNamesTab" aria-selected="false"
           aria-controls="routineTabNames" onclick="routineTab('names')"
           >Other names<span id="routineNamesCount"></span></button>
+        <button role="tab" type="button" id="routineKeysTab" aria-selected="false"
+          aria-controls="routineTabKeys" onclick="routineTab('keys')"
+          >Shortcut<span id="routineKeysCount"></span></button>
         <button role="tab" type="button" id="routineWhereBtn" aria-selected="false"
           aria-controls="routineTabWhere" onclick="routineTab('where')">Where it works</button>
         <button role="tab" type="button" id="routineSourceTab" aria-selected="false"
@@ -1732,6 +1749,50 @@
         <div class="muted hide" style="margin-top:6px" id="routineAnswersWhy"></div>
         <div class="hide" style="margin-top:6px" id="routineAnswersSaid"></div>
       </div>
+      </div>
+      <!-- ITS SHORTCUTS: the keys pressed after the widget's leader that run this routine.
+           Every rule is S2's owner (orchestrator shortcuts.go) and this panel decides none of
+           them: it shows what is there, sends the person's choice, and draws what came back,
+           read off disk. See plugins/studio/shortcuts.go.
+
+           WHERE A NEW ONE IS LISTENED FOR IS STATED. Studio is always in front while somebody
+           is using it, so "the application in front" would be Studio; a routine about an
+           application offers that application first, and EVERYWHERE IS ALWAYS CHOSEN, never
+           defaulted. A KEY IN USE IS SHOWN, and replaced only by a second press that carries
+           the version shown. A SHORTCUT SET UP BY NAME is shown with exactly what it would
+           run, and reassigned only on request. -->
+      <div class="tabpanel hide" role="tabpanel" id="routineTabKeys"
+        aria-labelledby="routineKeysTab">
+        <div class="muted" id="routineKeysLeader"></div>
+        <div id="routineKeysList" class="steprows keyrows" style="margin-top:6px"></div>
+        <div id="routineKeysLegacy" class="steprows keyrows" style="margin-top:6px"></div>
+        <div class="row" style="margin-top:8px" id="routineKeyForm">
+          <label for="routineKeyBox" id="routineKeyFormLabel" style="width:7em">new key</label>
+          <input type="text" id="routineKeyBox" class="keybox" maxlength="1"
+            placeholder="?" aria-label="the key, pressed after the leader"
+            aria-describedby="routineKeysLeader"
+            onkeydown="keyPressedInBox(event)">
+          <label for="routineKeyWhere">listened for</label>
+          <select id="routineKeyWhere" onchange="paintKeyForm()"></select>
+          <input type="text" id="routineKeyApp" class="hide" style="flex:1;min-width:8em"
+            placeholder="application, e.g. notepad" oninput="paintKeyForm()">
+          <button class="go" id="routineKeySetBtn" onclick="setRoutineKey('')">Set</button>
+          <button class="hide" id="routineKeyCancelBtn" onclick="cancelKeyChange()"
+            >Cancel</button>
+        </div>
+        <div class="muted hide" style="margin-top:6px" id="routineKeyWhereWhy"></div>
+        <!-- A KEY IN USE, inline, with the two ways out. Replace carries the version this
+             banner was drawn from; anything changed since is the owner's refusal. -->
+        <div class="banner hide" style="margin-top:8px" id="routineKeyTaken">
+          <div id="routineKeyTakenSays"></div>
+          <div class="row" style="margin-top:6px">
+            <button id="routineKeyReplaceBtn" onclick="replaceTakenKey()">Replace</button>
+            <button id="routineKeyOtherBtn" onclick="pickAnotherKey()"
+              >Pick another key</button>
+          </div>
+        </div>
+        <div class="muted hide" style="margin-top:6px" id="routineKeysWhy"></div>
+        <div class="hide" style="margin-top:6px" id="routineKeysSaid"></div>
       </div>
       <div class="tabpanel hide" role="tabpanel" id="routineTabWhere"
         aria-labelledby="routineWhereBtn">
@@ -2966,7 +3027,19 @@
      acts.Collision($('capScope').value, '').then(c => {
        if (!c || !c.exists) { hideTaken(); return }
        taken = c
-       text($('capReplaceNote'), 'replaces “' + (c.name || c.id) + '”, saved ' + c.saved_at)
+       // AND ITS SHORTCUTS ARE KEPT, which is the owner's ruling: an agreed replacement is a
+       // new version of the same routine, so the keys that ran it run the new one. Said
+       // once, here, with no question per key; a file that could not be read is said as
+       // that and never as none.
+       const keys = c.shortcuts || []
+       const kept = keys.length === 1 ? ' Its shortcut ' + keys[0] +
+           ' is kept and will run the new version.'
+         : keys.length > 1 ? ' Its shortcuts ' + andAll(keys) +
+           ' are kept and will run the new version.'
+         : c.shortcuts_unknown ? ' Whether it has shortcuts could not be read; any it ' +
+           'has are kept.' : ''
+       text($('capReplaceNote'), 'replaces “' + (c.name || c.id) + '”, saved ' + c.saved_at +
+         (kept ? '.' + kept : ''))
        $('capReplaceBtn').textContent = 'Replace “' + (c.name || c.id) + '”'
        showing($('capTaken'), true)
      })
@@ -3581,7 +3654,8 @@
  function routinesSig(){
    return routines.map(r => [r.id, r.name, r.contract, r.mode, r.runnable,
      r.saved_at, r.generation, r.declared_generation, r.update,
-     r.rebuildable].join('\u0001')).join('\u0000') + '\u0000' + chosenRoutine
+     r.rebuildable, (r.keys || []).join(',')].join('\u0001')).join('\u0000') + '\u0000' +
+     chosenRoutine
  }
 
  function pollRoutines(){
@@ -3666,7 +3740,12 @@
          '<span class="chev" aria-hidden="true">&#9654;</span>' +
          '<span class="grow"><h3>' + esc(r.name) + '</h3>' +
          '<div class="muted">' + esc(whereItWorks(r)) +
-         (r.saved_at ? '  ·  ' + esc(r.saved_at) : '') + '</div></span>' +
+         (r.saved_at ? '  ·  ' + esc(r.saved_at) : '') +
+         // ITS SHORTCUTS, as they are pressed, so a key is found from the list.
+         ((r.keys || []).length ? '<span class="keychips" id="routineKeys-' + key + '">' +
+           r.keys.map(k => '<span class="keycap">' + esc(k) + '</span>').join('') +
+           '</span>' : '') +
+         '</div></span>' +
        '</button>' +
        (status ? '<span class="pill ' + status[0] + '">' + esc(status[1]) + '</span>' : '') +
        (open ? '<button id="routineRenameBtn" type="button">Rename</button>' : '') +
@@ -4034,6 +4113,260 @@
    showing($('routineAnswersSaid'), !!said)
    $('routineAnswersSaid').className = (a && a.failed) ? 'no' : 'muted'
    $('routineAnswerAddBtn').disabled = false
+ }
+
+ // ── ITS SHORTCUTS ───────────────────────────────────────────────────────────
+ //
+ // `shortcuts` is what the backend last said for the routine on screen and the ONLY thing
+ // drawn, read back off disk after every change. `keyChanging` is the shortcut a Change was
+ // started on, as it was shown (its version goes with the change); `keyTaken` is a key in use
+ // that the last Set found, as the backend described it (its version is what Replace sends).
+ // None of them is authority: the owner checks each version again under its lock.
+ let shortcuts = null, keyChanging = null, keyTaken = null
+
+ function routineShortcuts(){
+   const r = routineWith(chosenRoutine)
+   if (!r) { shortcuts = null; drawShortcuts(); return }
+   acts.RoutineShortcuts(r.id).then(v => { shortcuts = v; drawShortcuts() })
+ }
+
+ // THE KEY ITSELF, as one character. A press in the box is the key, so e is chosen by
+ // pressing e, and Enter sets it. Modified presses are not keys a leader shortcut takes.
+ function keyPressedInBox(e){
+   if (e.key === 'Enter') { e.preventDefault(); setRoutineKey(''); return }
+   if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
+     e.preventDefault()
+     e.target.value = e.key.toLowerCase()
+     keyTaken = null
+     paintKeyForm()
+   }
+ }
+
+ // WHERE THE FORM SAYS, as the backend offered it. A place that needs an application
+ // named is only a place once one is.
+ function keyPlace(){
+   const v = $('routineKeyWhere').value
+   return (shortcuts && shortcuts.places && v !== '') ? shortcuts.places[+v] : null
+ }
+ function keyWhere(){
+   const p = keyPlace()
+   if (!p || !p.allowed) { return {ok: false} }
+   if (p.named) {
+     const app = $('routineKeyApp').value.trim().toLowerCase()
+     return {ok: !!app, listenIn: app}
+   }
+   return {ok: true, listenIn: p.listen_in}
+ }
+
+ function setRoutineKey(consent, key, listenIn){
+   const r = routineWith(chosenRoutine)
+   if (!r) { return }
+   if (key === undefined) {
+     const w = keyWhere()
+     key = $('routineKeyBox').value.trim()
+     if (!w.ok || !key) { return }
+     listenIn = w.listenIn
+   }
+   $('routineKeySetBtn').disabled = true
+   const done = v => {
+     shortcuts = v
+     keyTaken = (v && v.taken) || null
+     // THE KEY STAYS WHERE IT WAS TYPED unless it landed: a refusal or a key in use is
+     // followed by changing it, and the banner names what to avoid.
+     if (v && !v.failed && !v.taken) {
+       $('routineKeyBox').value = ''
+       keyChanging = null
+       pollRoutines()
+     }
+     drawShortcuts()
+   }
+   if (keyChanging) {
+     acts.ChangeShortcut(r.id, keyChanging.listen_in, keyChanging.key, keyChanging.version,
+       key, listenIn, consent).then(done)
+   } else {
+     acts.SetShortcut(r.id, key, listenIn, consent).then(done)
+   }
+ }
+
+ // REPLACE SENDS WHAT THE BANNER SHOWED: that key, that place, that version. Not the
+ // form's current contents, which may have been changed since.
+ function replaceTakenKey(){
+   if (!keyTaken) { return }
+   setRoutineKey(keyTaken.version, keyTaken.key, keyTaken.listen_in)
+ }
+ function pickAnotherKey(){
+   keyTaken = null
+   if (shortcuts) { shortcuts.taken = null }
+   $('routineKeyBox').value = ''
+   drawShortcuts()
+   $('routineKeyBox').focus()
+ }
+
+ function changeRoutineKey(k){
+   keyChanging = k
+   keyTaken = null
+   $('routineKeyBox').value = k.key
+   drawShortcuts()
+   // AND WHERE IT IS LISTENED FOR NOW, preselected: a change of key keeps its place
+   // unless somebody changes that too.
+   const places = (shortcuts && shortcuts.places) || []
+   const i = places.findIndex(p => !p.named && p.listen_in === k.listen_in)
+   const n = places.findIndex(p => p.named)
+   if (i >= 0) {
+     $('routineKeyWhere').value = String(i)
+   } else if (n >= 0) {
+     $('routineKeyWhere').value = String(n)
+     $('routineKeyApp').value = k.listen_in
+   }
+   paintKeyForm()
+   $('routineKeyBox').focus()
+ }
+ function cancelKeyChange(){
+   keyChanging = null
+   keyTaken = null
+   if (shortcuts) { shortcuts.taken = null }
+   $('routineKeyBox').value = ''
+   drawShortcuts()
+ }
+
+ function removeRoutineKey(k){
+   const r = routineWith(chosenRoutine)
+   if (!r) { return }
+   acts.RemoveShortcut(r.id, k.listen_in, k.key, k.version).then(v => {
+     shortcuts = v
+     keyChanging = null
+     keyTaken = null
+     if (v && !v.failed) { pollRoutines() }
+     drawShortcuts()
+   })
+ }
+
+ // A SHORTCUT SET UP BY NAME is reassigned to exactly the plan it was shown with; the
+ // backend refuses if its words reach anything else by now.
+ function reassignRoutineKey(k){
+   const r = routineWith(chosenRoutine)
+   if (!r) { return }
+   acts.ReassignShortcut(r.id, k.listen_in, k.key, k.version, k.plan || '').then(v => {
+     shortcuts = v
+     if (v && !v.failed) { pollRoutines() }
+     drawShortcuts()
+   })
+ }
+
+ function keyRow(k, legacy){
+   const row = document.createElement('div')
+   row.className = 'kr'
+   const cap = document.createElement('span')
+   cap.className = 'keycap'
+   cap.textContent = k.pressed
+   const what = document.createElement('div')
+   what.className = 'kwhat'
+   const line = document.createElement('div')
+   line.textContent = legacy ? k.where + ' · set up by name' : k.where
+   what.appendChild(line)
+   const notes = legacy ? [k.reassignable ? k.plan_says : k.why]
+     : [k.state === 'ok' ? '' : k.says, k.shadows]
+   notes.filter(Boolean).forEach(note => {
+     const d = document.createElement('div')
+     d.className = (!legacy && k.state === 'ok') ? 'muted' : (legacy && k.reassignable ? 'muted' : 'no')
+     d.textContent = note
+     what.appendChild(d)
+   })
+   const act = document.createElement('div')
+   act.className = 'kdo'
+   const button = (label, id, fn) => {
+     const b = document.createElement('button')
+     b.type = 'button'
+     b.id = id
+     b.textContent = label
+     b.disabled = !(shortcuts && shortcuts.askable)
+     b.onclick = fn
+     act.appendChild(b)
+   }
+   const at = 'routineKey' + (legacy ? 'Legacy' : '') + '-' +
+     routineKey((k.listen_in || 'everywhere') + '-' + k.key) + '-'
+   if (legacy) {
+     if (k.reassignable) { button('Reassign', at + 'reassign', () => reassignRoutineKey(k)) }
+   } else {
+     button('Change', at + 'change', () => changeRoutineKey(k))
+   }
+   button('Remove', at + 'remove', () => removeRoutineKey(k))
+   row.appendChild(cap)
+   row.appendChild(what)
+   row.appendChild(act)
+   return row
+ }
+
+ function paintKeyForm(){
+   const w = keyWhere()
+   const p = keyPlace()
+   showing($('routineKeyApp'), !!(p && p.named))
+   $('routineKeySetBtn').disabled = !(w.ok && $('routineKeyBox').value.trim() &&
+     shortcuts && shortcuts.askable)
+ }
+
+ function drawShortcuts(){
+   const r = routineWith(chosenRoutine)
+   // IT BELONGS TO THE ROUTINE IT IS ABOUT. The redraw hook drops `shortcuts` when the
+   // open routine changes; this is also called straight from the handlers.
+   const s = (shortcuts && r && shortcuts.id === r.id) ? shortcuts : null
+   const keys = (s && s.keys) || [], legacy = (s && s.legacy) || []
+   const n = keys.length + legacy.length
+   text($('routineKeysCount'), n ? ' (' + n + ')' : '')
+   text($('routineKeysLeader'), (s && s.leader_says) || '')
+   const list = $('routineKeysList')
+   list.innerHTML = ''
+   keys.forEach(k => list.appendChild(keyRow(k, false)))
+   const old = $('routineKeysLegacy')
+   old.innerHTML = ''
+   legacy.forEach(k => old.appendChild(keyRow(k, true)))
+   // THE FORM: a new key, or the key a Change was started on.
+   const askable = !!(s && s.askable)
+   showing($('routineKeyForm'), askable)
+   text($('routineKeyFormLabel'), keyChanging ? 'change ' + keyChanging.pressed + ' to'
+     : (keys.length ? 'another key' : 'new key'))
+   showing($('routineKeyCancelBtn'), !!keyChanging)
+   $('routineKeySetBtn').textContent = keyChanging ? 'Change' : 'Set'
+   const sel = $('routineKeyWhere')
+   const was = sel.value
+   sel.innerHTML = ''
+   const places = (s && s.places) || []
+   const def = places.findIndex(p => p.default)
+   if (def < 0) {
+     // NO DEFAULT FOR A ROUTINE ABOUT NO APPLICATION: everywhere is chosen, not assumed.
+     const o = document.createElement('option')
+     o.value = ''
+     o.textContent = 'choose where…'
+     sel.appendChild(o)
+   }
+   places.forEach((p, i) => {
+     const o = document.createElement('option')
+     o.value = String(i)
+     o.textContent = p.label + (p.allowed ? '' : ' (not available)')
+     o.disabled = !p.allowed
+     sel.appendChild(o)
+   })
+   sel.value = (was !== '' && places[+was] && places[+was].allowed) ? was
+     : (def >= 0 ? String(def) : '')
+   // ONE REASON ONCE: an Only-in routine refuses both other places for the same reason.
+   const whyNot = [...new Set(places.filter(p => !p.allowed && p.why).map(p => p.why))]
+   text($('routineKeyWhereWhy'), whyNot.join(' '))
+   showing($('routineKeyWhereWhy'), askable && whyNot.length > 0)
+   // A KEY IN USE, said with what is on it, and the two ways out.
+   const t = keyTaken
+   showing($('routineKeyTaken'), !!t)
+   if (t) {
+     text($('routineKeyTakenSays'), t.pressed + ' ' + t.where + ' already runs ' + t.runs + '.')
+     text($('routineKeyReplaceBtn'), 'Replace — ' + t.runs + ' loses ' + t.pressed)
+   }
+   const why = (s && s.why) || ''
+   text($('routineKeysWhy'), why)
+   showing($('routineKeysWhy'), !!why)
+   const said = (s && s.said) || ''
+   text($('routineKeysSaid'), said)
+   showing($('routineKeysSaid'), !!said)
+   $('routineKeysSaid').className = (s && s.failed) ? 'no' : 'muted'
+   paintKeyForm()
  }
 
  // THE STEPS, ASKED OF THE BACKEND. Whether a routine can be edited at all is
@@ -5164,6 +5497,7 @@
  const TABS = {
    steps: ['routineStepsBtn', 'routineTabSteps'],
    names: ['routineNamesTab', 'routineTabNames'],
+   keys: ['routineKeysTab', 'routineTabKeys'],
    where: ['routineWhereBtn', 'routineTabWhere'],
    source: ['routineSourceTab', 'routineTabSource'],
    more: ['routineMaintainSummary', 'routineMaintain'],
@@ -5173,12 +5507,15 @@
    if (!r) { return }
    const stepsLoaded = !!(stepList && stepList.id === r.id)
    const whereLoaded = !!(choices && choices.id === r.id)
-   const loads = (name === 'steps' && !stepsLoaded) || (name === 'where' && !whereLoaded)
+   const keysLoaded = !!(shortcuts && shortcuts.id === r.id)
+   const loads = (name === 'steps' && !stepsLoaded) || (name === 'where' && !whereLoaded) ||
+     (name === 'keys' && !keysLoaded)
    openTab = (openTab === name && !loads) ? '' : name
    openTabFor = r.id
    paintTabs()
    if (openTab === 'steps' && !stepsLoaded) { stepEditing() }
    if (openTab === 'where' && !whereLoaded) { scopeChoices() }
+   if (openTab === 'keys' && !keysLoaded) { routineShortcuts() }
  }
  function paintTabs(){
    for (const [name, [tab, panel]] of Object.entries(TABS)) {
@@ -5290,6 +5627,16 @@
    } else {
      drawAnswers()
    }
+   // AND ITS SHORTCUTS BELONG TO IT TOO: a Change started, or a key in use found, on one
+   // routine is not offered under another's name. Asked for when the tab is opened, not
+   // here -- the row already carries the keys as chips, and a secondary panel stays
+   // downstream of the control that acts (see the comment above).
+   if (shortcuts && shortcuts.id !== r.id) {
+     shortcuts = null
+     keyChanging = null
+     keyTaken = null
+   }
+   drawShortcuts()
    // AND WHAT IT NEEDS TYPED, WITH THE TEXT DROPPED WHENEVER THE ROUTINE CHANGES.
    //
    // Dropped rather than kept: the values belong to one run of one routine, and carrying
