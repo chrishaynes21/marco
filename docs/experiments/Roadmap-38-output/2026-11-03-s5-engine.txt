@@ -1,0 +1,8 @@
+ok  	github.com/chaynes-simpleclouds/marco/cmd/marco	10.975s
+ok  	github.com/chaynes-simpleclouds/marco/internal/widgetconfig	0.738s
+ok  	github.com/chaynes-simpleclouds/marco/internal/routes	0.911s
+ok  	github.com/chaynes-simpleclouds/marco/internal/orchestrator	7.061s
+ok  	github.com/chaynes-simpleclouds/marco/internal/winctx	1.579s
+ok  	github.com/chaynes-simpleclouds/marco/internal/platform/navsource	4.387s
+ok  	github.com/chaynes-simpleclouds/marco/internal/wiringcheck	8.269s
+ok  	github.com/chaynes-simpleclouds/marco/internal/spectest	1.201s

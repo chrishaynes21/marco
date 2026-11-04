@@ -1,0 +1,22 @@
+<!doctype html><html><head><meta charset="utf-8"></head><body><div id="ocpath"></div><div id="oconfig"></div><pre id="out"></pre>
+<script>
+const posted=[]; let banners=[];
+function banner(m,bad){ banners.push((bad?'BAD ':'')+m); }
+window.fetch = async (url, opt) => {
+  if (opt && opt.method==='POST') { posted.push(opt.body); return {ok:true, text:async()=>''}; }
+  return {json: async()=>({path:'X', config:{leader:'f3', wake:'marco', voice:true, theme:'nord', idle:0.72, corner:'top-right', width:340, maxLines:5, monitor:0, border:false, mini:false, metrics:false, coords:false}})};
+};
+</script>
+<script src="page.js"></script>
+<script>
+(async()=>{
+  await loadConfigView();
+  const lead=document.querySelector('[data-k=leader]');
+  const shownLeader=lead.value;
+  await saveConfigView(); // nothing changed
+  document.querySelector('[data-k=wake]').value='jarvis';
+  await saveConfigView();
+  await new Promise(r=>setTimeout(r,50));
+  document.getElementById('out').textContent = JSON.stringify({shownLeader, posted, banners});
+})();
+</script></body></html>

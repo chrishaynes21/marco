@@ -21,6 +21,7 @@ source_paths:
   - internal/director/runref
   - plugins/overlay/intake.go
   - plugins/overlay/outcome.go
+  - internal/widgetconfig
   - plugins/overlay/compat.go
 ---
 
@@ -108,6 +109,10 @@ it without reading `Request.Text` at all.
   A carried press is not sent through an engine that would ignore the context: the widget asks the
   engine first (an `armed_in` echo on a carried listing) and otherwise says shortcuts are off
   (`TestAPressIsNotSentToAnEngineThatWouldNotCheckIt`).
+- The widget's settings (`overlay.json`) have one reader and writer, `internal/widgetconfig`, used
+  by the widget, the control centre and Studio: the widget's precedence everywhere, and a save
+  writes only the keys its person changed, keeping every other field (F5). See
+  [[ADR-300-one-owner-for-the-widgets-settings]].
 
 `invoke.Plays` is a one-method interface partly for exactly this reason: a test can hand in a
 resolver that records every call and assert it was **not** asked

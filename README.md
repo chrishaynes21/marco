@@ -489,6 +489,11 @@ come forward by the time the key arrives, nothing runs and the widget asks for t
 If the `marco` beside the widget is older than the widget and would not make that check, the widget
 says shortcuts are off and does not send the key.
 
+The widget's settings file (`overlay.json`) is shared by the widget's settings panel, the control
+centre's Config view and Studio. Each shows the settings the widget runs with (including a leader
+set in `MARCO_OVERLAY_LEADER`), and a save writes only what was changed there: every other setting
+in the file, including ones this version does not know, is kept.
+
 In **Studio**, each routine has a **Shortcut** tab with the same rules: it shows the leader, the
 keys that run the routine (also shown as chips on its row), and lets you Set, Change or Remove one,
 listened for in the routine's own application, everywhere, or in an application you name. A key

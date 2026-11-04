@@ -737,7 +737,10 @@ bindings, per CLAUDE.md, or a rendered mockup for the HUD) and a review of it.
 - **S4: the widget explains itself, rendered first.** Arm list off the hook thread, "nothing on
   x", configured leader in the echo, hotkey runs tracked (F9), one Enter meaning (F6). **Done except F6**
   ([[ADR-299-the-widget-explains-its-keys]]); one Enter meaning is not started.
-- **S5: one `overlay.json` reader preserving unknown fields** (F5).
+- **S5: one `overlay.json` reader preserving unknown fields** (F5). **Done**
+  ([[ADR-300-one-owner-for-the-widgets-settings]]): one reader and writer for the widget, the
+  control centre and Studio; a save writes only what its person changed. Carried into integration
+  from S4: the widget does not press through an engine that ignores `--armed-in` (ADR-299).
 - **S6: command templates and completion (§5.4), rendered first.** Then Director proposals in the
   read-back through the ADR-277 flow.
 - **S7: edits converge.** `marco rename` reviewed (R7); Studio Forget-one (R8); narrate's window

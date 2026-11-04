@@ -1,98 +1,89 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
-	"os"
-	"path/filepath"
+	"sort"
 	"strings"
+
+	"github.com/chaynes-simpleclouds/marco/internal/widgetconfig"
 )
 
-// overlayConfig mirrors the overlay's persisted settings (plugins/overlay/config.go) plus the
-// voice Wake word (activation phrase), so the control center can edit the SAME overlay.json the
-// overlay reads. Unknown-to-here keys aren't preserved, so this struct lists every overlay field.
-type overlayConfig struct {
-	Theme    string  `json:"theme"`
-	Idle     float64 `json:"idle"`
-	Monitor  int     `json:"monitor"`
-	Corner   string  `json:"corner"`
-	Width    int     `json:"width"`
-	Height   int     `json:"height"`
-	Leader   string  `json:"leader"`
-	Font     string  `json:"font"`
-	MaxLines int     `json:"maxLines"`
-	Border   bool    `json:"border"`
-	Mini     bool    `json:"mini"`
-	Metrics  bool    `json:"metrics"`
-	Coords   bool    `json:"coords"`
-	Voice    bool    `json:"voice"`
-	Wake     string  `json:"wake"` // voice activation phrase — read at launch as $MARCO_VOICE_WAKE
-}
+// THE CONTROL CENTRE'S CONFIG VIEW READS AND WRITES THE WIDGET'S SETTINGS THROUGH THE ONE OWNER
+// (internal/widgetconfig, S5).
+//
+// It used to keep a copy of the widget's fields and save by writing that whole struct back, read
+// from the defaults and the file only. So it showed the default leader to somebody whose widget
+// listened for the one in `$MARCO_OVERLAY_LEADER`, and saving the activation phrase wrote that
+// default leader into the file, where it then won. Now it shows what the widget runs with
+// (widgetconfig.Load) and a save writes only the settings the page sent, which are the ones the
+// person changed (saveConfigView sends nothing else).
 
-func defaultOverlayConfig() overlayConfig {
-	return overlayConfig{Theme: "default", Idle: 0.72, Corner: "top-right", Width: 340, Height: 270,
-		Leader: "`", MaxLines: 5, Voice: true, Wake: "marco"}
-}
-
-// overlayConfigPath matches plugins/overlay/config.go: $MARCO_OVERLAY_CONFIG, else
-// <user-config-dir>/marco/overlay.json.
-func overlayConfigPath() string {
-	if p := os.Getenv("MARCO_OVERLAY_CONFIG"); p != "" {
-		return p
-	}
-	dir, err := os.UserConfigDir()
-	if err != nil {
-		dir = "."
-	}
-	return filepath.Join(dir, "marco", "overlay.json")
-}
-
-// loadOverlayConfig starts from defaults and overlays the saved file (absent keys keep defaults).
-func loadOverlayConfig() overlayConfig {
-	cfg := defaultOverlayConfig()
-	if b, err := os.ReadFile(overlayConfigPath()); err == nil {
-		_ = json.Unmarshal(b, &cfg)
-	}
-	return cfg
-}
-
-func saveOverlayConfig(cfg overlayConfig) error {
-	b, err := json.MarshalIndent(cfg, "", "  ")
-	if err != nil {
-		return err
-	}
-	p := overlayConfigPath()
-	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
-		return err
-	}
-	return os.WriteFile(p, b, 0o644)
-}
-
-// handleOConfig (GET) returns the overlay settings; (POST) merges the submitted fields into the
-// saved file. Decoding the POST over the loaded config updates only the keys the client sent.
+// handleOConfig (GET) returns the widget's settings as the widget runs with them; (POST) writes
+// the settings sent, and nothing else.
 func (e *editor) handleOConfig(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
-		cfg := loadOverlayConfig()
-		if json.NewDecoder(r.Body).Decode(&cfg) != nil {
-			http.Error(w, "bad request", 400)
+		keys, err := saveSentSettings(r.Body)
+		var notSaved errNotSaved
+		switch {
+		case errors.As(err, &notSaved):
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		case err != nil:
+			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		cfg.Wake = strings.TrimSpace(cfg.Wake)
-		if err := saveOverlayConfig(cfg); err != nil {
-			http.Error(w, err.Error(), 500)
-			return
-		}
-		writeJSON(w, map[string]any{"ok": true})
+		writeJSON(w, map[string]any{"ok": true, "saved": keys})
 		return
 	}
-	writeJSON(w, map[string]any{"config": loadOverlayConfig(), "path": overlayConfigPath()})
+	writeJSON(w, map[string]any{"config": widgetconfig.Load(), "path": widgetconfig.Path()})
+}
+
+// errNotSaved marks a request that was understood and could not be written, as against one that
+// was not understood.
+type errNotSaved struct{ err error }
+
+func (e errNotSaved) Error() string { return e.err.Error() }
+
+// saveSentSettings writes the settings in body over the current ones, and returns their keys.
+//
+// Writing every setting must fail TestTheControlCentreSavesOnlyWhatWasSent.
+func saveSentSettings(body io.Reader) ([]string, error) {
+	var buf bytes.Buffer
+	if _, err := buf.ReadFrom(body); err != nil {
+		return nil, err
+	}
+	var sent map[string]json.RawMessage
+	if err := json.Unmarshal(buf.Bytes(), &sent); err != nil {
+		return nil, fmt.Errorf("the settings sent could not be read: %v", err)
+	}
+	keys := make([]string, 0, len(sent))
+	for k := range sent {
+		if !widgetconfig.Known(k) {
+			return nil, fmt.Errorf("%q is not a widget setting", k)
+		}
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	s := widgetconfig.Load()
+	if err := json.Unmarshal(buf.Bytes(), &s); err != nil {
+		return nil, fmt.Errorf("the settings sent could not be read: %v", err)
+	}
+	s.Wake = strings.TrimSpace(s.Wake)
+	if err := widgetconfig.Write(s, keys...); err != nil {
+		return nil, errNotSaved{err}
+	}
+	return keys, nil
 }
 
 // runWake prints the configured voice activation phrase (overlay.json "wake", default "marco").
 // The launcher reads it into $MARCO_VOICE_WAKE so editing it in the UI takes effect on relaunch.
 func runWake() {
-	w := strings.TrimSpace(loadOverlayConfig().Wake)
+	w := strings.TrimSpace(widgetconfig.Load().Wake)
 	if w == "" {
 		w = "marco"
 	}

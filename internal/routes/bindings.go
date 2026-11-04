@@ -214,3 +214,11 @@ func ParseID(id string) (Route, error) {
 	return Route{}, fmt.Errorf("%q is not a routine identity (global/<name>, "+
 		"<app>/context/<name> or <app>/focus/<name>)", id)
 }
+
+// LockFile claims an arbitrary rendezvous file with the same semantics as a route lock: held by
+// the handle, bounded, released by the operating system if the process ends. For another of the
+// engine's small shared files (the widget's settings, internal/widgetconfig) that is written
+// read-modify-write by more than one process.
+func LockFile(path, what string, within time.Duration) (*Hold, error) {
+	return lockFile(filepath.Dir(path), path, what, within)
+}

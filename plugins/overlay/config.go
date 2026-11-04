@@ -7,15 +7,13 @@ package main
 // saved, the file wins, since that's what the editor writes).
 
 import (
-	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
 
+	"github.com/chaynes-simpleclouds/marco/internal/widgetconfig"
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
@@ -23,23 +21,10 @@ import (
 // computes it each frame from what's shown). Width stays user-configured.
 var winH atomic.Int32
 
-// Config is the persisted, editable overlay settings.
-type Config struct {
-	Theme    string  `json:"theme"`   // default | dracula
-	Idle     float64 `json:"idle"`    // idle panel opacity 0..0.95
-	Monitor  int     `json:"monitor"` // monitor index (0 = primary)
-	Corner   string  `json:"corner"`  // top-right | top-left | bottom-right | bottom-left | top-center
-	Width    int     `json:"width"`
-	Height   int     `json:"height"`
-	Leader   string  `json:"leader"`   // leader key: ` | capslock | tab | <letter> | f1..f12
-	Font     string  `json:"font"`     // path to a .ttf, or "" for Consolas/built-in
-	MaxLines int     `json:"maxLines"` // max log lines shown
-	Border   bool    `json:"border"`   // draw an accent outline around the panel
-	Mini     bool    `json:"mini"`     // mini mode — just the command line
-	Metrics  bool    `json:"metrics"`  // show the CPU/RAM widget in the crown (full mode only)
-	Coords   bool    `json:"coords"`   // show a persistent live cursor-coordinates tooltip
-	Voice    bool    `json:"voice"`    // act on spoken commands (the mic gate; the pipe still runs)
-}
+// Config is the persisted, editable overlay settings: the one shape every surface reads and writes
+// (internal/widgetconfig, S5). The widget no longer has a copy of its own, which is how a save
+// from here used to drop the control centre's `wake` (F5).
+type Config = widgetconfig.Settings
 
 var corners = []string{"top-right", "top-left", "bottom-right", "bottom-left", "top-center"}
 var themeNames = []string{
@@ -57,64 +42,43 @@ var (
 // key when cfg.Leader changes; no-op until then.
 var applyLeaderHook = func() {}
 
-func defaultConfig() Config {
-	return Config{Theme: "default", Idle: 0.72, Monitor: 0, Corner: "top-right", Width: 340, Height: 270, Leader: "`", Font: "", MaxLines: 5, Voice: true}
-}
+func defaultConfig() Config { return widgetconfig.Defaults() }
 
-func configPath() string {
-	if p := os.Getenv("MARCO_OVERLAY_CONFIG"); p != "" {
-		return p
-	}
-	dir, err := os.UserConfigDir()
-	if err != nil {
-		dir = "."
-	}
-	return filepath.Join(dir, "marco", "overlay.json")
-}
+func configPath() string { return widgetconfig.Path() }
 
-// loadConfig builds the config from defaults, seeds it from $MARCO_OVERLAY_* (so
-// pre-existing env setups carry over on first run), then overlays the saved file.
-func loadConfig() Config {
-	c := defaultConfig()
+// loadConfig is the defaults, then $MARCO_OVERLAY_*, then the saved file (widgetconfig.Load).
+func loadConfig() Config { return widgetconfig.Load() }
 
-	// env seed (first-run / power-user defaults)
-	c.Theme = envStr("MARCO_OVERLAY_THEME", c.Theme)
-	c.Idle = envFloat("MARCO_OVERLAY_IDLE", c.Idle)
-	if n, ok := envInt("MARCO_OVERLAY_MONITOR"); ok {
-		c.Monitor = n
-	}
-	if w, h, ok := envPair("MARCO_OVERLAY_SIZE", "x"); ok {
-		c.Width, c.Height = w, h
-	}
-	c.Leader = envStr("MARCO_OVERLAY_LEADER", c.Leader)
-	c.Font = envStr("MARCO_OVERLAY_FONT", c.Font)
-	if n, ok := envInt("MARCO_OVERLAY_MAXLINES"); ok {
-		c.MaxLines = n
-	}
-	if v := os.Getenv("MARCO_VOICE"); v != "" {
-		c.Voice = !strings.EqualFold(v, "off") // MARCO_VOICE=off starts muted
-	}
+// cfgDirty is the settings changed in this widget since they were last saved. A save writes those
+// and nothing else, so it cannot write back a value somebody changed elsewhere, or one this
+// widget only ever read from its environment.
+var cfgDirty = map[string]bool{}
 
-	// file overlay (authoritative once the editor has saved)
-	if b, err := os.ReadFile(configPath()); err == nil {
-		_ = json.Unmarshal(b, &c)
-	}
-	return c
-}
-
+// saveConfig writes the settings changed here, and keeps every other field in the file.
+//
+// Writing every field again must fail TestAWidgetSaveKeepsWhatItDidNotChange.
 func saveConfig() error {
 	cfgMu.Lock()
-	b, err := json.MarshalIndent(cfg, "", "  ")
+	c := cfg
+	var keys []string
+	for k := range cfgDirty {
+		keys = append(keys, k)
+	}
 	cfgMu.Unlock()
-	if err != nil {
+	if err := widgetconfig.Write(c, keys...); err != nil {
 		return err
 	}
-	p := configPath()
-	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
-		return err
+	cfgMu.Lock()
+	for _, k := range keys {
+		delete(cfgDirty, k)
 	}
-	return os.WriteFile(p, b, 0o644)
+	cfgMu.Unlock()
+	return nil
 }
+
+// panelKeys is the settings file's key for each row of the settings panel, in configLines' order.
+var panelKeys = [configFieldCount]string{"leader", "theme", "idle", "monitor", "corner", "width",
+	"maxLines", "border", "mini", "metrics", "coords", "voice"}
 
 func cfgSnapshot() Config { cfgMu.Lock(); defer cfgMu.Unlock(); return cfg }
 func cfgWidth() int       { cfgMu.Lock(); defer cfgMu.Unlock(); return cfg.Width }
@@ -139,9 +103,11 @@ func cfgVoice() bool   { cfgMu.Lock(); defer cfgMu.Unlock(); return cfg.Voice }
 func setVoice(on bool) {
 	cfgMu.Lock()
 	cfg.Voice = on
+	c := cfg
+	delete(cfgDirty, "voice")
 	cfgMu.Unlock()
 	voiceEnabled.Store(on)
-	_ = saveConfig()
+	_ = widgetconfig.Write(c, "voice") // this setting only: unsaved panel edits stay unsaved
 }
 
 func onOff(b bool) string {
@@ -227,6 +193,9 @@ func configLines() []string {
 // configChange edits the selected field by delta (-1/+1) and live-applies it.
 func configChange(sel, delta int) {
 	cfgMu.Lock()
+	if sel >= 0 && sel < len(panelKeys) {
+		cfgDirty[panelKeys[sel]] = true
+	}
 	switch sel {
 	case 0:
 		cfg.Leader = cycle(leaderNames, cfg.Leader, delta)

@@ -1,0 +1,111 @@
+[route] save draft
+[result] performed
+[20:13:22][INFO] overlay - shortcut finished key=e row=`e  save draft outcome=performed took=27ms
+`e in notepad ran gone, which is no longer in the library
+[result] refused
+[20:13:22][INFO] overlay - shortcut finished key=e row=`e — `e in notepad ran gone, which is no longer in the library outcome=refused took=25ms err=exit status 5
+[20:13:22][ERROR] overlay - hotkey failed key=e err=exit status 5
+nothing on `e in notepad
+[20:13:22][INFO] overlay - shortcut finished key=e row=nothing on `e in notepad outcome= took=24ms
+[20:13:22][INFO] overlay - shortcut finished key=e row=nothing on `e outcome= took=28ms
+[20:13:22][WARN] overlay - terminating a child why=did not stop when asked pid=48560
+[20:13:22][INFO] overlay - shortcut finished key=e row=`e outcome=cancelled took=114ms err=exit status 1
+[20:13:22][ERROR] overlay - hotkey failed key=e err=exit status 1
+[route] save draft
+[result] performed
+[20:13:22][INFO] overlay - shortcut finished key=e row=`e  save draft outcome=performed took=36ms
+[20:13:25][WARN] overlay - shortcut not pressed key=e why=shortcuts are off: C:\Users\chris\AppData\Local\Temp\go-build75940816\b001\overlay.test.exe is older than this widget and does not check which application a key was pressed for — rebuild marco beside the widget
+[20:13:25][WARN] overlay - shortcut not pressed key=e why=shortcuts are off: C:\Users\chris\AppData\Local\Temp\go-build75940816\b001\overlay.test.exe is older than this widget and does not check which application a key was pressed for — rebuild marco beside the widget
+[20:13:25][WARN] overlay - shortcut not pressed key=e why=shortcuts are off: C:\Users\chris\AppData\Local\Temp\go-build75940816\b001\overlay.test.exe is older than this widget and does not check which application a key was pressed for — rebuild marco beside the widget
+{"app":"discord","armed_in":"discord","shortcuts":[]}
+[20:13:25][INFO] overlay - shortcut finished key=e row={"app":"discord","armed_in":"discord","shortcuts":[]} outcome= took=26ms
+{"app":"discord","armed_in":"discord","shortcuts":[]}
+[20:13:25][INFO] overlay - shortcut finished key=e row={"app":"discord","armed_in":"discord","shortcuts":[]} outcome= took=26ms
+usage: marco bindings [--here] [--json]
+[20:13:25][INFO] overlay - shortcut finished key=e row=`e — usage: marco bindings [--here] [--json] outcome=failed took=26ms err=exit status 2
+[20:13:25][ERROR] overlay - hotkey failed key=e err=exit status 2
+{"app":"discord","shortcuts":[]}
+[20:13:26][INFO] overlay - shortcut finished key=e row={"app":"discord","shortcuts":[]} outcome= took=28ms
+[20:13:26][ERROR] overlay - ui failed to start err=fork/exec C:\Users\chris\AppData\Local\Temp\TestEveryPanelWordOpensItsPanel447606369\001\no-such-marco.exe: The system cannot find the file specified.
+--- FAIL: TestASpokenStopReachesTheRunningPlayImmediately (5.01s)
+    intake_test.go:209: the stop generation did not rise (0 -> 0): nothing told the running play to stop, and a killed play never releases what it holds
+    intake_test.go:219: a child that never heard the signal was not terminated by the fallback
+    intake_test.go:225: the stopped child must be marked cancelled, not failed
+    intake_test.go:233: the control phrase never reached the intake
+[route] open settings
+thinking about it
+[result] refused
+heard: open the settings
+[2/5] looking
+CLARIFICATION_REQUIRED: which one?
+[result] clarify
+[20:13:31][INFO] overlay - intake source=typed phrase=open the settings args=[do --source=typed open the settings]
+[20:13:31][INFO] overlay - intake source=typed phrase=polish the silver args=[do --source=typed polish the silver]
+[20:13:31][INFO] overlay - nothing took it — offering learn phrase=polish the silver
+[20:13:31][INFO] overlay - intake source=typed phrase=polish the silver args=[do --source=typed polish the silver]
+[20:13:31][INFO] overlay - intake source=typed phrase=polish the silver args=[do --source=typed polish the silver]
+[20:13:31][INFO] overlay - control phrase — stopping locally too phrase=stop
+[20:13:31][INFO] overlay - intake source=spoken phrase=stop args=[do --source=spoken stop]
+[20:13:31][INFO] overlay - control phrase — stopping locally too phrase=cancel
+[20:13:31][INFO] overlay - intake source=spoken phrase=cancel args=[do --source=spoken cancel]
+[20:13:31][INFO] overlay - control phrase — stopping locally too phrase=stop that
+[20:13:31][INFO] overlay - intake source=spoken phrase=stop that args=[do --source=spoken stop that]
+[20:13:31][INFO] overlay - control phrase — stopping locally too phrase=cancel that
+[20:13:31][INFO] overlay - intake source=spoken phrase=cancel that args=[do --source=spoken cancel that]
+[20:13:31][INFO] overlay - control phrase — stopping locally too phrase=stop it
+[20:13:31][INFO] overlay - intake source=spoken phrase=stop it args=[do --source=spoken stop it]
+[20:13:31][INFO] overlay - control phrase — stopping locally too phrase=cancel it
+[20:13:31][INFO] overlay - intake source=spoken phrase=cancel it args=[do --source=spoken cancel it]
+[20:13:31][INFO] overlay - control phrase — stopping locally too phrase=abort
+[20:13:31][INFO] overlay - intake source=spoken phrase=abort args=[do --source=spoken abort]
+[20:13:31][INFO] overlay - control phrase — stopping locally too phrase=halt
+[20:13:31][INFO] overlay - intake source=spoken phrase=halt args=[do --source=spoken halt]
+[20:13:31][INFO] overlay - control phrase — stopping locally too phrase=STOP
+[20:13:31][INFO] overlay - intake source=spoken phrase=STOP args=[do --source=spoken STOP]
+[20:13:31][INFO] overlay - control phrase — stopping locally too phrase=Abort.
+[20:13:31][INFO] overlay - intake source=spoken phrase=Abort. args=[do --source=spoken Abort.]
+Performing "ark graphics live" against arkascended (hwnd:1)
+  run run-20261019-201500-abcd   C:\home\runs\run-20261019-201500-abcd.json
+  Starting in 5s.
+  run run-20261019-201500-abcd   C:\home\runs\run-20261019-201500-abcd.json   (verified)
+[result] performed
+[result] refused
+[20:13:31][INFO] overlay - learn starting name=open downloads
+[20:13:31][ERROR] overlay - learn failed name=open downloads err=fork/exec C:\Users\chris\AppData\Local\Temp\TestTheLearnWordAnswersToItsOldNamelearn2716483420\001\no-such-marco.exe: The system cannot find the file specified.
+[20:13:31][INFO] overlay - learn starting name=open downloads
+[20:13:31][ERROR] overlay - learn failed name=open downloads err=fork/exec C:\Users\chris\AppData\Local\Temp\TestTheLearnWordAnswersToItsOldNameteach3413155378\001\no-such-marco.exe: The system cannot find the file specified.
+[20:13:31][INFO] overlay - intake source=typed phrase=make the pictures nicer args=[do --source=typed make the pictures nicer]
+[20:13:31][INFO] overlay - intake source=typed phrase=make the pictures nicer args=[do --source=typed make the pictures nicer]
+[20:13:31][INFO] overlay - running what Director named id=arkascended/focus/ark-graphics args=[do --play=ark-graphics --app=arkascended --focus]
+[20:13:31][INFO] overlay - intake source=typed phrase=make the pictures nicer args=[do --source=typed make the pictures nicer]
+[20:13:31][INFO] overlay - intake source=typed phrase=make the pictures nicer args=[do --source=typed make the pictures nicer]
+[20:13:31][INFO] overlay - intake source=typed phrase=make the pictures nicer args=[do --source=typed make the pictures nicer]
+[20:13:31][WARN] overlay - a run with no identity reply=Opening it.
+[20:13:31][INFO] overlay - intake source=typed phrase=make the pictures nicer args=[do --source=typed make the pictures nicer]
+[20:13:31][INFO] overlay - intake source=typed phrase=make the pictures nicer args=[do --source=typed make the pictures nicer]
+[20:13:31][INFO] overlay - intake source=typed phrase=make the pictures nicer args=[do --source=typed make the pictures nicer]
+[20:13:31][INFO] overlay - intake source=typed phrase=make the pictures nicer args=[do --source=typed make the pictures nicer]
+[20:13:31][INFO] overlay - intake source=typed phrase=make the pictures nicer args=[do --source=typed make the pictures nicer]
+[20:13:31][INFO] overlay - nothing took it — offering learn phrase=make the pictures nicer
+[20:13:31][INFO] overlay - resolve took too long phrase=make the pictures nicer within=300ms
+[20:13:32][WARN] overlay - terminating a child why=did not stop when asked pid=18028
+[20:13:32][WARN] overlay - terminating a child why=asked twice pid=15792
+[20:13:32][INFO] overlay - ui args=-test.run=TestOverlayEnvDumpHelper
+[20:13:32][WARN] overlay - the control centre stopped before it was up err=<nil> args=[-test.run=TestOverlayEnvDumpHelper]
+[20:13:32][ERROR] overlay - ui failed to start err=not started: this test never spawns marco
+[20:13:32][ERROR] overlay - ui failed to start err=not started: this test never spawns marco
+[20:13:32][ERROR] overlay - ui failed to start err=not started: this test never spawns marco
+[20:13:32][ERROR] overlay - ui failed to start err=not started: this test never spawns marco
+[20:13:32][ERROR] overlay - ui failed to start err=not started: this test never spawns marco
+[20:13:32][INFO] overlay - ui args=-test.run=TestOverlaySleeperHelper
+[20:13:32][WARN] overlay - the control centre stopped before it was up err=<nil> args=[-test.run=TestOverlaySleeperHelper]
+[20:13:32][ERROR] overlay - ui failed to start err=fork/exec C:\Users\chris\AppData\Local\Temp\TestTheHudDoesNotClaimTheBrowserOpeneda_child_that_cannot_start2070919247\001\no-such-marco.exe: The system cannot find the file specified.
+[20:13:32][INFO] overlay - ui args=-test.run=TestOverlaySleeperHelper
+"write a note": this routine types text that has to be supplied, and no value was given for "message". This request needs text values reviewed before running. Open it in Studio, or supply the value with the request
+[route] open settings
+[result] performed
+FAIL
+FAIL	github.com/chaynes-simpleclouds/marco/plugins/overlay	13.124s
+?   	github.com/chaynes-simpleclouds/marco/plugins/overlay/cmd/groundprobe	[no test files]
+?   	github.com/chaynes-simpleclouds/marco/plugins/overlay/cmd/marco-show	[no test files]
+FAIL

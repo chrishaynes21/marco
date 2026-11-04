@@ -3101,9 +3101,13 @@ const OCFG=[
  {k:'metrics', label:'CPU / RAM widget', type:'bool'},
  {k:'coords', label:'Cursor coords', type:'bool'},
 ];
+// What was shown, so a save sends only what the person changed (the one owner writes only the
+// settings it is sent, and a leader nobody touched here is not written back).
+let OCFG_SHOWN={};
 async function loadConfigView(){
   const r = await (await fetch('/api/oconfig')).json();
   const cfg = r.config||{};
+  OCFG_SHOWN = cfg;
   document.getElementById('ocpath').textContent = r.path||'';
   const box=document.getElementById('oconfig'); box.innerHTML='';
   for(const f of OCFG){
@@ -3111,7 +3115,10 @@ async function loadConfigView(){
     const lab=document.createElement('label'); lab.textContent=f.label; row.appendChild(lab);
     let inp;
     if(f.type==='select'){ inp=document.createElement('select');
-      for(const o of f.opts){ const op=document.createElement('option'); op.value=o; op.textContent=(o===BT?BT+' (backtick)':o); if(o===cfg[f.k]) op.selected=true; inp.appendChild(op); } }
+      // The configured value is always a choice, even one this list does not offer (a leader of
+      // f3): otherwise the first option shows as selected and a save writes it.
+      const opts = (cfg[f.k]!==undefined && !f.opts.includes(cfg[f.k])) ? [cfg[f.k], ...f.opts] : f.opts;
+      for(const o of opts){ const op=document.createElement('option'); op.value=o; op.textContent=(o===BT?BT+' (backtick)':o); if(o===cfg[f.k]) op.selected=true; inp.appendChild(op); } }
     else if(f.type==='bool'){ inp=document.createElement('select');
       for(const [v,l] of [['true','on'],['false','off']]){ const op=document.createElement('option'); op.value=v; op.textContent=l; if(String(!!cfg[f.k])===v) op.selected=true; inp.appendChild(op); } }
     else { inp=document.createElement('input'); inp.type=f.type; if(f.step)inp.step=f.step; if(f.min)inp.min=f.min; if(f.max)inp.max=f.max; if(f.ph)inp.placeholder=f.ph; inp.value = cfg[f.k]!==undefined?cfg[f.k]:''; }
@@ -3126,8 +3133,11 @@ async function saveConfigView(){
     else if(t==='number') out[k] = (k==='idle') ? parseFloat(inp.value||'0') : parseInt(inp.value||'0',10);
     else out[k]=inp.value;
   }
+  for(const k of Object.keys(out)){ if(out[k]===OCFG_SHOWN[k]) delete out[k]; }
+  if(!Object.keys(out).length){ banner('Nothing changed, so nothing was saved', false); return; }
   const resp=await fetch('/api/oconfig',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(out)});
-  banner(resp.ok ? '✓ Settings saved — relaunch the overlay to apply' : '✗ Save failed', !resp.ok);
+  if(resp.ok){ banner('✓ Saved '+Object.keys(out).join(', ')+' — relaunch the overlay to apply', false); loadConfigView(); }
+  else banner('✗ Not saved: '+(await resp.text()).trim(), true);
 }
 // ---- edit view ----
 const FINAL_WAIT_WARN='This is the final settle wait. Deleting it can make the last step (e.g. a click) fire and the play end before the app processes it, so it may not register. Delete anyway?';

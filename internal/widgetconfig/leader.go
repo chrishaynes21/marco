@@ -1,24 +1,15 @@
-// Package widgetconfig reads, and only reads, what the widget (plugins/overlay) is configured
-// with, for the surfaces that have to show the same thing: the leader a shortcut is pressed
-// after.
-//
-// # Why read-only
-//
-// The widget's settings file is written by the widget and by the control centre, and the single
-// reader-and-writer that preserves fields it does not know is S5 of
-// docs/Surfaces-alignment-proposal-2026-11-02.md, not this. Nothing here writes, so nothing here
-// can drop a field.
+// Package widgetconfig is the one reader and writer of the widget's settings (overlay.json), for
+// the widget, the control centre and Studio (settings.go), and the leader a shortcut is pressed
+// after, as every surface writes it (this file).
 //
 // # The precedence is the widget's
 //
-// `plugins/overlay/config.go` `loadConfig`: the default, then `$MARCO_OVERLAY_LEADER`, then the
-// file's `leader` when the file states one. The file is found the same way: `$MARCO_OVERLAY_CONFIG`,
-// else `<user config dir>/marco/overlay.json`. A file that cannot be read or parsed leaves the
-// value before it, which is what the widget does.
+// The defaults, then `$MARCO_OVERLAY_*`, then the file, key by key (Load). The file is
+// `$MARCO_OVERLAY_CONFIG`, else `<user config dir>/marco/overlay.json`. A file that cannot be read
+// or parsed leaves every value before it.
 package widgetconfig
 
 import (
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -41,27 +32,7 @@ func Path() string {
 }
 
 // Leader is the leader key the widget is configured with.
-func Leader() string {
-	leader := DefaultLeader
-	if v, ok := os.LookupEnv("MARCO_OVERLAY_LEADER"); ok && v != "" {
-		leader = v
-	}
-	raw, err := os.ReadFile(Path())
-	if err != nil {
-		return leader
-	}
-	var fields map[string]json.RawMessage
-	if json.Unmarshal(raw, &fields) != nil {
-		return leader
-	}
-	if v, ok := fields["leader"]; ok {
-		var s string
-		if json.Unmarshal(v, &s) == nil {
-			leader = s
-		}
-	}
-	return leader
-}
+func Leader() string { return Load().Leader }
 
 // Pressed is how a shortcut on key reads with leader in front of it: "`e" for a one-character
 // leader, "CapsLock then e" for a named one. It is the form every surface writes a shortcut in.
