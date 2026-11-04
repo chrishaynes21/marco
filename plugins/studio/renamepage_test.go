@@ -32,6 +32,8 @@ window.go = {main: {
     SuggestRoutine: () => Promise.resolve({answer: {kind: 'none'}}),
   },
   Acts: {
+    // THE WIDGET ACTION (S7), polled from start-up: the page draws whatever it says.
+    WidgetStatus: () => Promise.resolve({state: 'ready', says: '', problems: []}),
     SuggestTargets: () => Promise.resolve([]),
     SuggestRoutine: () => Promise.resolve({kind: 'none'}),
     Demonstrations: () => Promise.resolve([]),

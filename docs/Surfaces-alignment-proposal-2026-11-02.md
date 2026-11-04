@@ -748,7 +748,10 @@ bindings, per CLAUDE.md, or a rendered mockup for the HUD) and a review of it.
   read-back through the ADR-277 flow.
 - **S7: edits converge.** `marco rename` reviewed (R7); Studio Forget-one (R8); narrate's window
   (F7).
-- **S8: Start the widget from Studio (R5), separately reviewed.**
+- **S8: Start the widget from Studio (R5), separately reviewed.** **Done, run as S7 in the owner's
+  renumbering** ([[ADR-302-studio-opens-the-widget]]). The owner's order after it: S8 the
+  remaining operation alignment (this list's S7), S9 guarded in-place routines, then shared
+  styling and themes. F6 and Roadmap 38 stay open.
 - **S9: R1, after its generation/compatibility review.**
 
 ---

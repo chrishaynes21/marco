@@ -1,0 +1,5 @@
+ok  	github.com/chaynes-simpleclouds/marco/internal/buildid	0.329s
+ok  	github.com/chaynes-simpleclouds/marco/internal/widgetstack	0.336s
+ok  	github.com/chaynes-simpleclouds/marco/internal/gate	0.478s
+ok  	github.com/chaynes-simpleclouds/marco/internal/wiringcheck	6.001s
+ok  	github.com/chaynes-simpleclouds/marco/internal/spectest	0.965s

@@ -150,6 +150,12 @@
  .railfoot{margin-top:auto;padding:14px 20px 0;font-size:12.75px;line-height:1.5;
           color:var(--dim)}
  #railrun{border-top:1px solid var(--line);padding-top:13px;margin-bottom:9px}
+ /* THE WIDGET IS A SECONDARY ACTION: below the destinations, quieter than them, and with its
+    state under it in words, because a dot alone would carry the meaning by colour. */
+ #widgetbox{margin:10px 10px 0;padding-top:10px;border-top:1px solid var(--line)}
+ #widgetbox .railbtn{width:100%;margin:0;font-size:13px}
+ #widgetSays{padding:2px 12px 0;font-size:12px;line-height:1.45;color:var(--dim)}
+ #widgetSays.bad{color:var(--warn)}
 
  /* ── the main area: one column, measured ── */
  /* THE COLUMN IS CENTRED IN WHAT IS LEFT OF THE WINDOW.
@@ -697,6 +703,13 @@
   <button class="railbtn hide" id="rail-scenes" onclick="show('scenes')">Scenes</button>
   <button class="railbtn" id="rail-history" onclick="show('history')">Run history</button>
   <button class="railbtn" id="rail-help" onclick="show('help')">Help</button>
+  <!-- OPEN THE WIDGET (S7). A separate process and a separate choice: this starts the installer's
+       stack beside this window, or says it is running, or says why it cannot. Every word is the
+       backend's (widget.go). -->
+  <div id="widgetbox">
+    <button class="railbtn" id="widgetBtn" onclick="openWidget()">Open widget</button>
+    <div id="widgetSays"></div>
+  </div>
   <!-- STOP, WHEREVER THEY ARE. A run can be stopped from any of the three places, because
        somebody who has navigated away is not somebody who has stopped caring. -->
   <div class="railfoot">
@@ -2130,6 +2143,17 @@
        (drawReady, loadLibrary); what moved is where they are read. A readiness PROBLEM, and a
        library from before this one, still appear on the Routines screen -- those are things
        to act on, and these are things to look up. See [[Studio-coherence-audit-2026-11-02]]. -->
+  <!-- USE MARCO WHILE YOU PLAY: the same action, with every piece that is missing or from
+       another build listed with what to do. -->
+  <div class="card" id="widgetCard">
+    <h3>Use Marco while you play</h3>
+    <p class="muted" style="margin-top:4px">The widget is a small HUD that stays over your game: press
+      the leader key and then a routine's key, or type a routine's name. It runs on its own and
+      keeps running when this window closes.</p>
+    <div class="row" style="margin-top:8px"><button id="widgetCardBtn" onclick="openWidget()">Open widget</button>
+      <span class="muted" id="widgetCardSays" style="margin-left:10px"></span></div>
+    <div id="widgetProblems" style="margin-top:8px"></div>
+  </div>
   <div class="card" id="aboutCard">
     <h3>About this installation</h3>
     <div class="muted mach" style="font-size:12px;margin-top:6px" id="readyMachine"></div>
@@ -2302,6 +2326,7 @@
    // has no console to print it to. The other five polls survive it only because
    // everything they touch is inside a `.then`.
    setTimeout(pollReady, 0)
+   setTimeout(pollWidget, 0)
    // THE PAGE REPORTS ITSELF, LAST. A `-H windowsgui` binary has no console, so this
    // callback is the only evidence that the window opened, WebView2 came up, the embedded
    // asset was served, this script ran, and the Go bindings are reachable from it.
@@ -3495,6 +3520,43 @@
  // mouse in this very process during a recording, and a run has a game in front; neither is a
  // moment to touch somebody's library for a diagnostic. The answer on screen stays as it was,
  // which is what it was a few seconds ago.
+ // THE WIDGET'S STATE, asked every few seconds: whether one is running is a fact about the machine
+ // that changes without this window, and a line that said "ready" beside a widget somebody had
+ // just started from a terminal would offer to start a second.
+ let shownWidget = ''
+ function pollWidget(){
+   acts.WidgetStatus().then(drawWidget).finally(() => setTimeout(pollWidget, 4000))
+ }
+ function openWidget(){
+   $('widgetBtn').disabled = true
+   $('widgetCardBtn').disabled = true
+   acts.OpenWidget().then(drawWidget)
+ }
+ function drawWidget(st){
+   const sig = JSON.stringify(st)
+   if (sig === shownWidget) { return }
+   shownWidget = sig
+   const can = st.state === 'ready' || st.state === 'failed'
+   const label = { ready: 'Open widget', failed: 'Open widget again', starting: 'Widget starting…',
+     running: 'Widget is running', unavailable: 'Widget unavailable' }[st.state] || 'Open widget'
+   for (const id of ['widgetBtn', 'widgetCardBtn']) {
+     $(id).textContent = label
+     $(id).disabled = !can
+   }
+   $('widgetSays').textContent = st.short || ''
+   $('widgetSays').className = (st.state === 'unavailable' || st.state === 'failed') ? 'bad' : ''
+   $('widgetCardSays').textContent = st.says || ''
+   const box = $('widgetProblems')
+   box.innerHTML = ''
+   ;(st.problems || []).forEach(p => {
+     const div = document.createElement('div')
+     div.className = 'muted'
+     div.style.marginBottom = '6px'
+     div.textContent = p.says + (p.do ? ' — ' + p.do : '')
+     box.appendChild(div)
+   })
+ }
+
  function pollReady(){
    const busy = captureActive || runActive
    const next = () => setTimeout(pollReady, 10000)

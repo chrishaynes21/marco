@@ -28,6 +28,8 @@ window.go = {main: {
     SuggestRoutine: () => Promise.resolve({answer: {kind: 'none'}}),
   },
   Acts: {
+    // THE WIDGET ACTION (S7), polled from start-up: the page draws whatever it says.
+    WidgetStatus: () => Promise.resolve({state: 'ready', says: '', problems: []}),
     // THE ASK BOX. Bound at startup, so a stub without it is a page that paints
     // nothing - which is the right failure: a binding the page calls and the window
     // does not export is exactly the defect these harnesses exist to catch.

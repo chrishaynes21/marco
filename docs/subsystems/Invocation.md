@@ -25,6 +25,8 @@ source_paths:
   - plugins/overlay/compat.go
   - cmd/marco/line.go
   - plugins/overlay/line.go
+  - plugins/studio/widget.go
+  - internal/widgetstack
 ---
 
 # Invocation

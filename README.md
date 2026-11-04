@@ -506,6 +506,12 @@ runs and the line stays open for you to type it. When Director finds the routine
 proposes a value from what you said, the command line opens on it with the value filled in. You
 can edit it, and it runs only when you press Enter.
 
+Studio can **Open widget** (in the rail, and in Help under *Use Marco while you play*). It starts
+the same widget `Marco.exe --overlay` starts, from beside Studio, using Studio's library and
+settings. If a widget is already running, it says so and does not start a second. It will not
+start one whose pieces are missing or were built from different sources, and it names each piece.
+If the widget does not stay up, it says what to run from a terminal to see why.
+
 In **Studio**, each routine has a **Shortcut** tab with the same rules: it shows the leader, the
 keys that run the routine (also shown as chips on its row), and lets you Set, Change or Remove one,
 listened for in the routine's own application, everywhere, or in an application you name. A key

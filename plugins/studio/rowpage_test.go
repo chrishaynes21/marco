@@ -49,6 +49,8 @@ window.go = {main: {
       offered: 1, source: 'exact', resolver: 'not-asked', context: {says: 'x'},
       values: [{name: 'item', value: 'granite'}], sourceAt: 'rev1'}})},
   Acts: {
+    // THE WIDGET ACTION (S7), polled from start-up: the page draws whatever it says.
+    WidgetStatus: () => Promise.resolve({state: 'ready', says: '', problems: []}),
     SuggestTargets: () => Promise.resolve(['arkascended']),
     SuggestRoutine: () => Promise.resolve({kind: 'none'}),
     Demonstrations: () => Promise.resolve([]), Saved: () => Promise.resolve([]),

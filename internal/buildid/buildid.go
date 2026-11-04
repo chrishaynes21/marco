@@ -22,6 +22,7 @@
 package buildid
 
 import (
+	"debug/buildinfo"
 	"runtime/debug"
 	"strings"
 )
@@ -37,6 +38,20 @@ func Revision() string {
 	if !ok {
 		return "unknown"
 	}
+	return revisionIn(info)
+}
+
+// Of is the revision another Go binary was built from, read out of the file without running it,
+// or "unknown" when it carries no stamp or cannot be read. The same short form as Revision.
+func Of(path string) string {
+	info, err := buildinfo.ReadFile(path)
+	if err != nil {
+		return "unknown"
+	}
+	return revisionIn(info)
+}
+
+func revisionIn(info *debug.BuildInfo) string {
 	rev, dirty := "", false
 	for _, s := range info.Settings {
 		switch s.Key {
