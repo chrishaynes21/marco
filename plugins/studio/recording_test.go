@@ -888,32 +888,24 @@ func reviewOf(t *testing.T, lose func(*recorder.RecordedEvent)) Recording {
 	return a.Recording()
 }
 
-// A GUARDED RECORDING IS SAVED TO BRING ITS APPLICATION FORWARD, AND THE CHOICE IS WITHDRAWN.
+// A GUARDED RECORDING KEEPS TWO SCOPES, AND THE THIRD IS UNAVAILABLE WITH ITS REASON (S9).
 //
-// Not defaulted — withdrawn. Two of the three scopes promise to switch nothing, so their routes
-// carry no Activate, nothing binds a window, and every press that asked to be checked against
-// one refuses. Offering them would be offering two ways to save a routine that cannot press
-// anything, and a select with one real option is worse than a sentence.
-func TestAGuardedRecordingIsSavedToBringItsApplicationForward(t *testing.T) {
+// "Only in" binds the window in front when the run is admitted, and "From anywhere → app" binds
+// the one it brings forward, so both are the person's choice and the chooser opens on the ruled
+// default. "From anywhere → current foreground" names no application, so there is no window for
+// a checked press, and it is withdrawn with the backend's own sentence.
+//
+// Forcing a single scope again, or offering current foreground, must fail this.
+func TestAGuardedRecordingKeepsTwoScopesAndSaysWhyNotTheThird(t *testing.T) {
 	r := reviewOf(t, nil)
-
-	if r.Scope != "app-anywhere" {
-		t.Errorf("review says the scope is %q", r.Scope)
+	if r.Scope != "" || r.Brings != "" {
+		t.Errorf("the choice was withdrawn: scope %q, %q", r.Scope, r.Brings)
 	}
-	if !strings.Contains(r.Brings, "arkascended") ||
-		!strings.Contains(r.Brings, "brings forward") {
-		t.Errorf("review says %q, and a person has to be told that Marco brings "+
-			"the application forward before playback", r.Brings)
+	if r.DefaultScope != "app-anywhere" {
+		t.Errorf("the chooser opens on %q, not the ruled default", r.DefaultScope)
 	}
-	// AND WHY THE CHOICE IS NOT THEIRS, which a withdrawn control cannot say for
-	// itself. This sentence stands where a chooser was, so it has to answer the
-	// question somebody asks on finding one missing — and the answer is that the
-	// other two bring no window forward for a checked press to be checked against.
-	for _, says := range []string{"checked", "refus"} {
-		if !strings.Contains(r.Brings, says) {
-			t.Errorf("review says %q, which does not say why the other two "+
-				"scopes are not offered (%q)", r.Brings, says)
-		}
+	if len(r.Unavailable) != 1 || !strings.Contains(r.Unavailable["everywhere"], "names no application") {
+		t.Errorf("unavailable: %v", r.Unavailable)
 	}
 }
 
@@ -960,7 +952,9 @@ func TestThePageOpensTheScopeChooserOnTheBackendsDefault(t *testing.T) {
 // this window deciding where somebody's routine works, and saving it as asked would write a
 // routine that refuses every press. Nothing reaches disk either way.
 func TestSavingAGuardedRecordingUnderAnImpossibleScopeIsRefused(t *testing.T) {
-	for _, scope := range []string{"app", "everywhere"} {
+	// ONE SCOPE SINCE S9: Only in binds the window in front at admission, and is saved as asked
+	// (TestAGuardedRecordingCanBeSavedOnlyIn).
+	for _, scope := range []string{"everywhere"} {
 		t.Run(scope, func(t *testing.T) {
 			dir := t.TempDir()
 			t.Setenv("MARCO_CV", "off")
@@ -973,7 +967,7 @@ func TestSavingAGuardedRecordingUnderAnImpossibleScopeIsRefused(t *testing.T) {
 					"forward, so every press in it will refuse")
 			}
 			for _, want := range []string{"checks the window it was made in",
-				"nothing for those presses", "bringing it forward"} {
+				"names no application", "Only in arkascended"} {
 				if !strings.Contains(why, want) {
 					t.Errorf("the refusal says %q and does not mention "+
 						"%q", why, want)
@@ -1004,11 +998,11 @@ func TestARoutineThatCannotPressAnythingIsListedAndSavedAgain(t *testing.T) {
 	t.Setenv("MARCO_ROUTES", dir)
 	a := recorded(t, nil)
 
-	// SAVED THE WAY THE OLD RULE ALLOWED: through the backend, under the context
-	// scope, which is exactly the state on disk this exists for.
+	// SAVED THE ONE WAY STILL UNRUNNABLE SINCE S9: through the backend, under the current-
+	// foreground scope, which names no application and so binds no window.
 	d := orchestrator.Deps{Reg: a.reg(), Out: &strings.Builder{}}
 	dr := a.capture.draft
-	if _, err := d.Save(dr, orchestrator.ScopeApp, "arkascended"); err != nil {
+	if _, err := d.Save(dr, orchestrator.ScopeEverywhere, ""); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1341,5 +1335,23 @@ func TestAVisitToStudioLeavesARecordingThatStillSaves(t *testing.T) {
 	}
 	if strings.Contains(saved, "Drag") {
 		t.Errorf("the saved routine drags:\n%s", saved)
+	}
+}
+
+// S9: a guarded recording saved "Only in" its application is saved there, and is not listed as a
+// routine that cannot press anything.
+func TestAGuardedRecordingCanBeSavedOnlyIn(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("MARCO_CV", "off")
+	t.Setenv("MARCO_ROUTES", dir)
+	a := recorded(t, nil)
+	if why := a.SaveDraft("app", "arkascended"); why != "" {
+		t.Fatalf("Only in was refused: %s", why)
+	}
+	if a.Recording().Saved == "" {
+		t.Fatal("nothing was saved")
+	}
+	if got := a.Unrunnable(); len(got) != 0 {
+		t.Errorf("a guarded Only-in routine is listed as unable to press anything: %+v", got)
 	}
 }

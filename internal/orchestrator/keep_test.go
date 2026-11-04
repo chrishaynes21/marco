@@ -716,15 +716,17 @@ func mustRead(t *testing.T, reg routes.Registry, rt routes.Route) string {
 func TestNoSurfaceSavesARoutineThatRefusesEveryPress(t *testing.T) {
 	t.Setenv("MARCO_CV", "off")
 
-	// THE TERMINAL IS NOT EVEN OFFERED THE SCOPES THAT WOULD NOT WORK, and is told why:
-	// a person who expected "only here" needs to know why they are not being asked for it.
+	// THE TERMINAL IS TOLD WHICH SCOPE WOULD NOT WORK. Since S9 "only here" binds the window in
+	// front when the run is admitted, so it is saved as asked; only the current-foreground scope
+	// names no window, and asking for it saves nothing.
 	for _, answers := range []struct {
-		say string
-		in  string
+		say  string
+		in   string
+		want *routes.Route
 	}{
-		{"asked for only-here", "y\nc\n"},
-		{"asked for anywhere", "y\ng\n"},
-		{"answered nothing", "y\n\n"},
+		{"asked for only-here", "y\nc\n", &routes.Route{App: "arkascended", Slug: "ark-graphics"}},
+		{"asked for anywhere", "y\ng\n", nil},
+		{"answered nothing", "y\n\n", &routes.Route{App: "arkascended", Focus: true, Slug: "ark-graphics"}},
 	} {
 		reg := routes.Registry{Dir: t.TempDir()}
 		var out bytes.Buffer
@@ -736,9 +738,12 @@ func TestNoSurfaceSavesARoutineThatRefusesEveryPress(t *testing.T) {
 			t.Errorf("%s: saved a routine that refuses every press: %+v\n%s",
 				answers.say, got, out.String())
 		}
-		// AND IT WENT WHERE IT CAN ACTUALLY RUN, which is the only scope left.
-		if !reg.Has(routes.Route{App: "arkascended", Focus: true, Slug: "ark-graphics"}) {
-			t.Errorf("%s: it is not saved where it can run: %+v\n%s",
+		// AND IT WENT WHERE IT WAS ASKED, OR NOWHERE.
+		switch {
+		case answers.want == nil && len(reg.List()) != 0:
+			t.Errorf("%s: it was saved: %+v\n%s", answers.say, reg.List(), out.String())
+		case answers.want != nil && (len(reg.List()) != 1 || !reg.Has(*answers.want)):
+			t.Errorf("%s: it is not saved where it was asked: %+v\n%s",
 				answers.say, reg.List(), out.String())
 		}
 		if !strings.Contains(out.String(), "checks the window it was made in") {

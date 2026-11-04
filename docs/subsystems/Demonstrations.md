@@ -144,10 +144,11 @@ that control, though a saved play still cannot say it (`cannot_say_pointer`, fol
   window. A repeated key is expanded into one link per press, since a `repeat` block runs its body
   again after the thing that did not happen. The failure is kept in the run's account beside the
   presses, so the command fails with the machine's own words and Studio shows them; typed text and
-  held keys are not covered and the ADR says so. New guarded
-  recordings are saved to bring their application forward, since the scopes that switch nothing
-  bind no window; the choice is withdrawn rather than defaulted, an impossible scope is refused at
-  Save, and a routine already saved that way is saved again from its own stored demonstration
+  held keys are not covered and the ADR says so. New guarded recordings were then saved only to
+  bring their application forward; since S9 ([[ADR-306-a-guarded-routine-may-be-only-in-its-application]])
+  they may also be "Only in" their application, which binds the window in front when the run is
+  admitted, and only the current-foreground scope is refused, at Save. A routine already saved
+  with no application is saved again from its own stored demonstration
 - [[ADR-252-a-library-is-a-place-and-a-routine-is-played-where-it-was-made]] — the two gaps
   between that mechanism and a product somebody can use. A library is a PLACE: the route store was
   `$MARCO_ROUTES, else "routes"` derived in four places, which is a relative path, so the product

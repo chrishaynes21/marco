@@ -1,0 +1,4 @@
+ok  	github.com/chaynes-simpleclouds/marco/cmd/marco	9.511s
+ok  	github.com/chaynes-simpleclouds/marco/internal/orchestrator	5.263s
+ok  	github.com/chaynes-simpleclouds/marco/internal/oshost	24.223s
+ok  	github.com/chaynes-simpleclouds/marco/internal/wiringcheck	6.574s

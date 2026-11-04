@@ -338,10 +338,10 @@ func TestARoutineThatCannotPressAnythingIsNotOfferedForPlay(t *testing.T) {
 	t.Setenv("MARCO_CV", "off")
 	t.Setenv("MARCO_ROUTES", t.TempDir())
 	a := recorded(t, nil)
-	// SAVED THE WAY THE OLD RULE ALLOWED, through the backend: the state on disk this
-	// exists for. `SaveDraft` refuses this scope now, which is why it is not used.
+	// SAVED THE ONE WAY STILL UNRUNNABLE SINCE S9, through the backend: guarded presses under
+	// the current-foreground scope, which names no window. `SaveDraft` refuses this scope.
 	d := orchestrator.Deps{Reg: a.reg(), Out: &strings.Builder{}}
-	if _, err := d.Save(a.capture.draft, orchestrator.ScopeApp, "arkascended"); err != nil {
+	if _, err := d.Save(a.capture.draft, orchestrator.ScopeEverywhere, ""); err != nil {
 		t.Fatal(err)
 	}
 	r, found := routineCalled(a.Routines(), "ark graphics")
@@ -1410,11 +1410,12 @@ func TestAnUnrunnableNamesakeDoesNotDisableTheValidRoutine(t *testing.T) {
 	t.Setenv("MARCO_ROUTES", t.TempDir())
 	a := recorded(t, nil)
 	dr := a.capture.draft
-	// THE BROKEN ONE FIRST, under the scope the old rule allowed: guarded presses and
-	// nothing to bring a window forward, which is the state on disk `Unrunnable` exists
-	// for. Through the backend, because `SaveDraft` refuses this scope now.
+	// THE BROKEN ONE FIRST: guarded presses under the current-foreground scope, which names
+	// no application and so has no window to bind. That is the one state on disk
+	// `Unrunnable` still exists for since S9. Through the backend, because `SaveDraft`
+	// refuses this scope.
 	d := orchestrator.Deps{Reg: a.reg(), Out: &strings.Builder{}}
-	if _, err := d.Save(dr, orchestrator.ScopeApp, "arkascended"); err != nil {
+	if _, err := d.Save(dr, orchestrator.ScopeEverywhere, ""); err != nil {
 		t.Fatal(err)
 	}
 	// AND THE GOOD ONE BESIDE IT: the same name, the same slug, the scope its presses
@@ -1423,9 +1424,9 @@ func TestAnUnrunnableNamesakeDoesNotDisableTheValidRoutine(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	broken, had := routineWithID(a.Routines(), "arkascended/context/ark-graphics")
+	broken, had := routineWithID(a.Routines(), (routes.Route{Slug: "ark-graphics"}).ID())
 	if !had {
-		t.Fatalf("the context-scoped namesake is not listed: %+v", a.Routines())
+		t.Fatalf("the namesake with no application is not listed: %+v", a.Routines())
 	}
 	if broken.Runnable {
 		t.Error("the one that cannot press anything is offered for Play")
@@ -1458,62 +1459,51 @@ func TestAnUnrunnableNamesakeDoesNotDisableTheValidRoutine(t *testing.T) {
 	}
 }
 
-// AND SAVING ONE OF TWO BROKEN NAMESAKES AGAIN REPAIRS THE ONE BESIDE THE BUTTON.
+// AND SAVING A BROKEN ROUTINE AGAIN REPAIRS THE ONE BESIDE THE BUTTON, NOT ITS NAMESAKE.
 //
 // The repair card had the same defect in the same file: `Resave` matched a NAME and took the
 // first that answered, so the button beside the second row saved the first row's routine and
-// reported the first one's name while doing it.
+// reported the first one's name while doing it. Since S9 two broken namesakes cannot be built
+// (only a guarded routine with no application is unrunnable, and two of those of one name are
+// one identity), so the namesake here is an Only-in routine, which runs.
 func TestSavingOneOfTwoNamesakesAgainRepairsTheOneAskedFor(t *testing.T) {
 	t.Setenv("MARCO_CV", "off")
 	t.Setenv("MARCO_ROUTES", t.TempDir())
 	a := recorded(t, nil)
 	d := orchestrator.Deps{Reg: a.reg(), Out: &strings.Builder{}}
-	if _, err := d.Save(a.capture.draft, orchestrator.ScopeApp, "arkascended"); err != nil {
+	if _, err := d.Save(a.capture.draft, orchestrator.ScopeEverywhere, ""); err != nil {
 		t.Fatal(err)
 	}
-	// THE SAME NAME, BROKEN THE SAME WAY, IN ANOTHER APPLICATION.
+	// THE SAME NAME, "Only in" another application, which runs since S9.
 	a.capture = nil
 	aSecondRoutineCalled(t, a, "ark graphics", "discord", "app-anywhere")
-	if _, err := d.Save(a.capture.draft, orchestrator.ScopeApp, "discord"); err != nil {
+	discord, err := d.Save(a.capture.draft, orchestrator.ScopeApp, "discord")
+	if err != nil {
 		t.Fatal(err)
 	}
 
 	listed := a.Unrunnable()
-	if len(listed) != 2 {
-		t.Fatalf("two routines cannot press anything and %d are listed: %+v",
-			len(listed), listed)
+	if len(listed) != 1 || listed[0].App != "" {
+		t.Fatalf("one routine cannot press anything and the listing is %+v", listed)
 	}
-	var want Unrunnable
-	for _, u := range listed {
-		if u.App == "discord" {
-			want = u
-		}
-	}
-	if want.ID == "" {
-		t.Fatalf("the discord one is not in the listing: %+v", listed)
-	}
+	want := listed[0]
 	// A NAME IS NOT AN IDENTITY HERE EITHER, so handing one over repairs nothing: it
 	// names both of these, and repairing "whichever answered first" is the defect.
 	if why := a.Resave(want.Name); why == "" {
 		t.Fatalf("%q repaired a routine, and it names both of them", want.Name)
 	}
-	if len(a.Unrunnable()) != 2 {
-		t.Fatalf("a name repaired one of them after all: %+v", a.Unrunnable())
+	if len(a.Unrunnable()) != 1 {
+		t.Fatalf("a name repaired it after all: %+v", a.Unrunnable())
 	}
 	if why := a.Resave(want.ID); why != "" {
 		t.Fatalf("saving it again was refused: %s", why)
 	}
-	// THE ONE ASKED FOR IS REPAIRED AND THE OTHER IS UNTOUCHED. Repairing the wrong one
-	// leaves this list the same length with the other entry gone, which is why both are
-	// checked rather than just the count.
-	left := a.Unrunnable()
-	if len(left) != 1 {
-		t.Fatalf("after one repair, %d routine(s) cannot press anything: %+v",
-			len(left), left)
+	// THE ONE ASKED FOR IS REPAIRED AND THE NAMESAKE IS UNTOUCHED.
+	if left := a.Unrunnable(); len(left) != 0 {
+		t.Fatalf("after the repair, %d routine(s) cannot press anything: %+v", len(left), left)
 	}
-	if left[0].App != "arkascended" {
-		t.Errorf("the repair took the wrong routine: %q was asked for and %q is "+
-			"what is left", want.ID, left[0].ID)
+	if !a.reg().Has(discord) {
+		t.Errorf("the repair took the namesake in discord: %q was asked for", want.ID)
 	}
 }
 
@@ -1569,7 +1559,7 @@ func TestSavingAgainKeepsWhatTheRoutineSaysItRecorded(t *testing.T) {
 
 	a := recorded(t, nil)
 	d := orchestrator.Deps{Reg: a.reg(), Out: &strings.Builder{}}
-	rt, err := d.Save(a.capture.draft, orchestrator.ScopeApp, "arkascended")
+	rt, err := d.Save(a.capture.draft, orchestrator.ScopeEverywhere, "")
 	if err != nil {
 		t.Fatal(err)
 	}

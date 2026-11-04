@@ -868,23 +868,15 @@ func withoutRedundantReturns(events []recorder.RecordedEvent) []recorder.Recorde
 	return out
 }
 
-// ScopeFor is the only scope a draft can honestly be saved under, or "" when the choice is still
-// the person's.
+// ChecksItsWindow is whether a draft has a press that asked to be checked against the window it
+// was made in.
 //
-// A press that asked to be checked against the window it was made in needs that window brought
-// forward, and `ScopeApp` and `ScopeEverywhere` both promise to switch nothing: their routes
-// carry no `Activate`, so nothing binds a window and every such press refuses. The choice is
-// therefore not a choice, and saying so is better than offering three options two of which
-// produce a routine that cannot press anything.
-//
-// A draft with no guarded press keeps all three, because it is saved under the contract it always
-// was.
-func ScopeFor(dr *Draft) Scope {
-	if dr == nil || !guarded(dr.Steps) {
-		return ""
-	}
-	return ScopeAppAnywhere
-}
+// Such a press needs a window BOUND to be checked against. "From anywhere → app" binds the one its
+// `Activate` brings forward, and "Only in app" binds the one in front when the run is admitted
+// (cmd/marco, S9, ADR-306). "From anywhere → current foreground" names no application, so there
+// is nothing to bind or check, and it is the one scope such a draft cannot be saved under. A draft
+// with no guarded press keeps all three.
+func ChecksItsWindow(dr *Draft) bool { return dr != nil && guarded(dr.Steps) }
 
 // guarded reports whether any step asked to be checked against the window it was recorded in.
 func guarded(steps []macroir.Step) bool {
@@ -919,8 +911,11 @@ type Unrunnable struct {
 func (d Deps) Unrunnable() []Unrunnable {
 	var out []Unrunnable
 	for _, rt := range d.Reg.List() {
-		if rt.Focus {
-			continue // brings its application forward, so its presses have a window
+		if rt.Focus || rt.App != "" {
+			// A window is bound for its presses: the one Activate brings forward, or, for
+			// Only in, the one in front when the run is admitted (S9). Only a routine with
+			// no application has none.
+			continue
 		}
 		raw, err := os.ReadFile(d.Reg.Path(rt))
 		if err != nil || !strings.Contains(string(raw), `RelTo "`) {

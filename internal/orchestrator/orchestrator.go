@@ -593,12 +593,12 @@ func (d Deps) askScope(dr *Draft) (Scope, bool) {
 		}
 		return ScopeEverywhere, true
 	}
-	if ScopeFor(dr) != "" {
+	if ChecksItsWindow(dr) {
+		// TWO SCOPES ARE OPEN TO IT NOW (S9): Only in binds the window in front when the run
+		// is admitted. Only the current-foreground scope names no window, and choosing it is
+		// refused by keepWhatWasShown with the reason, not re-asked.
 		fmt.Fprintf(d.Out, "Every press in this recording checks the window it was made "+
-			"in, so it has to be %q: %q or %q would refuse every press.\n",
-			ScopeLabel(def, dr.App), ScopeLabel(ScopeApp, dr.App),
-			ScopeLabel(ScopeEverywhere, dr.App))
-		return def, true
+			"in, so %q would refuse every press.\n", ScopeLabel(ScopeEverywhere, ""))
 	}
 	return d.askAmongScopes(dr.App), true
 }
@@ -774,7 +774,7 @@ func (d Deps) LearnAuto(name string) error {
 		return nil
 	}
 	if why := d.WhyNotThisScope(dr, scope); why != "" {
-		// UNREACHABLE AND REFUSED ANYWAY. `ScopeFor` just named this scope, so it
+		// UNREACHABLE AND REFUSED ANYWAY. `DefaultScope` just named this scope, so it
 		// cannot be one the draft rejects; if that ever stops being true the answer
 		// is to refuse rather than to write the routine it would refuse to perform.
 		mlog.Warn("record-auto: no scope fits", "route", dr.Name, "why", why)

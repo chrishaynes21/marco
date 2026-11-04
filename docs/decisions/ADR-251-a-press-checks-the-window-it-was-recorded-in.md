@@ -541,7 +541,8 @@ there IS matching to do, and refusing there would refuse to go looking.
   Studio's remaining case of that refusal is `TestADragMissingAMeasurementIsNamedAtReview`.
 - `internal/simplify` `TestGuardedPressesAreNotFoldedIntoARepeat`,
   `TestUnmeasuredPressesAreStillFolded`.
-- `plugins/studio` `TestAGuardedRecordingIsSavedToBringItsApplicationForward`,
+- `plugins/studio` `TestAGuardedRecordingKeepsTwoScopesAndSaysWhyNotTheThird` (S9 replaced the test that
+  held the old single scope; ADR-306),
   `TestALegacyRecordingKeepsTheChoice`,
   `TestSavingAGuardedRecordingUnderAnImpossibleScopeIsRefused` (both impossible scopes, nothing
   written, and the one it needs still accepted afterwards),

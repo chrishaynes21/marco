@@ -33,7 +33,7 @@ func savedSource(t *testing.T, steps []macroir.Step) string {
 	d := Deps{Reg: routes.Registry{Dir: dir}, Out: &strings.Builder{}}
 	dr := &Draft{Name: "ark graphics", Steps: steps, App: "arkascended"}
 	scope := ScopeAppAnywhere
-	if ScopeFor(dr) == "" {
+	if !ChecksItsWindow(dr) {
 		scope = ScopeApp
 	}
 	rt, err := d.Save(dr, scope, "arkascended")

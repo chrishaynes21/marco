@@ -1,0 +1,193 @@
+?   	github.com/chaynes-simpleclouds/marco/bridges/echo-bridge	[no test files]
+?   	github.com/chaynes-simpleclouds/marco/cmd/bakeoff	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/cmd/cleanroom	1.424s
+ok  	github.com/chaynes-simpleclouds/marco/cmd/director	195.937s
+?   	github.com/chaynes-simpleclouds/marco/cmd/docscheck	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/cmd/gate	77.948s
+?   	github.com/chaynes-simpleclouds/marco/cmd/identityprobe	[no test files]
+?   	github.com/chaynes-simpleclouds/marco/cmd/localizetrial	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/cmd/marco	59.439s
+?   	github.com/chaynes-simpleclouds/marco/cmd/marco-macros	[no test files]
+?   	github.com/chaynes-simpleclouds/marco/cmd/nameprobe	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/cmd/perceptionreplay	16.352s
+?   	github.com/chaynes-simpleclouds/marco/cmd/twinprobe	[no test files]
+?   	github.com/chaynes-simpleclouds/marco/cmd/variance	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/internal/acceptance	2.289s
+ok  	github.com/chaynes-simpleclouds/marco/internal/activate	0.341s
+?   	github.com/chaynes-simpleclouds/marco/internal/ast	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/internal/bridgehost	0.383s
+ok  	github.com/chaynes-simpleclouds/marco/internal/buildid	0.325s
+ok  	github.com/chaynes-simpleclouds/marco/internal/codegen	15.080s
+?   	github.com/chaynes-simpleclouds/marco/internal/compile	[no test files]
+?   	github.com/chaynes-simpleclouds/marco/internal/demonstratedmod	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/internal/director	4.123s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/actiongraph	1.628s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/ambient	0.346s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/binding	0.350s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/collections	0.361s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/controlevidence	13.000s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/demo	7.469s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/demonstrated	1.055s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/edit	0.373s
+?   	github.com/chaynes-simpleclouds/marco/internal/director/edit/clipboard	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/edit/planner	0.365s
+?   	github.com/chaynes-simpleclouds/marco/internal/director/edit/providers	[no test files]
+?   	github.com/chaynes-simpleclouds/marco/internal/director/edit/verification	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/execute	4.728s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/fastobserve	15.141s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/game	0.447s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/goal	0.500s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/inline	0.418s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/intent	1.008s
+?   	github.com/chaynes-simpleclouds/marco/internal/director/internal/fixtures	[no test files]
+?   	github.com/chaynes-simpleclouds/marco/internal/director/internal/recorded	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/interpret	0.415s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/learn	43.947s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/learnstate	2.734s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/localizetrial	50.180s
+?   	github.com/chaynes-simpleclouds/marco/internal/director/marcoexec	[no test files]
+?   	github.com/chaynes-simpleclouds/marco/internal/director/match	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/meaning	11.323s
+?   	github.com/chaynes-simpleclouds/marco/internal/director/memory	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/observe	54.668s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/observe/screenfixture	1.288s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/observesession	53.033s
+?   	github.com/chaynes-simpleclouds/marco/internal/director/perception/capture	[no test files]
+?   	github.com/chaynes-simpleclouds/marco/internal/director/perception/diagnostics	[no test files]
+?   	github.com/chaynes-simpleclouds/marco/internal/director/perception/explain	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/perception/fusion	0.727s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/perception/observation	0.501s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/perception/providers	0.519s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/perception/providers/ocr	1.033s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/perception/providers/structure	0.869s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/perception/providers/vision	5.680s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/perception/providers/visualstate	1.955s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/perception/selection	7.161s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/perception/shadow	0.586s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/perception/structure	6.711s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/perception/timeline	0.634s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/perception/windowref	0.512s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/plan	0.616s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/policy	0.552s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/preview	1.588s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/program	0.596s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/rehearse	42.721s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/rephrase	0.748s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/runref	0.483s
+?   	github.com/chaynes-simpleclouds/marco/internal/director/runstate	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/satisfied	0.533s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/search	0.350s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/semanticmemory	28.904s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/service	11.110s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/shadowreplay	0.438s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/surface	0.551s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/target	0.517s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/trace	0.557s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/uiact	0.462s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/values	0.420s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/variables	0.571s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/verify	0.569s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/visionbench	8.444s
+?   	github.com/chaynes-simpleclouds/marco/internal/director/wait/conditions	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/wait/engine	1.189s
+?   	github.com/chaynes-simpleclouds/marco/internal/director/wait/evaluation	[no test files]
+?   	github.com/chaynes-simpleclouds/marco/internal/director/wait/history	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/workflow	31.339s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/workflowrun	50.271s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/workflowstore	31.508s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/world	0.476s
+ok  	github.com/chaynes-simpleclouds/marco/internal/dispatch	17.582s
+ok  	github.com/chaynes-simpleclouds/marco/internal/docsindex	0.478s
+ok  	github.com/chaynes-simpleclouds/marco/internal/driver	0.959s
+ok  	github.com/chaynes-simpleclouds/marco/internal/gamepacks/palworld	0.464s
+ok  	github.com/chaynes-simpleclouds/marco/internal/gate	0.876s
+?   	github.com/chaynes-simpleclouds/marco/internal/graph	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/internal/invoke	1.281s
+ok  	github.com/chaynes-simpleclouds/marco/internal/lexer	0.562s
+?   	github.com/chaynes-simpleclouds/marco/internal/macroir	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/internal/marcopaths	0.580s
+?   	github.com/chaynes-simpleclouds/marco/internal/mlog	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/internal/nlu	0.454s
+ok  	github.com/chaynes-simpleclouds/marco/internal/orchestrator	24.408s
+ok  	github.com/chaynes-simpleclouds/marco/internal/oshost	29.099s
+ok  	github.com/chaynes-simpleclouds/marco/internal/osmod	3.477s
+ok  	github.com/chaynes-simpleclouds/marco/internal/outcome	0.223s
+ok  	github.com/chaynes-simpleclouds/marco/internal/parser	0.313s
+ok  	github.com/chaynes-simpleclouds/marco/internal/platform/homelock	0.373s
+ok  	github.com/chaynes-simpleclouds/marco/internal/platform/marcorunner	2.433s
+ok  	github.com/chaynes-simpleclouds/marco/internal/platform/navsource	12.157s
+?   	github.com/chaynes-simpleclouds/marco/internal/platform/ocrclient	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/internal/platform/padsource	0.305s
+?   	github.com/chaynes-simpleclouds/marco/internal/platform/recordhost	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/internal/platform/screenhost	17.860s
+ok  	github.com/chaynes-simpleclouds/marco/internal/platform/theaterhost	0.240s
+ok  	github.com/chaynes-simpleclouds/marco/internal/platform/uiaclient	0.269s
+ok  	github.com/chaynes-simpleclouds/marco/internal/platform/visionclient	0.559s
+ok  	github.com/chaynes-simpleclouds/marco/internal/platform/wincapture	0.389s
+ok  	github.com/chaynes-simpleclouds/marco/internal/platform/winprovider	0.230s
+ok  	github.com/chaynes-simpleclouds/marco/internal/plays	1.157s
+?   	github.com/chaynes-simpleclouds/marco/internal/production	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/internal/recorder	25.512s
+ok  	github.com/chaynes-simpleclouds/marco/internal/recordingnow	0.349s
+ok  	github.com/chaynes-simpleclouds/marco/internal/resolver	22.245s
+ok  	github.com/chaynes-simpleclouds/marco/internal/resolveroute	0.447s
+ok  	github.com/chaynes-simpleclouds/marco/internal/routes	1.179s
+ok  	github.com/chaynes-simpleclouds/marco/internal/runs	0.283s
+ok  	github.com/chaynes-simpleclouds/marco/internal/runtime	0.367s
+ok  	github.com/chaynes-simpleclouds/marco/internal/screen	0.539s
+?   	github.com/chaynes-simpleclouds/marco/internal/screenmod	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/internal/secrets	0.206s
+ok  	github.com/chaynes-simpleclouds/marco/internal/simplify	0.199s
+ok  	github.com/chaynes-simpleclouds/marco/internal/spectest	5.748s
+ok  	github.com/chaynes-simpleclouds/marco/internal/stopsignal	0.407s
+?   	github.com/chaynes-simpleclouds/marco/internal/textmod	[no test files]
+?   	github.com/chaynes-simpleclouds/marco/internal/theatermod	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/internal/token	0.169s
+?   	github.com/chaynes-simpleclouds/marco/internal/uiamod	[no test files]
+?   	github.com/chaynes-simpleclouds/marco/internal/visionmod	[no test files]
+ok  	github.com/chaynes-simpleclouds/marco/internal/voicelearn	0.227s
+ok  	github.com/chaynes-simpleclouds/marco/internal/widgetconfig	3.005s
+ok  	github.com/chaynes-simpleclouds/marco/internal/widgetstack	0.170s
+ok  	github.com/chaynes-simpleclouds/marco/internal/winctx	4.286s
+--- FAIL: TestEveryWiringClaimNamesATestThatExists (4.92s)
+    wiringcheck_test.go:245: a wiring claim names a test that does not exist.
+        
+        Each line below promises that deleting something would be caught by a named test.
+        No such test is declared anywhere in the tree, so nothing would be caught, and the
+        comment tells a reader the opposite. Point it at the real test, write the test, or
+        say plainly that nothing catches it — see docs/Wiring-Tests.md.
+        
+          cmd/marco/intake.go:488  names TestAnExplicitOnlyInRoutineIsRefusedWithAnotherAppInFront
+              did you mean TestAnExplicitTesseractWins ?
+        
+--- FAIL: TestEveryTestNamedInTheDocsVaultExists (3.36s)
+    wiringcheck_test.go:397: a note in the docs vault names a test that does not exist.
+        
+        CLAUDE.md: "An ADR needs an Enforced by entry naming a real test." Each line below
+        cites a test as the thing holding a decision in place. No such test is declared
+        anywhere, so the decision is held by nothing and the note says otherwise.
+        Point it at the real test, write it, or say plainly that nothing holds it.
+        
+          docs/decisions/ADR-251-a-press-checks-the-window-it-was-recorded-in.md:544  cites TestAGuardedRecordingIsSavedToBringItsApplicationForward
+              did you mean TestAStagedPlayListsAsBringingItsApplicationForward ?
+          docs/decisions/ADR-296-one-scope-vocabulary-one-default-and-in-place-is-checked-at-the-door.md:68  cites TestAnExplicitOnlyInRoutineIsRefusedWithAnotherAppInFront
+              did you mean TestAnExplicitTesseractWins ?
+          docs/decisions/ADR-296-one-scope-vocabulary-one-default-and-in-place-is-checked-at-the-door.md:69  cites TestAnExplicitOnlyInRoutineRunsWithItsAppInFront
+              did you mean TestAnExplicitApplicationSelectsTheTargetAndNothingElse ?
+          docs/decisions/ADR-296-one-scope-vocabulary-one-default-and-in-place-is-checked-at-the-door.md:70  cites TestAValidatedHandoffToTheAppAdmitsAnOnlyInRoutine
+              did you mean TestStudiosHandoffRunsAGuardedOnlyInRoutine ?
+          docs/decisions/ADR-296-one-scope-vocabulary-one-default-and-in-place-is-checked-at-the-door.md:71  cites TestAHandoffToAnotherProgramDoesNotAdmitAnOnlyInRoutine
+              did you mean TestStudiosHandoffRunsAGuardedOnlyInRoutine ?
+          docs/decisions/ADR-296-one-scope-vocabulary-one-default-and-in-place-is-checked-at-the-door.md:71  cites TestSourceIsNotAdmission
+              did you mean TestAHandedOverWindowOfAnotherProgramIsNotAdmission ?
+          docs/decisions/ADR-296-one-scope-vocabulary-one-default-and-in-place-is-checked-at-the-door.md:72  cites TestOnlyTheOnlyInScopeIsCheckedAtTheDoor
+              did you mean TestARoutineNeedingTextIsRefusedAtTheDoor ?
+        
+FAIL
+FAIL	github.com/chaynes-simpleclouds/marco/internal/wiringcheck	12.433s
+ok  	github.com/chaynes-simpleclouds/marco/pkg/directorapi	0.285s
+ok  	github.com/chaynes-simpleclouds/marco/pkg/playbill	0.372s
+ok  	github.com/chaynes-simpleclouds/marco/pkg/referent	0.289s
+ok  	github.com/chaynes-simpleclouds/marco/plugins/fixture	0.323s
+FAIL
+engine exit 1

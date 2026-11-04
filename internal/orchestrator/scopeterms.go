@@ -63,8 +63,6 @@ func ScopeMeans(s Scope, app string) string {
 // DefaultScope is the scope a recording is offered under when nobody has chosen one yet, or ""
 // and the reason when there is no default to offer.
 //
-//   - A recording whose presses check the window they were made in has ONE scope it can be
-//     performed under (`ScopeFor`), and that is the default because it is the only answer.
 //   - Otherwise, with an application known, FROM ANYWHERE → THIS APPLICATION. The ruled default.
 //   - With NO application known there is no default. The ruling is explicit: ask or refuse, never
 //     invent an application and never silently choose the current-foreground scope — which is
@@ -72,9 +70,6 @@ func ScopeMeans(s Scope, app string) string {
 //
 // Deleting the no-application arm must fail TestNoApplicationIsNeverADefault.
 func DefaultScope(dr *Draft) (Scope, string) {
-	if only := ScopeFor(dr); only != "" {
-		return only, ""
-	}
 	if dr == nil || strings.TrimSpace(dr.App) == "" {
 		return "", "no application was recorded, so there is nothing for Marco to bring " +
 			"forward; the only way it could be saved is " +

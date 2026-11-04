@@ -757,7 +757,9 @@ bindings, per CLAUDE.md, or a rendered mockup for the HUD) and a review of it.
   renumbering** ([[ADR-302-studio-opens-the-widget]]). The owner's order after it: S8 the
   remaining operation alignment (this list's S7), S9 guarded in-place routines, then shared
   styling and themes. F6 and Roadmap 38 stay open.
-- **S9: R1, after its generation/compatibility review.**
+- **S9: R1, after its generation/compatibility review.** **Done** without a generation bump
+  ([[ADR-306-a-guarded-routine-may-be-only-in-its-application]]; review
+  [[S9-guarded-only-in-review-2026-11-03]]).
 
 ---
 

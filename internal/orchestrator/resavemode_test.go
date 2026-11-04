@@ -49,9 +49,10 @@ func savedUnrepaired(t *testing.T, mode RecordedAs) (Deps, routes.Route) {
 	_, dr := recordedWith(t, mode)
 	dir := t.TempDir()
 	saving := Deps{Reg: routes.Registry{Dir: dir}, Out: &strings.Builder{}, Mode: mode}
-	// ScopeApp is the scope that leaves it unable to press anything: guarded presses, and
-	// nothing brought forward for them to be checked against. See Unrunnable.
-	rt, err := saving.Save(dr, ScopeApp, "arkascended")
+	// THE CURRENT-FOREGROUND SCOPE is what leaves it unable to press anything: guarded presses,
+	// and no application to bind a window of. Since S9 "Only in" binds the window in front at
+	// admission, so this is the one shape Unrunnable still lists. See Unrunnable.
+	rt, err := saving.Save(dr, ScopeEverywhere, "")
 	if err != nil {
 		t.Fatalf("saving the routine this repair is about: %v", err)
 	}
@@ -245,9 +246,10 @@ func TestARepairStillRepairsAndWritesTheSameRoutine(t *testing.T) {
 	if err != nil {
 		t.Fatalf("saving it again: %v", err)
 	}
-	// THE SAME ROUTINE, under the scope its presses need: the slug and the application it
-	// is about are unchanged, and it now brings that application forward.
-	want := routes.Route{Slug: rt.Slug, App: rt.App, Focus: true}
+	// THE SAME ROUTINE, under the scope its presses need: the slug is unchanged, and it now
+	// brings forward the application it was RECORDED in. The fixture had none in its identity
+	// (the one unrunnable shape left since S9), so that application is the demonstration's.
+	want := routes.Route{Slug: rt.Slug, App: "arkascended", Focus: true}
 	if now != want {
 		t.Errorf("the repair wrote %+v, and the routine it was asked about is %+v",
 			now, want)

@@ -143,8 +143,9 @@ func TestEveryScopeIsAnsweredForAChosenRoutine(t *testing.T) {
 // AND A SCOPE THIS ROUTINE'S PRESSES COULD NOT BE PERFORMED UNDER IS UNAVAILABLE, WITH THE REASON.
 //
 // The reason is the backend's own and it is specific: a press checked against the window it was
-// made in needs that window brought forward, and two of the three scopes bring none. A row saying
-// only "unavailable" would be a dead end with the answer withheld.
+// made in needs a window bound, and since S9 only the current-foreground scope can bind none: it
+// names no application. "Only in" binds the window in front at admission and is offered. A row
+// saying only "unavailable" would be a dead end with the answer withheld.
 func TestAGuardedRoutineIsRefusedTheScopesThatBringNoWindow(t *testing.T) {
 	a := aStudioLibrary(t, "ark graphics", clickingInNotepad())
 	rs := a.Routines()
@@ -153,8 +154,10 @@ func TestAGuardedRoutineIsRefusedTheScopesThatBringNoWindow(t *testing.T) {
 	}
 
 	cs := a.ScopeChoices(rs[0].ID, "")
-	for _, scope := range []string{string(orchestrator.ScopeApp),
-		string(orchestrator.ScopeEverywhere)} {
+	if c := choiceFor(t, cs, string(orchestrator.ScopeApp)); !c.Available {
+		t.Errorf("Only in is not offered to a guarded routine: %q", c.Why)
+	}
+	for _, scope := range []string{string(orchestrator.ScopeEverywhere)} {
 		c := choiceFor(t, cs, scope)
 		if c.Available {
 			t.Errorf("%s is offered to a routine whose every press would then "+

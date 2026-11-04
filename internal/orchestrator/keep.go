@@ -268,18 +268,18 @@ func quoted(in []string) []string {
 // where somebody's routine works, and saving it as asked would write a routine that refuses
 // every press — which was measured on the `marco learn` path for two of its three answers.
 func (d Deps) WhyNotThisScope(dr *Draft, want Scope) string {
-	only := ScopeFor(dr)
-	if only == "" || want == only {
+	if !ChecksItsWindow(dr) || want != ScopeEverywhere {
 		return ""
 	}
 	where := "the application it was recorded in"
-	if dr != nil && dr.App != "" {
+	if dr.App != "" {
 		where = dr.App
 	}
 	return fmt.Sprintf("every press in this recording checks the window it was made in, "+
-		"and %q brings no window forward — so there would be nothing for those "+
-		"presses to be checked against and every one of them would refuse. Save it "+
-		"to run in %s with Marco bringing it forward.", want, where)
+		"and %q names no application, so there would be no window for those presses to "+
+		"be checked against and every one of them would refuse. Save it %q or %q.",
+		ScopeLabel(ScopeEverywhere, ""), ScopeLabel(ScopeApp, where),
+		ScopeLabel(ScopeAppAnywhere, where))
 }
 
 // Keep is the save, and the only enforcement of what a save may do.

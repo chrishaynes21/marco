@@ -10,6 +10,7 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/invoke"
 	"github.com/chaynes-simpleclouds/marco/internal/mlog"
 	"github.com/chaynes-simpleclouds/marco/internal/orchestrator"
+	"github.com/chaynes-simpleclouds/marco/internal/oshost"
 	"github.com/chaynes-simpleclouds/marco/internal/outcome"
 	"github.com/chaynes-simpleclouds/marco/internal/plays"
 	"github.com/chaynes-simpleclouds/marco/internal/routes"
@@ -485,11 +486,39 @@ func performOnePlay(d orchestrator.Deps, p playInvocation) (Outcome, error) {
 	// handoff — and only when it belongs to the routine's application.
 	//
 	// Deleting this must fail TestAnExplicitOnlyInRoutineIsRefusedWithAnotherAppInFront.
+	foreground := appOf(d)
+	// ── AND A GUARDED ONE IS BOUND TO THE WINDOW IN FRONT, FROM THE SAME READING (S9) ──
+	//
+	// A press that checks its window needs a window BOUND to check it against, and an Only-in
+	// routine has no Activate to bind one. So the window in front is read ONCE, here: the one
+	// reading admits the routine and names the window bound, because a second reading would be
+	// a second instant. Nothing is raised and nothing is searched for. The window in front
+	// becomes this run's target, whichever window of the application it is; a different one
+	// coming to the front afterwards is refused at the next press, which is where every
+	// measurement still happens (oshost.confirmWindow). A window handed over by Studio is bound
+	// already. A legacy routine attempts none of this and keeps its admission exactly.
+	//
+	// Deleting this must fail TestAGuardedOnlyInRunIsBoundToTheWindowInFront.
+	var inFront *oshost.InFront
+	if p.rt.App != "" && !p.rt.Focus && d.HandedTo == "" && checksItsWindow(d, p.rt) {
+		if h, ok := d.Hosts["*"].(*oshost.Host); ok {
+			w := h.ReadInFront()
+			inFront = &w
+			foreground = strings.TrimSuffix(strings.ToLower(w.Program), ".exe")
+		}
+	}
 	if why := orchestrator.AdmitInPlace(p.rt, orchestrator.InPlace{
-		HandedTo: d.HandedTo, Foreground: appOf(d)}); why != "" {
+		HandedTo: d.HandedTo, Foreground: foreground}); why != "" {
 		mlog.Info("intake: not admitted here", "play", p.rt.Slug, "why", why)
 		fmt.Fprintln(os.Stdout, why)
 		return OutcomeRefused, nil
+	}
+	if inFront != nil {
+		if err := d.Hosts["*"].(*oshost.Host).BindInFront(*inFront); err != nil {
+			mlog.Info("intake: the window in front could not be bound", "play", p.rt.Slug, "err", err)
+			fmt.Fprintln(os.Stdout, err)
+			return OutcomeRefused, nil
+		}
 	}
 	resolved := orchestrator.Classify(d.Reg, p.rt, plays.Pretty(p.rt.Slug)).
 		WithValues(p.named)
@@ -718,4 +747,15 @@ func alsoSay(said, more string) string {
 		return more
 	}
 	return said + " — and " + more
+}
+
+// checksItsWindow is whether a saved routine has a press that checks the window it was recorded
+// in (guarded, or incomplete and refusing): the routines an Only-in run binds a window for.
+func checksItsWindow(d orchestrator.Deps, rt routes.Route) bool {
+	raw, err := os.ReadFile(d.Reg.Path(rt))
+	if err != nil {
+		return false
+	}
+	c, _ := orchestrator.ContractOf(string(raw))
+	return c != orchestrator.Legacy
 }

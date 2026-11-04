@@ -3408,9 +3408,14 @@
      // is withdrawn rather than silently fixed, because a control that looks like a
      // choice and has one option is worse than a sentence.
      const app = r.application || 'that application'
-     showing($('capBrings'), !!r.brings)
+     // AND A SCOPE THAT IS NOT AVAILABLE IS SAID WITH ITS REASON (S9): a guarded recording keeps
+     // Only in and From anywhere, and the current-foreground scope is withdrawn with the
+     // backend's sentence beside the chooser rather than offered.
+     const unavailable = r.unavailable || {}
+     const note = r.brings || Object.values(unavailable).join(' ')
+     showing($('capBrings'), !!note)
      showing($('capScopeRow'), !r.brings)
-     text($('capBrings'), r.brings || '')
+     text($('capBrings'), note)
      const scope = $('capScope')
      const had = scope.value
      scope.innerHTML = ''
@@ -3425,6 +3430,7 @@
        ['everywhere', 'from anywhere, switching nothing']].forEach(([v, says]) => {
        const o = document.createElement('option')
        o.value = v; o.textContent = says
+       if (unavailable[v]) { o.disabled = true; o.textContent = says + ' (unavailable)' }
        scope.appendChild(o)
      })
      // AND IT OPENS ON THE SCOPE THE ROUTINE ALREADY HAS, when this is a second

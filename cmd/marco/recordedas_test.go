@@ -144,9 +144,10 @@ func TestTheRecordOfARepairedRoutineSaysWhatItWasRecordedAs(t *testing.T) {
 		Mode: orchestrator.Coordinates}
 	dr := saving.DraftOf("a routine", events, anAbsentApplication, "a demonstration",
 		orchestrator.Coordinates)
-	// ScopeApp is what leaves its guarded presses with no window to be checked against,
-	// which is the state a repair is about. See orchestrator.Unrunnable.
-	if _, err := saving.Save(dr, orchestrator.ScopeApp, anAbsentApplication); err != nil {
+	// THE CURRENT-FOREGROUND SCOPE is what leaves its guarded presses with no window to be
+	// checked against, which is the state a repair is about. Since S9 an Only-in routine binds
+	// the window in front at admission, so this is the one shape left. See orchestrator.Unrunnable.
+	if _, err := saving.Save(dr, orchestrator.ScopeEverywhere, ""); err != nil {
 		t.Fatal(err)
 	}
 	// THE REPAIR, under a Deps that states nothing — the one the button builds.

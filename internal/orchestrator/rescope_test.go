@@ -681,8 +681,10 @@ func TestBothEndsOfAMoveAreLockedInTheSameOrderWhicheverWayItGoes(t *testing.T) 
 // AND A ROUTINE WHOSE PRESSES CHECK THEIR WINDOW CANNOT BE MOVED SOMEWHERE THEY WOULD REFUSE.
 //
 // The same rule the save path applies, asked at preparation so it is a sentence in a review
-// rather than a refusal after somebody decided. Two of the three scopes bring no window forward,
-// and a press that asked to be checked against one has nothing to be checked against.
+// rather than a refusal after somebody decided. Since S9 that is the current-foreground scope
+// alone: it names no application, so there is no window for the presses. "Only in" binds the
+// window in front at admission and is a move like any other
+// (TestAGuardedRoutineCanBeMovedToOnlyIn).
 func TestAGuardedRoutineCannotBeMovedWhereItsPressesWouldRefuse(t *testing.T) {
 	d := Deps{Reg: routes.Registry{Dir: t.TempDir()}, Out: &strings.Builder{}}
 	dr := d.DraftOf("ark settings", aWindowCheckingDemonstration(), "arkascended",
@@ -691,7 +693,7 @@ func TestAGuardedRoutineCannotBeMovedWhereItsPressesWouldRefuse(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []Scope{ScopeApp, ScopeEverywhere} {
+	for _, want := range []Scope{ScopeEverywhere} {
 		m, err := d.PrepareRescope(rt, want, "")
 		if err != nil {
 			t.Fatalf("%q: %v", want, err)
@@ -913,5 +915,36 @@ func TestMovingAGlobalRoutineIntoAnApplicationNeedsOneNamed(t *testing.T) {
 	}
 	if got.To.App != "notepad" || !got.Removed {
 		t.Errorf("it went to %+v (removed=%v)", got.To, got.Removed)
+	}
+}
+
+// S9: a guarded routine can be moved to "Only in" its application: the review is movable, and
+// the move writes the same presses without the Activate that brought the application forward.
+//
+// Keeping the old refusal of ScopeApp must fail this.
+func TestAGuardedRoutineCanBeMovedToOnlyIn(t *testing.T) {
+	d := Deps{Reg: routes.Registry{Dir: t.TempDir()}, Out: &strings.Builder{}}
+	dr := d.DraftOf("ark settings", aWindowCheckingDemonstration(), "arkascended",
+		"the stop key", Unstated)
+	rt, err := d.Save(dr, ScopeAppAnywhere, "arkascended")
+	if err != nil {
+		t.Fatal(err)
+	}
+	m, err := d.PrepareRescope(rt, ScopeApp, "")
+	if err != nil || m.Refused != "" || !m.Movable() {
+		t.Fatalf("moving it to Only in: %+v, %v", m.Refused, err)
+	}
+	if !strings.Contains(m.Was, "Activate") || strings.Contains(m.Now, "Activate") {
+		t.Errorf("the move does not drop only the Activate:\n%s", m.Now)
+	}
+	if c, _ := ContractOf(m.Now); c != Guarded {
+		t.Errorf("the moved routine is %s, not guarded", c)
+	}
+	done, err := d.Rescope(m, Consent{})
+	if err != nil || !done.Removed || done.To != (routes.Route{App: "arkascended", Slug: "ark-settings"}) {
+		t.Fatalf("the move: %+v, %v", done, err)
+	}
+	if got := d.Unrunnable(); len(got) != 0 {
+		t.Errorf("a guarded Only-in routine is listed as unable to press anything: %+v", got)
 	}
 }

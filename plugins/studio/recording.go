@@ -331,6 +331,10 @@ type Recording struct {
 	// three.
 	Scope  string `json:"scope,omitempty"`
 	Brings string `json:"brings,omitempty"`
+	// Unavailable is each scope this recording cannot be saved under, with why. Since S9 a
+	// guarded recording keeps Only in and From anywhere → app, and only the current-foreground
+	// scope is withdrawn.
+	Unavailable map[string]string `json:"unavailable,omitempty"`
 	// DefaultScope is the scope the chooser OPENS on when the choice is still the person's:
 	// `orchestrator.DefaultScope`, the one default every surface uses (From anywhere → this
 	// application). The page used to type its own, "only in", which disagreed with the ruling
@@ -897,23 +901,13 @@ func (a *Acts) Recording() Recording {
 	if def, _ := orchestrator.DefaultScope(dr); def != "" {
 		out.DefaultScope = string(def)
 	}
-	// AND HOW IT WILL BE PERFORMED, when that is not a choice. See Recording.Scope.
-	if only := orchestrator.ScopeFor(dr); only != "" {
-		out.Scope = string(only)
-		where := dr.App
-		if where == "" {
-			where = "the application it was recorded in"
-		}
-		// AND WHY IT IS NOT A CHOICE, which is the half a withdrawn control cannot
-		// say for itself. This was "Runs in %s. Marco brings it forward before
-		// playback." — true, and silent about the thing a person is looking for when
-		// the chooser they expected is missing. The other two scopes bring no window
-		// forward, so a press checked against the window it was made in would have
-		// nothing to be checked against. See orchestrator.ScopeFor and
-		// WhyNotThisScope, which refuses the same pairing at the write.
-		out.Brings = fmt.Sprintf("Runs in %s, which Marco brings forward. Its presses "+
-			"are checked against that window, so the other two choices would "+
-			"leave every one of them refusing.", where)
+	// AND THE ONE SCOPE A GUARDED RECORDING CANNOT HAVE (S9, ADR-306). Its presses are checked
+	// against a window: "From anywhere → app" binds the one it brings forward and "Only in app"
+	// binds the one in front when the run is admitted, so both stay choices. The current-foreground
+	// scope names no application, and is shown unavailable with the backend's own reason.
+	if orchestrator.ChecksItsWindow(dr) {
+		out.Unavailable = map[string]string{
+			string(orchestrator.ScopeEverywhere): (orchestrator.Deps{}).WhyNotThisScope(dr, orchestrator.ScopeEverywhere)}
 	}
 	if saved != "" {
 		out.Said = fmt.Sprintf("Saved %q — %s", c.name, saved)
