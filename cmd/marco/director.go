@@ -93,6 +93,7 @@ func runDirector(args []string) {
 	// free-text PHRASE, and flag parsing would try to interpret one that began with a
 	// dash.
 	var eventCursor uint64
+	var forPID uint64
 	var rest []string
 	for _, a := range args {
 		switch {
@@ -101,6 +102,11 @@ func runDirector(args []string) {
 		case strings.HasPrefix(a, "--cursor="):
 			if n, err := strconv.ParseUint(strings.TrimPrefix(a, "--cursor="), 10, 64); err == nil {
 				eventCursor = n
+			}
+		case strings.HasPrefix(a, "--for="):
+			// Only `start` reads it: the process the Director is started for. See directorStart.
+			if n, err := strconv.ParseUint(strings.TrimPrefix(a, "--for="), 10, 32); err == nil {
+				forPID = n
 			}
 		default:
 			rest = append(rest, a)
@@ -142,6 +148,8 @@ func runDirector(args []string) {
 			os.Exit(directorLiveAnalysis(jsonMode))
 		case "observation-events":
 			os.Exit(directorObservationEvents(jsonMode, eventCursor))
+		case "start":
+			os.Exit(directorStart(jsonMode, forPID))
 		case "shutdown":
 			// Without this, `marco director shutdown` is submitted as a PHRASE and the
 			// Director goes looking for something on screen called "shutdown" — which
@@ -201,14 +209,71 @@ func directorBin() string {
 }
 
 func directorConnect(autoStart bool) (*service.Client, error) {
+	return directorConnectServing(autoStart, []string{"serve", "--quiet"})
+}
+
+// directorConnectServing is directorConnect with the arguments a Director it STARTS is given.
+// They are ignored when one is already running, which is the point: nothing here re-configures
+// a Director it did not start.
+func directorConnectServing(autoStart bool, serveArgs []string) (*service.Client, error) {
 	return service.Connect(service.ConnectOptions{
 		Dir:          directorDir(),
 		ServiceBin:   directorBin(),
-		ServiceArgs:  []string{"serve", "--quiet"},
+		ServiceArgs:  serveArgs,
 		AutoStart:    autoStart,
 		StartTimeout: 20 * time.Second,
 		DialTimeout:  2 * time.Second,
 	})
+}
+
+// directorStartArgs is how a Director started by `marco director start` is served.
+func directorStartArgs(forPID uint64) []string {
+	args := []string{"serve", "--quiet"}
+	if forPID != 0 {
+		args = append(args, "--for", strconv.FormatUint(forPID, 10))
+	}
+	return args
+}
+
+// directorStart makes sure a Director is running, starting one if there is none.
+//
+// The widget calls it when it opens, `--for=<its own pid>`, so the first request it sends finds a
+// Director ready instead of starting one (ADR-267, "Opening the widget asks for the Director").
+// A Director this STARTS is told whom it was started for, and stops once that process has gone
+// and nothing is using it (cmd/director servefor.go). One that is ALREADY running is left
+// exactly as it is: it was not started for the widget, so the widget closing does not stop it.
+//
+// Nothing else changes. A read still never starts a Director, and a request that needs one
+// still starts one that runs until it is shut down.
+func directorStart(jsonMode bool, forPID uint64) int {
+	if ep, ok := service.ReadEndpoint(directorDir()); ok && service.Reachable(ep, 2*time.Second) {
+		if jsonMode {
+			fmt.Printf("{\"running\":true,\"started\":false,\"pid\":%d}\n", ep.PID)
+		} else {
+			fmt.Printf("the Director is already running (pid %d); left as it is\n", ep.PID)
+		}
+		return 0
+	}
+	c, err := directorConnectServing(true, directorStartArgs(forPID))
+	if err != nil {
+		if jsonMode {
+			fmt.Printf("{\"running\":false,\"message\":%q}\n", err.Error())
+		} else {
+			fmt.Fprintf(os.Stderr, "marco: the Director could not be started: %v\n", err)
+		}
+		return exitUnavailable
+	}
+	_ = c.Close()
+	pid := 0
+	if ep, ok := service.ReadEndpoint(directorDir()); ok {
+		pid = ep.PID
+	}
+	if jsonMode {
+		fmt.Printf("{\"running\":true,\"started\":true,\"pid\":%d}\n", pid)
+	} else {
+		fmt.Printf("the Director is running (pid %d)\n", pid)
+	}
+	return 0
 }
 
 // directorReach connects, starting the service if needed, and retrying ONCE.

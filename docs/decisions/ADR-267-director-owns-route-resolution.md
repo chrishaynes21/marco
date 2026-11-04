@@ -124,6 +124,10 @@ If a routine is named, the widget offers **that** instead, and a yes sends it ba
 door with the whole identity. If there is no answer, the reason is said and the learn offer stands
 exactly as it did.
 
+Opening the widget is not a read: since 2026-11-04 it asks for a Director started for the widget,
+which stops once the widget has gone and nothing is using it. The reads above are unchanged. See
+[[ADR-308-opening-the-widget-asks-for-the-director]].
+
 ## And the dropdown stayed local
 
 Studio's target selector reads the library itself. That is **library browsing, not resolution

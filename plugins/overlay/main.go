@@ -33,18 +33,19 @@ import (
 func main() {
 	m := newModel()
 	out := make(chan any, 128)
-	go writeLoop(out)       // serialize responses + events to the engine
-	go readRequests(m, out) // Marco's Overlay act calls drive the model
-	go pollActiveApp(m)     // keep the state line's app context fresh
-	go pollMetrics(m)       // feed the optional CPU/RAM widget
-	go pollArgHints(m)      // auto-pop "name:" labels for the route being typed
-	go pollLineReading(m)   // what Enter would run, read back under the line (line.go)
-	go pollCursor(m)        // feed the optional screen-coords tooltip
-	go pollRoutes(m)        // known route names, for Tab autocomplete
-	go pollInsight(m)       // frozen perception snapshot panel (only polls while open)
-	go pollWatch(m)         // Watch / Diagnostics — one account, two readings (only while open)
-	warmEngineCheck()       // does the engine check a carried press? asked once, before the first one
-	go pollHeadline(m)      // the NORMAL reading, so a pending question is never invisible
+	go writeLoop(out)           // serialize responses + events to the engine
+	go readRequests(m, out)     // Marco's Overlay act calls drive the model
+	go pollActiveApp(m)         // keep the state line's app context fresh
+	go pollMetrics(m)           // feed the optional CPU/RAM widget
+	go pollArgHints(m)          // auto-pop "name:" labels for the route being typed
+	go pollLineReading(m)       // what Enter would run, read back under the line (line.go)
+	go pollCursor(m)            // feed the optional screen-coords tooltip
+	go pollRoutes(m)            // known route names, for Tab autocomplete
+	go pollInsight(m)           // frozen perception snapshot panel (only polls while open)
+	go pollWatch(m)             // Watch / Diagnostics — one account, two readings (only while open)
+	warmEngineCheck()           // does the engine check a carried press? asked once, before the first one
+	go pollHeadline(m)          // the NORMAL reading, so a pending question is never invisible
+	go startDirectorForWidget() // a Director started for this widget, ready for the first request
 	emit := func(ev event) { out <- ev }
 	if err := startInput(m, emit); err != nil { // controller: input → model + intents
 		fmt.Fprintln(os.Stderr, "overlay: input capture unavailable:", err)

@@ -74,7 +74,16 @@ func (c *Client) handshake() error {
 	if err != nil {
 		return fmt.Errorf("service: the Director did not accept the connection: %w", err)
 	}
-	if strings.TrimSpace(line) != "ok" {
+	if t := strings.TrimSpace(line); t != "ok" {
+		// A REFUSAL SAYS WHY. The service answers a bad token and a connection arriving
+		// after it decided to stop (CodeStopping) with an error envelope, and the second is
+		// not a bad token.
+		var env ResponseEnvelope
+		var e ErrorPayload
+		if json.Unmarshal([]byte(t), &env) == nil && env.Type == ResponseError &&
+			env.Decode(&e) == nil && e.Code != "" {
+			return &RequestError{Code: e.Code, Message: e.Message}
+		}
 		return fmt.Errorf("service: the Director rejected this client (bad token?)")
 	}
 	return nil

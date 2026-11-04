@@ -1,0 +1,18 @@
+MARCO_HOME=C:\Users\chris\AppData\Local\Temp\tmp.X4NLuPim6w
+== case 1: started for a process, which then exits
+  stand-in widget pid 48424
+{"running":true,"started":true,"pid":38056}
+  director pid 38056
+  after 5s with the stand-in alive: still running (correct)
+  stand-in ended
+  director 38056 exited after ~2s
+  endpoint file removed
+== case 2: a Director already running is left alone
+{"running":true,"started":true,"pid":25880}
+  started with no owner: pid 25880
+  stand-in widget pid 52296
+{"running":true,"started":false,"pid":25880}
+  stand-in ended
+  6s later: still running (correct, it was not started for the stand-in)
+Director service stopped
+  director 25880 exited after ~1s

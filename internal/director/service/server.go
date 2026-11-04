@@ -11,6 +11,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/actiongraph"
@@ -241,6 +242,18 @@ type Server struct {
 	cancel   context.CancelFunc
 	shutdown sync.Once
 	wg       sync.WaitGroup
+
+	// conns is how many client connections are open now. See InUse.
+	conns atomic.Int64
+	// admitMu orders admitting a connection against deciding to stop for want of use, and
+	// closing is that decision. See ShutdownIfUnused.
+	admitMu sync.Mutex
+	closing bool
+	// admitting and deciding are test hooks, nil in production: admitting runs before a
+	// connection's admission is decided, deciding while ShutdownIfUnused holds admission
+	// shut, having found nothing using the service.
+	admitting func()
+	deciding  func()
 }
 
 // Config configures a server.
@@ -353,12 +366,92 @@ func (s *Server) Shutdown() {
 // Done is closed when the service is shutting down.
 func (s *Server) Done() <-chan struct{} { return s.ctx.Done() }
 
+// CodeStopping is the refusal a connection gets once the service has decided to stop.
+const CodeStopping = "stopping"
+
+// StoppingMessage is what that refusal says.
+const StoppingMessage = "the Director is stopping because nothing was using it; ask again " +
+	"in a moment and a new one will be started"
+
+// ShutdownIfUnused stops the service if nothing is using it, and says what is if something is.
+//
+// # Why this and not InUse followed by Shutdown
+//
+// Because those are two instants. A client accepted between the reading and the stop would be
+// admitted, its request accepted, and its work cancelled by a shutdown decided before it
+// arrived; a second idle reading a second later narrows that window and does not close it. So
+// the reading and the decision are made under the one lock that admits a connection
+// (handleConn). Either the connection was admitted first, and is counted, and the service is in
+// use; or the decision came first, and the connection is refused with CodeStopping before any
+// request of it is read. No work is accepted that the stop then cancels.
+//
+// also is the caller's account of what the runtime is doing on its own (an observation,
+// watching), which the server does not know. It is read under the same lock.
+func (s *Server) ShutdownIfUnused(also func() string) (string, bool) {
+	s.admitMu.Lock()
+	why := s.InUse()
+	if why == "" && also != nil {
+		why = also()
+	}
+	if why != "" {
+		s.admitMu.Unlock()
+		return why, false
+	}
+	if s.deciding != nil {
+		s.deciding()
+	}
+	s.closing = true
+	s.admitMu.Unlock()
+	s.Shutdown()
+	return "", true
+}
+
+// InUse says what is using this service, and is empty when nothing is.
+//
+// Every answer here is a reason NOT to stop a Director that was started FOR somebody once they
+// have gone (cmd/director `serve --for`): a command still running, a question or a confirmation
+// somebody is still owed an answer to, and a client still connected, which covers a request in
+// flight and a follower holding a stream open. A reading, not a decision: ShutdownIfUnused is the
+// one that may act on it.
+func (s *Server) InUse() string {
+	if a, ok := s.registry.Active(); ok {
+		return fmt.Sprintf("running %q", a.Phrase)
+	}
+	if _, ok := s.pending.Get(); ok {
+		return "waiting for an answer to its question"
+	}
+	if broker := s.runtime.Confirmations(); broker != nil {
+		if _, ok := broker.Pending(); ok {
+			return "waiting for a confirmation"
+		}
+	}
+	if n := s.conns.Load(); n > 0 {
+		return fmt.Sprintf("%d client connection(s) open", n)
+	}
+	return ""
+}
+
 // handleConn serves one client connection.
 //
 // The connection is authenticated BEFORE any request is read. A request that arrives
 // before the token has been checked is never parsed, let alone executed.
 func (s *Server) handleConn(conn net.Conn) {
 	defer conn.Close()
+	// ADMITTED OR REFUSED, decided once and under admitMu, so it is ordered against
+	// ShutdownIfUnused: a connection admitted first is counted and keeps the service, and
+	// one that arrives after the decision to stop is refused before any request is read.
+	if s.admitting != nil {
+		s.admitting()
+	}
+	s.admitMu.Lock()
+	refused := s.closing
+	if !refused {
+		s.conns.Add(1)
+	}
+	s.admitMu.Unlock()
+	if !refused {
+		defer s.conns.Add(-1)
+	}
 
 	reader := bufio.NewReader(conn)
 	writer := json.NewEncoder(conn)
@@ -387,6 +480,14 @@ func (s *Server) handleConn(conn net.Conn) {
 	if subtle.ConstantTimeCompare([]byte(presented), []byte(s.token)) != 1 {
 		send(NewResponse("", ResponseError, ErrorPayload{
 			Code: "unauthorized", Message: "invalid or missing token",
+		}))
+		return
+	}
+	// The refusal is sent after the token is read, so the client's token is not left unread
+	// on a socket being closed, which can reset the connection before the refusal arrives.
+	if refused {
+		send(NewResponse("", ResponseError, ErrorPayload{
+			Code: CodeStopping, Message: StoppingMessage,
 		}))
 		return
 	}

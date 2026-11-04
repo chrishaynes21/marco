@@ -23,6 +23,8 @@ func runServe(args []string) int {
 	maxNodes := fs.Int("max-nodes", 4000, "node ceiling per snapshot")
 	dryRun := fs.Bool("dry-run", false, "never perform real input (for development)")
 	quiet := fs.Bool("quiet", false, "suppress the startup banner")
+	forPID := fs.Uint("for", 0, "the process this Director is started for: once it has exited, "+
+		"stop as soon as nothing is using the service")
 	_ = fs.Parse(args)
 
 	// A MISSING BRIDGE COSTS YOU AN ACTOR, NOT THE DIRECTOR.
@@ -125,6 +127,19 @@ func runServe(args []string) int {
 		defer cancel()
 		rt.Warm(ctx)
 	}()
+
+	// STARTED FOR SOMEBODY: it stops once they have gone and nothing is using it. See servefor.go.
+	if *forPID != 0 {
+		gone, err := ownerExit(owner{pid: uint32(*forPID)})
+		if err != nil {
+			sayStderr(*quiet)(fmt.Sprintf("the process it was started for (pid %d) could "+
+				"not be found (%v)", *forPID, err))
+		}
+		// ONE ACT: the server reads what is using it, including the runtime's account, and
+		// decides, under the lock that admits connections. See Server.ShutdownIfUnused.
+		tryStop := func() (string, bool) { return srv.ShutdownIfUnused(rt.runtimeInUse) }
+		go stopWhenUnused(gone, srv.Done(), tryStop, time.Second, sayStderr(*quiet))
+	}
 
 	// Ctrl-C and a SHUTDOWN request both end the service the same way.
 	sig := make(chan os.Signal, 1)

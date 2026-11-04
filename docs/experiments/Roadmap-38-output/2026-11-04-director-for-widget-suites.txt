@@ -1,0 +1,7 @@
+ok  	github.com/chaynes-simpleclouds/marco/internal/gate	0.864s
+ok  	github.com/chaynes-simpleclouds/marco/internal/director/service	6.789s
+ok  	github.com/chaynes-simpleclouds/marco/cmd/marco	19.398s
+ok  	github.com/chaynes-simpleclouds/marco/internal/wiringcheck	14.590s
+ok  	github.com/chaynes-simpleclouds/marco/plugins/overlay	10.789s
+?   	github.com/chaynes-simpleclouds/marco/plugins/overlay/cmd/groundprobe	[no test files]
+?   	github.com/chaynes-simpleclouds/marco/plugins/overlay/cmd/marco-show	[no test files]

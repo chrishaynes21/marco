@@ -269,6 +269,8 @@ var valued = map[string]bool{
 	// test above found it before anybody typed the combination.
 	"-workflow": true, "--workflow": true,
 	"-patience": true, "--patience": true,
+	// serve: the process a Director is started for. See servefor.go.
+	"-for": true, "--for": true,
 	"-max-actions": true, "--max-actions": true,
 	"-answer": true, "--answer": true,
 	// `perform-workflow --verify-for 8s`. Caught by this table's own test the moment the

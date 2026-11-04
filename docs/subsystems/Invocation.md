@@ -129,6 +129,10 @@ it without reading `Request.Text` at all.
   settings unverified. In a development tree the stack is the root's, from either `studio.exe`,
   and a problem names the exact command, `plugins\studio\build.cmd`, which builds Studio and the
   whole stack from one clean commit (repaired 2026-11-04). See [[ADR-302-studio-opens-the-widget]].
+- Opening the widget asks for the Director: it runs `marco director start --for=<its pid>` once.
+  A Director that starts is stopped once the widget has gone and nothing is using it; one already
+  running is left alone. Reads still never start one. See
+  [[ADR-308-opening-the-widget-asks-for-the-director]].
 - Studio forgets one routine through the one forget, after a confirmation naming every part. The
   confirmation is sealed so that nothing it did not show is removed, and each part is reported as
   found afterwards. See [[ADR-303-studio-forgets-one-routine]].

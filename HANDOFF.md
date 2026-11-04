@@ -12485,3 +12485,41 @@ as intended:
 - Desktop confirmation of the widget opening is pending.
 
 See [[ADR-302-studio-opens-the-widget]] ("Repaired: the launch and build contract").
+
+### 2026-11-04 — Opening the widget asks for the Director
+
+After the rebuild at 611d6b6, the widget Open widget started was running: Studio from
+`plugins\studio`, then `marco serve` with the root bridge, then `plugins\overlay\overlay.exe`,
+all at one revision. It said the Director service was not running. That was true and by design:
+its status reads never start one (ADR-267), and nothing started one when it opened.
+
+**The change:**
+
+- **The widget asks for one when it opens.** `marco director start --for=<its pid>`, once, off the
+  main thread. `MARCO_DIRECTOR=off` asks for nothing.
+- **A Director started for the widget stops once the widget has gone and nothing is using it.**
+  `director serve --for <pid>` waits for that process on a handle, then asks once a second whether
+  it may stop. In use means a command, an outstanding question or confirmation, an open client, an
+  observation or watching.
+- **The reading and the stop are one act** (`Server.ShutdownIfUnused`), under the lock that admits
+  a connection. A client arriving as it stops is either admitted first and keeps it, or refused as
+  `stopping` before any of its work is accepted. The first version read, then stopped, on two
+  readings a second apart; a review found that a client accepted in between would have had its work
+  cancelled, and that its comment claiming otherwise was wrong. Both orders are now tested
+  deterministically with hooks.
+- **One already running is left alone,** and the widget closing does not stop it.
+- **Unchanged:** reads never start a Director, and one a request starts still runs until shut down.
+  Studio does not use the service for its features, so it is unaffected.
+
+**Verified with real processes (Windows only), before the ordering fix and not repeated after it:**
+temporary builds, an isolated `MARCO_HOME` and a stand-in for the widget. Started for the stand-in, the Director stayed up while it lived and
+exited about 2 seconds after it ended. A Director already running was left alone.
+
+The first full `cmd/director` run FAILED, and its output was not kept: the flag-table guard
+found `--for` missing from `valued`. It was fixed and the suite rerun.
+
+**Not done:** not seen on the desktop. The owner's binaries are still 611d6b6, so the widget they
+have open does not do this until `plugins\studio\build.cmd` is run again with Studio and the
+widget closed.
+
+See [[ADR-308-opening-the-widget-asks-for-the-director]].
