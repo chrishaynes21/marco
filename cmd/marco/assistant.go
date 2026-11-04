@@ -634,36 +634,6 @@ func forgetPlay(reg routes.Registry, rt routes.Route) error {
 	return err
 }
 
-func runRename(args []string) {
-	phrase := strings.TrimSpace(strings.Join(args, " "))
-	before, after, found := strings.Cut(phrase, " to ")
-	oldName, newName := strings.TrimSpace(before), strings.TrimSpace(after)
-	if !found || oldName == "" || newName == "" {
-		fmt.Fprintln(os.Stderr, `usage: marco rename "old name" to "new name"`)
-		os.Exit(2)
-	}
-	d := newDeps()
-	rt, ok := d.Reg.Resolve(appOf(d), oldName)
-	if !ok {
-		fmt.Fprintf(os.Stderr, "No play named %q.\n", oldName)
-		os.Exit(1)
-	}
-	newRt := routes.Route{App: rt.App, Focus: rt.Focus, Slug: routes.Slug(newName)}
-	if d.Reg.Has(newRt) {
-		fmt.Fprintf(os.Stderr, "A play named %q already exists.\n", newName)
-		os.Exit(1)
-	}
-	// UNDER BOTH ROUTES' LOCKS, AND THE ORIGINAL KEPT until the new name holds the routine and its
-	// shortcuts have moved, so a key never names a place that does not hold this routine. A
-	// partial result is said and exits non-zero. (Still the unreviewed rename; R7 moves it. See
-	// orchestrator.RenameInPlace.)
-	if err := d.RenameInPlace(rt, newRt); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
-	fmt.Printf("Renamed %q to %q.\n", prettyRoute(rt.Slug), prettyRoute(newRt.Slug))
-}
-
 // howMuchToRecord turns `--whole-desktop` into the scope and the sentence said before the
 // recording starts.
 //
