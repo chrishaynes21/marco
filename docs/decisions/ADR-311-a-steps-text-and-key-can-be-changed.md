@@ -118,3 +118,27 @@ it (`vkCapital`). The guard also found that the host's `" "` entry can never be 
   `TestAKeyMarcoCannotPressIsRefusedByTheStepPanel`,
   `TestAHeldKeyIsChangedWholeThroughTheStepPanel`, `TestAStepsTextIsChangedThroughTheStepPanel`,
   `TestTheStepPanelOffersTextAndKeyBoxesAndSendsWhatWasTyped`.
+
+## Correction: a changed key keeps no character from the old one (2026-11-04)
+
+A review found that `EditKey` updated `Step.Key` and kept `Step.Text`. On a recorded tap, that is
+the character the old key produced. `oneCharacter` trusts `Text` before `Key`, so the bug showed
+up only in a later edit:
+- `a` changed to `q`, saved, and then declared typed text came back as `a`.
+- `a` changed to `ctrl+s` still offered `"a"` to a conversion that must refuse a chord.
+
+Playback straight after the edit was right, and that is all the end-to-end tests above checked.
+
+A changed key now clears `Text`, on both halves of a hold. With it empty, every reader falls back
+to the key: `oneCharacter` reads `q` as `q` and refuses `ctrl+s`, and codegen renders a key step
+from `Key` alone.
+
+Held by:
+- `internal/orchestrator` `TestAChangedKeyKeepsNoCharacterFromTheOldOne`;
+- `TestAKeyChangedToALetterIsThatLetterWhenLaterDeclaredTyped`, which goes a → q, save, then
+  typed text, and types `mqrco`;
+- `TestAKeyChangedToAChordIsNotTypedTextLater`, which goes a → ctrl+s, save, then typed text,
+  and is refused naming the chord.
+
+With the fix removed, all three fail, and the second reproduces the report: the routine types
+`marco`.

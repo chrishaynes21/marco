@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/chaynes-simpleclouds/marco/internal/macroir"
+	"github.com/chaynes-simpleclouds/marco/internal/routes"
 )
 
 // heldSteps is a hold of shift around a press, then a press of esc.
@@ -285,4 +286,74 @@ func TestAChangedHoldIsWhatTheRoutineHolds(t *testing.T) {
 	if strings.Count(after, "ctrl") < 2 {
 		t.Errorf("the edited routine does not both hold and release ctrl:\n%s", after)
 	}
+}
+
+// ── A CHANGED KEY TYPES WHAT IT NOW PRESSES, IN EVERY LATER EDIT ──
+//
+// A recorded tap carries the character it produced (`Text`) beside its key, and the typed-text
+// conversion trusts that character first. So a key change that kept it was a routine that pressed
+// `q` and, once a later edit declared the run typed text, typed `a` again. These go through save
+// and then a SECOND edit, because the defect was invisible to playback straight after the first.
+
+// THE CHARACTER IS GONE FROM THE STEP, from both halves of a hold too.
+func TestAChangedKeyKeepsNoCharacterFromTheOldOne(t *testing.T) {
+	steps := heldSteps()
+	steps[1].Text, steps[2].Text, steps[3].Text = "s", "a", "s"
+	out, _, why := editedFrom(steps, StepEdit{Op: EditKey, At: 2, Key: "q"},
+		StepEdit{Op: EditKey, At: 1, Key: "ctrl"})
+	if why != "" {
+		t.Fatalf("it refused: %s", why)
+	}
+	for _, at := range []int{1, 2, 3} {
+		if out[at].Text != "" {
+			t.Errorf("step %d now %q still carries %q from the key it had", at+1,
+				out[at].Key, out[at].Text)
+		}
+	}
+}
+
+// a → q, SAVED, THEN DECLARED TYPED TEXT: it types q.
+func TestAKeyChangedToALetterIsThatLetterWhenLaterDeclaredTyped(t *testing.T) {
+	d, rt := aTypedRoutine(t, Coordinates)
+	at := keyStepAt(t, d, rt, "a")
+	editing(t, d, rt, StepEdit{Op: EditKey, At: at, Key: "q"})
+	editing(t, d, rt, StepEdit{Op: EditTyped, At: 2, Upto: 10})
+	calls := whatItAsked(t, d, rt, 0)
+	if !hasCall(calls, "OS's Type with mqrco") {
+		t.Errorf("the typed run is not what the keys now press: %v", calls)
+	}
+}
+
+// a → ctrl+s, SAVED, THEN DECLARED TYPED TEXT: refused, because a chord types nothing.
+func TestAKeyChangedToAChordIsNotTypedTextLater(t *testing.T) {
+	d, rt := aTypedRoutine(t, Coordinates)
+	at := keyStepAt(t, d, rt, "a")
+	editing(t, d, rt, StepEdit{Op: EditKey, At: at, Key: "ctrl+s"})
+	e, err := d.PrepareEdit(rt, []StepEdit{{Op: EditTyped, At: 2, Upto: 10}})
+	if err == nil && e.Refused == "" {
+		t.Fatalf("a run holding ctrl+s was declared typed text:\n%s", e.Now)
+	}
+	why := e.Refused
+	if err != nil {
+		why = err.Error()
+	}
+	if !strings.Contains(why, "ctrl+s") {
+		t.Errorf("it was refused without naming the chord: %q", why)
+	}
+}
+
+// keyStepAt is the position of the routine's one press of `key`.
+func keyStepAt(t *testing.T, d Deps, rt routes.Route, key string) int {
+	t.Helper()
+	e, err := d.PrepareEdit(rt, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, s := range e.Steps() {
+		if s.Kind == macroir.StepKey && s.Key == key {
+			return i
+		}
+	}
+	t.Fatalf("the routine presses no %q: %+v", key, e.Steps())
+	return -1
 }

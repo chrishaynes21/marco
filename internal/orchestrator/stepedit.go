@@ -892,6 +892,15 @@ func applyEdits(steps []macroir.Step, edits []StepEdit) ([]macroir.Step, []strin
 		}
 		if key, ok := keys[i]; ok {
 			s.Key = key
+			// AND THE CHARACTER THE OLD KEY TYPED GOES WITH IT. `Text` on a key step is
+			// what the recorder read off the keystroke, and `oneCharacter` trusts it
+			// before the key, so `a` changed to `q` and later declared typed text came
+			// back as `a`, and `a` changed to `ctrl+s` still offered "a" to a conversion
+			// that must refuse a chord. Cleared rather than recomputed, because with it
+			// empty every reader falls back to the key itself: `oneCharacter` reads `q`
+			// as `q` and refuses `ctrl+s`, and codegen renders a key from `Key` alone.
+			// Both halves of a hold come through here, because both are in `keys`.
+			s.Text = ""
 		}
 		out = append(out, s)
 	}
