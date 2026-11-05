@@ -216,11 +216,11 @@ setTimeout(() => {
   waitBox = there('routineStepMs-1') ? 1 : 0
   pressBox = there('routineStepMs-3') ? 1 : 0
   cutEvery = [0, 1, 2, 3, 4].every(i => there('routineStepCut-' + i)) ? 1 : 0
-  // AND NOTHING THIS PASS DOES NOT OFFER. No adding, no reordering, no editing a
-  // coordinate or a key: a control that is not there cannot be pressed, and a
-  // backend that refuses one is not the same as a page that never offered it.
-  addBtn = (there('routineStepAddBtn') || there('routineStepUp-1') ||
-            there('routineStepDown-1')) ? 1 : 0
+  // AND NO REORDERING, WHICH NO OPERATION DOES. Adding a step is offered now (the ` + ` on
+  // each row, ADR-312) and so are a position, a text and a key; moving a step is not, and a
+  // control that is not there cannot be pressed — a stronger thing than a backend that
+  // refuses it.
+  addBtn = (there('routineStepUp-1') || there('routineStepDown-1')) ? 1 : 0
   deadBtn = document.getElementById('routineStepReviewBtn').disabled ? 1 : 0
   document.getElementById('routineStepMs-1').value = '800'
   document.getElementById('routineStepMs-1').dispatchEvent(new Event('input'))
@@ -361,7 +361,7 @@ func TestTheStepPanelOffersTwoOperationsAndNoOthers(t *testing.T) {
 		{"waitbox", "a wait offers no duration to change"},
 		{"nopressbox", "a press offers a duration, which it has none of"},
 		{"cutevery", "some row cannot be removed"},
-		{"noadd", "the page offers adding or reordering, which this pass does not"},
+		{"noadd", "the page offers reordering, which no step operation does"},
 	} {
 		if n(c.key) != 1 {
 			t.Errorf("%s: %q", c.why, title)

@@ -408,6 +408,12 @@
  /* A ROW THAT DIFFERS FROM THE ROUTINE IS MARKED, so the rows that will change can be found
     by looking rather than by reading every box. */
  .steprows .sr.changed > .n{color:var(--spot);font-weight:600}
+ /* A STEP BEING ADDED, the control centre's `.added`: dashed in the accent, so it reads as
+    not yet part of the routine. */
+ .steprows .sr.added{border-style:dashed;border-color:var(--spot-dim)}
+ .steprows .sr.added > .n{color:var(--spot);font-weight:600;text-align:right}
+ .steprows select.newkind{min-width:0;width:auto;font:400 12px var(--mach);padding:3px 6px;
+   min-height:28px}
  .steprows .sr.changed input.num{border-color:var(--spot-dim)}
  /* THE CONTROLS STAY ON THE STEP THEY BELONG TO. `.row` wraps, which is right for a
     card's own rows and wrong inside a grid cell: on a typing step `name it` landed on
@@ -4174,7 +4180,12 @@
  // Review. Kept as the raw text, because an invalid entry is shown back exactly as it was
  // typed with the reason beside it, never reset and never quietly left out. Keyed by step.
  let stepDrafts = {}, stepErrors = {}
- function resetStepEdits(){ stepChanges = []; stepDrafts = {}; stepErrors = {} }
+ // STEPS ADDED BUT NOT YET REVIEWED, each in the gap after the row it was added under. Their own
+ // list, because a row holds one change of its own and a gap can hold several additions.
+ let stepInserts = [], stepInsertSeq = 0
+ function resetStepEdits(){
+   stepChanges = []; stepDrafts = {}; stepErrors = {}; stepInserts = []
+ }
 
  // ── WHAT ELSE A ROUTINE ANSWERS TO ──────────────────────────────────────────
  //
@@ -4821,7 +4832,23 @@
      rm.onclick = () => asked && asked.op === 'remove'
        ? dropStepChange(row.at)
        : askStepChange({op: 'remove', at: row.at})
-     controls.appendChild(rm)
+     // ADD A STEP AFTER THIS ONE, the control centre's `+`: a new row opens under it to say
+     // what. Not after a step being removed only in the sense that its gap still exists:
+     // what is added there goes where that step was.
+     const add = document.createElement('button')
+     add.id = 'routineStepAdd-' + row.at
+     add.textContent = '+'
+     add.title = 'Add a step after this one'
+     add.setAttribute('aria-label', 'Add a step after step ' + (row.at + 1))
+     add.onclick = () => {
+       const p = {n: ++stepInsertSeq, at: row.at, kind: 'wait', value: ''}
+       stepInserts.push(p)
+       withdrawStepReview()
+       drawStepRows()
+       const box = $('routineStepNewVal-' + p.n)
+       if (box) { box.focus() }
+     }
+     controls.append(add, rm)
      div.append(n, act, what, controls)
      // A STEP BEING REMOVED CANNOT ALSO BE CHANGED -- one operation per step, which is
      // the backend's rule too. Its boxes keep what was typed and are greyed rather than
@@ -4831,8 +4858,69 @@
          .forEach(b => { b.disabled = true })
      }
      box.appendChild(div)
+     stepInserts.filter(p => p.at === row.at).forEach(p => box.appendChild(addedStepRow(p)))
    })
    drawStepAsked()
+ }
+
+ // A STEP BEING ADDED: what kind, its one value, and the way to take it back. Its box is the
+ // change, read when Review is pressed, like every other box on the list.
+ function addedStepRow(p){
+   const div = document.createElement('div')
+   div.className = 'sr four added'
+   div.id = 'routineStepNew-' + p.n
+   const n = document.createElement('span')
+   n.className = 'n'
+   n.textContent = '+'
+   const kind = document.createElement('select')
+   kind.id = 'routineStepNewKind-' + p.n
+   kind.className = 'newkind'
+   kind.setAttribute('aria-label', 'What the step added after step ' + (p.at + 1) + ' does')
+   ;[['wait', 'wait'], ['key', 'press'], ['type', 'type']].forEach(([v, label]) => {
+     const o = document.createElement('option')
+     o.value = v
+     o.textContent = label
+     kind.appendChild(o)
+   })
+   kind.value = p.kind
+   const what = document.createElement('span')
+   what.className = 'what'
+   const val = document.createElement('input')
+   val.type = 'text'
+   val.autocomplete = 'off'
+   val.spellcheck = false
+   val.id = 'routineStepNewVal-' + p.n
+   val.className = p.kind === 'type' ? 'txt' : 'stepkey'
+   const hint = {wait: 'milliseconds', key: 'a key, like enter', type: 'text to type'}
+   val.placeholder = hint[p.kind]
+   val.setAttribute('aria-label', 'The ' + (p.kind === 'wait' ? 'wait, in milliseconds,'
+     : p.kind === 'key' ? 'key' : 'text') + ' of the step added after step ' + (p.at + 1))
+   val.value = p.value
+   val.oninput = () => { p.value = val.value; withdrawStepReview(); drawStepAsked() }
+   kind.onchange = () => { p.kind = kind.value; withdrawStepReview(); drawStepRows() }
+   what.appendChild(val)
+   const err = document.createElement('span')
+   err.className = 'pair no' + (stepErrors['new-' + p.n] ? '' : ' hide')
+   err.id = 'routineStepNewErr-' + p.n
+   err.setAttribute('role', 'alert')
+   err.textContent = stepErrors['new-' + p.n] || ''
+   what.appendChild(err)
+   const controls = document.createElement('span')
+   controls.className = 'row'
+   const rm = document.createElement('button')
+   rm.id = 'routineStepNewCut-' + p.n
+   rm.className = 'del'
+   rm.textContent = 'Remove'
+   rm.setAttribute('aria-label', 'Remove the step being added after step ' + (p.at + 1))
+   rm.onclick = () => {
+     stepInserts = stepInserts.filter(x => x.n !== p.n)
+     delete stepErrors['new-' + p.n]
+     withdrawStepReview()
+     drawStepRows()
+   }
+   controls.appendChild(rm)
+   div.append(n, kind, what, controls)
+   return div
  }
 
  function changeAt(at){ return stepChanges.find(c => c.at === at) || null }
@@ -4996,7 +5084,40 @@
        }
      }
    })
+   // AND THE STEPS BEING ADDED, in the order they were added. What a key may be is still the
+   // backend's answer; this only declines to send an empty box or a wait that is not a number.
+   stepInserts.forEach(p => {
+     const raw = p.value
+     if (p.kind === 'wait') {
+       if (/^\d+$/.test(raw.trim())) {
+         changes.push({op: 'insert', at: p.at, kind: 'wait', to: parseInt(raw.trim(), 10)})
+       } else {
+         errors['new-' + p.n] = raw.trim() === ''
+           ? 'Enter how long to wait, in milliseconds.'
+           : '“' + raw.trim() + '” is not a whole number of milliseconds.'
+       }
+     } else if (p.kind === 'key') {
+       if (raw.trim()) {
+         changes.push({op: 'insert', at: p.at, kind: 'key', key: raw.trim()})
+       } else {
+         errors['new-' + p.n] = 'Enter a key, like enter, f5 or ctrl+s.'
+       }
+     } else if (raw !== '') {
+       changes.push({op: 'insert', at: p.at, kind: 'type', text: raw})
+     } else {
+       errors['new-' + p.n] = 'Type the text to add.'
+     }
+   })
    return {changes, errors}
+ }
+
+ // WHICH STEP AN ERROR IS ABOUT, IN WORDS. A row's error is keyed by its position; a step being
+ // added has no position yet and is keyed `new-<n>`, and is named by the row it goes after.
+ function stepErrorName(key){
+   const k = String(key)
+   if (!k.startsWith('new-')) { return 'step ' + (Number(k) + 1) }
+   const p = stepInserts.find(x => 'new-' + x.n === k)
+   return p ? 'the step added after step ' + (p.at + 1) : 'an added step'
  }
 
  function clearStepChanges(){
@@ -5027,6 +5148,11 @@
      if (c.op === 'wait') { return at + ' waits ' + c.to + 'ms' }
      if (c.op === 'remove') { return at + ' is removed' }
      if (c.op === 'argument') { return at + ' asks you for its text (' + c.name + ')' }
+     if (c.op === 'insert') {
+       const added = c.kind === 'wait' ? 'a wait of ' + c.to + 'ms'
+         : c.kind === 'key' ? 'a press of ' + c.key : 'typing “' + c.text + '”'
+       return added + ' is added ' + (c.at < 0 ? 'at the start' : 'after ' + at)
+     }
      if (c.op === 'text') { return at + ' types “' + c.text + '”' }
      if (c.op === 'key') { return at + ' uses ' + c.key }
      if (c.op === 'point') {
@@ -5042,7 +5168,7 @@
    }
    const parts = got.changes.map(saysChange)
    Object.keys(got.errors).forEach(at => {
-     parts.push('step ' + (Number(at) + 1) + ' needs a correction')
+     parts.push(stepErrorName(at) + ' needs a correction')
    })
    text(box, 'To review: ' + parts.join('; ') + '.')
  }
@@ -5111,10 +5237,14 @@
      // typed, and the first of them gets the cursor.
      stepErrors = got.errors
      drawStepRows()
+     const one = stepErrorName(wrong[0])
      text($('routineStepsWhy'), wrong.length === 1
-       ? 'Step ' + (Number(wrong[0]) + 1) + ' needs a correction before it can be reviewed.'
+       ? one.charAt(0).toUpperCase() + one.slice(1) + ' needs a correction before it can ' +
+         'be reviewed.'
        : wrong.length + ' steps need a correction before they can be reviewed.')
-     const first = document.querySelector('#routineStepRow-' + wrong[0] + ' input:not(:disabled)')
+     const where = String(wrong[0]).startsWith('new-')
+       ? '#routineStepNew-' + String(wrong[0]).slice(4) : '#routineStepRow-' + wrong[0]
+     const first = document.querySelector(where + ' input:not(:disabled)')
      if (first) { first.focus() }
      return
    }

@@ -151,6 +151,9 @@ type StepChange struct {
 	Text string `json:"text"`
 	// Key is the key to use instead, for a "key" change, as typed.
 	Key string `json:"key"`
+	// Kind is which step an "insert" adds after `At`: "wait" (with `To`), "key" (with `Key`)
+	// or "type" (with `Text`). `At` is -1 for before the first step.
+	Kind string `json:"kind"`
 }
 
 // StepEditing is a routine's steps as the panel lists them, before anything is asked.
@@ -371,7 +374,7 @@ func (a *Acts) ReviewStepEdit(id, basis string, changes []StepChange) StepPrevie
 		// the one `routes` own pattern will read back.
 		edits = append(edits, orchestrator.StepEdit{
 			Op: orchestrator.EditOp(strings.TrimSpace(c.Op)), At: c.At, To: c.To,
-			Upto: c.Upto, X: c.X, Y: c.Y, Name: c.Name, Text: c.Text, Key: c.Key})
+			Upto: c.Upto, X: c.X, Y: c.Y, Name: c.Name, Text: c.Text, Key: c.Key, Kind: c.Kind})
 	}
 	d := orchestrator.Deps{Reg: a.reg(), Out: &strings.Builder{}}
 	e, err := d.PrepareEditOf(chosen.route(), basis, edits)

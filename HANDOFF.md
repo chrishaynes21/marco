@@ -12617,3 +12617,19 @@ now. 17 mutants killed. Verified headless and against a recording host, not on t
 
 Next: inserting steps, then repeats and drags. See
 [[ADR-311-a-steps-text-and-key-can-be-changed]].
+
+### 2026-11-04 — Corrections to key editing, and a step can be added
+
+- **`bea2241`:** a changed key keeps no character from the old one. Before this, `a` changed to
+  `q` came back as `a` once the run was later declared typed text. A review caught it; the tests
+  now go through save and a second edit.
+- **`979d9b2`:** a refused change keeps what was typed. Operation refusals are marked
+  `orchestrator.ErrChangeRefused` and reported as `StepPreview.Correct`.
+- **`056d5a3` and this commit:** a step can be added.
+  - `EditInsert` takes a wait, a key or typed text in the gap after an original position. It
+    shares a review with other changes, and nothing is renumbered.
+  - Nothing goes before the window comes forward, and no click can be added yet.
+  - Studio puts a `+` on every row.
+  - 11 mutants killed.
+
+Next: repeats and drags. See [[ADR-312-a-step-can-be-added]].

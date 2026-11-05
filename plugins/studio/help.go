@@ -159,7 +159,11 @@ func (a *Acts) Help() Help {
 
 	editing := []string{
 		"Change a wait, a position, the text a step types or the key it presses; " +
-			"remove a step; or say a run of steps is text you typed.",
+			"remove a step; add one with + (a wait, a key press or typed text); or " +
+			"say a run of steps is text you typed.",
+		// WHERE AN ADDED STEP MAY GO, said once. ADR-312.
+		"A step is added after the row whose + you pressed. Nothing can be added " +
+			"before the step that brings the window forward.",
 		// THE BOXES ARE THE CHANGE. There is no Set: what is typed is read when Review is
 		// pressed, and an entry that is not a number stays as typed with the reason beside
 		// it. See ADR-292.

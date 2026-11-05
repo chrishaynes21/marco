@@ -1113,3 +1113,9 @@ can press, which is now held against both the host's and the recorder's tables. 
 that a recorded Caps Lock could not be pressed. Changing either half of a hold changes both.
 Studio shows both as boxes on the step rows. See
 [[ADR-311-a-steps-text-and-key-can-be-changed]].
+
+**And a step can be added.** `EditInsert` puts a wait, a key press or typed text in a gap of the
+list that was shown. It is collected with the other operations and built once, so it can share a
+review with removals and changes. Nothing may be added before the step that brings the window
+forward, and no click can be added yet. Studio puts a `+` on each step row, which opens a dashed
+row under it. See [[ADR-312-a-step-can-be-added]].
