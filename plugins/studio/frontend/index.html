@@ -398,6 +398,12 @@
    min-height:30px;text-align:right}
  .steprows input.num.ms{width:6.5em}
  .steprows input.num.xy{width:4.5em}
+ /* WHAT A STEP TYPES, AND WHICH KEY: words, in the value column, as typed. */
+ .steprows input.txt,.steprows input.stepkey{font:400 13px var(--mach);padding:4px 8px;
+   min-height:30px}
+ .steprows input.txt{width:100%}
+ .steprows input.stepkey{width:9em}
+ .steprows input.txt:disabled,.steprows input.stepkey:disabled{opacity:.5}
  .steprows input.num:disabled{opacity:.5}
  /* A ROW THAT DIFFERS FROM THE ROUTINE IS MARKED, so the rows that will change can be found
     by looking rather than by reading every box. */
@@ -4659,6 +4665,32 @@
          what.appendChild(no)
        }
      }
+     // ── AND WHAT IT TYPES, OR WHICH KEY IT USES, IN A BOX THAT IS THE CHANGE ──
+     //
+     // The control centre's editor changed these in place; here the box replaces the value
+     // half of the row the way a press's two numbers do, and is read when Review is pressed
+     // like every other box. What a key may be is the backend's answer, at review: this page
+     // keeps no list of keys of its own.
+     if (row.types) {
+       said.textContent = ''
+       const tb = stepTextField(row.at, 'text', row.text)
+       tb.className = 'txt'
+       tb.id = 'routineStepText-' + row.at
+       tb.setAttribute('aria-label', 'What step ' + (row.at + 1) + ' types')
+       // NOT WHILE ITS TEXT IS BEING TURNED INTO A VALUE YOU SUPPLY: that replaces all of
+       // it, so a change to the text beside it would be a second answer to one question.
+       if (asked && asked.op === 'argument') { tb.disabled = true }
+       said.appendChild(tb)
+     }
+     if (row.keyed) {
+       said.textContent = ''
+       const kb = stepTextField(row.at, 'key', row.key)
+       kb.className = 'stepkey'
+       kb.id = 'routineStepKey-' + row.at
+       kb.setAttribute('aria-label', 'Which key step ' + (row.at + 1) +
+         (row.holds ? ' holds' : ' presses'))
+       said.appendChild(kb)
+     }
      if (row.pairs) {
        // THE OTHER HALF, ON THE ROW, BEFORE ANYTHING IS PRESSED.
        //
@@ -4753,7 +4785,7 @@
      // value applied as it was typed would send three edits on the way to 350, and a
      // value that waited for a per-row button was lost whenever somebody pressed
      // Review without it. Reset is shown only while the row differs from the routine.
-     if (row.wait || (row.point && row.movable)) {
+     if (row.wait || (row.point && row.movable) || row.types || row.keyed) {
        const reset = document.createElement('button')
        reset.id = 'routineStepReset-' + row.at
        reset.className = 'reset' + (stepFieldsChanged(row) ? '' : ' hide')
@@ -4795,7 +4827,8 @@
      // the backend's rule too. Its boxes keep what was typed and are greyed rather than
      // cleared, so taking the removal back gives the typing back.
      if (asked && asked.op === 'remove') {
-       div.querySelectorAll('input.num').forEach(b => { b.disabled = true })
+       div.querySelectorAll('input.num, input.txt, input.stepkey')
+         .forEach(b => { b.disabled = true })
      }
      box.appendChild(div)
    })
@@ -4848,6 +4881,14 @@
    return box
  }
 
+ // A BOX FOR WORDS, NOT NUMBERS: the same draft-keeping as `stepField`, without the numeric
+ // keyboard, and with spelling help off because what is in it is typed exactly as it stands.
+ function stepTextField(at, key, original){
+   const box = stepField(at, key, original)
+   box.inputMode = 'text'
+   return box
+ }
+
  function stepDraft(at, key, original){
    const d = stepDrafts[at]
    return (d && Object.prototype.hasOwnProperty.call(d, key)) ? d[key] : original
@@ -4858,6 +4899,11 @@
    if (row.wait && !same('ms', String(row.ms))) { return true }
    if (row.point && row.movable &&
        (!same('x', String(row.x)) || !same('y', String(row.y)))) { return true }
+   // TEXT IS COMPARED AS TYPED: a trailing space is part of what a routine types.
+   if (row.types && stepDraft(row.at, 'text', row.text) !== row.text) { return true }
+   if (row.keyed && stepDraft(row.at, 'key', row.key).trim().toLowerCase() !== row.key) {
+     return true
+   }
    return false
  }
 
@@ -4916,6 +4962,30 @@
          }
        }
      }
+     // NEW TEXT, unless the text is being turned into a value you supply, which replaces
+     // all of it. Sent exactly as typed.
+     if (row.types && !(asked && asked.op === 'argument')) {
+       const typed = stepDraft(row.at, 'text', row.text)
+       if (typed !== row.text) {
+         if (typed === '') {
+           errors[row.at] = 'Type what this step should type, or remove the step.'
+         } else {
+           changes.push({op: 'text', at: row.at, text: typed})
+         }
+       }
+     }
+     // ANOTHER KEY. Whether it is one Marco can press is the backend's answer at review,
+     // so this page keeps no list of keys to disagree with it.
+     if (row.keyed) {
+       const key = stepDraft(row.at, 'key', row.key).trim()
+       if (key.toLowerCase() !== row.key) {
+         if (key === '') {
+           errors[row.at] = 'Enter a key, like enter, f5 or ctrl+s.'
+         } else {
+           changes.push({op: 'key', at: row.at, key: key})
+         }
+       }
+     }
      // A NAME TYPED AND NOT ASKED FOR. Making the text something you supply replaces all
      // of it, so it stays a press -- but a name left in the box is not quietly ignored.
      if (row.types && !(asked && asked.op === 'argument')) {
@@ -4957,6 +5027,8 @@
      if (c.op === 'wait') { return at + ' waits ' + c.to + 'ms' }
      if (c.op === 'remove') { return at + ' is removed' }
      if (c.op === 'argument') { return at + ' asks you for its text (' + c.name + ')' }
+     if (c.op === 'text') { return at + ' types “' + c.text + '”' }
+     if (c.op === 'key') { return at + ' uses ' + c.key }
      if (c.op === 'point') {
        // AND IN WHICH BASIS, read off the row the numbers were typed into rather
        // than carried on the change: two numbers with no word beside them are the

@@ -132,6 +132,22 @@ const (
 	// whether a position was read before or after the run — a review holding this holds
 	// nothing else, and says so.
 	EditTyped EditOp = "typed"
+	// EditText changes the text a typing step types, to other fixed text.
+	//
+	// FIXED TEXT, AND NEVER A PLACEHOLDER. `{{` and `}}` in a typed literal are how a routine
+	// asks for a value, and one whose name is not declared renders as a read of the
+	// CREDENTIAL STORE — so a brace typed into this box would turn somebody's sentence into
+	// a secret lookup. Asking for a value is EditArgument's, which names it. A step that
+	// already asks for its text has no fixed text to change, and is refused with that reason.
+	EditText EditOp = "text"
+	// EditKey changes which key a press, a hold or a release uses.
+	//
+	// A HELD KEY CHANGES WHOLE, for the reason a removal takes both halves (`holdPartner`):
+	// a keydown changed alone would hold one key and release another. So changing either
+	// half changes both, and the review says so. The key is checked against the keys Marco
+	// can press (`macroir.IsChord` for a press, `macroir.IsKeyName` for a hold, which is one
+	// key) while the person is still looking at it, rather than refused at run time.
+	EditKey EditOp = "key"
 )
 
 // argName is what a placeholder's name may be: exactly what `routes` own pattern will read back.
@@ -185,6 +201,15 @@ type StepEdit struct {
 	// stored `{{Message}}` beside a field asking for `message` is a confusion with nothing
 	// to gain from it.
 	Name string `json:"name"`
+	// Text is what the step should type instead, for EditText. Ignored otherwise.
+	//
+	// TAKEN EXACTLY AS GIVEN. Spaces and line ends are part of what a routine types, so
+	// trimming them here would change somebody's text for them.
+	Text string `json:"text"`
+	// Key is the key to use instead, for EditKey, as Marco names it: `enter`, `f5`,
+	// `ctrl+s`. Lowercased and trimmed when it is applied, because that is how `Step.Key`
+	// spells one. Ignored otherwise.
+	Key string `json:"key"`
 }
 
 // EditReview is one routine with its step list edited, for review.
@@ -601,6 +626,8 @@ func applyEdits(steps []macroir.Step, edits []StepEdit) ([]macroir.Step, []strin
 	waits := map[int]int{}
 	args := map[int]string{}
 	points := map[int]macroir.Step{}
+	texts := map[int]string{}
+	keys := map[int]string{}
 	var says []string
 	// ── A DECLARATION THAT A RUN IS TYPED TEXT IS REVIEWED ON ITS OWN ──
 	//
@@ -675,6 +702,16 @@ func applyEdits(steps []macroir.Step, edits []StepEdit) ([]macroir.Step, []strin
 					"supplied and removed, so nothing was changed",
 					ed.At+1)
 			}
+			if _, retyped := texts[ed.At]; retyped {
+				return nil, nil, "", nil, fmt.Errorf("step %d is asked to be both "+
+					"given new text and removed, so nothing was changed",
+					ed.At+1)
+			}
+			if _, rekeyed := keys[ed.At]; rekeyed {
+				return nil, nil, "", nil, fmt.Errorf("step %d is asked to be both "+
+					"given another key and removed, so nothing was changed",
+					ed.At+1)
+			}
 			// ── A GESTURE GOES WHOLE OR NOT AT ALL ──
 			//
 			// `macroir` already makes a drag, a typed run, an anchored click
@@ -728,6 +765,11 @@ func applyEdits(steps []macroir.Step, edits []StepEdit) ([]macroir.Step, []strin
 					"supplied and removed, so nothing was changed",
 					ed.At+1)
 			}
+			if _, retyped := texts[ed.At]; retyped {
+				return nil, nil, "", nil, fmt.Errorf("step %d is asked to be both "+
+					"given new text and asked for, so nothing was changed — "+
+					"choose one", ed.At+1)
+			}
 			// AND NO CHECK AGAINST A DURATION. A step is a Type or a Wait and
 			// never both, so "supplied and given a duration" cannot be asked of
 			// one step: the kind check below is what answers, with the true
@@ -755,6 +797,72 @@ func applyEdits(steps []macroir.Step, edits []StepEdit) ([]macroir.Step, []strin
 			says = append(says, fmt.Sprintf("the text at step %d becomes "+
 				"something you supply, named %q (it was %q)", ed.At+1, name,
 				steps[ed.At].Text))
+		case EditText:
+			if drop[ed.At] {
+				return nil, nil, "", nil, fmt.Errorf("step %d is asked to be both "+
+					"given new text and removed, so nothing was changed",
+					ed.At+1)
+			}
+			if _, supplied := args[ed.At]; supplied {
+				return nil, nil, "", nil, fmt.Errorf("step %d is asked to be both "+
+					"given new text and asked for, so nothing was changed — "+
+					"choose one", ed.At+1)
+			}
+			if _, already := texts[ed.At]; already {
+				return nil, nil, "", nil, fmt.Errorf("step %d is asked to type two "+
+					"different things, so nothing was changed", ed.At+1)
+			}
+			text, err := newText(steps, ed.At, ed.Text)
+			if err != nil {
+				return nil, nil, "", nil, err
+			}
+			texts[ed.At] = text
+			says = append(says, fmt.Sprintf("step %d types %q (it typed %q)",
+				ed.At+1, text, steps[ed.At].Text))
+		case EditKey:
+			key, err := newKey(steps, ed.At, ed.Key)
+			if err != nil {
+				return nil, nil, "", nil, err
+			}
+			// THE OTHER HALF OF A HOLD CHANGES WITH IT. Asked here, through the
+			// function a removal asks, so "which steps are one hold" has one answer.
+			partner, pwhy := holdPartner(steps, ed.At)
+			if pwhy != "" {
+				return nil, nil, pwhy, nil, nil
+			}
+			for _, at := range []int{ed.At, partner} {
+				if at < 0 {
+					continue
+				}
+				if drop[at] {
+					return nil, nil, "", nil, fmt.Errorf("step %d is asked to be "+
+						"both given another key and removed, so nothing was "+
+						"changed", at+1)
+				}
+				if was, already := keys[at]; already && was != key {
+					return nil, nil, "", nil, fmt.Errorf("step %d is asked to use "+
+						"two different keys, so nothing was changed", at+1)
+				}
+			}
+			if _, already := keys[ed.At]; already {
+				// THE SAME KEY ASKED OF BOTH HALVES, which is what a surface
+				// offering a box on each half sends. Said once.
+				continue
+			}
+			keys[ed.At] = key
+			if partner < 0 {
+				says = append(says, fmt.Sprintf("step %d uses %q (it used %q)",
+					ed.At+1, key, steps[ed.At].Key))
+				continue
+			}
+			keys[partner] = key
+			first, second := ed.At, partner
+			if second < first {
+				first, second = second, first
+			}
+			says = append(says, fmt.Sprintf("steps %d and %d hold %q (they held "+
+				"%q), because they are the two halves of one hold", first+1,
+				second+1, key, steps[ed.At].Key))
 		default:
 			return nil, nil, "", nil, fmt.Errorf("%q is not something an edit can do",
 				ed.Op)
@@ -778,6 +886,12 @@ func applyEdits(steps []macroir.Step, edits []StepEdit) ([]macroir.Step, []strin
 		}
 		if name, ok := args[i]; ok {
 			s.Text = "{{" + name + "}}"
+		}
+		if text, ok := texts[i]; ok {
+			s.Text = text
+		}
+		if key, ok := keys[i]; ok {
+			s.Key = key
 		}
 		out = append(out, s)
 	}
@@ -1102,6 +1216,71 @@ func oneCharacter(s macroir.Step, at int) (string, error) {
 	}
 	return "", fmt.Errorf("step %d presses %q, which types nothing — typed text cannot "+
 		"be made out of it", at+1, s.Key)
+}
+
+// newText is the fixed text the step at `at` would type instead, or why it cannot.
+//
+// THE BRACES ARE REFUSED, NOT ESCAPED. A typed literal carrying `{{name}}` is a routine asking
+// for a value, and an undeclared one renders as `do OS's Secret …` — a read of the credential
+// store — so new text with a brace in it would change what the routine DOES, not what it types.
+// Making text something supplied is EditArgument's, which declares the name.
+func newText(steps []macroir.Step, at int, raw string) (string, error) {
+	s := steps[at]
+	switch {
+	case s.Kind != macroir.StepType:
+		return "", fmt.Errorf("step %d does not type anything, so it has no text to "+
+			"change", at+1)
+	case strings.Contains(s.Text, "{{"):
+		return "", fmt.Errorf("step %d types a value you supply when it runs, so it has "+
+			"no fixed text to change — keep the text instead to type something fixed",
+			at+1)
+	case raw == "":
+		return "", fmt.Errorf("step %d would type nothing — remove the step instead",
+			at+1)
+	case strings.Contains(raw, "{{") || strings.Contains(raw, "}}"):
+		return "", fmt.Errorf("the new text for step %d has {{ or }} in it, which is how "+
+			"a routine asks for a value — use “Ask me for it” for that", at+1)
+	case raw == s.Text:
+		return "", fmt.Errorf("step %d already types %q", at+1, raw)
+	}
+	return raw, nil
+}
+
+// newKey is the key the step at `at` would use instead, as `Step.Key` spells it, or why it
+// cannot.
+//
+// A PRESS MAY BE A CHORD; A HOLD IS ONE KEY. `do OS's Key` presses `ctrl+s` as one gesture, while
+// a keydown and its keyup hold and release a single key, which is how the recorder writes a held
+// modifier. Both are checked against the keys Marco can press, here, while somebody is looking at
+// the box, rather than at run time as `unknown key`.
+func newKey(steps []macroir.Step, at int, raw string) (string, error) {
+	s := steps[at]
+	key := strings.ToLower(strings.TrimSpace(raw))
+	switch s.Kind {
+	case macroir.StepKey:
+		if key == "" {
+			return "", fmt.Errorf("enter the key step %d should press", at+1)
+		}
+		if !macroir.IsChord(key) {
+			return "", fmt.Errorf("%q is not a key Marco can press. Keys are named "+
+				"like enter, f5, a or ctrl+s", strings.TrimSpace(raw))
+		}
+	case macroir.StepKeyDown, macroir.StepKeyUp:
+		if key == "" {
+			return "", fmt.Errorf("enter the key step %d should hold", at+1)
+		}
+		if !macroir.IsKeyName(key) {
+			return "", fmt.Errorf("%q is not one key Marco can hold. A hold is one key, "+
+				"like shift, ctrl or a", strings.TrimSpace(raw))
+		}
+	default:
+		return "", fmt.Errorf("step %d does not press a key, so it has no key to change",
+			at+1)
+	}
+	if key == s.Key {
+		return "", fmt.Errorf("step %d already uses %q", at+1, key)
+	}
+	return key, nil
 }
 
 // suppliedName is the name the text at `at` would be supplied under, or why it cannot be.

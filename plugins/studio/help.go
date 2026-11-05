@@ -158,12 +158,18 @@ func (a *Acts) Help() Help {
 			"until it is filled in.")
 
 	editing := []string{
-		"Change a wait, remove a step, or say a run of steps is text you typed.",
+		"Change a wait, a position, the text a step types or the key it presses; " +
+			"remove a step; or say a run of steps is text you typed.",
 		// THE BOXES ARE THE CHANGE. There is no Set: what is typed is read when Review is
 		// pressed, and an entry that is not a number stays as typed with the reason beside
 		// it. See ADR-292.
-		"Type a new wait or position into its box. Review collects every box you " +
-			"changed; Reset puts a row back as it was.",
+		"Type into a step's box. Review collects every box you changed; Reset puts a " +
+			"row back as it was.",
+		// WHAT A KEY MAY BE, said once here rather than beside every key box. ADR-311.
+		"A key is named like enter, f5, a or ctrl+s. A held key is one key, and " +
+			"changing either half of a hold changes both. Text is typed exactly " +
+			"as you write it; {{ and }} are not allowed in it, because they are how " +
+			"a step asks you for a value.",
 		"Make the text a step types something you supply each time — all of that " +
 			"step’s text, not part of it.",
 		"Nothing is written until you review the change and save it — the version " +

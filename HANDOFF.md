@@ -12596,3 +12596,24 @@ These come from `orchestrator`, so `marco learn` says the same. Refusals, named 
 the cannot-on-this-machine remedy and Simplify's timing and value-loss warnings are all still on
 screen. One cut was reverted because a guard caught it dropping *cannot be checked*. See ADR-310,
 "Compact copy".
+
+### 2026-11-04 — A step's text and key can be changed
+
+This is the first of the control centre's editor capabilities brought over, through Studio's own
+preview/save path rather than the control centre's source-line save:
+- `orchestrator.EditText` and `EditKey`;
+- `StepChange.Text`/`Key`;
+- `StepRow.Keyed`/`Key`/`Holds`;
+- text and key boxes on the step rows.
+
+The rules:
+- Text containing braces is refused, because it would become a credential-store read.
+- Keys are checked against `macroir.KeyNames`, a new cross-platform vocabulary held on Windows
+  against `oshost.keyMap` and `recorder.vkNames`.
+- A hold changes whole.
+
+The vocabulary guard found that a recorded `capslock` could not be pressed; `oshost` presses it
+now. 17 mutants killed. Verified headless and against a recording host, not on the desktop.
+
+Next: inserting steps, then repeats and drags. See
+[[ADR-311-a-steps-text-and-key-can-be-changed]].

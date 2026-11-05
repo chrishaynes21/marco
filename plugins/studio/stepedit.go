@@ -117,12 +117,21 @@ type StepRow struct {
 	// row in the action column, where `Says` puts it. See orchestrator.MovablePoint.
 	X int `json:"x"`
 	Y int `json:"y"`
+	// Keyed says this step presses, holds or releases a key, Key which one now, and Holds
+	// that it is half of a held key, which is ONE key and never a chord.
+	//
+	// Changing either half of a hold changes both: the backend does it and the review says
+	// so, and the row already says the halves go together (`PairSays`).
+	Keyed bool   `json:"keyed,omitempty"`
+	Key   string `json:"key,omitempty"`
+	Holds bool   `json:"holds,omitempty"`
 }
 
 // StepChange is one operation the page asks for, against a position in the list it was shown.
 type StepChange struct {
-	// Op is "wait" or "remove". A word this does not know is refused by the backend,
-	// which is where the vocabulary lives.
+	// Op is one of the orchestrator's operations: "wait", "remove", "point", "typed",
+	// "argument", "text" or "key". A word it does not know is refused there, which is where
+	// the vocabulary lives.
 	Op string `json:"op"`
 	At int    `json:"at"`
 	// To is the new duration in milliseconds, for a wait.
@@ -137,6 +146,11 @@ type StepChange struct {
 	Upto int `json:"upto"`
 	// Name is what the supplied text is called, for an "argument" change.
 	Name string `json:"name"`
+	// Text is what the step should type instead, for a "text" change. Sent exactly as
+	// typed: spaces are part of what a routine types.
+	Text string `json:"text"`
+	// Key is the key to use instead, for a "key" change, as typed.
+	Key string `json:"key"`
 }
 
 // StepEditing is a routine's steps as the panel lists them, before anything is asked.
@@ -273,6 +287,12 @@ func stepRows(e orchestrator.EditReview) []StepRow {
 		if s.Kind == macroir.StepWait {
 			r.Wait, r.Ms = true, s.Ms
 		}
+		switch s.Kind {
+		case macroir.StepKey:
+			r.Keyed, r.Key = true, s.Key
+		case macroir.StepKeyDown, macroir.StepKeyUp:
+			r.Keyed, r.Key, r.Holds = true, s.Key, true
+		}
 		if s.Kind == macroir.StepType {
 			// WHAT IT TYPES NOW, so the panel can offer to make it changeable and
 			// say what it would be replacing.
@@ -346,7 +366,7 @@ func (a *Acts) ReviewStepEdit(id, basis string, changes []StepChange) StepPrevie
 		// the one `routes` own pattern will read back.
 		edits = append(edits, orchestrator.StepEdit{
 			Op: orchestrator.EditOp(strings.TrimSpace(c.Op)), At: c.At, To: c.To,
-			Upto: c.Upto, X: c.X, Y: c.Y, Name: c.Name})
+			Upto: c.Upto, X: c.X, Y: c.Y, Name: c.Name, Text: c.Text, Key: c.Key})
 	}
 	d := orchestrator.Deps{Reg: a.reg(), Out: &strings.Builder{}}
 	e, err := d.PrepareEditOf(chosen.route(), basis, edits)

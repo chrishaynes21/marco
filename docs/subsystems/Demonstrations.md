@@ -1101,3 +1101,15 @@ page's fallback colours are the default and light palettes exactly, so the cyan 
 palette's. The control centre's editor capabilities follow one slice at a time, through the
 preview/save machinery here rather than its own save handler. See
 [[ADR-310-studio-wears-the-control-centres-look]].
+
+**And a step's text and key can be changed.** These are two new step-edit operations, `text` and
+`key`, and they go through the same prepare/review/save contract as the rest:
+- the stored account is written beside the source;
+- nothing is written before a review is saved.
+
+New text is fixed text, and braces are refused, because they would turn it into a
+credential-store read. A key is checked against `macroir.KeyNames`, the one list of keys Marco
+can press, which is now held against both the host's and the recorder's tables. That guard found
+that a recorded Caps Lock could not be pressed. Changing either half of a hold changes both.
+Studio shows both as boxes on the step rows. See
+[[ADR-311-a-steps-text-and-key-can-be-changed]].
