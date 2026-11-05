@@ -46,6 +46,7 @@ package orchestrator
 // See [[ADR-286-a-press-can-be-moved]].
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/chaynes-simpleclouds/marco/internal/macroir"
@@ -219,18 +220,10 @@ func movedDrag(steps []macroir.Step, at, x, y, x2, y2 int) (macroir.Step, string
 // picture, or missing a term of its window — is refused with that reason rather than turned into
 // a drag on the screen, which would be a checked press becoming an unchecked one with nothing said.
 func clickToDrag(steps []macroir.Step, at, x, y, x2, y2 int) (macroir.Step, string, error) {
-	if at < 0 || at >= len(steps) || steps[at].Kind != macroir.StepClick {
-		return macroir.Step{}, "", fmt.Errorf("step %d is not a click, so it cannot become "+
-			"a drag", at+1)
+	if why := WhyNotADrag(steps, at); why != "" {
+		return macroir.Step{}, "", errors.New(why)
 	}
 	p := PointIn(steps, at)
-	if !p.Movable {
-		return macroir.Step{}, "", fmt.Errorf("step %d cannot become a drag: %s", at+1, p.Why)
-	}
-	if steps[at].Count > 1 {
-		return macroir.Step{}, "", fmt.Errorf("step %d presses %d times, and a drag is one "+
-			"press held and moved", at+1, steps[at].Count)
-	}
 	s, where, err := dragged(steps[at], at, p.InWindow, x, y, x2, y2)
 	if err != nil {
 		return macroir.Step{}, "", err
@@ -241,6 +234,42 @@ func clickToDrag(steps []macroir.Step, at, x, y, x2, y2 int) (macroir.Step, stri
 	}
 	return s, fmt.Sprintf("the click at step %d becomes a %s-button drag %s", at+1, btn,
 		where), nil
+}
+
+// WhyNotADrag is why the step at `at` cannot be made a drag, or "" when it can.
+//
+// ONE RULE FOR THE OFFER AND THE REFUSAL. A surface offers the conversion exactly where this
+// says "", and `clickToDrag` refuses with this sentence — so nothing is offered that is then
+// refused, and nothing refused could be reached by another way in.
+//
+// A CLICK THAT NAMES A WINDOW AND WAS NOT MEASURED IN IT IS REFUSED, not made a drag on the
+// screen. Such a press has no offset to carry, so the only drag it could become is one at
+// screen coordinates — which would turn a press that asked to be checked against its window
+// into one that is not, with nothing said. `PointIn` lets its screen point be moved, because a
+// moved point is still that same incomplete press; a drag would be a new gesture.
+func WhyNotADrag(steps []macroir.Step, at int) string {
+	if at < 0 || at >= len(steps) || steps[at].Kind != macroir.StepClick {
+		return fmt.Sprintf("step %d is not a click, so it cannot become a drag", at+1)
+	}
+	s := steps[at]
+	p := PointIn(steps, at)
+	switch {
+	case !p.Movable:
+		return fmt.Sprintf("step %d cannot become a drag: %s", at+1, p.Why)
+	case !p.InWindow && namesAWindow(s):
+		return fmt.Sprintf("step %d was recorded against a window and where inside it the "+
+			"press went was not measured, so it cannot become a drag checked against that "+
+			"window — record it again to measure it", at+1)
+	case s.Count > 1:
+		return fmt.Sprintf("step %d presses %d times, and a drag is one press held and "+
+			"moved", at+1, s.Count)
+	}
+	return ""
+}
+
+// namesAWindow says whether a press carries any term of the window it is checked against.
+func namesAWindow(s macroir.Step) bool {
+	return s.RelTo != "" || s.WinW != 0 || s.WinH != 0 || s.Dpi != 0 || s.Process != ""
 }
 
 // movedPoint is the step with its position changed, and what that change is in words.

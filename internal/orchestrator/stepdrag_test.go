@@ -89,6 +89,10 @@ func TestAClickThatCannotStayCheckedIsNotMadeADrag(t *testing.T) {
 	pictured[1].Template = []byte{1}
 	double := checkedClickSteps()
 	double[1].Count = 2
+	// NAMES ITS WINDOW AND WAS NEVER MEASURED IN IT: the recorder could not read the offset,
+	// so the press is a screen point with the window's terms beside it.
+	unmeasured := checkedClickSteps()
+	unmeasured[1].WinRel, unmeasured[1].RelX, unmeasured[1].RelY = false, 0, 0
 	for _, c := range []struct {
 		what  string
 		steps []macroir.Step
@@ -103,6 +107,9 @@ func TestAClickThatCannotStayCheckedIsNotMadeADrag(t *testing.T) {
 			StepEdit{Op: EditToDrag, At: 1, X: 100, Y: 80, X2: 1280, Y2: 80}, "outside it"},
 		{"no movement", checkedClickSteps(),
 			StepEdit{Op: EditToDrag, At: 1, X: 100, Y: 80, X2: 100, Y2: 80}, "somewhere other"},
+		{"a window named and never measured in", unmeasured,
+			StepEdit{Op: EditToDrag, At: 1, X: 500, Y: 400, X2: 600, Y2: 400},
+			"was not measured"},
 		{"a double click", double,
 			StepEdit{Op: EditToDrag, At: 1, X: 100, Y: 80, X2: 200, Y2: 80}, "presses 2 times"},
 		{"not a click", checkedClickSteps(),
