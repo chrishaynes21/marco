@@ -178,6 +178,20 @@ const (
 	// whatever was in front instead. And no PRESS AT A POINT yet: a click needs the
 	// measurements its window check is made of, and a hand-made one would have none.
 	EditInsert EditOp = "insert"
+	// EditRepeat changes how many times a step that already repeats does: a key press
+	// (`Count` presses) or a repeated block. `Count` is the new number, from 1.
+	//
+	// A HALF OF A HOLD HAS NO COUNT. Repeating a keydown alone would press a key it never
+	// lets go of; a hold is repeated by repeating it whole, as a block.
+	EditRepeat EditOp = "repeat"
+	// EditLoop repeats the COMPLETE steps `At` to `Upto` as one block, `Count` times.
+	//
+	// REVIEWED ON ITS OWN, like EditTyped: it makes the list shorter, which moves every later
+	// position. It never splits a hold (a block holding a key holds its release too), never
+	// takes in the step that brings the window forward, and is refused in a routine whose
+	// presses are checked — a repeated block cannot be wrapped so that one failed press
+	// stops the routine, which is why `codegen` refuses to generate one there.
+	EditLoop EditOp = "loop"
 )
 
 // argName is what a placeholder's name may be: exactly what `routes` own pattern will read back.
@@ -242,6 +256,8 @@ type StepEdit struct {
 	Key string `json:"key"`
 	// Kind is which step EditInsert adds: "wait", "key" or "type". Ignored otherwise.
 	Kind string `json:"kind"`
+	// Count is how many times, for EditRepeat and EditLoop. Ignored otherwise.
+	Count int `json:"count"`
 }
 
 // EditReview is one routine with its step list edited, for review.
@@ -664,6 +680,7 @@ func applyEdits(steps []macroir.Step, edits []StepEdit) ([]macroir.Step, []strin
 	points := map[int]macroir.Step{}
 	texts := map[int]string{}
 	keys := map[int]string{}
+	counts := map[int]int{}
 	// inserts is what goes in the gap AFTER each original position, -1 being before the
 	// first, in the order asked.
 	inserts := map[int][]macroir.Step{}
@@ -675,6 +692,22 @@ func applyEdits(steps []macroir.Step, edits []StepEdit) ([]macroir.Step, []strin
 	// others would mean deciding whether each of them referred to a position before or
 	// after the run, which nothing says. So it arrives alone or it is refused, before
 	// anything is applied. See EditTyped.
+	// ── REPEATING A BLOCK IS REVIEWED ON ITS OWN, for the reason a typed run is ──
+	for _, ed := range edits {
+		if ed.Op != EditLoop {
+			continue
+		}
+		if len(edits) != 1 {
+			return nil, nil, "", nil, fmt.Errorf("repeating steps as a block changes " +
+				"how many steps there are, so it is the only thing one set of " +
+				"changes can do — ask for it on its own, and for the rest afterwards")
+		}
+		out, said, lerr := loopedRange(steps, ed.At, ed.Upto, ed.Count)
+		if lerr != nil {
+			return nil, nil, "", nil, lerr
+		}
+		return out, []string{said}, "", nil, nil
+	}
 	for _, ed := range edits {
 		if ed.Op != EditTyped {
 			continue
@@ -755,6 +788,10 @@ func applyEdits(steps []macroir.Step, edits []StepEdit) ([]macroir.Step, []strin
 				return nil, nil, "", nil, fmt.Errorf("step %d is asked to be both "+
 					"given new text and removed, so nothing was changed",
 					ed.At+1)
+			}
+			if _, recounted := counts[ed.At]; recounted {
+				return nil, nil, "", nil, fmt.Errorf("step %d is asked to be both "+
+					"repeated and removed, so nothing was changed", ed.At+1)
 			}
 			if _, rekeyed := keys[ed.At]; rekeyed {
 				return nil, nil, "", nil, fmt.Errorf("step %d is asked to be both "+
@@ -846,6 +883,22 @@ func applyEdits(steps []macroir.Step, edits []StepEdit) ([]macroir.Step, []strin
 			says = append(says, fmt.Sprintf("the text at step %d becomes "+
 				"something you supply, named %q (it was %q)", ed.At+1, name,
 				steps[ed.At].Text))
+		case EditRepeat:
+			if drop[ed.At] {
+				return nil, nil, "", nil, fmt.Errorf("step %d is asked to be both "+
+					"repeated and removed, so nothing was changed", ed.At+1)
+			}
+			if _, already := counts[ed.At]; already {
+				return nil, nil, "", nil, fmt.Errorf("step %d is asked to repeat two "+
+					"different numbers of times, so nothing was changed", ed.At+1)
+			}
+			n, was, rerr := newCount(steps, ed.At, ed.Count)
+			if rerr != nil {
+				return nil, nil, "", nil, rerr
+			}
+			counts[ed.At] = n
+			says = append(says, fmt.Sprintf("step %d happens %s (it happened %s)",
+				ed.At+1, timesWord(n), timesWord(was)))
 		case EditText:
 			if drop[ed.At] {
 				return nil, nil, "", nil, fmt.Errorf("step %d is asked to be both "+
@@ -942,6 +995,9 @@ func applyEdits(steps []macroir.Step, edits []StepEdit) ([]macroir.Step, []strin
 		}
 		if text, ok := texts[i]; ok {
 			s.Text = text
+		}
+		if n, ok := counts[i]; ok {
+			s.Count = n
 		}
 		if key, ok := keys[i]; ok {
 			s.Key = key
@@ -1279,6 +1335,99 @@ func oneCharacter(s macroir.Step, at int) (string, error) {
 	}
 	return "", fmt.Errorf("step %d presses %q, which types nothing — typed text cannot "+
 		"be made out of it", at+1, s.Key)
+}
+
+// maxRepeat is the most times one step or block may be asked to happen. A guard against a typo,
+// not a judgement: 10000 presses of a key is a routine that cannot be stopped in reasonable time.
+const maxRepeat = 999
+
+// newCount is the count the step at `at` would have, and the one it has now, or why it cannot.
+//
+// A key press counts its presses and a block counts its passes; `0` on a key press is one press,
+// which is how the recorder writes a single tap.
+func newCount(steps []macroir.Step, at, n int) (int, int, error) {
+	s := steps[at]
+	was := s.Count
+	if was < 1 {
+		was = 1
+	}
+	switch s.Kind {
+	case macroir.StepKey, macroir.StepLoop:
+	case macroir.StepKeyDown, macroir.StepKeyUp:
+		return 0, 0, fmt.Errorf("step %d is half of holding %q, and half a hold cannot "+
+			"repeat on its own — it would press a key it never lets go of. Repeat the "+
+			"steps from the hold to its release as one block instead", at+1, s.Key)
+	default:
+		return 0, 0, fmt.Errorf("step %d does not repeat: only a key press or a repeated "+
+			"block has a count. To repeat other steps, repeat them as one block", at+1)
+	}
+	switch {
+	case n < 1:
+		return 0, 0, fmt.Errorf("step %d cannot happen %d times — remove it instead",
+			at+1, n)
+	case n > maxRepeat:
+		return 0, 0, fmt.Errorf("step %d cannot happen more than %d times", at+1, maxRepeat)
+	case n == was:
+		return 0, 0, fmt.Errorf("step %d already happens %s", at+1, timesWord(n))
+	}
+	return n, was, nil
+}
+
+func timesWord(n int) string {
+	if n == 1 {
+		return "once"
+	}
+	return fmt.Sprintf("%d times", n)
+}
+
+// loopedRange is the step list with the complete steps `from`..`to` repeated as one block `n`
+// times, and the review's sentence, or why it cannot be.
+func loopedRange(steps []macroir.Step, from, to, n int) ([]macroir.Step, string, error) {
+	if from < 0 || to >= len(steps) || from > to {
+		return nil, "", fmt.Errorf("there are no steps %d to %d in a routine of %d steps "+
+			"to repeat, so nothing was changed — look at it again", from+1, to+1, len(steps))
+	}
+	switch {
+	case n < 2:
+		return nil, "", fmt.Errorf("a block has to happen at least twice to be repeated")
+	case n > maxRepeat:
+		return nil, "", fmt.Errorf("a block cannot happen more than %d times", maxRepeat)
+	}
+	for i := from; i <= to; i++ {
+		switch steps[i].Kind {
+		case macroir.StepActivate:
+			return nil, "", fmt.Errorf("step %d brings %s forward, which is where a "+
+				"routine starts, not something it repeats — choose steps after it",
+				i+1, steps[i].Text)
+		case macroir.StepKeyDown, macroir.StepKeyUp:
+			// A HOLD IS IN THE BLOCK WHOLE OR NOT AT ALL, asked of the function a
+			// removal and a key change ask, so "which steps are one hold" has one answer.
+			partner, why := holdPartner(steps, i)
+			if why != "" {
+				return nil, "", errors.New(why)
+			}
+			if partner < from || partner > to {
+				return nil, "", fmt.Errorf("step %d is half of holding %q and step %d is "+
+					"the other half, so a block of steps %d to %d would split the hold — "+
+					"take in both or neither", i+1, steps[i].Key, partner+1, from+1, to+1)
+			}
+		}
+	}
+	body := clonedSteps(steps[from : to+1])
+	out := make([]macroir.Step, 0, len(steps)-len(body)+1)
+	out = append(out, steps[:from]...)
+	out = append(out, macroir.Step{Kind: macroir.StepLoop, Count: n, Steps: body})
+	out = append(out, steps[to+1:]...)
+	// AND NOT IN A ROUTINE WHOSE PRESSES ARE CHECKED, asked of the generator's own rule so this
+	// cannot accept a block the render then refuses.
+	if why := codegen.Unpropagatable(out); why != "" {
+		return nil, "", fmt.Errorf("this routine checks each press against its window, so "+
+			"it cannot repeat steps as a block (%s): a block cannot stop the routine when "+
+			"one of its presses does not happen. Repeat a key press by its count instead",
+			why)
+	}
+	return out, fmt.Sprintf("steps %d to %d happen %s, as one block", from+1, to+1,
+		timesWord(n)), nil
 }
 
 // insertedStep is the step an EditInsert adds and the review's sentence for it, or why it cannot.
