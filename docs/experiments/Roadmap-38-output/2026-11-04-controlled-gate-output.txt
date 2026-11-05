@@ -1,0 +1,80 @@
+
+marco clean checkout
+  from this tree: D:\Macros\marco
+  commit:         250a39bf8a998574f9577d7586aa0adec393cf86
+  subject:        gate: an unnamed failure keeps its output and exit code
+  toolchain:      go version go1.26.2 windows/amd64
+
+  what this needs from the machine rather than from the commit:
+    - a Go toolchain
+      the version is printed below; nothing else is fetched by hand,
+      because the engine has zero external dependencies and the plugin
+      modules resolve from their own go.mod
+    - nothing else, for this stage
+      `cmd/gate` builds `marco.exe` and `director.exe` itself, so there is
+      no generated artifact to rebuild first. The suites it declines —
+      plugins/vision, plugins/ocr, plugins/llama — each need something
+      this repository does not contain (gcc and a vendored ONNX runtime,
+      tesseract, a local model server) and the gate prints each with its
+      reason
+    - and NOT a C compiler
+      `plugins/voice` needs the Vosk C headers and is not built by this
+      stage; `-race` needs gcc and is a separate, narrower check
+
+== cloning 250a39b into C:\Users\chris\AppData\Local\marco-cleanroom\20261104-151200-250a39b
+   the checkout holds only what git has: no untracked file, nothing ignored
+
+== go build ./..., in the checkout
+
+== go run ./cmd/gate, in the checkout
+marco gate — diagnostics in C:\Users\chris\AppData\Local\marco-gate\20261104-151232
+declared skips: 30, from the ledger
+
+marco.exe, director.exe built, so nothing declines for a stale one
+.                      1 failed, 27 skipped, in 4m7s
+plugins/overlay        passed, 3 skipped, in 11s
+plugins/studio         passed, 0 skipped, in 3m5s
+plugins/e2e            passed, 0 skipped, in 2s
+plugins/marco-app      passed, 0 skipped, in 1s
+plugins/vision         NOT RUN: the ONNX backend needs gcc and a vendored runtime, and nothing in the alpha bundle uses it
+plugins/ocr            NOT RUN: needs tesseract installed, and nothing in the alpha bundle uses it
+plugins/llama          NOT RUN: needs a local model server running, and nothing in the alpha bundle uses it
+cmd/director -tags desktop NOT RUN: these tests need the owner's screen, so the screen-free stage never runs them; `gate.ps1` does, in the stage that takes the desktop (`go test -tags desktop ./cmd/director/`)
+plugins/marco-app -tags packaging NOT RUN: these install, upgrade, activate and roll back a PACKED bundle, which nothing has staged in this tree yet; `gate.ps1` runs them in the stage that packs one, immediately after staging (`go test -tags packaging ./plugins/marco-app/`)
+cmd/director -tags resolver NOT RUN: the only test that asks the real plugin and a real model server rather than a stand-in; neither is in this repository and a model server is somebody's machine, so it is REQUIRED for a resolver change and selected by hand (`go test -tags resolver ./cmd/director/`)
+cmd/director -tags vision NOT RUN: needs the vendored ScreenParser weights and a vision plugin built with gcc, neither of which is committed; it is the one shadow test that has to reach the end of construction (`go test -tags vision ./cmd/director/`)
+cmd/perceptionreplay -tags corpus NOT RUN: the two tests that replay a real L0 recording, which is hundreds of megabytes of captured frames and is not committed; REQUIRED for a perception change, and the deterministic tests in that package ran above (`go test -tags corpus ./cmd/perceptionreplay/`)
+
+──────────────────────────────────────────────────────────────────────────────
+FAILED  github.com/chaynes-simpleclouds/marco/internal/stopsignal  TestAnUnreadableGenerationDoesNotRefuseToStartAPlay
+    stopsignal_test.go:81: Raise: the stop was not raised in C:\Users\chris\AppData\Local\Temp\TestAnUnreadableGenerationDoesNotRefuseToStartAPlay1067973606\001, so nothing watching this store has been asked to stop: the generation file could not be replaced while something has it open. Press stop again…
+
+tolerated skips: 30, every one of them declared with a reason
+
+3 declared skip(s) are PARKED FINDINGS — tests that no longer establish what they were written for:
+  github.com/chaynes-simpleclouds/marco/internal/director/observe TestTheSegmenterRecordsHowLongItCouldNotPlaceTheScreen
+      BROKEN: the script no longer produces an unplaceable frame, so the mutation gate its own note describes ("deleting g.unsettled++ must fail this") cannot fail
+  github.com/chaynes-simpleclouds/marco/internal/director/observe TestALongerBlackoutIsRecordedAsLonger
+      BROKEN: the script produces no unplaceable interval at all, so nothing compares a long blackout with a short one
+  github.com/chaynes-simpleclouds/marco/cmd/director TestAnAnsweredQuestionIsNoLongerOffered
+      BROKEN: the fixture holds no open rehearsal question, so the behaviour the test names is never reached
+
+gate: failed — 1 failure(s), 0 finding(s), 30 tolerated skip(s), in 7m28s
+this gate does not open a window or press anything; the desktop half is plugins\e2e. Diagnostics: C:\Users\chris\AppData\Local\marco-gate\20261104-151232
+exit status 1
+
+clean checkout: FAILED at `go run ./cmd/gate` for 250a39b
+  This commit cannot be built from the committed source alone. Nothing after this was run.
+
+  marco clean checkout
+  commit: 250a39bf8a998574f9577d7586aa0adec393cf86
+  subject: gate: an unnamed failure keeps its output and exit code
+  verdict: FAILED
+  failed-at: go run ./cmd/gate
+  checkout: C:\Users\chris\AppData\Local\marco-cleanroom\20261104-151200-250a39b
+  toolchain: go version go1.26.2 windows/amd64
+  when: 2026-11-04T23:20:00Z
+  ran: go build ./... and go run ./cmd/gate, in the checkout
+  did-not-run: pack, install, the desktop-tagged tests, and every desktop scenario
+exit status 1
+exit=1

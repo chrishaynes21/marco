@@ -12523,3 +12523,29 @@ have open does not do this until `plugins\studio\build.cmd` is run again with St
 widget closed.
 
 See [[ADR-308-opening-the-widget-asks-for-the-director]].
+
+### 2026-11-04 — One controlled screen-free gate, at 250a39b
+
+**Why in a clone.** `cmd/gate` builds `marco.exe` and `director.exe` into the repository it gates.
+In the owner's tree that is a product rebuild, which was not authorized. The gate run earlier the
+same day, over an uncommitted tree, had already done it: the root `marco.exe` and `director.exe`
+are now `611d6b6`, modified, built 13:54, while the rest of the stack is the clean `611d6b6` build
+from 11:57. They have not been put back. So the controlled run was `go run ./cmd/cleanroom
+-commit 250a39b -keep`: the same screen-free gate, inside a clean clone, with the owner's tree
+untouched while it ran.
+
+**Result: FAILED, 1 failure, 0 findings, 30 declared skips, in 7m28s.**
+
+- `internal/stopsignal` `TestAnUnreadableGenerationDoesNotRefuseToStartAPlay`: `Raise` returned
+  *the generation file could not be replaced while something has it open*. That was
+  `rename …stop-generation.1945566989 …stop-generation: Access is denied`, in the test's own
+  temporary directory, in 0.01s. The test's watcher polls that file every millisecond. The cause
+  has not been established, and the test was not rerun.
+- **The unnamed root-module failure of the earlier gate did not recur.** Its cause is still not
+  established. This was the first run with the repaired reporting, which keeps every suite's
+  whole stream and stderr.
+
+Output, result and summary: `docs/experiments/Roadmap-38-output/2026-11-04-controlled-gate-*.txt`.
+The full streams are in `%LOCALAPPDATA%\marco-gate\20261104-151232`; the root one is 8.4 MB, so it
+was not committed. The clone was kept at
+`%LOCALAPPDATA%\marco-cleanroom\20261104-151200-250a39b`.

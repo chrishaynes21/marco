@@ -1,0 +1,10 @@
+marco clean checkout
+commit: 250a39bf8a998574f9577d7586aa0adec393cf86
+subject: gate: an unnamed failure keeps its output and exit code
+verdict: FAILED
+failed-at: go run ./cmd/gate
+checkout: C:\Users\chris\AppData\Local\marco-cleanroom\20261104-151200-250a39b
+toolchain: go version go1.26.2 windows/amd64
+when: 2026-11-04T23:20:00Z
+ran: go build ./... and go run ./cmd/gate, in the checkout
+did-not-run: pack, install, the desktop-tagged tests, and every desktop scenario

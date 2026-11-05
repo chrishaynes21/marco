@@ -1,0 +1,9 @@
+gate failed
+failures: 1
+findings: 0
+tolerated skips: 30
+took: 7m28s
+
+github.com/chaynes-simpleclouds/marco/internal/stopsignal  TestAnUnreadableGenerationDoesNotRefuseToStartAPlay
+    stopsignal_test.go:81: Raise: the stop was not raised in C:\Users\chris\AppData\Local\Temp\TestAnUnreadableGenerationDoesNotRefuseToStartAPlay1067973606\001, so nothing watching this store has been asked to stop: the generation file could not be replaced while something has it open. Press stop again…
+
