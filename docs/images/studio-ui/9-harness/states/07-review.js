@@ -4,6 +4,6 @@ F.Recording = {active: false, review: true, name: 'save the file', application: 
           'left-click at 32, 18 in the window (1280\u00d7720, 96 dpi, notepad)'],
   said: '7 step(s), 2 of which press something.',
   exit: 'The alt+tab you used to leave the window and come back here are how the recording was ended, not part of it, so they were left out.',
-  scope: 'app-anywhere',
-  brings: 'Runs in notepad, which Marco brings forward. Its presses are checked against that window, so the other two choices would leave every one of them refusing.'}
+  default_scope: 'app-anywhere',
+  unavailable: {everywhere: 'every press in this recording checks the window it was made in, and "From anywhere → current foreground" names no application, so there would be no window for those presses to be checked against and every one of them would refuse. Save it "Only in notepad" or "From anywhere → notepad".'}}
 __at(1500, () => __scrollTo('capReview', 60))

@@ -18,61 +18,48 @@
      an Act performs in is the play's, not this file's. -->
 
 <style>
- /* ── THE PROMPT BOOK ──────────────────────────────────────────────────────────
-    The page this restyles was one typeface — 13px monospace — for everything: the
-    act titles, the paragraphs explaining what an Act is, the refusals, and
-    `control_2`. The owner, opening it: "it's very ugly. Like extremely."
-
-    Monospace for prose is the whole of why. This surface is made almost entirely
-    of carefully written SENTENCES, and setting them in a terminal face made every
-    one of them read as debug output — which is also the opposite of what the page
-    argues. Its own rule is that machine names never reach a person, so the type
-    now carries that rule: a humanist face for everything a person reads, and the
-    monospace kept for exactly the things the machine named itself — `screen_b`,
-    `control_1`, a run reference, a transcript. The contrast is the argument.
-
-    Three roles, no downloads. Constantia and Segoe UI Variable ship with Windows
-    and Cascadia Mono with the terminal, so this holds up with the network off,
-    which a local window beside a game had better do.
+ /* ── THE CONTROL CENTRE'S CHARACTER ─────────────────────────────────────────────
+    Studio wears the look of `m help`, the Marco control centre: one monospaced face,
+    the accent as structure, compact action rows, a drawer of uppercase destinations,
+    and little prose. The owner chose it as the product's face (ADR-310). It REVERSES
+    an earlier ruling, recorded there: an older Studio was one 13px monospace for
+    everything and the owner called it "very ugly", which is what moved prose to a
+    humanist face. What differs now is the rest of the character that came with the
+    face — the drawer, the rows, the tighter scale and the cut prose — which is what
+    the control centre has and the old page did not.
 
     Every colour is built from the tokens below and nothing sets a colour outside
     them. THE THEME IS THE WIDGET'S (S10): the page asks `acts.Theme()` and sets
     each token from the widget's palette (see applyTheme), so the values below,
     and the desktop's light or dark, are only what is drawn until that answer
-    arrives, or if it never does. ── */
+    arrives, or if it never does. They are the widget's DEFAULT and LIGHT palettes
+    as `widgetconfig.StudioTokens` derives them, so the frame before the answer is
+    the frame after it for anybody on the default theme: cyan comes from the
+    palette, not from this file. ── */
  :root{
-   /* A warm near-black, biased toward the accent rather than the blue-grey of a
-      code editor. The neutrals are hue-biased on purpose: a flat mid-grey reads
-      as the colour nobody chose. */
-   --ground:#15141a; --raise:#1e1c25; --sink:#100f14; --line:#2c2838;
-   --ink:#e9e5ef; --dim:#9d95b0; --faint:#8c85a2;
+   /* The default palette's ground, raised panel and well. */
+   --ground:#0a0a0a; --raise:#151515; --sink:#080808; --line:#2a4a4a;
+   --ink:#dddddd; --dim:#6a9a98; --faint:#609696;
    /* ONE spot, and it is structural: the active destination, a chosen card, a
-      rule, a focus ring, the primary button. Periwinkle because the three
-      semantic hues below are green, amber and red, and an accent that collided
-      with any of them would make "this is selected" and "this went wrong" the
-      same colour. */
-   --spot:#9b8cf4; --spot-ink:#17141f; --spot-dim:#6c5fc0;
-   --ok:#5cbf7a; --warn:#e3a73c; --no:#f0695f;
-   --ok-bg:#16241b; --warn-bg:#251e10; --no-bg:#2a1618; --spot-bg:#1d1930;
+      rule, a focus ring, the primary button. The palette's name colour, which for
+      the default palette is the control centre's cyan. */
+   --spot:#00e5cc; --spot-ink:#0a0a0a; --spot-dim:#049888;
+   --ok:#4dc94d; --warn:#e3a73c; --no:#f56565;
+   --ok-bg:#132513; --warn-bg:#282011; --no-bg:#2b1717; --spot-bg:#092925;
 
-   /* ONE FAMILY FOR EVERY WORD A PERSON READS. `--display` was a serif stack
-      (Constantia, Cambria, Georgia) against a sans `--text`, so the headings and the
-      prose under them were set in two different voices on the same card. Display keeps
-      its own stack only so Windows can pick the display-optimised cut of the same
-      family; it is sans either way, and the hierarchy is carried by weight, size and
-      letter-spacing, which is where it was already carried.
-
-      `--mach` stays monospace, and that is a different axis rather than an exception:
-      it marks the lines that are a MACHINE FACT -- a path, a build id, a protocol
-      version -- and it is applied by the `.mach` class and to `pre`, never to a
-      heading. */
-   --display:"Segoe UI Variable Display","Segoe UI",system-ui,-apple-system,sans-serif;
-   --text:"Segoe UI Variable Text","Segoe UI",system-ui,-apple-system,sans-serif;
+   /* ONE FACE, THE CONTROL CENTRE'S. `--display` and `--text` are kept as names so
+      every rule that asks for a role still does, and both are the monospace stack.
+      `--mach` is the same stack and stays a separate role: it marks a MACHINE FACT
+      (a path, a build id), applied by `.mach` and to `pre`. `--sans` was used by a
+      few rules and never defined; it is the text face now. */
+   --display:"Cascadia Mono","Cascadia Code",Consolas,ui-monospace,monospace;
+   --text:"Cascadia Mono","Cascadia Code",Consolas,ui-monospace,monospace;
    --mach:"Cascadia Mono","Cascadia Code",Consolas,ui-monospace,monospace;
+   --sans:var(--text);
    /* ── THE SCALE, so spacing and shape are chosen once rather than per element ──
       `--r` is the panel radius and `--r-sm` belongs to the things inside one: a
       button, a field, a framed list. Two radii is the whole shape system, and the
-      nesting is what reads as modern -- a 7px control inside a 10px panel sits in
+      nesting is what reads as modern -- a 5px control inside a 6px panel sits in
       it, where the same radius on both makes a card look like a big button.
 
       `--ctl` is one height for every control on the page, because a row of a
@@ -84,31 +71,31 @@
       shadow here may only say "this surface is the near one" -- the moment it is
       visible as a shadow it is a second border, which is what made eleven cards read
       as one list. */
-   --r:10px; --r-sm:7px; --ctl:34px;
+   --r:6px; --r-sm:5px; --ctl:30px;
    --lift:0 1px 1px rgba(0,0,0,.22), 0 10px 26px -14px rgba(0,0,0,.5);
  }
  /* THE PAPER SIDE. Guarded so an explicit dark choice beats a light desktop. */
  @media (prefers-color-scheme:light){
    :root:not([data-theme="dark"]){
-     --ground:#faf8f4; --raise:#ffffff; --sink:#f2efe9; --line:#e3ded4;
-     --ink:#211e27; --dim:#67607a; --faint:#6e6680;
-     --spot:#5a49c4; --spot-ink:#ffffff; --spot-dim:#8d82dd;
-     --ok:#277a45; --warn:#8f5f07; --no:#c33a2e;
-     --ok-bg:#eaf5ec; --warn-bg:#faf2e2; --no-bg:#fdedeb; --spot-bg:#f0edfb;
+     --ground:#fafafa; --raise:#ffffff; --sink:#f3f3f3; --line:#a0a8b0;
+     --ink:#1a1a2e; --dim:#3a4a54; --faint:#606060;
+     --spot:#6f42c1; --spot-ink:#fafafa; --spot-dim:#a082d5;
+     --ok:#1a7536; --warn:#895c09; --no:#c6222e;
+     --ok-bg:#e4ede6; --warn-bg:#efeae2; --no-bg:#f5e4e6; --spot-bg:#ece8f4;
    --lift:0 1px 1px rgba(33,30,39,.045), 0 10px 26px -16px rgba(33,30,39,.16);
    }
  }
  :root[data-theme="light"]{
-   --ground:#faf8f4; --raise:#ffffff; --sink:#f2efe9; --line:#e3ded4;
-   --ink:#211e27; --dim:#67607a; --faint:#6e6680;
-   --spot:#5a49c4; --spot-ink:#ffffff; --spot-dim:#8d82dd;
-   --ok:#277a45; --warn:#8f5f07; --no:#c33a2e;
-   --ok-bg:#eaf5ec; --warn-bg:#faf2e2; --no-bg:#fdedeb; --spot-bg:#f0edfb;
+   --ground:#fafafa; --raise:#ffffff; --sink:#f3f3f3; --line:#a0a8b0;
+   --ink:#1a1a2e; --dim:#3a4a54; --faint:#606060;
+   --spot:#6f42c1; --spot-ink:#fafafa; --spot-dim:#a082d5;
+   --ok:#1a7536; --warn:#895c09; --no:#c6222e;
+   --ok-bg:#e4ede6; --warn-bg:#efeae2; --no-bg:#f5e4e6; --spot-bg:#ece8f4;
    --lift:0 1px 1px rgba(33,30,39,.045), 0 10px 26px -16px rgba(33,30,39,.16);
  }
 
  *{box-sizing:border-box}
- body{font:400 14.5px/1.65 var(--text);background:var(--ground);color:var(--ink);
+ body{font:400 14px/1.5 var(--text);background:var(--ground);color:var(--ink);
       margin:0;height:100vh;display:flex;overflow:hidden;
       -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
  /* The ground on the accent, which internal/widgetconfig holds to 4.5:1 for every palette;
@@ -127,38 +114,44 @@
  *::-webkit-scrollbar-corner{background:transparent}
  :focus-visible{outline:2px solid var(--spot);outline-offset:2px;border-radius:3px}
 
- /* ── the rail: three places, and the one you are in is marked ── */
- #rail{width:214px;flex:0 0 214px;background:var(--sink);
+ /* ── THE DRAWER: the control centre's, always open ──
+    The places are uppercase, letter-spaced and dim, and the one you are in is the
+    accent with a rule down its left edge. A drawer in the control centre slides over
+    the page; here the window is wide enough to keep it open, and below 760px it
+    narrows instead of hiding, so Record, Play and every destination stay one press
+    away. Groups are separated by a labelled line (`.navgroup`). */
+ #rail{width:214px;flex:0 0 214px;background:var(--raise);
        border-right:1px solid var(--line);display:flex;flex-direction:column;
-       padding:18px 0 14px}
- .brand{font:600 15.5px/1.2 var(--display);color:var(--ink);padding:0 20px 16px;
-        display:flex;align-items:center;gap:9px;letter-spacing:.005em}
- /* A cue mark, not a logo: the bar a stage manager rules beside the line they are
-    on. It is the one piece of furniture this window has. */
- .brand::before{content:"";width:3px;height:17px;border-radius:2px;
-        background:var(--spot);flex:0 0 3px}
- /* A DESTINATION IS A PILL, and the one you are in is filled.
-    It was a full-bleed row with a 2px rule down its left edge -- the shape a code
-    editor uses for a file tree, which is a list of things you open rather than four
-    places you can be. A pill inset from both edges reads as a place, and it lets the
-    accent FILL rather than underline: the active destination is then the same kind of
-    mark as a chosen card, which is the one other thing on this page that is filled
-    with `--spot-bg`. The hairline ring is what stops it floating. */
- .railbtn{display:block;width:calc(100% - 20px);margin:1px 10px;text-align:left;
-          font:400 14px var(--text);background:none;border:0;
-          border-radius:var(--r-sm);color:var(--dim);
-          padding:8px 12px;cursor:pointer;transition:color .12s,background .12s}
- .railbtn:hover{color:var(--ink);background:var(--raise)}
- .railbtn.on{color:var(--ink);background:var(--spot-bg);font-weight:600;
-          box-shadow:inset 0 0 0 1px var(--line)}
+       padding:16px 0 14px}
+ /* THE NAME, IN THE CONTROL CENTRE'S HEADER STYLE: the accent, spaced, with a soft
+    glow taken from the accent itself so every palette gets its own. */
+ .brand{font:700 15px/1.2 var(--display);color:var(--spot);padding:0 20px 18px;
+        display:flex;align-items:baseline;gap:10px;letter-spacing:3px;
+        text-transform:uppercase;
+        text-shadow:0 0 10px color-mix(in srgb,var(--spot) 45%,transparent)}
+ .brand .sub{font:400 12px var(--text);color:var(--dim);letter-spacing:1px;
+        text-shadow:none;margin:0}
+ .navgroup{margin:16px 0 2px;padding:8px 20px 4px;color:var(--dim);font-size:11px;
+        letter-spacing:2px;text-transform:uppercase;border-top:1px solid var(--line);
+        opacity:.75}
+ /* A DESTINATION IS A ROW OF THE DRAWER: full width, a 3px rule on the left that is
+    the accent for the place you are in, over the accent's own tint. */
+ .railbtn{display:block;width:100%;margin:0;text-align:left;
+          font:400 13px var(--text);background:none;border:0;
+          border-left:3px solid transparent;border-radius:0;color:var(--dim);
+          padding:11px 18px;cursor:pointer;letter-spacing:1px;text-transform:uppercase;
+          min-height:0;transition:color .12s,background .12s}
+ .railbtn:hover:not(:disabled){color:var(--ink);background:var(--sink);
+          border-color:transparent}
+ .railbtn.on{color:var(--spot);background:var(--spot-bg);border-left-color:var(--spot)}
  .railfoot{margin-top:auto;padding:14px 20px 0;font-size:12.75px;line-height:1.5;
           color:var(--dim)}
  #railrun{border-top:1px solid var(--line);padding-top:13px;margin-bottom:9px}
  /* THE WIDGET IS A SECONDARY ACTION: below the destinations, quieter than them, and with its
     state under it in words, because a dot alone would carry the meaning by colour. */
- #widgetbox{margin:10px 10px 0;padding-top:10px;border-top:1px solid var(--line)}
- #widgetbox .railbtn{width:100%;margin:0;font-size:13px}
- #widgetSays{padding:2px 12px 0;font-size:12px;line-height:1.45;color:var(--dim)}
+ #widgetbox{margin:0}
+ #widgetbox .railbtn{width:100%;margin:0}
+ #widgetSays{padding:2px 21px 0;font-size:12px;line-height:1.45;color:var(--dim)}
  #widgetSays.bad{color:var(--warn)}
 
  /* ── the main area: one column, measured ── */
@@ -172,24 +165,26 @@
  main{flex:1;min-width:0;overflow-y:auto;padding:38px clamp(22px,4.5vw,56px) 80px;
       scrollbar-gutter:stable}
  main > section{max-width:880px;margin-inline:auto}
- h1{font:600 28px/1.2 var(--display);margin:0 0 7px;letter-spacing:-.021em;
-    text-wrap:balance}
+ /* A VIEW'S TITLE, AS THE CONTROL CENTRE TITLES ONE: the accent, uppercase and
+    spaced, small. */
+ h1{font:700 15px/1.3 var(--display);margin:0 0 14px;letter-spacing:2px;
+    text-transform:uppercase;color:var(--spot);text-wrap:balance}
  /* The lead, at a readable measure. A sentence that explains what an Act IS has
     to be a sentence somebody will read, which 110 characters of monospace was
     not. */
- .sub{font-size:16.5px;line-height:1.6;color:var(--dim);margin:0 0 30px;
-      max-width:62ch}
+ .sub{font-size:13px;line-height:1.5;color:var(--dim);margin:0 0 18px;
+      max-width:78ch}
  /* A section label with a rule running off it — a boundary, rather than the
     uppercase blue heading of a developer tool. */
- h2{font:600 11.5px/1 var(--text);color:var(--faint);margin:36px 0 13px;
-    text-transform:uppercase;letter-spacing:.11em;
+ h2{font:600 12px/1 var(--text);color:var(--spot);margin:24px 0 10px;
+    text-transform:uppercase;letter-spacing:2px;opacity:.85;
     display:flex;align-items:center;gap:12px}
  h2::after{content:"";flex:1;height:1px;background:var(--line)}
- h3{font:600 17px/1.3 var(--display);margin:0 0 4px;letter-spacing:-.005em}
+ h3{font:600 14.5px/1.3 var(--display);margin:0 0 4px}
 
  /* ── surfaces, spent by role rather than stamped on everything ── */
  .card{background:var(--raise);border:1px solid var(--line);border-radius:var(--r);
-       padding:17px 19px;margin-bottom:12px;box-shadow:var(--lift)}
+       padding:14px 16px;margin-bottom:10px;box-shadow:none}
  /* AND A CARD INSIDE A CARD IS A DRAWER, NOT A SECOND CARD.
     Six panels open inside the selected routine's card -- its steps, the edit, the
     scopes, the move, the review, what it will type -- and each one repeated the
@@ -207,12 +202,14 @@
     same weight, which is how a window full of real distinctions came to read as
     one flat list of cards. See [[Studio-UI-audit-2026-10-29]]. */
 
- /* A ROUTINE IS A ROW. Hairlines between, so the names carry the list. */
- .card.pick{background:none;border:0;border-top:1px solid var(--line);
-        border-radius:0;padding:13px 10px;margin:0;box-shadow:none;
-        transition:background .12s}
- .card.pick:last-child{border-bottom:1px solid var(--line)}
- .card.pick h3{font:600 17px/1.25 var(--display);letter-spacing:-.012em;margin:0}
+ /* A ROUTINE IS A COMPACT ACTION ROW, the control centre's: its own hairline frame on
+    the raised panel, a few pixels between rows, so a row is something you act on. */
+ .card.pick{background:var(--raise);border:1px solid var(--line);
+        border-radius:var(--r);padding:9px 12px;margin:6px 0;box-shadow:none;
+        transition:background .12s,border-color .12s}
+ .card.pick:hover{border-color:var(--spot-dim)}
+ .card.pick h3{font:600 14.5px/1.3 var(--display);margin:0}
+ .card.pick .muted{font-size:12.5px}
  /* THE ROW'S OWN LINE: the way in on the left, one status word, then Play. */
  .rowline{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;
         justify-content:space-between}
@@ -262,6 +259,11 @@
     buttons beside it is a list that cannot be scanned. */
  @media (max-width:760px){
    #rail{width:132px;flex:0 0 132px}
+   .brand{padding:0 12px 16px;letter-spacing:2px}
+   .brand .sub{display:none}
+   .railbtn{padding:10px 10px;letter-spacing:.5px}
+   .navgroup{padding:8px 12px 4px}
+   #widgetSays{padding:2px 13px 0}
    main{padding:26px 16px 70px}
    /* THE WRAPPED CONTROLS SIT TOGETHER. `space-between` spreads every line it
       makes, so the status word went left and Play went to a line of its own with
@@ -275,10 +277,12 @@
 
  /* A STATUS IS A WORD. The sentence it stands for is in the panel below, once,
     about the routine somebody actually chose — not three times down a list. */
- .pill{display:inline-block;font:500 11.5px/1 var(--text);padding:5px 9px;
-        border-radius:999px;white-space:nowrap;flex:none}
- .pill.ok{background:var(--ok-bg);color:var(--ok)}
- .pill.no{background:var(--no-bg);color:var(--no)}
+ .pill{display:inline-block;font:500 11px/1 var(--text);padding:3px 7px;
+        border-radius:4px;white-space:nowrap;flex:none;letter-spacing:1px;
+        text-transform:uppercase;border:1px solid var(--line)}
+ .pill.ok{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 35%,transparent)}
+ .pill.no{color:var(--no);border-color:color-mix(in srgb,var(--no) 40%,transparent);
+        background:var(--no-bg)}
 
  /* A STEP IS A ROW: number, verb, value. The value is ONE cell, so a click's
     coordinates stay together and the verbs line up down the page. `.whole` is the
@@ -302,11 +306,17 @@
     already sunk -- and the hairlines inside it then read as the table they are.
     `:empty` because the page fills these by innerHTML and an empty frame is a window
     drawing a container for nothing. */
- .steprows{border:1px solid var(--line);border-radius:var(--r-sm);padding:0 12px}
+ /* EACH STEP IS AN ACTION ROW, the control centre's: framed on the raised panel, a few
+    pixels apart, so a step is a thing you change rather than a line in a table. */
+ .steprows{border:0;padding:0}
  .steprows:empty{display:none}
  .steprows .sr{display:grid;grid-template-columns:28px 1fr auto;gap:8px;
-   align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}
- .steprows .sr:last-child{border-bottom:0}
+   align-items:center;padding:7px 12px;margin:5px 0;border:1px solid var(--line);
+   border-radius:var(--r);background:var(--raise)}
+ .steprows .sr:last-child{border-bottom:1px solid var(--line)}
+ button.del{background:var(--no-bg);color:var(--no);
+   border-color:color-mix(in srgb,var(--no) 35%,transparent)}
+ button.del:hover:not(:disabled){border-color:var(--no)}
  .steprows .n{font:400 12px var(--mach);color:var(--dim);text-align:right}
  .steprows .what{font:400 13px var(--mach);color:var(--ink);overflow-wrap:anywhere}
  .steprows .pair{display:block;font:400 12px var(--sans);color:var(--warn)}
@@ -423,13 +433,16 @@
  @keyframes beat{50%{opacity:.28}}
 
  /* THE PRIMARY ACTION, GIVEN ITS WEIGHT. One filled button per screen. */
- button.go.big{font-size:15px;padding:11px 24px;min-height:40px}
  /* AND A BLOCKING HEADING, which is a short line in the warning's own colour. */
  .wontrun{font:700 15px/1.3 var(--display);color:var(--no);margin-bottom:3px}
  /* The chosen one is MARKED, not outlined again: a second border around a thing
     that already has one is how every card ended up looking the same. */
  .card.on{border-color:var(--line);box-shadow:inset 3px 0 0 var(--spot);
           padding-left:20px;background:var(--spot-bg)}
+ /* AN OPEN ROUTINE IS MARKED BY THE ACCENT'S EDGE, NOT FILLED WITH IT. The control
+    centre tints only the small things it marks; a whole open panel in the accent's tint
+    made everything inside it compete with Play. */
+ .card.pick.on{background:var(--raise);border-color:var(--spot-dim)}
  /* BUT A CHOSEN ROW DOES NOT INDENT. The extra padding above is for a card, which
     has a border the bar has to clear; a row has none, so the 10px it already has is
     clear of the 3px bar -- and moving the name ten pixels right made the selected
@@ -487,17 +500,17 @@
     carefully written window look assembled. Vertical padding is KEPT beside the
     minimum height, because a long label wraps and a button holding two lines of text
     has to grow rather than spill. */
- button{font:500 13.5px var(--text);background:var(--raise);color:var(--ink);
+ button{font:500 13px var(--text);background:var(--spot-bg);color:var(--spot);
         border:1px solid var(--line);border-radius:var(--r-sm);padding:7px 14px;
         min-height:var(--ctl);
         cursor:pointer;transition:background .12s,border-color .12s,color .12s}
- button:hover:not(:disabled){border-color:var(--faint);background:var(--sink)}
+ button:hover:not(:disabled){border-color:var(--spot)}
  button:disabled{opacity:.42;cursor:default}
  /* The primary. Filled, because on this page it is always the one thing the
     sentence above it just asked for. */
  button.go{background:var(--spot);color:var(--spot-ink);border-color:var(--spot);
-        font-weight:600}
- button.go:hover:not(:disabled){background:var(--ink);border-color:var(--ink)}
+        font-weight:700;letter-spacing:1px}
+ button.go:hover:not(:disabled){box-shadow:0 0 14px color-mix(in srgb,var(--spot) 50%,transparent)}
  button.go:disabled{background:var(--raise);color:var(--dim);
         border-color:var(--line)}
  /* AND THE ONE ON THE ROUTINE PANEL IS BIGGER THAN A PRIMARY.
@@ -508,8 +521,8 @@
     SIZE AND NOT COLOUR. The three tiers still mean what they meant: a bigger target
     with more air around its label, not a louder fill, because the fill is already the
     loudest thing on the panel. */
- button.go.big{font:600 15.5px var(--text);padding:12px 30px;min-height:46px;
-        border-radius:var(--r)}
+ button.go.big{font:700 14.5px var(--text);padding:10px 26px;min-height:44px;
+        border-radius:var(--r);letter-spacing:1px}
  /* Stop is live for the whole of a run and must never be the quietest thing on
     screen, nor loud enough to invite a press. */
  button.stop{background:none;border-color:var(--no);color:var(--no);font-weight:600}
@@ -534,8 +547,8 @@
  input[type=checkbox]{accent-color:var(--spot);width:15px;height:15px;margin:0}
  label{color:var(--dim)}
 
- .tag{font-size:11.5px;padding:2px 9px;border:1px solid var(--line);
-      border-radius:999px;color:var(--dim);letter-spacing:.02em}
+ .tag{font-size:11px;padding:2px 7px;border:1px solid var(--line);
+      border-radius:4px;color:var(--dim);letter-spacing:1px;text-transform:uppercase}
  .tag.live{border-color:var(--no);color:var(--no)}
 
  pre{margin:8px 0 0;white-space:pre-wrap;word-break:break-word;max-height:300px;
@@ -599,7 +612,6 @@
     squeezed to ZERO and what the step does wrapped inside fifty-three pixels.
     Measured, not reasoned about. */
  @media (max-width:960px){
-   .steprows{padding:0 8px}
    .steprows .sr.four{grid-template-columns:28px 1fr;row-gap:5px}
    /* MEASURED, NOT GUESSED. The four columns cost 28px for the number, 7.5em for
       the action and whatever Set and Remove need -- about 302px before the value
@@ -685,7 +697,7 @@
 </style>
 
 <nav id="rail">
-  <div class="brand">Marco Studio</div>
+  <div class="brand">Marco<span class="sub">studio</span></div>
   <!-- THE JOURNEY FIRST. `Routines` is where somebody asks for a routine, records one,
        and plays one — the four states of the main journey. `Scenes` keeps the
        demonstrate-and-watch tools, which used to be on the same screen as the routine
@@ -712,6 +724,7 @@
        stack beside this window, or says it is running, or says why it cannot. Every word is the
        backend's (widget.go). -->
   <div id="widgetbox">
+    <div class="navgroup">Widget</div>
     <button class="railbtn" id="widgetBtn" onclick="openWidget()">Open widget</button>
     <div id="widgetSays"></div>
   </div>
@@ -4767,6 +4780,10 @@
      }
      const rm = document.createElement('button')
      rm.id = 'routineStepCut-' + row.at
+     // THE CONTROL CENTRE'S DELETE, in the refusal colour, so the one control on a row
+     // that takes something away is not the same button as the ones that change it.
+     // Keep it is the undo, and wears the ordinary button.
+     rm.className = asked && asked.op === 'remove' ? '' : 'del'
      rm.textContent = asked && asked.op === 'remove' ? 'Keep it' : 'Remove'
      // AND WHICH STEP IT REMOVES. Nine rows each with a button reading `Remove` is
      // nine controls with the same name; the number is the part that tells them apart.

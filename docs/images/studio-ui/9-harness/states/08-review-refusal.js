@@ -7,6 +7,6 @@ F.Recording = {active: false, review: true, name: 'graphics low', application: '
   away: 'You left the window once, for 8s in all. Nothing from out there was recorded, and the waiting is not in the routine.',
   incomplete: true,
   missing: '2 presses are missing measurements: what scale it was drawn at. Record it again with the program in front of you.',
-  scope: 'app-anywhere',
-  brings: 'Runs in arkascended, which Marco brings forward. Its presses are checked against that window, so the other two choices would leave every one of them refusing.'}
+  default_scope: 'app-anywhere',
+  unavailable: {everywhere: 'every press in this recording checks the window it was made in, and "From anywhere → current foreground" names no application, so there would be no window for those presses to be checked against and every one of them would refuse. Save it "Only in arkascended" or "From anywhere → arkascended".'}}
 __at(1500, () => __scrollTo('capReview', 60))

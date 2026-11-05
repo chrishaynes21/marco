@@ -1088,3 +1088,16 @@ See the *Known gaps* section of [[director-demonstrations]].
 ## Milestone record
 
 [[director-demonstrations]].
+
+**And Studio took the control centre's look.** The owner preferred `m help`, the control centre,
+so Studio's own page was restyled to it rather than replaced:
+- one monospaced face;
+- the accent as structure;
+- framed compact rows for routines and for steps;
+- an uppercase drawer with a labelled `Widget` group.
+
+Every workflow and binding is unchanged, and colours still come from the widget's palette. The
+page's fallback colours are the default and light palettes exactly, so the cyan is the default
+palette's. The control centre's editor capabilities follow one slice at a time, through the
+preview/save machinery here rather than its own save handler. See
+[[ADR-310-studio-wears-the-control-centres-look]].

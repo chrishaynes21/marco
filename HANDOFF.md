@@ -12564,3 +12564,23 @@ Verified only in a headless render with stub bindings, not on the desktop. 11 mu
 first appeared to survive because the test that kills it was missing from the run.
 
 See [[ADR-309-a-routine-row-says-only-what-changes-the-next-action]].
+
+### 2026-11-04 — Studio wears the control centre's look (visual slice)
+
+The owner preferred `m help`, the control centre. Hosting its page in Studio was weighed and
+rejected, because Studio's workflow state would have had to be rebuilt inside it. Instead
+Studio's own page is restyled:
+- monospace;
+- cyan from the default palette;
+- framed compact rows;
+- an uppercase drawer;
+- step rows with a red Remove.
+
+No workflow or binding changed. Play stays at least 44px.
+
+Prose was cut by weight only, because its sentences are pinned by earlier rulings. Next are the
+editor slices: text and key edits, then inserting steps, then repeats and drags, each through the
+preview/save machinery.
+
+Renders are in `docs/images/studio-ui/11-cc-*.png`. Verified headless only, not on the desktop.
+See [[ADR-310-studio-wears-the-control-centres-look]].
