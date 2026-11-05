@@ -12,6 +12,7 @@ const (
 	vkShift     = 0x10
 	vkControl   = 0x11
 	vkAlt       = 0x12
+	vkCapital   = 0x14
 	vkEscape    = 0x1B
 	vkSpace     = 0x20
 	vkEnd       = 0x23
@@ -60,7 +61,11 @@ var keyMap = map[string]uint16{
 	"up": vkUp, "down": vkDown, "left": vkLeft, "right": vkRight,
 	"shift": vkShift, "ctrl": vkControl, "control": vkControl, "alt": vkAlt,
 	"win": vkLWin, "lwin": vkLWin, "rwin": vkRWin,
-	"`": vkOEM3, "~": vkOEM3, "backtick": vkOEM3,
+	// THE RECORDER WRITES IT, so the host presses it. It did not, and a recorded Caps Lock
+	// was a step that failed with `unknown key` at run time; macroir's key list and the
+	// guard beside it are what found that (TestTheHostPressesExactlyTheKeysMarcoNames).
+	"capslock": vkCapital,
+	"`":        vkOEM3, "~": vkOEM3, "backtick": vkOEM3,
 	"-": vkOEMMinus, "=": vkOEMPlus,
 	"[": vkOEM4, "]": vkOEM6, "\\": vkOEM5,
 	";": vkOEM1, "'": vkOEM7, ",": vkOEMComma, ".": vkOEMPeriod, "/": vkOEM2,

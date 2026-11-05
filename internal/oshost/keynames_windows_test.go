@@ -1,0 +1,42 @@
+package oshost
+
+import (
+	"sort"
+	"testing"
+
+	"github.com/chaynes-simpleclouds/marco/internal/macroir"
+)
+
+// THE HOST PRESSES EXACTLY THE KEYS MARCO NAMES.
+//
+// `macroir`'s list is what a person's typing is checked against when a step's key is edited.
+// A name there that the host cannot resolve is an edit accepted at review and refused at run
+// time; a name the host presses that is not there is a key somebody cannot type into the
+// editor. Both directions, because either drift is one of the three lists telling a different
+// story (see macroir/keys.go).
+func TestTheHostPressesExactlyTheKeysMarcoNames(t *testing.T) {
+	named := map[string]bool{}
+	for _, k := range macroir.KeyNames() {
+		named[k] = true
+		if vk, scan, _ := resolveKey(k); vk == 0 && scan == 0 {
+			t.Errorf("macroir names %q as a key Marco can press, and this host cannot "+
+				"press it", k)
+		}
+	}
+	var extra []string
+	for k := range keyMap {
+		// A TABLE ENTRY THE LOOKUP CAN NEVER REACH is not a key this host presses:
+		// `resolveKey` trims the name, so " " is unreachable and is not asked about.
+		if vk, scan, _ := resolveKey(k); vk == 0 && scan == 0 {
+			continue
+		}
+		if !named[k] {
+			extra = append(extra, k)
+		}
+	}
+	sort.Strings(extra)
+	for _, k := range extra {
+		t.Errorf("this host presses %q, and macroir does not name it, so it cannot be "+
+			"typed into a step", k)
+	}
+}
