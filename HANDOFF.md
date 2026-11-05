@@ -12644,3 +12644,14 @@ Next: repeats and drags. See [[ADR-312-a-step-can-be-added]].
 
 Next: drags, then adding clicks under the approved policy. See
 [[ADR-313-steps-can-be-repeated]].
+
+### 2026-11-04 — Drags can be edited
+
+- `EditToDrag` turns a click into a drag. `EditDrag` moves a drag's two ends together. Both keep
+  the button and the window check, and drop the old path.
+- `15c1bfc` closed a gap a Studio test found: a click naming a window it was never measured in
+  could become a screen drag. `WhyNotADrag` is now the one rule.
+- Studio: `Drag` on a click row, and four boxes on a drag row.
+- Kept by the next edit and by a rebuild. 16 mutants killed.
+
+Next: adding clicks under the approved policy. See [[ADR-314-drags-can-be-edited]].

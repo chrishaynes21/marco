@@ -965,6 +965,12 @@ func oneStep(s macroir.Step) string {
 		}
 		return fmt.Sprintf("move the pointer to %s%s", where, inWindow(s))
 	case macroir.StepDrag:
+		// IN THE BASIS IT IS CHECKED IN, as a click says, because a drag inside a window
+		// survives the window moving and one on the desktop does not.
+		if s.WinRel {
+			return fmt.Sprintf("drag from %d, %d to %d, %d in the window%s", s.RelX, s.RelY,
+				s.ToRelX, s.ToRelY, inWindow(s))
+		}
 		return fmt.Sprintf("drag from %d, %d to %d, %d", s.X, s.Y, s.X2, s.Y2)
 	case macroir.StepKey:
 		if s.Text != "" {

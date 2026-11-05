@@ -1124,3 +1124,8 @@ row under it. See [[ADR-312-a-step-can-be-added]].
 `EditLoop` repeats complete steps as one block, never splitting a hold. A routine whose presses
 are checked cannot have a block, and Studio says so instead of offering one. Both are kept by the
 next edit and by a rebuild under today's rules. See [[ADR-313-steps-can-be-repeated]].
+
+**And drags can be edited.** A click becomes a drag in its own basis, keeping its button and its
+window check. A drag's two ends move together. A checked press is never turned into an
+unchecked one (`WhyNotADrag`, one rule for the offer and the refusal). See
+[[ADR-314-drags-can-be-edited]].

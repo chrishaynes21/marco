@@ -129,6 +129,15 @@ type StepRow struct {
 	// is now, from 1. A half of a hold has none: it repeats only as part of a block.
 	Repeats bool `json:"repeats,omitempty"`
 	Count   int  `json:"count,omitempty"`
+	// Drag says this step is a drag, DragMovable whether its two ends can be changed (together),
+	// DragWhy what stops it, and X,Y to X2,Y2 the two ends in the basis InWindow names.
+	// ToDrag says this click can be made a drag, in its own basis.
+	Drag        bool   `json:"drag,omitempty"`
+	DragMovable bool   `json:"drag_movable,omitempty"`
+	DragWhy     string `json:"drag_why,omitempty"`
+	X2          int    `json:"x2"`
+	Y2          int    `json:"y2"`
+	ToDrag      bool   `json:"to_drag,omitempty"`
 }
 
 // StepChange is one operation the page asks for, against a position in the list it was shown.
@@ -160,6 +169,10 @@ type StepChange struct {
 	Kind string `json:"kind"`
 	// Count is how many times, for a "repeat" or a "loop" change.
 	Count int `json:"count"`
+	// X2 and Y2 are where a drag ends, for a "drag" or "todrag" change, in the basis the row
+	// said it was offering.
+	X2 int `json:"x2"`
+	Y2 int `json:"y2"`
 }
 
 // StepEditing is a routine's steps as the panel lists them, before anything is asked.
@@ -339,10 +352,17 @@ func stepRows(e orchestrator.EditReview) []StepRow {
 		// have a position: a surface that decided would be free to offer a box the
 		// validator then refuses, which is a control whose refusal arrives after
 		// somebody has typed into it.
-		if p := orchestrator.PointIn(steps, i); p.Is {
+		// A DRAG IS ITS OWN READING, two ends changed together, and never a point.
+		if d := orchestrator.DragIn(steps, i); d.Is {
+			r.Drag, r.DragMovable, r.DragWhy = true, d.Movable, d.Why
+			r.InWindow, r.X, r.Y, r.X2, r.Y2 = d.InWindow, d.X, d.Y, d.X2, d.Y2
+		} else if p := orchestrator.PointIn(steps, i); p.Is {
 			r.Point, r.Movable, r.PointWhy = true, p.Movable, p.Why
 			r.InWindow, r.X, r.Y = p.InWindow, p.X, p.Y
 		}
+		// AND A CLICK THAT CAN BECOME A DRAG, asked of the rule the contract refuses with, so
+		// nothing is offered that is then refused.
+		r.ToDrag = s.Kind == macroir.StepClick && orchestrator.WhyNotADrag(steps, i) == ""
 		if partner := e.PairedWith(i); partner >= 0 {
 			r.Pairs, r.PairsAt = true, partner
 			r.PairSays = fmt.Sprintf("removes step %d too: they are the two "+
@@ -397,7 +417,7 @@ func (a *Acts) ReviewStepEdit(id, basis string, changes []StepChange) StepPrevie
 		// the one `routes` own pattern will read back.
 		edits = append(edits, orchestrator.StepEdit{
 			Op: orchestrator.EditOp(strings.TrimSpace(c.Op)), At: c.At, To: c.To,
-			Upto: c.Upto, X: c.X, Y: c.Y, Name: c.Name, Text: c.Text, Key: c.Key, Kind: c.Kind, Count: c.Count})
+			Upto: c.Upto, X: c.X, Y: c.Y, Name: c.Name, Text: c.Text, Key: c.Key, Kind: c.Kind, Count: c.Count, X2: c.X2, Y2: c.Y2})
 	}
 	d := orchestrator.Deps{Reg: a.reg(), Out: &strings.Builder{}}
 	e, err := d.PrepareEditOf(chosen.route(), basis, edits)
