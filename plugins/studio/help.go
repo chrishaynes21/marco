@@ -53,6 +53,42 @@ type Features struct {
 	// without re-deriving it from the list.
 	Acts   bool `json:"acts"`
 	Scenes bool `json:"scenes"`
+	// Start is the view this window was asked to open on (`-view help`), or empty for the
+	// first in Views. Only ever one of Views: a launch cannot open a door the rail withholds.
+	Start string `json:"start,omitempty"`
+}
+
+// offeredView is v when this window offers it, and "" otherwise.
+func (f Features) offeredView(v string) string {
+	v = strings.ToLower(strings.TrimSpace(v))
+	for _, o := range f.Views {
+		if o == v {
+			return v
+		}
+	}
+	return ""
+}
+
+// ViewEvent is what the page listens for when a second launch asks this window for a view.
+const ViewEvent = "studio:view"
+
+// viewArg is the `-view` a launch was given, read from its raw arguments. A second launch's
+// arguments arrive as a list, not through `flag`, so this reads the same three spellings
+// `flag` accepts.
+func viewArg(args []string) string {
+	for i, a := range args {
+		switch {
+		case a == "-view" || a == "--view":
+			if i+1 < len(args) {
+				return args[i+1]
+			}
+		case strings.HasPrefix(a, "-view="):
+			return strings.TrimPrefix(a, "-view=")
+		case strings.HasPrefix(a, "--view="):
+			return strings.TrimPrefix(a, "--view=")
+		}
+	}
+	return ""
 }
 
 // alphaViews is the rail when nothing is turned on: the one journey, what it did, and help.

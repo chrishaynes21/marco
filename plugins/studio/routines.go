@@ -90,8 +90,14 @@ type Routine struct {
 	// reading them side by side.
 	ID   string `json:"id"`
 	Name string `json:"name"`
-	Slug string `json:"slug"`
-	App  string `json:"app,omitempty"`
+	// Takes is the values it asks for, written after its name the way they are typed:
+	// `‹resource›` for `cloud pull ‹resource›`. Its declared names, by `routes.Arguments`
+	// (the reader Play and `marco args` use) and written by `routes.Slots` (the widget's
+	// own). Not a secret, which the credential store answers. Empty when it asks for
+	// nothing.
+	Takes string `json:"takes,omitempty"`
+	Slug  string `json:"slug"`
+	App   string `json:"app,omitempty"`
 	// Scope is where it works, in the product's own three words.
 	Scope string `json:"scope"`
 	// Focus is that as the registry holds it, and is how this is found again when
@@ -266,7 +272,7 @@ func (a *Acts) Routines() []Routine {
 		// to what somebody called their own routine.
 		r := Routine{ID: routeID(rt), Name: orchestrator.NameIn(src, rt.Slug),
 			Slug: rt.Slug, App: rt.App, Focus: rt.Focus, Scope: scopeWord(rt),
-			Source: src, Path: path, Clause: clauseOf(src)}
+			Source: src, Path: path, Clause: clauseOf(src), Takes: takesOf(src)}
 		if st, serr := os.Stat(path); serr == nil {
 			r.SavedAt = st.ModTime().Local().Format("2006-01-02 15:04")
 		}
@@ -1131,4 +1137,18 @@ func nextOfRoutine(said string) string {
 			"for what it did. Technical details has the transcript."
 	}
 	return ""
+}
+
+// takesOf is what a routine asks for each time, as its row writes it after the name.
+func takesOf(src string) string {
+	var names []string
+	for _, a := range routes.Arguments(src) {
+		if !a.Secret {
+			names = append(names, a.Name)
+		}
+	}
+	if len(names) == 0 {
+		return ""
+	}
+	return routes.Slots(names, true)
 }

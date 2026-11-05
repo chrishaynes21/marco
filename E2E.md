@@ -149,7 +149,8 @@ type `<thing>`, then Enter.
       or **n/Esc**, same as learning a play.
 
 18. **Leader / command line basics** — `` `m help``, `` `m exit``.
-    - PASS: help menu shows; `exit` closes the overlay.
+    - PASS: `help` opens Studio on its Help (with Studio already open, that window comes
+      forward on Help and no second Studio appears in Task Manager); `exit` closes the overlay.
 
 ---
 

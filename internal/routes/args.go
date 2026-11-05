@@ -409,3 +409,19 @@ func CheckFlagged(src string, flagged []string) error {
 		"set it once with `marco secret set` and this routine will find it",
 		joinArgs(refused))
 }
+
+// Slots is how a routine's values are written after its name where somebody types it:
+// `‹resource›` for a routine's one value when bare, and `name:‹name›` for each otherwise.
+//
+// ONE WRITING, for the widget's line (`cmd/marco/line.go`) and Studio's routine rows alike,
+// so the placeholder a person reads in the list is the one they see when they type the name.
+func Slots(names []string, bare bool) string {
+	if bare && len(names) == 1 {
+		return "‹" + names[0] + "›"
+	}
+	parts := make([]string, 0, len(names))
+	for _, n := range names {
+		parts = append(parts, n+":‹"+n+"›")
+	}
+	return strings.Join(parts, " ")
+}

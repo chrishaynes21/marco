@@ -78,7 +78,8 @@ Backtick (`` ` ``) is the **leader**; the next key chooses what happens:
   (`plays`, `help`, `bindings`, `config`, … — the overlay passes the word straight
   to `marco ui`, so whichever views that knows about are the views this opens);
   **`edit <play>`** to open one play there. **`help`** (or **`` `h ``**) opens the
-  full manual in your browser. Type **`config`** for the
+  full manual in Studio (the window comes forward on Help if it is already open; the
+  control centre's help if no Studio is installed). Type **`config`** for the
   live **config editor**: **↑/↓** pick a setting, **←/→** change it (applies
   instantly), **S** saves it to disk, **Esc** closes. Editable: theme (default,
   dracula, solarized-dark, monokai, nord, tokyo-night, catppuccin-mocha,

@@ -12,6 +12,11 @@
 //	studio -seconds N        opens the window, renders the page, and quits by itself. The window
 //	                         is what "page hosting" means and nothing else here needs one.
 //
+// And the launch a person makes, which the widget's `help` makes as well:
+//
+//	studio -view help        opens on that view. With Studio already open on the same library,
+//	                         that window comes forward on it and this launch exits (single.go).
+//
 // And two diagnostics that read somebody's store without opening anything:
 //
 //	studio -acts <store>     what the Act surface would show: the demonstrations, the Acts and
@@ -84,6 +89,9 @@ func main() {
 		"use a temporary store made fresh for this launch and removed when it closes. "+
 			"For a proof, never for use: an isolated store has none of your "+
 			"demonstrations in it")
+	view := flag.String("view", "",
+		"open on this view: routines, history or help. With Studio already open on the "+
+			"same library, that window comes forward on it instead and this launch exits")
 	flag.Parse()
 
 	if *acts != "" {
@@ -128,6 +136,7 @@ func main() {
 		phrase: *phrase, autoStart: *autostart, autoCancel: *autocancel}
 	// THE ACT SURFACE, which is what Studio is for. See acts.go.
 	surface := newActs(store)
+	surface.features.Start = surface.features.offeredView(*view)
 	// AND WHERE TO WRITE WHAT IT OBSERVES, when somebody asked. The same file the page's
 	// own proof writes to: a windowed process has no stderr anybody reads.
 	surface.observing(*evidence)
@@ -168,6 +177,9 @@ func main() {
 		// THE BOUND BACKEND. `window.go.main.Backend.Start(...)` in the page reaches
 		// the method above; nothing in the page knows how a Director is spoken to.
 		Bind: []any{b, surface},
+		// ONE WINDOW PER LIBRARY. See singleInstance.
+		SingleInstanceLock: singleInstance(store, *isolate, *seconds, *evidence,
+			*autostart, *autocancel, func(args []string) { comeForward(b, surface, args) }),
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "studio: %v\n", err)

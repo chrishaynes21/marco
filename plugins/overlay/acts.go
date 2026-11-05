@@ -408,6 +408,74 @@ func startUI(h *model, view string) {
 	launchUI(h, args, note)
 }
 
+// studioBin is the Studio beside marco, or "" when there is none.
+//
+// `$MARCO_STUDIO` names one outright. Otherwise beside `$MARCO_BIN`, which `overlay.cmd` and the
+// installed launcher both set to an absolute marco.exe, and Studio is beside it in both layouts
+// (`build.cmd` puts one at the root; the bundle is flat). A package variable so a test need not
+// have a Studio.
+var studioBin = func() string {
+	if s := strings.TrimSpace(os.Getenv("MARCO_STUDIO")); s != "" {
+		return s
+	}
+	m := marcoBin()
+	if p, err := exec.LookPath(m); err == nil {
+		m = p
+	}
+	if s := filepath.Join(filepath.Dir(m), "studio.exe"); filepath.IsAbs(s) {
+		if _, err := os.Stat(s); err == nil {
+			return s
+		}
+	}
+	return ""
+}
+
+// startHelp opens Studio on its Help: the manual in the window people use, not a second
+// interface in a browser.
+//
+// Studio is one window per library (plugins/studio/single.go), so with Studio already open this
+// launch hands `-view help` to that window, which comes forward on Help, and exits at once. An
+// exit with no error inside the startup window is therefore that hand-off, not a failure.
+//
+// Not the hook guard the control centre gets: Studio is the person's own window and outlives
+// this one, so its Plays keep the stop key they have when Studio is opened any other way.
+//
+// With no Studio installed beside marco, the control centre's help, and the line says so.
+//
+// See [[ADR-317-the-widgets-help-opens-studio]].
+func startHelp(h *model) {
+	studio := studioBin()
+	if studio == "" {
+		h.log("Studio is not beside marco — opening the control centre's help instead")
+		startUI(h, "help")
+		return
+	}
+	cmd := exec.Command(studio, "-view", "help")
+	if err := startUIChild(cmd); err != nil {
+		mlogE("overlay: studio failed to start", "err", err)
+		h.log("could not open Studio's Help")
+		return
+	}
+	mlogI("overlay: studio help", "bin", studio)
+	h.log("opening Studio's Help…")
+	go func() {
+		done := make(chan error, 1)
+		go func() { done <- cmd.Wait() }()
+		select {
+		case err := <-done:
+			if err != nil {
+				mlogW2("overlay: studio stopped before it was up", "err", err)
+				h.log("could not open Studio's Help")
+				return
+			}
+			h.log("Studio's Help — in the Studio window that was already open")
+		case <-time.After(uiStartupWindow):
+			h.log("Studio's Help is open")
+			<-done
+		}
+	}()
+}
+
 // launchUI spawns the control center detached, replacing any prior instance so ports don't stack.
 //
 // # Why a browser server needs the hook guard
@@ -1077,10 +1145,10 @@ var inConfig atomic.Bool
 func openPanel(h *model, k panelKind) {
 	switch k {
 	case panelHelpBrowser:
-		// The FULL manual, in the browser. Deliberately not the same thing as the in-HUD
+		// The FULL manual, in Studio. Deliberately not the same thing as the in-HUD
 		// listing: one is a reference you sit and read, the other is a glance you take
 		// without leaving the application you are in.
-		startUI(h, "help")
+		startHelp(h)
 	case panelConfig:
 		inConfig.Store(true)
 		h.openConfig(configLines())

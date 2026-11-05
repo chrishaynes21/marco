@@ -12682,3 +12682,15 @@ This completes the editor slices: text and keys, insertion, repeats, drags, clic
   behind. `uia.exe` ends with its parent.
 - 5 mutants killed. Not seen on the desktop. See
   [[ADR-316-the-control-centre-stops-once-its-page-has-gone]].
+
+### 2026-11-05 — The widget's help opens Studio; a row says what it asks for
+
+- Studio's collapsed row reads `cloud pull ‹resource›`: `Routine.Takes`, from
+  `routes.Arguments` and written by `routes.Slots`, which the widget's line now shares.
+  Secrets are left out.
+- `help` in the widget starts `studio.exe -view help`, found beside `$MARCO_BIN`. Studio is
+  now one window per library (Wails' single-instance lock), so an open Studio comes forward on
+  Help instead. Harness launches are never locked. With no Studio, it opens the control
+  centre's help.
+- 16 mutants killed. Not seen on the desktop: whether the open window really comes to the
+  front is unproven. See [[ADR-317-the-widgets-help-opens-studio]].

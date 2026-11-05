@@ -94,7 +94,8 @@ type panelKind int
 
 const (
 	panelNone panelKind = iota
-	// panelHelpBrowser opens the control centre's Help screen. It is the FULL manual, and
+	// panelHelpBrowser opens Studio's Help (the control centre's when there is no Studio;
+	// see startHelp). The name is older than that. It is the FULL manual, and
 	// deliberately not the same thing as panelPlays: one is a reference you read, the other
 	// is a glance you take without leaving the game.
 	panelHelpBrowser
@@ -179,7 +180,7 @@ var hudCommands = []hudCommand{
 		What:   "leader key, voice, size and appearance"},
 	{Word: cmdHelp, Aliases: []string{"h", "?", "manual"}, Site: sitePanel, Panel: panelHelpBrowser,
 		Listed: true,
-		What:   "the full manual, in your browser"},
+		What:   "the full manual, in Studio"},
 	{Word: cmdExit, Aliases: []string{"quit"}, Site: siteOverlay, Listed: true,
 		What: "close the overlay"},
 

@@ -390,16 +390,7 @@ func namedSlots(args []routes.Argument) string {
 
 // pendingSlots is the values still to type: `‹resource›` for a routine's one value, and
 // `name:‹name›` for each when there are several (or labels have been used).
-func pendingSlots(names []string, bare bool) string {
-	if bare && len(names) == 1 {
-		return "‹" + names[0] + "›"
-	}
-	parts := make([]string, 0, len(names))
-	for _, n := range names {
-		parts = append(parts, n+":‹"+n+"›")
-	}
-	return strings.Join(parts, " ")
-}
+func pendingSlots(names []string, bare bool) string { return routes.Slots(names, bare) }
 
 // neededWord is `Resource needed`, `Name and message needed`.
 func neededWord(names []string) string {

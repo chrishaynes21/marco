@@ -367,6 +367,8 @@
 
  /* A SHORTCUT, AS IT IS PRESSED. Not a `.chip`: that one is uppercase, and `e and `E are
     two different keys. The machine face, because it is something typed. */
+ /* WHAT A ROUTINE ASKS FOR, after its name: muted, as the widget writes it. */
+ .takes{font-weight:400;color:var(--dim)}
  .keycap{font:600 12px var(--mach);padding:1px 6px;border:1px solid var(--line);
    border-radius:var(--r-sm);background:var(--spot-bg);color:var(--ink);white-space:nowrap}
  .keychips{display:inline-flex;gap:6px;margin-left:8px;flex-wrap:wrap;vertical-align:middle}
@@ -2369,6 +2371,9 @@
    // calling it again is how the rail and the sections agree about the new list.
    acts.Features().then(f => {
      offered = (f.views || []).length ? f.views : offered
+     // AND THE VIEW THIS WINDOW WAS OPENED ON, when a launch asked for one: the widget's
+     // `help` starts Studio with `-view help`. Only ever one the rail offers.
+     if (f.start && offered.indexOf(f.start) >= 0) { view = f.start }
      show(view)
      // AND THE READS THAT BELONG TO A VIEW, started only once it is known to be
      // offered. Each is guarded in itself as well -- six call sites and a seventh
@@ -2376,6 +2381,12 @@
      // view costs not even the first call.
      loadActs(); loadDemos(); pollLearning()
    })
+   // A LATER LAUNCH ASKING THIS WINDOW FOR A VIEW. Studio is one window per library, so the
+   // widget's `help` with Studio already open is this window coming forward on Help
+   // (single.go). `show` refuses a view the rail withholds, whoever asks.
+   if (window.runtime && window.runtime.EventsOn) {
+     window.runtime.EventsOn('studio:view', v => show(v))
+   }
    poll(); pollBuild(); pollCapture(); pollRepairs(); pollRoutines()
    pollAskTargets()
    $('askBtn').onclick = askForRoutine
@@ -3815,7 +3826,7 @@
 
  // EVERYTHING THE LIST SHOWS, IN ONE STRING, INCLUDING WHICH ROW IS OPEN.
  function routinesSig(){
-   return routines.map(r => [r.id, r.name, r.contract, r.mode, r.runnable,
+   return routines.map(r => [r.id, r.name, r.takes, r.contract, r.mode, r.runnable,
      r.saved_at, r.generation, r.declared_generation, r.update,
      r.rebuildable, (r.keys || []).join(',')].join('\u0001')).join('\u0000') + '\u0000' +
      chosenRoutine
@@ -3900,7 +3911,11 @@
          ' aria-expanded="' + (open ? 'true' : 'false') + '"' +
          ' aria-controls="routineHere-' + key + '">' +
          '<span class="chev" aria-hidden="true">&#9654;</span>' +
-         '<span class="grow"><h3>' + esc(r.name) + '</h3>' +
+         // AND WHAT IT ASKS FOR, the way it is typed: `cloud pull ‹resource›`. Written by
+         // the backend with the widget's own spelling, so the list and the line agree.
+         '<span class="grow"><h3>' + esc(r.name) +
+         (r.takes ? ' <span class="takes" id="routineTakes-' + key + '">' + esc(r.takes) +
+           '</span>' : '') + '</h3>' +
          '<div class="muted">' + esc(whereItWorks(r)) +
          (r.saved_at ? '  ·  ' + esc(r.saved_at) : '') +
          // ITS SHORTCUTS, as they are pressed, so a key is found from the list.
