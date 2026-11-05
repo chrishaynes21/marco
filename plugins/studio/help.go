@@ -161,6 +161,11 @@ func (a *Acts) Help() Help {
 		"Change a wait, a position, the text a step types or the key it presses; " +
 			"remove a step; add one with + (a wait, a key press or typed text); or " +
 			"say a run of steps is text you typed.",
+		// ADDED CLICKS, said once. ADR-315.
+		"An added click goes inside a window one of the routine's own presses was " +
+			"measured in — you choose which — at an offset inside it, checked like " +
+			"the rest. Only a routine that checks nothing can have a click added at a " +
+			"point on the screen.",
 		// DRAGS, said once. ADR-314.
 		"Drag turns a click into a drag that keeps its button. A click measured inside " +
 			"its window drags inside that window, both ends checked against it. A drag's " +

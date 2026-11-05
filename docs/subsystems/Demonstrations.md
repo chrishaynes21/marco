@@ -1129,3 +1129,8 @@ next edit and by a rebuild under today's rules. See [[ADR-313-steps-can-be-repea
 window check. A drag's two ends move together. A checked press is never turned into an
 unchecked one (`WhyNotADrag`, one rule for the offer and the refusal). See
 [[ADR-314-drags-can-be-edited]].
+
+**And a click can be added**, in an explicitly chosen basis. It goes either inside one of the
+windows the routine's own presses were measured in, reusing that measurement and validated
+against its size, or at a screen point, only in a routine that checks nothing. The demonstration
+is unchanged, and the click lives in the stored account. See [[ADR-315-a-click-can-be-added]].

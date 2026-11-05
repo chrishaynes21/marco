@@ -12655,3 +12655,19 @@ Next: drags, then adding clicks under the approved policy. See
 - Kept by the next edit and by a rebuild. 16 mutants killed.
 
 Next: adding clicks under the approved policy. See [[ADR-314-drags-can-be-edited]].
+
+### 2026-11-04 — A click can be added
+
+This follows the owner's policy.
+- **Window click:** the person chooses one of `ClickBases`, the distinct fully measured windows
+  of the routine's own presses. The click reuses that measurement and nothing else, and its
+  offset is bounds-checked.
+- **Screen click:** only in a routine that checks nothing (`codegen.GuardsAnything`), never as a
+  fallback.
+- **No window to choose:** the panel says so.
+- **Studio:** a `click` kind in the added-step row, with basis, button and offset.
+- **Checks:** the demonstration stays byte-for-byte unchanged, and a rebuild keeps the click.
+  15 mutants killed.
+
+This completes the editor slices: text and keys, insertion, repeats, drags, clicks. See
+[[ADR-315-a-click-can-be-added]].

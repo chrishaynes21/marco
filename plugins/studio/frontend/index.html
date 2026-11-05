@@ -412,6 +412,8 @@
     not yet part of the routine. */
  .steprows .sr.added{border-style:dashed;border-color:var(--spot-dim)}
  .steprows .sr.added > .n{color:var(--spot);font-weight:600;text-align:right}
+ /* AN ADDED CLICK'S OFFSET IS TWO SHORT NUMBERS, not two fields the width of the row. */
+ .steprows .sr.added .row > input.num.xy{flex:0 0 5em;width:5em}
  .steprows select.newkind{min-width:0;width:auto;font:400 12px var(--mach);padding:3px 6px;
    min-height:28px}
  .steprows .sr.changed input.num{border-color:var(--spot-dim)}
@@ -4981,7 +4983,13 @@
    kind.id = 'routineStepNewKind-' + p.n
    kind.className = 'newkind'
    kind.setAttribute('aria-label', 'What the step added after step ' + (p.at + 1) + ' does')
-   ;[['wait', 'wait'], ['key', 'press'], ['type', 'type']].forEach(([v, label]) => {
+   // A CLICK ONLY WHERE THE CONTRACT WOULD TAKE ONE: inside a window the routine was measured
+   // in, or at a screen point in a routine that checks nothing. See the click form below.
+   const bases = stepList.click_bases || []
+   const clickable = bases.length > 0 || !!stepList.screen_clicks
+   const kinds = [['wait', 'wait'], ['key', 'press'], ['type', 'type']]
+   if (clickable) { kinds.push(['click', 'click']) }
+   kinds.forEach(([v, label]) => {
      const o = document.createElement('option')
      o.value = v
      o.textContent = label
@@ -4990,6 +4998,11 @@
    kind.value = p.kind
    const what = document.createElement('span')
    what.className = 'what'
+   kind.onchange = () => { p.kind = kind.value; withdrawStepReview(); drawStepRows() }
+   if (p.kind === 'click') {
+     what.appendChild(addedClickForm(p, bases))
+     return finishAddedRow(div, n, kind, what, p)
+   }
    const val = document.createElement('input')
    val.type = 'text'
    val.autocomplete = 'off'
@@ -5002,8 +5015,81 @@
      : p.kind === 'key' ? 'key' : 'text') + ' of the step added after step ' + (p.at + 1))
    val.value = p.value
    val.oninput = () => { p.value = val.value; withdrawStepReview(); drawStepAsked() }
-   kind.onchange = () => { p.kind = kind.value; withdrawStepReview(); drawStepRows() }
    what.appendChild(val)
+   return finishAddedRow(div, n, kind, what, p)
+ }
+
+ // A CLICK BEING ADDED: WHERE, IN WHICH BASIS, WITH WHICH BUTTON.
+ //
+ // The basis is chosen, never defaulted into a different kind of place: one of the windows the
+ // routine's own presses were measured in, or — only where the routine checks nothing — a point
+ // on the screen. The offset boxes say which window they are inside and how big it is.
+ function addedClickForm(p, bases){
+   const span = document.createElement('span')
+   span.className = 'row'
+   const basis = document.createElement('select')
+   basis.id = 'routineStepNewBasis-' + p.n
+   basis.className = 'newkind'
+   basis.setAttribute('aria-label', 'Where the click added after step ' + (p.at + 1) + ' goes')
+   bases.forEach(b => {
+     const o = document.createElement('option')
+     o.value = String(b.at)
+     o.textContent = 'inside ' + b.label
+     basis.appendChild(o)
+   })
+   if (stepList.screen_clicks) {
+     const o = document.createElement('option')
+     o.value = 'screen'
+     o.textContent = 'at a point on the screen'
+     basis.appendChild(o)
+   }
+   if (p.basis === undefined) { p.basis = bases.length ? String(bases[0].at) : 'screen' }
+   basis.value = p.basis
+   basis.onchange = () => { p.basis = basis.value; withdrawStepReview(); drawStepRows() }
+   const button = document.createElement('select')
+   button.id = 'routineStepNewButton-' + p.n
+   button.className = 'newkind'
+   button.setAttribute('aria-label', 'Which button the added click presses')
+   ;['left', 'right', 'middle'].forEach(v => {
+     const o = document.createElement('option')
+     o.value = v
+     o.textContent = v
+     button.appendChild(o)
+   })
+   button.value = p.button || 'left'
+   button.onchange = () => { p.button = button.value; withdrawStepReview(); drawStepAsked() }
+   span.append(basis, button)
+   const inside = bases.find(b => String(b.at) === p.basis)
+   for (const axis of ['x', 'y']) {
+     const lab = document.createElement('label')
+     lab.className = 'lbl'
+     lab.textContent = axis
+     const box = document.createElement('input')
+     box.type = 'text'
+     box.inputMode = 'numeric'
+     box.autocomplete = 'off'
+     box.className = 'num xy'
+     box.id = 'routineStepNew' + axis.toUpperCase() + '-' + p.n
+     lab.htmlFor = box.id
+     box.value = p[axis] || ''
+     box.placeholder = inside ? (axis === 'x' ? '0–' + (inside.w - 1) : '0–' + (inside.h - 1)) : ''
+     box.setAttribute('aria-label', axis + ' of the added click' +
+       (inside ? ', inside the window' : ', on the screen'))
+     box.oninput = () => { p[axis] = box.value; withdrawStepReview(); drawStepAsked() }
+     span.append(lab, box)
+   }
+   // AND WHY THERE IS NO WINDOW TO CHOOSE, when there is none.
+   if (stepList.click_says) {
+     const says = document.createElement('span')
+     says.className = 'muted'
+     says.id = 'routineStepNewClickSays-' + p.n
+     says.textContent = stepList.click_says
+     span.appendChild(says)
+   }
+   return span
+ }
+
+ function finishAddedRow(div, n, kind, what, p){
    const err = document.createElement('span')
    err.className = 'pair no' + (stepErrors['new-' + p.n] ? '' : ' hide')
    err.id = 'routineStepNewErr-' + p.n
@@ -5261,6 +5347,16 @@
            ? 'Enter how long to wait, in milliseconds.'
            : '“' + raw.trim() + '” is not a whole number of milliseconds.'
        }
+     } else if (p.kind === 'click') {
+       const x = String(p.x || '').trim(), y = String(p.y || '').trim()
+       if (/^-?\d+$/.test(x) && /^-?\d+$/.test(y)) {
+         const screen = p.basis === 'screen'
+         changes.push({op: 'insert', at: p.at, kind: 'click', button: p.button || 'left',
+           screen: screen, basis_at: screen ? 0 : parseInt(p.basis, 10),
+           x: parseInt(x, 10), y: parseInt(y, 10)})
+       } else {
+         errors['new-' + p.n] = 'Enter whole numbers for where the click goes.'
+       }
      } else if (p.kind === 'key') {
        if (raw.trim()) {
          changes.push({op: 'insert', at: p.at, kind: 'key', key: raw.trim()})
@@ -5315,7 +5411,10 @@
      if (c.op === 'argument') { return at + ' asks you for its text (' + c.name + ')' }
      if (c.op === 'insert') {
        const added = c.kind === 'wait' ? 'a wait of ' + c.to + 'ms'
-         : c.kind === 'key' ? 'a press of ' + c.key : 'typing “' + c.text + '”'
+         : c.kind === 'key' ? 'a press of ' + c.key
+         : c.kind === 'click' ? 'a ' + c.button + '-click at ' + c.x + ', ' + c.y +
+           (c.screen ? ' on the screen' : ' in the window of step ' + (c.basis_at + 1))
+         : 'typing “' + c.text + '”'
        return added + ' is added ' + (c.at < 0 ? 'at the start' : 'after ' + at)
      }
      if (c.op === 'repeat') { return at + ' happens ' + c.count + ' times' }

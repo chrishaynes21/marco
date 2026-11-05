@@ -169,10 +169,24 @@ type StepChange struct {
 	Kind string `json:"kind"`
 	// Count is how many times, for a "repeat" or a "loop" change.
 	Count int `json:"count"`
+	// Button, Screen and BasisAt describe a click an "insert" adds: which button; whether X,Y
+	// is a point on the screen; or else the step whose measured window it goes inside.
+	Button  string `json:"button"`
+	Screen  bool   `json:"screen"`
+	BasisAt int    `json:"basis_at"`
 	// X2 and Y2 are where a drag ends, for a "drag" or "todrag" change, in the basis the row
 	// said it was offering.
 	X2 int `json:"x2"`
 	Y2 int `json:"y2"`
+}
+
+// ClickBasisChoice is one window an added click can go inside: the step it was measured at, the
+// window in words, and its size so the page can say what the offset is inside.
+type ClickBasisChoice struct {
+	At    int    `json:"at"`
+	Label string `json:"label"`
+	W     int    `json:"w"`
+	H     int    `json:"h"`
 }
 
 // StepEditing is a routine's steps as the panel lists them, before anything is asked.
@@ -208,6 +222,13 @@ type StepEditing struct {
 	// a key press repeats instead. Asked of orchestrator.BlocksRepeatable.
 	Blocks     bool   `json:"blocks,omitempty"`
 	BlocksSays string `json:"blocks_says,omitempty"`
+	// ClickBases are the windows an added click can go inside — the routine's own measured
+	// presses, orchestrator.ClickBases — and ScreenClicks whether one may go at a point on the
+	// screen instead, which only a routine that checks nothing allows. ClickSays is the sentence
+	// when a window click is not possible, so its absence is explained rather than silent.
+	ClickBases   []ClickBasisChoice `json:"click_bases,omitempty"`
+	ScreenClicks bool               `json:"screen_clicks,omitempty"`
+	ClickSays    string             `json:"click_says,omitempty"`
 }
 
 // StepPreview is one reviewed edit, before anything is written.
@@ -304,6 +325,24 @@ func (a *Acts) StepEditing(id string) StepEditing {
 	runs := typedChoices(e.Steps())
 	// AND WHETHER A BLOCK CAN BE REPEATED HERE, said rather than simply not offered: a
 	// control that vanishes reads as a capability that does not exist.
+	// AND WHERE A CLICK CAN BE ADDED: inside which of its own measured windows, and whether at
+	// a screen point at all. Both answers are the contract's, so nothing is offered that the
+	// contract then refuses.
+	var bases []ClickBasisChoice
+	for _, b := range orchestrator.ClickBases(e.Steps()) {
+		bases = append(bases, ClickBasisChoice{At: b.At, Label: b.Label(), W: b.WinW, H: b.WinH})
+	}
+	screen := orchestrator.ScreenClicksAllowed(e.Steps())
+	clickSays := ""
+	switch {
+	case len(bases) == 0 && screen:
+		clickSays = "No step here was measured inside a window, so a click can be added " +
+			"only at a point on the screen."
+	case len(bases) == 0:
+		clickSays = "A click cannot be added here: this routine checks each press against " +
+			"its window, and none of its presses was measured fully enough to add one " +
+			"inside it."
+	}
 	blocks := orchestrator.BlocksRepeatable(e.Steps())
 	blocksSays := ""
 	if !blocks {
@@ -312,7 +351,8 @@ func (a *Acts) StepEditing(id string) StepEditing {
 	}
 	return StepEditing{ID: id, Name: e.Name, Basis: e.Basis, Rows: rows,
 		Editable: len(rows) > 0, TypedRuns: runs, TypedSays: typedCaption(runs),
-		Blocks: blocks, BlocksSays: blocksSays}
+		Blocks: blocks, BlocksSays: blocksSays,
+		ClickBases: bases, ScreenClicks: screen, ClickSays: clickSays}
 }
 
 // stepRows is a review's step list as the panel shows it.
@@ -417,7 +457,8 @@ func (a *Acts) ReviewStepEdit(id, basis string, changes []StepChange) StepPrevie
 		// the one `routes` own pattern will read back.
 		edits = append(edits, orchestrator.StepEdit{
 			Op: orchestrator.EditOp(strings.TrimSpace(c.Op)), At: c.At, To: c.To,
-			Upto: c.Upto, X: c.X, Y: c.Y, Name: c.Name, Text: c.Text, Key: c.Key, Kind: c.Kind, Count: c.Count, X2: c.X2, Y2: c.Y2})
+			Upto: c.Upto, X: c.X, Y: c.Y, Name: c.Name, Text: c.Text, Key: c.Key, Kind: c.Kind, Count: c.Count, X2: c.X2, Y2: c.Y2,
+			Button: c.Button, Screen: c.Screen, BasisAt: c.BasisAt})
 	}
 	d := orchestrator.Deps{Reg: a.reg(), Out: &strings.Builder{}}
 	e, err := d.PrepareEditOf(chosen.route(), basis, edits)
