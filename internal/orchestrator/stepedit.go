@@ -192,6 +192,12 @@ const (
 	// presses are checked — a repeated block cannot be wrapped so that one failed press
 	// stops the routine, which is why `codegen` refuses to generate one there.
 	EditLoop EditOp = "loop"
+	// EditDrag moves both ends of a drag: `X`,`Y` to `X2`,`Y2`, in the basis the drag was measured
+	// in (`DragIn`). Its button and its window check are carried; see `dragged`.
+	EditDrag EditOp = "drag"
+	// EditToDrag makes a click a drag from `X`,`Y` to `X2`,`Y2`, in the click's own basis. A
+	// checked click stays checked against the same window, or is refused — see `clickToDrag`.
+	EditToDrag EditOp = "todrag"
 )
 
 // argName is what a placeholder's name may be: exactly what `routes` own pattern will read back.
@@ -238,6 +244,9 @@ type StepEdit struct {
 	// of vet that leaves `structtag` out, so only a deliberate `go vet ./...` says so.
 	X int `json:"x,omitempty"`
 	Y int `json:"y,omitempty"`
+	// X2 and Y2 are where a drag ends, for EditDrag and EditToDrag, in the same basis as X,Y.
+	X2 int `json:"x2,omitempty"`
+	Y2 int `json:"y2,omitempty"`
 	// Name is what the supplied text is called, for EditArgument. Ignored otherwise.
 	//
 	// LOWERCASED when it is applied, because every reader downstream compares these
@@ -681,6 +690,8 @@ func applyEdits(steps []macroir.Step, edits []StepEdit) ([]macroir.Step, []strin
 	texts := map[int]string{}
 	keys := map[int]string{}
 	counts := map[int]int{}
+	// drags is each step made a drag or moved as one, whole, as `points` is for a press.
+	drags := map[int]macroir.Step{}
 	// inserts is what goes in the gap AFTER each original position, -1 being before the
 	// first, in the order asked.
 	inserts := map[int][]macroir.Step{}
@@ -779,6 +790,10 @@ func applyEdits(steps []macroir.Step, edits []StepEdit) ([]macroir.Step, []strin
 					"moved and removed, so nothing was changed",
 					ed.At+1)
 			}
+			if _, draggedAlready := drags[ed.At]; draggedAlready {
+				return nil, nil, "", nil, fmt.Errorf("step %d is asked to be both "+
+					"dragged and removed, so nothing was changed", ed.At+1)
+			}
 			if _, supplied := args[ed.At]; supplied {
 				return nil, nil, "", nil, fmt.Errorf("step %d is asked to be both "+
 					"supplied and removed, so nothing was changed",
@@ -834,6 +849,11 @@ func applyEdits(steps []macroir.Step, edits []StepEdit) ([]macroir.Step, []strin
 					"moved to two places, so nothing was changed",
 					ed.At+1)
 			}
+			if _, draggedAlready := drags[ed.At]; draggedAlready {
+				return nil, nil, "", nil, fmt.Errorf("step %d is asked to be both "+
+					"moved and made a drag, so nothing was changed — a drag says "+
+					"where it starts", ed.At+1)
+			}
 			// AND NO CHECK AGAINST A DURATION OR A SUPPLIED NAME. A step is a
 			// click or a wait and never both, and a click types nothing — so
 			// "moved and given a duration" cannot be asked of one step, and a
@@ -883,6 +903,30 @@ func applyEdits(steps []macroir.Step, edits []StepEdit) ([]macroir.Step, []strin
 			says = append(says, fmt.Sprintf("the text at step %d becomes "+
 				"something you supply, named %q (it was %q)", ed.At+1, name,
 				steps[ed.At].Text))
+		case EditDrag, EditToDrag:
+			if drop[ed.At] {
+				return nil, nil, "", nil, fmt.Errorf("step %d is asked to be both "+
+					"dragged and removed, so nothing was changed", ed.At+1)
+			}
+			if _, placed := points[ed.At]; placed {
+				return nil, nil, "", nil, fmt.Errorf("step %d is asked to be both "+
+					"moved and made a drag, so nothing was changed — a drag says "+
+					"where it starts", ed.At+1)
+			}
+			if _, already := drags[ed.At]; already {
+				return nil, nil, "", nil, fmt.Errorf("step %d is asked to be dragged "+
+					"two ways, so nothing was changed", ed.At+1)
+			}
+			dragOf := movedDrag
+			if ed.Op == EditToDrag {
+				dragOf = clickToDrag
+			}
+			d, said, derr := dragOf(steps, ed.At, ed.X, ed.Y, ed.X2, ed.Y2)
+			if derr != nil {
+				return nil, nil, "", nil, derr
+			}
+			drags[ed.At] = d
+			says = append(says, said)
 		case EditRepeat:
 			if drop[ed.At] {
 				return nil, nil, "", nil, fmt.Errorf("step %d is asked to be both "+
@@ -989,6 +1033,9 @@ func applyEdits(steps []macroir.Step, edits []StepEdit) ([]macroir.Step, []strin
 		// them a move may touch.
 		if moved, ok := points[i]; ok {
 			s = moved
+		}
+		if d, ok := drags[i]; ok {
+			s = d
 		}
 		if name, ok := args[i]; ok {
 			s.Text = "{{" + name + "}}"
