@@ -666,7 +666,8 @@ marco simplify "<name>"    fold a saved routine's typing further: shows what tha
                            and asks. It removes the pauses INSIDE a run of typing, up
                            to a second of them, and refuses if two routines share the name
 marco assistant            interactive loop — say what you want
-marco ui                   open the control center (all routines, bindings, help)
+marco ui                   open the control center (all routines, bindings, help);
+                           it closes itself a few minutes after its page is closed
 marco edit "<name>"        open the control center on one routine's visual editor
 marco plays [--json]       list every routine, the saved-not-yet-askable ones included
 marco routes [--json]      list the routines you can ask for (what a UI plugin may offer)

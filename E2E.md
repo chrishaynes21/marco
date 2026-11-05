@@ -381,6 +381,13 @@ Use a play you already have from section A or G; the steps below say `"<name>"`.
     - PASS: `source=control-centre`, `explicit=yes`, and the slug is the row's own handle — a
       display name that doesn't round-trip through its slug still runs the right file.
 
+41a. **The control centre goes when its page does.** `ui plays` in the widget, then close the
+    browser tab.
+    - PASS: within about three minutes, no `marco.exe ui plays` and no `plugins\uia\uia.exe` is
+      running (Task Manager → Details), and `plugins\studio\build.cmd` is not refused on their
+      account. With the tab left open and in the background, it is still running after ten
+      minutes.
+
 42. **Stop means stop, from every entrance.**
     Start something long (a learned play with several steps, or a Director request), then:
     - type `` `m stop `` → PASS: `[intake] source=typed decision=control

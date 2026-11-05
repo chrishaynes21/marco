@@ -9,13 +9,14 @@ depends_on:
 used_by:
   - service
   - visibility
-updated: 2026-08-20
+updated: 2026-11-05
 source_paths:
   - internal/plays
   - internal/routes
   - internal/orchestrator/authority.go
   - cmd/marco/assistant.go
   - cmd/marco/edit.go
+  - cmd/marco/idle.go
   - cmd/marco/learnui.go
 ---
 
@@ -334,6 +335,11 @@ The view IDENTIFIERS in the control centre did not move either: the tab a person
 **Plays** while the URL, the `data-view` and `marco ui routes` still say `routes`, and `marco ui
 plays` reaches the same view (`TestThePlaysTabIsLabelledPlaysOverTheRoutesIdentifier`,
 `TestMarcoUiPlaysOpensThePlaysView`).
+
+The control centre **stops itself once its page has gone**: three minutes with no request and no
+run it started still going. The page posts `/api/alive` every 20 seconds while it is open, and
+says so when nobody answers. Before this, one started by the widget ran until somebody
+found it, and blocked a rebuild. See [[ADR-316-the-control-centre-stops-once-its-page-has-gone]].
 
 ### The two surfaces used to disagree, which is why they now share a function
 

@@ -117,12 +117,14 @@ func runEdit(name, view string) {
 	if name != "" {
 		where = fmt.Sprintf("%q", prettyRoute(ed.rt.Slug))
 	}
-	fmt.Printf("marco control center (%s) → %s  (Ctrl+C when done)\n", where, url)
+	fmt.Printf("marco control center (%s) → %s  (closes itself a few minutes after its page is closed; Ctrl+C to stop now)\n", where, url)
 	openBrowser(url)
-	if err := http.Serve(ln, mux); err != nil {
+	// IT STOPS ONCE ITS PAGE HAS GONE, rather than living until somebody finds it. See idle.go.
+	if err := serveEditor(ln, ed, mux); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+	fmt.Println("marco control center closed: its page has been closed for a while.")
 }
 
 // serveMux is EVERY DOOR THE CONTROL CENTRE HAS, and it is a function so a test can open them.
@@ -146,6 +148,7 @@ func (ed *editor) serveMux() *http.ServeMux {
 		w.Header().Set("Cache-Control", "max-age=86400")
 		w.Write(faviconPNG)
 	})
+	mux.HandleFunc("/api/alive", handleAlive)    // the page is still open (see idle.go)
 	mux.HandleFunc("/api/route", ed.handleRoute) // the active play's steps + source
 	mux.HandleFunc("/api/save", ed.handleSave)   // write step edits back
 	// /api/routes is the EDIT view's picker and keeps its shape exactly — untagged Go names,
@@ -3618,5 +3621,16 @@ async function init(){
   const r = await (await fetch('/api/route')).json();
   nav(r.view || (r.loaded ? 'edit' : 'routes'));
 }
+// THE SERVER STOPS ITSELF a few minutes after this page has gone (idle.go), so while the page is
+// open it says so, and when nobody answers it says that instead of failing quietly on the next
+// click. The notice stays up: there is nothing left to answer anything else.
+async function alive(){
+  try { if ((await fetch('/api/alive',{method:'POST'})).ok) return; } catch(e) {}
+  const b=document.getElementById('banner'); clearTimeout(b._t);
+  b.textContent='This control centre has closed. Open it again with help in the widget, or marco ui.';
+  b.className='banner show err';
+}
+setInterval(alive, 20000);
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) alive(); });
 init();
 </script></body></html>`

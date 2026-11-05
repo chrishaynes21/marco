@@ -12671,3 +12671,14 @@ This follows the owner's policy.
 
 This completes the editor slices: text and keys, insertion, repeats, drags, clicks. See
 [[ADR-315-a-click-can-be-added]].
+
+### 2026-11-05 — The control centre stops once its page has gone
+
+- The report was "`m exit` didn't close the director". The Director had stopped. What was
+  left was `marco ui help`, started by the widget's `help` the day before, plus its `uia.exe`.
+  It blocked `build.cmd`.
+- `serveEditor` now shuts the server down after three minutes with nothing heard from its page
+  and no run still going. The page heartbeats `/api/alive`, and says when it has been left
+  behind. `uia.exe` ends with its parent.
+- 5 mutants killed. Not seen on the desktop. See
+  [[ADR-316-the-control-centre-stops-once-its-page-has-gone]].
