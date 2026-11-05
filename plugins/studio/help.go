@@ -161,6 +161,10 @@ func (a *Acts) Help() Help {
 		"Change a wait, a position, the text a step types or the key it presses; " +
 			"remove a step; add one with + (a wait, a key press or typed text); or " +
 			"say a run of steps is text you typed.",
+		// HOW SOMETHING REPEATS, said once. ADR-313.
+		"A key press, or a block that repeats, has a count. Steps can repeat together as " +
+			"one block in a routine that does not check its presses against a window; " +
+			"a block always holds a held key and its release together.",
 		// WHERE AN ADDED STEP MAY GO, said once. ADR-312.
 		"A step is added after the row whose + you pressed. Nothing can be added " +
 			"before the step that brings the window forward.",

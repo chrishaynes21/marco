@@ -982,6 +982,14 @@ func oneStep(s macroir.Step) string {
 		return fmt.Sprintf("type %q", s.Text)
 	case macroir.StepWait:
 		return fmt.Sprintf("wait %dms", s.Ms)
+	case macroir.StepLoop:
+		// A BLOCK SAYS WHAT IT REPEATS, every step of it, so a row reading "repeat 3
+		// times" is never a mystery about what happens three times.
+		inner := make([]string, 0, len(s.Steps))
+		for _, in := range s.Steps {
+			inner = append(inner, oneStep(in))
+		}
+		return fmt.Sprintf("repeat %d times: %s", max(s.Count, 1), strings.Join(inner, "; "))
 	}
 	// AND ANYTHING ELSE BY ITS OWN NAME, rather than silently as nothing. A step this
 	// has no sentence for is still a step that will run, and a review that omitted it

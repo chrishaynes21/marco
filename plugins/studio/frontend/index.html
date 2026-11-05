@@ -1731,6 +1731,23 @@
             <button onclick="reviewTypedRun()">That is text I typed</button>
           </div>
         </div>
+        <!-- REPEAT COMPLETE STEPS AS ONE BLOCK. Its own button for the typed run's reason: it
+             makes the list shorter, so it is reviewed on its own. Offered only where the
+             backend says a block can exist; where it cannot, the sentence says why and what
+             repeats instead. See orchestrator.EditLoop and ADR-313. -->
+        <div class="hide" style="margin-top:10px" id="routineLoopBox">
+          <div class="muted hide" id="routineLoopSays"></div>
+          <div class="row hide" style="margin-top:8px" id="routineLoopRow">
+            <label style="width:7em" for="routineLoopFrom">repeat steps</label>
+            <select id="routineLoopFrom" aria-label="First step of the block"></select>
+            <span class="muted">to</span>
+            <select id="routineLoopTo" aria-label="Last step of the block"></select>
+            <input type="text" id="routineLoopCount" style="flex:0 0 4em" value="2"
+              aria-label="How many times the block happens">
+            <span class="muted">times</span>
+            <button id="routineLoopBtn" onclick="reviewLoop()">Repeat as a block</button>
+          </div>
+        </div>
         <div class="row" style="margin-top:10px">
           <button id="routineStepReviewBtn"
             onclick="reviewStepEdit()">Review these changes</button>
@@ -4578,6 +4595,24 @@
    if (typedRuns.some(c => (c.from + ':' + c.to) === chosenRun)) {
      typedPick.value = chosenRun
    }
+   // AND WHETHER STEPS CAN REPEAT AS A BLOCK HERE, offered or explained. The two pickers keep
+   // what was chosen across a redraw, like every other control on the list.
+   showing($('routineLoopBox'), !!stepList.blocks || !!stepList.blocks_says)
+   showing($('routineLoopRow'), !!stepList.blocks)
+   showing($('routineLoopSays'), !!stepList.blocks_says)
+   text($('routineLoopSays'), stepList.blocks_says || '')
+   for (const id of ['routineLoopFrom', 'routineLoopTo']) {
+     const pick = $(id)
+     const kept = pick.value
+     pick.innerHTML = ''
+     stepList.rows.forEach(row => {
+       const o = document.createElement('option')
+       o.value = String(row.at)
+       o.textContent = String(row.at + 1)
+       pick.appendChild(o)
+     })
+     if (kept && stepList.rows.some(row => String(row.at) === kept)) { pick.value = kept }
+   }
    const box = $('routineStepRows')
    box.innerHTML = ''
    stepList.rows.forEach(row => {
@@ -4734,6 +4769,21 @@
          ', in milliseconds')
        controls.append(ms)
      }
+     // ── AND HOW MANY TIMES, on a step that already repeats: a key press or a block ──
+     //
+     // A box like a wait's, read when Review is pressed. A half of a hold has none: it
+     // repeats only inside a block, which is its own control below the list.
+     if (row.repeats) {
+       const times = document.createElement('label')
+       times.className = 'lbl'
+       times.textContent = '×'
+       times.htmlFor = 'routineStepCount-' + row.at
+       const count = stepField(row.at, 'count', String(row.count))
+       count.className = 'num xy'
+       count.id = 'routineStepCount-' + row.at
+       count.setAttribute('aria-label', 'How many times step ' + (row.at + 1) + ' happens')
+       controls.append(times, count)
+     }
      // ── AND THE TEXT A STEP TYPES CAN BECOME SOMETHING YOU SUPPLY ──
      //
      // Offered only on a step that types text, because that is the only step there is
@@ -4796,7 +4846,7 @@
      // value applied as it was typed would send three edits on the way to 350, and a
      // value that waited for a per-row button was lost whenever somebody pressed
      // Review without it. Reset is shown only while the row differs from the routine.
-     if (row.wait || (row.point && row.movable) || row.types || row.keyed) {
+     if (row.wait || (row.point && row.movable) || row.types || row.keyed || row.repeats) {
        const reset = document.createElement('button')
        reset.id = 'routineStepReset-' + row.at
        reset.className = 'reset' + (stepFieldsChanged(row) ? '' : ' hide')
@@ -4992,6 +5042,7 @@
    if (row.keyed && stepDraft(row.at, 'key', row.key).trim().toLowerCase() !== row.key) {
      return true
    }
+   if (row.repeats && !same('count', String(row.count))) { return true }
    return false
  }
 
@@ -5059,6 +5110,20 @@
            errors[row.at] = 'Type what this step should type, or remove the step.'
          } else {
            changes.push({op: 'text', at: row.at, text: typed})
+         }
+       }
+     }
+     // HOW MANY TIMES. A whole number; whether it is a count this step may have is the
+     // backend's answer, like a key.
+     if (row.repeats) {
+       const raw = stepDraft(row.at, 'count', String(row.count)).trim()
+       if (raw !== String(row.count)) {
+         if (/^\d+$/.test(raw)) {
+           changes.push({op: 'repeat', at: row.at, count: parseInt(raw, 10)})
+         } else {
+           errors[row.at] = raw === ''
+             ? 'Enter how many times this step happens.'
+             : '“' + raw + '” is not a whole number of times.'
          }
        }
      }
@@ -5153,6 +5218,7 @@
          : c.kind === 'key' ? 'a press of ' + c.key : 'typing “' + c.text + '”'
        return added + ' is added ' + (c.at < 0 ? 'at the start' : 'after ' + at)
      }
+     if (c.op === 'repeat') { return at + ' happens ' + c.count + ' times' }
      if (c.op === 'text') { return at + ' types “' + c.text + '”' }
      if (c.op === 'key') { return at + ' uses ' + c.key }
      if (c.op === 'point') {
@@ -5210,6 +5276,49 @@
    text($('routineStepsWhy'), '')
    acts.ReviewStepEdit(r.id, stepList.basis,
      [{op: 'typed', at: from, upto: to, to: 0, name: ''}]).then(v => {
+     if (!v || v.why) {
+       stepReview = null
+       showing($('routineStepEdit'), false)
+       text($('routineStepsWhy'), (v && v.why) || 'that could not be prepared')
+       stepEditingAgain()
+       return
+     }
+     stepReview = v
+     drawStepEdit()
+   })
+ }
+
+ // REPEATING STEPS AS A BLOCK GOES THROUGH THE SAME REVIEW, on its own like a typed run, and
+ // waits for anything else on the list rather than throwing it away. Which steps may form a
+ // block — complete, no split hold, not the window coming forward — is the backend's answer.
+ function reviewLoop(){
+   const r = routineWith(chosenRoutine)
+   if (!r || !stepList) { return }
+   const from = parseInt($('routineLoopFrom').value, 10)
+   const to = parseInt($('routineLoopTo').value, 10)
+   const raw = ($('routineLoopCount').value || '').trim()
+   if (!Number.isInteger(from) || !Number.isInteger(to)) {
+     text($('routineStepsWhy'), 'choose the first and last steps of the block')
+     return
+   }
+   if (!/^\d+$/.test(raw)) {
+     text($('routineStepsWhy'), 'Enter how many times the block happens, as a whole number.')
+     return
+   }
+   if (stepEditCount()) {
+     text($('routineStepsWhy'), 'Review or reset the other changes first — repeating steps ' +
+       'as a block changes how many steps there are, so it is reviewed on its own.')
+     return
+   }
+   text($('routineStepsWhy'), '')
+   acts.ReviewStepEdit(r.id, stepList.basis,
+     [{op: 'loop', at: from, upto: to, count: parseInt(raw, 10)}]).then(v => {
+     if (v && v.why && v.correct) {
+       stepReview = null
+       showing($('routineStepEdit'), false)
+       text($('routineStepsWhy'), v.why)
+       return
+     }
      if (!v || v.why) {
        stepReview = null
        showing($('routineStepEdit'), false)
@@ -5875,6 +5984,7 @@
    ['type ', 'Type'],
    ['hold ', 'Hold'],
    ['wait ', 'Wait'],
+   ['repeat ', 'Repeat'],
  ]
 
  function verbOf(s){

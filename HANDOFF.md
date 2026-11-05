@@ -12633,3 +12633,14 @@ Next: inserting steps, then repeats and drags. See
   - 11 mutants killed.
 
 Next: repeats and drags. See [[ADR-312-a-step-can-be-added]].
+
+### 2026-11-04 — Steps can be repeated
+
+- `EditRepeat`: a key press's or a block's count.
+- `EditLoop`: complete steps as one block, reviewed on its own. It never splits a hold, and is
+  refused in a checked routine through `codegen.Unpropagatable`.
+- Studio: a `×` box on a key-press or block row, and a block chooser or the reason there is none.
+- Kept by the next edit and by a rebuild under today's rules. 14 mutants killed.
+
+Next: drags, then adding clicks under the approved policy. See
+[[ADR-313-steps-can-be-repeated]].

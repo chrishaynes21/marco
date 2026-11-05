@@ -385,9 +385,11 @@ func TestEveryStepSentenceTheBackendWritesHasAVerb(t *testing.T) {
 			X: 1, Y: 2, WinRel: true, RelX: 3, RelY: 4}, false},
 		{"an application switch", macroir.Step{Kind: macroir.StepActivate,
 			Text: "Discord"}, false},
-		// AND THE ONES WITH NO SENTENCE, which `oneStep` renders as their own name.
+		// AND THE ONE WITH NO SENTENCE, which `oneStep` renders as its own name.
 		{"a kind with no sentence", macroir.Step{Kind: macroir.StepFind}, true},
-		{"a loop", macroir.Step{Kind: macroir.StepLoop, Count: 2}, true},
+		// A LOOP HAS A SENTENCE SINCE BLOCKS COULD BE MADE (ADR-313): it names what repeats.
+		{"a loop", macroir.Step{Kind: macroir.StepLoop, Count: 2,
+			Steps: []macroir.Step{{Kind: macroir.StepKey, Key: "a"}}}, false},
 	} {
 		line := oneStep(c.step)
 		verb, rest := openedBy(verbs, line)

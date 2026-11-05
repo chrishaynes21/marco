@@ -1337,6 +1337,15 @@ func oneCharacter(s macroir.Step, at int) (string, error) {
 		"be made out of it", at+1, s.Key)
 }
 
+// BlocksRepeatable says whether steps of this routine could be repeated as a block at all, for a
+// surface deciding whether to offer it: not in a routine whose presses are checked, asked of the
+// same generator rule `loopedRange` asks, so the offer and the refusal cannot disagree.
+func BlocksRepeatable(steps []macroir.Step) bool {
+	probe := append(clonedSteps(steps), macroir.Step{Kind: macroir.StepLoop, Count: 2,
+		Steps: []macroir.Step{{Kind: macroir.StepWait, Ms: 1}}})
+	return codegen.Unpropagatable(probe) == ""
+}
+
 // maxRepeat is the most times one step or block may be asked to happen. A guard against a typo,
 // not a judgement: 10000 presses of a key is a routine that cannot be stopped in reasonable time.
 const maxRepeat = 999

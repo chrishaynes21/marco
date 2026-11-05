@@ -1119,3 +1119,8 @@ list that was shown. It is collected with the other operations and built once, s
 review with removals and changes. Nothing may be added before the step that brings the window
 forward, and no click can be added yet. Studio puts a `+` on each step row, which opens a dashed
 row under it. See [[ADR-312-a-step-can-be-added]].
+
+**And steps can be repeated.** `EditRepeat` changes the count of a key press or a repeated block.
+`EditLoop` repeats complete steps as one block, never splitting a hold. A routine whose presses
+are checked cannot have a block, and Studio says so instead of offering one. Both are kept by the
+next edit and by a rebuild under today's rules. See [[ADR-313-steps-can-be-repeated]].

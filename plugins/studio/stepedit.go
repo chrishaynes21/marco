@@ -125,6 +125,10 @@ type StepRow struct {
 	Keyed bool   `json:"keyed,omitempty"`
 	Key   string `json:"key,omitempty"`
 	Holds bool   `json:"holds,omitempty"`
+	// Repeats says this step has a count (a key press, or a repeated block) and Count what it
+	// is now, from 1. A half of a hold has none: it repeats only as part of a block.
+	Repeats bool `json:"repeats,omitempty"`
+	Count   int  `json:"count,omitempty"`
 }
 
 // StepChange is one operation the page asks for, against a position in the list it was shown.
@@ -154,6 +158,8 @@ type StepChange struct {
 	// Kind is which step an "insert" adds after `At`: "wait" (with `To`), "key" (with `Key`)
 	// or "type" (with `Text`). `At` is -1 for before the first step.
 	Kind string `json:"kind"`
+	// Count is how many times, for a "repeat" or a "loop" change.
+	Count int `json:"count"`
 }
 
 // StepEditing is a routine's steps as the panel lists them, before anything is asked.
@@ -184,6 +190,11 @@ type StepEditing struct {
 	// orchestrator’s `TypedRunsIn`, asked of the list this panel is showing.
 	TypedRuns []TypedChoice `json:"typed_runs,omitempty"`
 	TypedSays string        `json:"typed_says,omitempty"`
+	// Blocks says whether steps can be repeated as one block in this routine, and BlocksSays
+	// why not when they cannot: a routine whose presses are checked cannot, and is told how
+	// a key press repeats instead. Asked of orchestrator.BlocksRepeatable.
+	Blocks     bool   `json:"blocks,omitempty"`
+	BlocksSays string `json:"blocks_says,omitempty"`
 }
 
 // StepPreview is one reviewed edit, before anything is written.
@@ -278,8 +289,17 @@ func (a *Acts) StepEditing(id string) StepEditing {
 	// AND WHICH RUNS OF THEM A PERSON COULD DECLARE TYPED TEXT, off the same list the
 	// rows came from so a range the chooser offers is a range of the rows on screen.
 	runs := typedChoices(e.Steps())
+	// AND WHETHER A BLOCK CAN BE REPEATED HERE, said rather than simply not offered: a
+	// control that vanishes reads as a capability that does not exist.
+	blocks := orchestrator.BlocksRepeatable(e.Steps())
+	blocksSays := ""
+	if !blocks {
+		blocksSays = "This routine checks each press against its window, so steps cannot " +
+			"repeat as a block. A key press can still repeat by its count."
+	}
 	return StepEditing{ID: id, Name: e.Name, Basis: e.Basis, Rows: rows,
-		Editable: len(rows) > 0, TypedRuns: runs, TypedSays: typedCaption(runs)}
+		Editable: len(rows) > 0, TypedRuns: runs, TypedSays: typedCaption(runs),
+		Blocks: blocks, BlocksSays: blocksSays}
 }
 
 // stepRows is a review's step list as the panel shows it.
@@ -298,6 +318,9 @@ func stepRows(e orchestrator.EditReview) []StepRow {
 		switch s.Kind {
 		case macroir.StepKey:
 			r.Keyed, r.Key = true, s.Key
+			r.Repeats, r.Count = true, max(s.Count, 1)
+		case macroir.StepLoop:
+			r.Repeats, r.Count = true, max(s.Count, 1)
 		case macroir.StepKeyDown, macroir.StepKeyUp:
 			r.Keyed, r.Key, r.Holds = true, s.Key, true
 		}
@@ -374,7 +397,7 @@ func (a *Acts) ReviewStepEdit(id, basis string, changes []StepChange) StepPrevie
 		// the one `routes` own pattern will read back.
 		edits = append(edits, orchestrator.StepEdit{
 			Op: orchestrator.EditOp(strings.TrimSpace(c.Op)), At: c.At, To: c.To,
-			Upto: c.Upto, X: c.X, Y: c.Y, Name: c.Name, Text: c.Text, Key: c.Key, Kind: c.Kind})
+			Upto: c.Upto, X: c.X, Y: c.Y, Name: c.Name, Text: c.Text, Key: c.Key, Kind: c.Kind, Count: c.Count})
 	}
 	d := orchestrator.Deps{Reg: a.reg(), Out: &strings.Builder{}}
 	e, err := d.PrepareEditOf(chosen.route(), basis, edits)
