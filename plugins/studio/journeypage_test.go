@@ -59,12 +59,12 @@ func TestTheJourneyPutsTheQuestionFirstAndPlayUnderWhatIsSelected(t *testing.T) 
 	chosen := between(t, routines, `id="routineChosen"`, `<h2>`)
 	order := []string{
 		`id="routineLeaving"`,  // what leaving this routine would throw away
-		`id="routineChecks"`,   // whether its presses are checked
-		`id="routineWhy"`,      // and why it cannot run, when it cannot
+		`id="routineWhy"`,      // why it cannot run and what to do, when it cannot
 		`id="routineIntoRow"`,  // the window a run would press in
 		`id="routineArgsBox"`,  // and the text it asks for
 		`id="routineSource"`,   // what it will do, collapsed
 		`id="routineMaintain"`, // rebuild and re-record, collapsed
+		`id="routineChecks"`,   // and, under More, how its presses are checked
 	}
 	for i := 0; i+1 < len(order); i++ {
 		if !before(chosen, order[i], order[i+1]) {
@@ -89,7 +89,6 @@ func TestNoBlockingMessageIsInsideACollapsedDetail(t *testing.T) {
 	page := thePage(t)
 	for _, id := range []string{
 		"routineWhy",           // why this routine cannot be performed
-		"routineChecks",        // whether its presses are checked at all
 		"routineReviewCaution", // what the chosen rebuild changes
 		"routineReviewRefused", // a replacement that was refused
 		"routineReplaceBtn",    // and the consent itself
@@ -720,42 +719,50 @@ func openedBy(verbs [][2]string, line string) (verb, rest string) {
 	return "", line
 }
 
-// A STATUS WORD SAYS WHAT WAS CHECKED, AND NEVER THAT AN OUTCOME WAS VERIFIED.
+// A ROUTINE ROW SAYS ONLY WHAT CHANGES THE NEXT ACTION.
 //
-// `Window-checked` means the window checks are present: the press is checked against the same
-// program, size and scale it was recorded against. It does not mean the routine did what the
-// person wanted, and Marco cannot know that — it presses and reports what the press returned.
+// The one exception that does is a routine that cannot run, and it is badged `Can't run`.
+// The window checks are not on the row in either direction: `Window-checked` read as an outcome
+// somebody could rely on, and `Unchecked` as a verification step somebody had missed. The
+// owner: "Window checks are implementation detail, not a useful routine status." So the line
+// that chooses the word may not read the contract at all, which is also what stops a new
+// classification taking their place. The checks happen underneath, unchanged.
 //
-// The risk is a word, not a sentence. On a row there is nothing beside it to narrow it, so
-// `Checked`, `Verified`, `Confirmed`, `Works` would each be read as a claim about the OUTCOME.
-// The first draft of this pass said `Checked` for exactly that reason: it was shorter.
-func TestAStatusWordNeverClaimsAnOutcomeWasVerified(t *testing.T) {
+// And no word that claims an outcome, which is the rule this test used to be: Marco presses
+// and reports what the press returned, and does not know a routine did what somebody wanted.
+// The rendered half is TestARoutineRowShowsABadgeOnlyWhenItCannotRun.
+func TestARoutineRowSaysOnlyWhatChangesTheNextAction(t *testing.T) {
 	js := thePage(t)[strings.Index(thePage(t), "<script>"):]
 	i := strings.Index(js, "const status = ")
 	if i < 0 {
 		t.Fatal("the row's status words are not chosen in one place any more")
 	}
-	line := js[i : strings.Index(js[i:], "\n")+i+200]
+	line := js[i : strings.Index(js[i:], "\n")+i]
 
-	for _, word := range []string{"'Verified'", "'Confirmed'", "'Works'", "'Passed'",
-		"'Succeeded'", "'Checked'"} {
-		if strings.Contains(line, word) {
-			t.Errorf("a routine row is labelled %s. That reads as a claim about what "+
-				"the routine ACHIEVED. What is known is narrower: the window "+
-				"checks are present. Say which check it is.", word)
+	for _, word := range []string{"Verified", "Confirmed", "Works", "Passed",
+		"Succeeded", "Checked", "checked", "Unchecked", "Window-checked"} {
+		if strings.Contains(line, "'"+word+"'") || strings.Contains(line, `"`+word+`"`) {
+			t.Errorf("a routine row is labelled %s. A row says only what changes "+
+				"what somebody does next: %s", word, line)
 		}
 	}
-	// AND THE ORDINARY ROUTINE CARRIES NO WORD AT ALL. A routine checked against its
-	// window is every routine recorded since Marco measured windows; a badge on every row
-	// is the badge people stop reading, including the one that says Won't run. Only the
-	// exceptions speak. See [[Studio-coherence-audit-2026-11-02]], finding 12.
-	if !strings.Contains(line, "r.contract === 'guarded' ? null") {
-		t.Error("a guarded routine's row carries a status word; only an exception should")
+	if strings.Contains(line, "contract") {
+		t.Errorf("the row's badge reads the routine's contract, which is how its "+
+			"presses are checked. That is not a status to put on a row: %s", line)
 	}
-	for _, word := range []string{"'Unchecked'", `"Won't run"`} {
-		if !strings.Contains(line, word) {
-			t.Errorf("the exception %s is no longer said on its row", word)
+	if !strings.Contains(line, `!r.runnable ? ['no', "Can't run"] : null`) {
+		t.Errorf("the row's badge is not `Can't run` for a routine that cannot run "+
+			"and nothing otherwise: %s", line)
+	}
+	// AND THE LINE BESIDE PLAY DOES NOT SAY IT EITHER.
+	for _, s := range []string{"and checks it before each press.'",
+		"Its presses are not checked.'"} {
+		if strings.Contains(js, s) {
+			t.Errorf("the page still says %q beside Play", s)
 		}
+	}
+	if !strings.Contains(js, "const says = row ? 'Brings this window forward.' :") {
+		t.Error("the line beside Play no longer just names the window it brings forward")
 	}
 }
 

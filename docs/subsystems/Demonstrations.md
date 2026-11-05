@@ -1043,6 +1043,14 @@ names three measurements in front of somebody deciding whether to press a button
 ordinary case, words for the two that are a warning, and what is checked is Help. See
 [[ADR-289-the-panel-says-less-and-play-is-bigger]].
 
+**And then the window checks left the row and the front of the panel altogether.** `Unchecked` on
+a legacy routine's row read as a verification step somebody had missed, and there was none to
+take. A row now has a badge only when the routine can't run: `Can't run`, with a short reason and
+remedy beside its Play (`Routine.Cant`). Beside Play is *Brings this window forward.* How the
+presses are checked, and the whole refusal, are in the More tab, with what is checked in Help. The
+checks themselves did not change. See
+[[ADR-309-a-routine-row-says-only-what-changes-the-next-action]].
+
 **And then the panel went INTO the row.** A routine is a row with a chevron that opens in place;
 the separate selected-routine card is gone, so what somebody is reading and the routine it is
 about are no longer a scroll apart. ONE PANEL, CARRIED, AND NEVER REBUILT: `routineChosen` is

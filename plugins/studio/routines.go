@@ -188,6 +188,11 @@ type Routine struct {
 	// routine listed as ready that cannot run is the state this product keeps finding.
 	Runnable bool   `json:"runnable"`
 	Why      string `json:"why,omitempty"`
+	// Cant is the refusal as a person needs it: what is wrong, in a few words, and what to
+	// do about it. Set exactly when Why is. It is what the row and the open panel show. Why
+	// is the whole account and lives under More, because it explains the window checks,
+	// which is how Marco works rather than something to act on.
+	Cant string `json:"cant,omitempty"`
 }
 
 // routineRun is this window's account of one performance of a routine.
@@ -289,6 +294,8 @@ func (a *Acts) Routines() []Routine {
 		switch {
 		case cannot[r.ID] != "":
 			r.Why = cannot[r.ID]
+			r.Cant = "It was saved without a window to run in. Save it again " +
+				"from its demonstration."
 		case contract == orchestrator.Incomplete:
 			// IT SAVES AND THEN REFUSES, which is the contract working rather
 			// than a broken file — and it is still not something to press Play on
@@ -302,6 +309,7 @@ func (a *Acts) Routines() []Routine {
 			// one line reads that one. Held by
 			// TestNothingInTheRoutinePanelIsSaidTwice.
 			r.Why, r.Checks = r.Checks, ""
+			r.Cant = "Its recording is incomplete. Record it again."
 		default:
 			// AND IS IT STILL LEGAL MARCO. Asked through the production checker,
 			// because a routine is a file somebody can open and edit and the
@@ -309,6 +317,8 @@ func (a *Acts) Routines() []Routine {
 			if cerr := driver.CheckSource(src); cerr != nil {
 				r.Why = "it is no longer a program Marco can run: " +
 					cerr.Error()
+				r.Cant = "Its saved program has an error. Fix it in the " +
+					"source, or record it again."
 			} else {
 				r.Runnable = true
 			}

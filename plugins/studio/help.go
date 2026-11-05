@@ -205,13 +205,14 @@ func (a *Acts) Help() Help {
 			"size it was recorded at, and that it is drawn at the same scale.",
 		"If any of them has changed it stops, rather than pressing somewhere it was " +
 			"never shown.",
-		"Beside Play you are told which window the run will bring forward, and whether " +
-			"its presses are checked against it.",
+		"None of this is something you need to do or check yourself. A routine that is " +
+			"ready to play carries no badge.",
 		"A routine saved before Marco measured windows checks nothing: every press " +
 			"happens at the point it was recorded at, whatever is there now. Its " +
-			"card says so.",
-		"A recording that measured only some of those terms refuses every press, and " +
-			"its card says which measurement is missing. Record it again.",
+			"More tab says so.",
+		"A recording that measured only some of those terms refuses every press. Its " +
+			"row says it can't run and to record it again, and its More tab says " +
+			"which measurement is missing.",
 	}
 
 	// SIMPLIFY, SAID ONCE HERE AND AGAIN IN THE REVIEW WHERE IT IS APPROVED. The recording

@@ -1704,9 +1704,10 @@ What to check, and what each failure would mean:
   each naming its own application; click each in turn and *What it will do* must change to that
   one's saved Marco. A card that shows the other one's steps means the window is choosing by name,
   and pressing Play would then perform the one you did not click.
-- **It says `every press is checked`** on the card, and the sentence under it names what that
-  means. `its presses are not checked` on a routine you just recorded means the measurements did
-  not reach the saved file: §62's review bullet is where that is diagnosed.
+- **A ready routine has no badge, and nothing on its row talks about checks.** Only a routine that
+  can't run is badged, `Can't run`, with what to do beside its Play. Open a routine you just
+  recorded and look in its More tab: `Its presses are not checked` there means the measurements did
+  not reach the saved file, and §62's review bullet is where that is diagnosed.
 - **A library from before this change says so.** If you have ever run Marco from the repo root,
   there may be a `routes` folder there with your older routines in it. Opening Studio from
   `plugins\studio` should NOT hide them in silence: the line under *Your routines* names the

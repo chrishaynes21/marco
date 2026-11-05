@@ -198,7 +198,7 @@ setTimeout(() => {
     ' onerow=' + (oneRow !== '' ? 1 : 0) +
     ' onevalue=' + (oneValue === '4660:77' ? 1 : 0) +
     ' onelabel=' + (oneRow.includes('notes') ? 1 : 0) +
-    ' onesays=' + (oneSays.includes('checks it before each press') &&
+    ' onesays=' + (oneSays.startsWith('Brings this window forward. || ') &&
         oneSays.includes('notes to the front') ? 1 : 0) +
     ' onedead=' + oneDead +
     ' tworow=' + (twoRow !== '' ? 1 : 0) +
@@ -208,7 +208,7 @@ setTimeout(() => {
     ' twosays=' + (twoSays.includes('2 windows open') ? 1 : 0) +
     ' twodeadafter=' + twoDeadAfter +
     ' twosaysafter=' + (twoSaysAfter.includes('second to the front') &&
-        twoSaysAfter.includes('checks it before each press') ? 1 : 0) +
+        twoSaysAfter.startsWith('Brings this window forward. || ') ? 1 : 0) +
     ' nonerow=' + (noneRow === '' ? 1 : 0) +
     ' nonewhy=' + (noneWhy.includes('no window open') ? 1 : 0) +
     ' nonedead=' + noneDead +

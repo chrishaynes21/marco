@@ -278,7 +278,6 @@
  .pill{display:inline-block;font:500 11.5px/1 var(--text);padding:5px 9px;
         border-radius:999px;white-space:nowrap;flex:none}
  .pill.ok{background:var(--ok-bg);color:var(--ok)}
- .pill.un{color:var(--faint);border:1px solid var(--line)}
  .pill.no{background:var(--no-bg);color:var(--no)}
 
  /* A STEP IS A ROW: number, verb, value. The value is ONE cell, so a click's
@@ -1464,24 +1463,14 @@
       <div class="banner hide" style="margin-top:8px" id="routineMoveOutcome"></div>
       <div class="banner hide" style="margin-top:6px" id="routineMoveLeft"></div>
 
-      <!-- WHETHER ITS PRESSES ARE CHECKED, AND ONLY WHEN THAT IS A WARNING.
-           Three contracts, and the guarded one -- which is every routine recorded since
-           Marco measured windows -- now says NOTHING here. It read "Checks the program,
-           window size and scale before each press. Stops if a check fails.", a few lines
-           above the press-in row that says the same thing about the window the run will
-           actually raise: one fact twice, and the half that enumerates the measurements
-           is machine detail in front of somebody deciding whether to press a button.
+      <!-- THE REASON IT CANNOT RUN, AND WHAT TO DO, when there is one. OUTSIDE every
+           collapsed detail on purpose: a refusal nobody can see is a Play button that does
+           nothing for a reason somebody has to go looking for. It is the short sentence
+           (`cant`); the whole account, which is about the window checks, is under More.
 
-           What is left is the two contracts that are a warning: a legacy routine presses
-           where it was recorded having checked nothing, and an incomplete one refuses
-           (its sentence is in `routineWhy`, which is also the reason it cannot run).
-           WHAT is checked is Help, linked from here whatever the contract, because
-           somebody asking that question is asking it about Marco and not about this
-           routine. Written by `checksSentence`. See ADR-251. -->
-      <div class="muted" style="margin-top:6px" id="routineChecks"></div>
-      <!-- AND THE REASON IT CANNOT RUN, when there is one. OUTSIDE every collapsed detail
-           on purpose: a refusal nobody can see is a Play button that does nothing for a
-           reason somebody has to go looking for. -->
+           WHETHER ITS PRESSES ARE CHECKED IS NOT SAID HERE ANY MORE. It is how the routine
+           works, not something to act on, and saying it here read as a verification step
+           somebody had missed. It is under More (`routineChecks`) and in Help. -->
       <div class="banner bad hide" style="margin-top:8px" id="routineWhy"></div>
 
       <!-- PLAY, DIRECTLY UNDER WHAT IS SELECTED, AND ALONE.
@@ -1876,6 +1865,12 @@
            scenario that checks the provenance line reads it from here. -->
       <div class="tabpanel hide" role="tabpanel" id="routineMaintain"
         aria-labelledby="routineMaintainSummary">
+      <!-- HOW ITS PRESSES ARE CHECKED, WHEN THAT NEEDS SAYING, AND THE WHOLE REFUSAL.
+           The advanced details behind the open panel. A guarded routine (every one recorded
+           since Marco measured windows) says nothing; one saved before then says its presses
+           are not checked. Written by `checksSentence`; see ADR-251 and ADR-309. -->
+      <div class="muted hide" style="margin-top:6px" id="routineChecks"></div>
+      <div class="muted hide" style="margin-top:6px" id="routineWhyFull"></div>
       <!-- AND HOW IT WAS RECORDED, WHEN THE FILE SAYS SO.
            Hidden rather than filled in when it does not. Every routine saved before
            Studio could state a mode says nothing, and what those captured depended on
@@ -3833,22 +3828,21 @@
      // clause on every row — `every press is checked`, `cannot be performed as it
      // stands` — so the thing a person scans for (the NAME) competed with three
      // lines of explanation beside it, eleven times down the page.
-     // `Window-checked`, AND NOT `Checked`, WHICH MEANS SOMETHING ELSE.
+     // A BADGE ONLY WHEN IT CHANGES WHAT SOMEBODY DOES NEXT, and the one thing that does
+     // is a routine that cannot run. Its short reason and what to do about it are beside
+     // its Play.
      //
-     // What is checked is the WINDOW: the same program, the same size, the same scale as
-     // the one the press was recorded against. It is NOT a claim that the routine did
-     // what the person wanted, and `Checked` on its own invites exactly that reading —
-     // a word on a row has no sentence beside it to narrow it. Marco does not verify an
-     // application's outcome and must not appear to.
+     // NOT THE WINDOW CHECKS, EITHER WAY. Rows used to say `Unchecked` for a routine saved
+     // before Marco measured windows, and the word made people think they had skipped a
+     // verification step. There is nothing for them to do: the checks happen, or do not,
+     // underneath, `contract` still carries which, and what they are is in Help and the
+     // routine's More tab. `Window-checked` went the same way earlier, for the same reason.
+     // No other classification takes their place. An ordinary, ready routine has no badge.
      //
-     // Held by TestAStatusWordNeverClaimsAnOutcomeWasVerified.
-     // A BADGE ONLY FOR AN EXCEPTION. A routine checked against its window is every
-     // routine recorded since Marco measured windows, and saying so on every row is the
-     // badge people learn to stop reading -- including the one that says Won't run.
-     // [[ADR-289-the-panel-says-less-and-play-is-bigger]] made the open card silent about
-     // it; the row is silent too.
-     const status = !r.runnable ? ['no', "Won't run"]
-       : r.contract === 'guarded' ? null : ['un', 'Unchecked']
+     // AND NO WORD THAT CLAIMS AN OUTCOME. Marco presses and reports what the press
+     // returned; it does not know the routine did what somebody wanted. Held by
+     // TestARoutineRowSaysOnlyWhatChangesTheNextAction.
+     const status = !r.runnable ? ['no', "Can't run"] : null
      const key = routineKey(r.id)
      const open = r.id === chosenRoutine
      // THE OPEN ROW CARRIES THE IDS THE REST OF THIS FILE KNOWS.
@@ -3889,13 +3883,13 @@
      $(playId).onclick = () => playFrom(r.id)
      if (open) { $('routineRenameBtn').onclick = () => revealRename() }
      if (open) { $('routineForgetBtn').onclick = () => reviewForget(r.id) }
-     // AND THE SHORT REASON A SHUT ROW CANNOT BE PLAYED, beside its own Play. The
-     // open one has the whole refusal in `routineWhy`, under the name, where a
-     // second short copy would be the same sentence twice.
-     if (!open && !r.runnable && r.why) {
+     // AND THE SHORT REASON A SHUT ROW CANNOT BE PLAYED, AND WHAT TO DO, beside its own
+     // Play. The open one says it in `routineWhy`, under the name, where a second copy
+     // would be the same sentence twice.
+     if (!open && !r.runnable && (r.cant || r.why)) {
        const says = $(saysId)
        says.className = 'no rowsays'
-       says.textContent = shortWhy(r.why)
+       says.textContent = r.cant || shortWhy(r.why)
      }
    })
    // AND THE PANEL GOES BACK INTO WHICHEVER ROW IS OPEN.
@@ -5727,19 +5721,23 @@
    // opened for; under another routine's name it is an offer to call THIS one THAT,
    // which is a different routine that already exists.
    if (renamingFor && renamingFor !== r.id) { hideRename() }
-   // WHAT IT CHECKS, WHEN THAT IS NOT WHAT THE BANNER BELOW SAYS. An incomplete
-   // routine's checking and its reason for refusing are one sentence, and the backend
-   // sends it as `why` alone rather than in both — so an empty line here is a line that
-   // would have been the next one twice. See routines.go.
+   // WHAT IT CHECKS, UNDER MORE. Only a routine saved before Marco measured windows has a
+   // sentence here, and it is how that routine works rather than something to act on.
+   // An incomplete routine's checking is its reason for refusing, and the backend sends
+   // that as `why` alone. See routines.go.
    text($('routineChecks'), r.checks || '')
    showing($('routineChecks'), !!r.checks)
+   // THE WHOLE REFUSAL, UNDER MORE TOO. The banner above Play says what is wrong and what
+   // to do; this is the account behind it, which is about the window checks.
+   text($('routineWhyFull'), r.cant && r.why ? 'Why it can’t run: ' + r.why : '')
+   showing($('routineWhyFull'), !!(r.cant && r.why))
    // WHAT IT WAS RECORDED AS, OR NOTHING AT ALL. See the element's comment: absent is
    // rendered as absent, and `recorded as` names it as a statement the file makes rather
    // than as a property this window worked out.
    text($('routineCaptures'), r.captures ? 'Recorded as ' + r.mode + '. ' + r.captures : '')
    showing($('routineCaptures'), !!r.captures)
    showing($('routineWhy'), !r.runnable)
-   text($('routineWhy'), r.why || '')
+   text($('routineWhy'), r.cant || r.why || '')
    // ONE HANDOFF SENTENCE, and `playMeans` is the one that decides which. Shown on
    // whether there are words rather than on a second copy of its condition: two
    // expressions for one choice is how the card came to say it twice. See the element.
@@ -6326,16 +6324,15 @@
    const row = (windows || []).find(w => w.id === intoWindow)
    // ONE SHORT LINE, AND THE FULL SENTENCE ON THE CHOOSER. The backend's sentence beside the
    // select was twenty-seven words under every open routine, naming the window the select
-   // already shows. What it adds is whether the presses are checked, which is the same
-   // fact the backend reads (`contract`, in handoffSays) -- so it is said in eight words
-   // with a link to Help, and the whole sentence is the select's title and description.
+   // already shows. So it is said in four words with a link to Help, and the whole
+   // sentence is the select's title and description.
    // A routine with several windows and none chosen keeps the backend's own instruction.
-   const r = routineWith(chosenRoutine)
-   const says = row
-     ? (r && r.contract === 'guarded'
-         ? 'Brings this window forward, and checks it before each press.'
-         : 'Brings this window forward. Its presses are not checked.')
-     : ((t && t.choose) || '')
+   //
+   // AND IT SAYS WHERE, NOT HOW IT IS CHECKED. It used to add "and checks it before each
+   // press" or "Its presses are not checked", which is the row badge again in a sentence:
+   // a fact about how Marco works, with nothing for the person to do about it. That is
+   // Help's, behind the link on this line.
+   const says = row ? 'Brings this window forward.' : ((t && t.choose) || '')
    sel.title = row ? row.says : ''
    text($('routineIntoSays'), says)
    showing($('routineIntoSays'), !!says)

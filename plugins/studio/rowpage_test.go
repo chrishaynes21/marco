@@ -38,6 +38,8 @@ import (
 // that cannot run at all.
 //
 // THREE, BECAUSE THE RULING HAS THREE ANSWERS FOR PLAY. Ready, needing something, and refusing.
+// The one that asks for nothing was saved before Marco measured windows, because that is the
+// ready routine that used to carry an `Unchecked` badge. See rowstatuspage_test.go.
 const theRowBackend = `
 window.played = []
 window.go = {main: {
@@ -91,12 +93,15 @@ window.go = {main: {
        saved_at: '31 Oct 2026 23:09', source: 'use os.\n'},
       {id: 'notepad/context/save-the-file', name: 'save the file',
        slug: 'save-the-file', app: 'notepad', scope: 'app-context',
-       contract: 'guarded', runnable: true, wrote: 'x',
+       contract: 'legacy', runnable: true, wrote: 'x',
+       checks: 'Its presses are not checked: each one happens at the point it ' +
+         'was recorded at, whatever is there now.',
        saved_at: '30 Oct 2026 11:02', source: 'use os.\n'},
       {id: 'global/open-the-thing', name: 'open the thing', slug: 'open-the-thing',
-       scope: 'everywhere', contract: 'legacy', runnable: false, wrote: 'x',
-       why: 'its recording is missing how wide that window was, so every press ' +
-         'refuses. Record it again to measure it.',
+       scope: 'everywhere', contract: 'incomplete', runnable: false, wrote: 'x',
+       why: 'The recording is missing how wide that window was, so every press ' +
+         'refuses. Record it again.',
+       cant: 'Its recording is incomplete. Record it again.',
        saved_at: '29 Oct 2026 09:30', source: 'use os.\n'}]),
     CancelMove: () => {}, MoveRoutine: () => Promise.resolve({}),
     RenameRoutine: () => Promise.resolve({}),
@@ -218,8 +223,8 @@ setTimeout(() => {
 setTimeout(() => {
   // THE ONE THAT CANNOT RUN HAS A DARK PLAY AND ITS REASON BESIDE IT.
   r.deadPlay = document.getElementById('routinePlay-' + K3).disabled ? 1 : 0
-  r.whyBeside = (document.getElementById('routineSays-' + K3).textContent || '')
-    .indexOf('how wide that window was') >= 0 ? 1 : 0
+  r.whyBeside = (document.getElementById('routineSays-' + K3).textContent || '') ===
+    'Its recording is incomplete. Record it again.' ? 1 : 0
   document.title = 'err=0 ' + Object.keys(r).map(k => k + '=' + r[k]).join(' ')
 }, 5600)`)
 	n := counters(t, title, "rows=")

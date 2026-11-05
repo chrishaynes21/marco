@@ -616,6 +616,8 @@ window.go = {main: {
        app: 'discord', scope: 'app', contract: 'guarded', runnable: false,
        why: 'every press in it checks the window it was made in, and it was saved ' +
             'to switch nothing',
+       cant: 'It was saved without a window to run in. Save it again from its ' +
+             'demonstration.',
        checks: 'Every press is checked against the window it was recorded in.',
        source: 'the Discord is a script. // discord'},
     ]),
@@ -686,7 +688,7 @@ setTimeout(() => {
   window.__secondShown =
     document.getElementById('routineSource').textContent.includes('// discord') ? 1 : 0
   window.__secondWhy =
-    document.getElementById('routineWhy').textContent.includes('switch nothing') ? 1 : 0
+    document.getElementById('routineWhy').textContent.includes('saved without a window to run in') ? 1 : 0
   window.__secondOff = document.getElementById('routinePlayBtn').disabled ? 1 : 0
 }, 2600)
 `

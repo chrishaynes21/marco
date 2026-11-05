@@ -210,6 +210,9 @@ func TestASavedRoutineIsListedAndReadyToPlay(t *testing.T) {
 	if !r.Runnable {
 		t.Errorf("it is listed as unable to run: %s", r.Why)
 	}
+	if r.Cant != "" {
+		t.Errorf("a routine ready to play carries a refusal for its row: %q", r.Cant)
+	}
 	if r.Slug != "ark-graphics" {
 		t.Errorf("its slug is %q", r.Slug)
 	}
@@ -354,6 +357,10 @@ func TestARoutineThatCannotPressAnythingIsNotOfferedForPlay(t *testing.T) {
 	if !strings.Contains(r.Why, "no window for those presses to be checked against") {
 		t.Errorf("the refusal does not say why: %q", r.Why)
 	}
+	if r.Cant != "It was saved without a window to run in. Save it again from its "+
+		"demonstration." {
+		t.Errorf("the short refusal a row shows reads %q", r.Cant)
+	}
 	if why := playing(t, a, "ark graphics"); why == "" {
 		t.Fatal("pressing Play on it started a run")
 	} else if !strings.Contains(why, "cannot be performed as it stands") {
@@ -385,6 +392,9 @@ func TestARoutineMissingAMeasurementIsNotOfferedForPlay(t *testing.T) {
 	}
 	if !strings.Contains(r.Why, "what scale it was drawn at") {
 		t.Errorf("the refusal does not name the missing measurement: %q", r.Why)
+	}
+	if r.Cant != "Its recording is incomplete. Record it again." {
+		t.Errorf("the short refusal a row shows reads %q", r.Cant)
 	}
 	if why := playing(t, a, "ark graphics"); why == "" {
 		t.Fatal("pressing Play on it started a run")
@@ -1776,4 +1786,38 @@ func theRecordSays(a *Acts, reference string) string {
 		return fmt.Sprintf("no record at %s (%v)", at, err)
 	}
 	return string(raw)
+}
+
+// AND A ROUTINE WHOSE SAVED PROGRAM NO LONGER CHECKS SAYS SO SHORTLY, WITH WHAT TO DO.
+//
+// A routine is a file somebody can open and edit, so this is the refusal a hand edit produces.
+// The row shows `Cant`; the checker's own words stay in `Why`, under More. See ADR-309.
+func TestARoutineThatNoLongerChecksSaysWhatToDo(t *testing.T) {
+	a := aSavedRoutine(t, "app-anywhere", nil)
+	r, found := routineCalled(a.Routines(), "ark graphics")
+	if !found {
+		t.Fatal("it is not listed at all")
+	}
+	// AT THE TOP LEVEL, outside any script, where the checker refuses a sentence.
+	if !strings.Contains(r.Source, "use os.\n") {
+		t.Fatalf("the saved routine does not open the way this edit expects: %q", r.Source)
+	}
+	broken := strings.Replace(r.Source, "use os.\n",
+		"use os.\nthis is not a sentence Marco has.\n", 1)
+	if err := os.WriteFile(r.Path, []byte(broken), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	r, found = routineCalled(a.Routines(), "ark graphics")
+	if !found {
+		t.Fatal("after the edit it is not listed at all")
+	}
+	if r.Runnable {
+		t.Fatal("a routine that no longer checks is offered for Play")
+	}
+	if !strings.Contains(r.Why, "no longer a program Marco can run") {
+		t.Errorf("the whole refusal reads %q", r.Why)
+	}
+	if r.Cant != "Its saved program has an error. Fix it in the source, or record it again." {
+		t.Errorf("the short refusal a row shows reads %q", r.Cant)
+	}
 }

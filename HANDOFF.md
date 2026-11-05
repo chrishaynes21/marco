@@ -12549,3 +12549,18 @@ Output, result and summary: `docs/experiments/Roadmap-38-output/2026-11-04-contr
 The full streams are in `%LOCALAPPDATA%\marco-gate\20261104-151232`; the root one is 8.4 MB, so it
 was not committed. The clone was kept at
 `%LOCALAPPDATA%\marco-cleanroom\20261104-151200-250a39b`.
+
+### 2026-11-04 — A routine's row says only what changes the next action
+
+The owner: *"Window checks are implementation detail, not a useful routine status. Showing
+'Unchecked' makes people think they've missed a verification step."* So routine rows carry no
+window-check badge either way. A ready routine has no badge. One that can't run says `Can't run`,
+with a short reason and remedy beside its Play: `Routine.Cant`, one sentence per refusal, written
+next to the unchanged `Why`. Beside Play is now just *Brings this window forward.* The legacy
+checks sentence and the whole refusal are under More, and what is checked is in Help. The checks
+themselves are untouched.
+
+Verified only in a headless render with stub bindings, not on the desktop. 11 mutants killed. One
+first appeared to survive because the test that kills it was missing from the run.
+
+See [[ADR-309-a-routine-row-says-only-what-changes-the-next-action]].
