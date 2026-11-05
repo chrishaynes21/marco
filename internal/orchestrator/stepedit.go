@@ -148,6 +148,20 @@ const (
 	// can press (`macroir.IsChord` for a press, `macroir.IsKeyName` for a hold, which is one
 	// key) while the person is still looking at it, rather than refused at run time.
 	EditKey EditOp = "key"
+	// EditInsert adds a new step in the GAP after position `At` (-1 is before the first):
+	// a wait (`Kind` "wait", `To`), a key press ("key", `Key`) or typed text ("type", `Text`).
+	//
+	// IT NAMES A GAP IN THE LIST THAT WAS SHOWN, so it is collected with every other operation
+	// against the original positions and the new list is built once — a removal of step 4 and
+	// an insertion after step 2 in one review both mean the steps the person was looking at.
+	// That is what lets it sit beside other changes, where EditTyped, which merges a range,
+	// cannot.
+	//
+	// NOTHING BEFORE THE WINDOW COMES FORWARD. A routine that brings its window forward
+	// first presses nothing until it has; a step put in front of that would press into
+	// whatever was in front instead. And no PRESS AT A POINT yet: a click needs the
+	// measurements its window check is made of, and a hand-made one would have none.
+	EditInsert EditOp = "insert"
 )
 
 // argName is what a placeholder's name may be: exactly what `routes` own pattern will read back.
@@ -210,6 +224,8 @@ type StepEdit struct {
 	// `ctrl+s`. Lowercased and trimmed when it is applied, because that is how `Step.Key`
 	// spells one. Ignored otherwise.
 	Key string `json:"key"`
+	// Kind is which step EditInsert adds: "wait", "key" or "type". Ignored otherwise.
+	Kind string `json:"kind"`
 }
 
 // EditReview is one routine with its step list edited, for review.
@@ -628,6 +644,9 @@ func applyEdits(steps []macroir.Step, edits []StepEdit) ([]macroir.Step, []strin
 	points := map[int]macroir.Step{}
 	texts := map[int]string{}
 	keys := map[int]string{}
+	// inserts is what goes in the gap AFTER each original position, -1 being before the
+	// first, in the order asked.
+	inserts := map[int][]macroir.Step{}
 	var says []string
 	// ── A DECLARATION THAT A RUN IS TYPED TEXT IS REVIEWED ON ITS OWN ──
 	//
@@ -663,6 +682,16 @@ func applyEdits(steps []macroir.Step, edits []StepEdit) ([]macroir.Step, []strin
 			text)}, "", nil, nil
 	}
 	for _, ed := range edits {
+		// AN INSERTION NAMES A GAP, not a step, so -1 — before the first — is a place.
+		if ed.Op == EditInsert {
+			step, said, ierr := insertedStep(steps, ed)
+			if ierr != nil {
+				return nil, nil, "", nil, ierr
+			}
+			inserts[ed.At] = append(inserts[ed.At], step)
+			says = append(says, said)
+			continue
+		}
 		if ed.At < 0 || ed.At >= len(steps) {
 			return nil, nil, "", nil, fmt.Errorf("there is no step %d in a routine of %d "+
 				"steps, so nothing was changed — look at it again",
@@ -869,8 +898,12 @@ func applyEdits(steps []macroir.Step, edits []StepEdit) ([]macroir.Step, []strin
 		}
 	}
 	out := make([]macroir.Step, 0, len(steps))
+	out = append(out, inserts[-1]...)
 	for i, s := range steps {
 		if drop[i] {
+			// THE GAP AFTER A REMOVED STEP IS STILL A GAP: what was put there goes
+			// where that step was.
+			out = append(out, inserts[i]...)
 			continue
 		}
 		if ms, ok := waits[i]; ok {
@@ -903,6 +936,7 @@ func applyEdits(steps []macroir.Step, edits []StepEdit) ([]macroir.Step, []strin
 			s.Text = ""
 		}
 		out = append(out, s)
+		out = append(out, inserts[i]...)
 	}
 	if len(out) == 0 {
 		// THE EMPTY ROUTINE IS ITS OWN ANSWER. A routine that does nothing is not a
@@ -1225,6 +1259,66 @@ func oneCharacter(s macroir.Step, at int) (string, error) {
 	}
 	return "", fmt.Errorf("step %d presses %q, which types nothing — typed text cannot "+
 		"be made out of it", at+1, s.Key)
+}
+
+// insertedStep is the step an EditInsert adds and the review's sentence for it, or why it cannot.
+//
+// The same rules as changing a step of that kind: a wait is a whole number of milliseconds, a key
+// is one Marco can press, and text is fixed text with no braces in it — so a step cannot be
+// refused as an edit and then accepted as an addition.
+func insertedStep(steps []macroir.Step, ed StepEdit) (macroir.Step, string, error) {
+	if ed.At < -1 || ed.At >= len(steps) {
+		return macroir.Step{}, "", fmt.Errorf("there is no step %d in a routine of %d "+
+			"steps to add a step after, so nothing was changed — look at it again",
+			ed.At+1, len(steps))
+	}
+	for i, s := range steps {
+		if s.Kind != macroir.StepActivate {
+			continue
+		}
+		if ed.At < i {
+			return macroir.Step{}, "", fmt.Errorf("nothing can be added before step %d, "+
+				"which brings %s forward — a step there would press into whatever is "+
+				"in front instead", i+1, s.Text)
+		}
+		break
+	}
+	where := "at the start"
+	if ed.At >= 0 {
+		where = fmt.Sprintf("after step %d", ed.At+1)
+	}
+	switch strings.TrimSpace(ed.Kind) {
+	case "wait":
+		if ed.To < 0 {
+			return macroir.Step{}, "", fmt.Errorf("a wait cannot be %dms long", ed.To)
+		}
+		return macroir.Step{Kind: macroir.StepWait, Ms: ed.To},
+			fmt.Sprintf("a wait of %dms is added %s", ed.To, where), nil
+	case "key":
+		key := strings.ToLower(strings.TrimSpace(ed.Key))
+		if key == "" {
+			return macroir.Step{}, "", fmt.Errorf("enter the key to add %s", where)
+		}
+		if !macroir.IsChord(key) {
+			return macroir.Step{}, "", fmt.Errorf("%q is not a key Marco can press. Keys "+
+				"are named like enter, f5, a or ctrl+s", strings.TrimSpace(ed.Key))
+		}
+		return macroir.Step{Kind: macroir.StepKey, Key: key, Count: 1},
+			fmt.Sprintf("a press of %q is added %s", key, where), nil
+	case "type":
+		switch {
+		case ed.Text == "":
+			return macroir.Step{}, "", fmt.Errorf("type the text to add %s", where)
+		case strings.Contains(ed.Text, "{{") || strings.Contains(ed.Text, "}}"):
+			return macroir.Step{}, "", fmt.Errorf("the text to add %s has {{ or }} in it, "+
+				"which is how a routine asks for a value — add the text, then use "+
+				"“Ask me for it” on it", where)
+		}
+		return macroir.Step{Kind: macroir.StepType, Text: ed.Text},
+			fmt.Sprintf("typing %q is added %s", ed.Text, where), nil
+	}
+	return macroir.Step{}, "", fmt.Errorf("%q is not a step that can be added — a wait, a "+
+		"key press or typed text can be", ed.Kind)
 }
 
 // newText is the fixed text the step at `at` would type instead, or why it cannot.
