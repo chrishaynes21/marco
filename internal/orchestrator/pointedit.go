@@ -48,7 +48,9 @@ package orchestrator
 import (
 	"errors"
 	"fmt"
+	"strings"
 
+	"github.com/chaynes-simpleclouds/marco/internal/codegen"
 	"github.com/chaynes-simpleclouds/marco/internal/macroir"
 )
 
@@ -234,6 +236,106 @@ func clickToDrag(steps []macroir.Step, at, x, y, x2, y2 int) (macroir.Step, stri
 	}
 	return s, fmt.Sprintf("the click at step %d becomes a %s-button drag %s", at+1, btn,
 		where), nil
+}
+
+// ClickBasis is a window a routine was measured in, offered as the basis for a click a person adds:
+// the measurement of one of its own presses, NOT a claim that the new click was recorded.
+type ClickBasis struct {
+	// At is the step whose measurement this is.
+	At               int
+	RelTo, Process   string
+	WinW, WinH, Dpi  int
+	originX, originY int
+}
+
+// Label is the basis in words, naming the step it was measured at.
+func (b ClickBasis) Label() string {
+	return fmt.Sprintf("the window step %d was measured in (%s, %d×%d, %d dpi)", b.At+1,
+		b.Process, b.WinW, b.WinH, b.Dpi)
+}
+
+// ClickBases is every distinct window this routine's presses were measured in, in order.
+//
+// A MEASUREMENT AND NOTHING ELSE. Only a press measured in full counts — its program, size, scale
+// and offset all present — and one found by a picture or by words does not, because its offset is
+// a place inside what it looks for rather than inside the window. Two presses measured in the same
+// window at the same origin are one basis.
+func ClickBases(steps []macroir.Step) []ClickBasis {
+	var out []ClickBasis
+	seen := map[string]bool{}
+	for i, s := range steps {
+		switch s.Kind {
+		case macroir.StepClick, macroir.StepDrag, macroir.StepMove:
+		default:
+			continue
+		}
+		if !s.WinRel || wholeMeasurement(s) != "" || foundByItsPicture(s) != "" {
+			continue
+		}
+		b := ClickBasis{At: i, RelTo: s.RelTo, Process: s.Process, WinW: s.WinW, WinH: s.WinH,
+			Dpi: s.Dpi, originX: s.X - s.RelX, originY: s.Y - s.RelY}
+		key := fmt.Sprintf("%s|%s|%d|%d|%d|%d|%d", b.RelTo, b.Process, b.WinW, b.WinH, b.Dpi,
+			b.originX, b.originY)
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		out = append(out, b)
+	}
+	return out
+}
+
+// ScreenClicksAllowed says whether a click at a point on the screen may be added: only to a
+// routine that checks nothing against a window, asked of the generator's own rule. A routine that
+// checks its presses is never given an unchecked one as a fallback.
+func ScreenClicksAllowed(steps []macroir.Step) bool { return !codegen.GuardsAnything(steps) }
+
+// addedClick is the click an EditInsert of kind "click" adds, and the words for it, or why not.
+func addedClick(steps []macroir.Step, ed StepEdit, where string) (macroir.Step, string, error) {
+	btn := strings.TrimSpace(ed.Button)
+	if btn == "" {
+		btn = "left"
+	}
+	if btn != "left" && btn != "right" && btn != "middle" {
+		return macroir.Step{}, "", fmt.Errorf("%q is not a mouse button — left, right or "+
+			"middle", ed.Button)
+	}
+	if ed.Screen {
+		if !ScreenClicksAllowed(steps) {
+			return macroir.Step{}, "", fmt.Errorf("this routine checks each press against " +
+				"its window, so a click at a point on the screen cannot be added to it — " +
+				"add it inside a window the routine was measured in")
+		}
+		return macroir.Step{Kind: macroir.StepClick, Button: btn, X: ed.X, Y: ed.Y},
+			fmt.Sprintf("a %s-click at %d, %d on the screen is added %s", btn, ed.X, ed.Y,
+				where), nil
+	}
+	bases := ClickBases(steps)
+	if len(bases) == 0 {
+		return macroir.Step{}, "", fmt.Errorf("no press in this routine was measured " +
+			"inside a window, so there is no window to add a click inside")
+	}
+	var b ClickBasis
+	found := false
+	for _, c := range bases {
+		if c.At == ed.BasisAt {
+			b, found = c, true
+		}
+	}
+	if !found {
+		return macroir.Step{}, "", fmt.Errorf("step %d is not a press this routine was "+
+			"measured in a window at, so it cannot be the basis of an added click",
+			ed.BasisAt+1)
+	}
+	if ed.X < 0 || ed.Y < 0 || ed.X >= b.WinW || ed.Y >= b.WinH {
+		return macroir.Step{}, "", fmt.Errorf("%s is %d by %d, and %d, %d is outside it",
+			b.Label(), b.WinW, b.WinH, ed.X, ed.Y)
+	}
+	s := macroir.Step{Kind: macroir.StepClick, Button: btn,
+		X: b.originX + ed.X, Y: b.originY + ed.Y, WinRel: true, RelX: ed.X, RelY: ed.Y,
+		RelTo: b.RelTo, WinW: b.WinW, WinH: b.WinH, Dpi: b.Dpi, Process: b.Process}
+	return s, fmt.Sprintf("a %s-click at %d, %d in %s — %d, %d on the screen — is added %s",
+		btn, ed.X, ed.Y, b.Label(), s.X, s.Y, where), nil
 }
 
 // WhyNotADrag is why the step at `at` cannot be made a drag, or "" when it can.

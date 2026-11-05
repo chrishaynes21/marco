@@ -267,6 +267,13 @@ type StepEdit struct {
 	Kind string `json:"kind"`
 	// Count is how many times, for EditRepeat and EditLoop. Ignored otherwise.
 	Count int `json:"count"`
+	// Button, Screen and BasisAt describe a click EditInsert adds (`Kind` "click"): which mouse
+	// button (left by default); whether `X`,`Y` is a point on the SCREEN — allowed only in a
+	// routine that checks nothing — or else an offset inside the window the step at `BasisAt`
+	// was measured in, one of `ClickBases`. Never one standing in for the other.
+	Button  string `json:"button"`
+	Screen  bool   `json:"screen"`
+	BasisAt int    `json:"basis_at"`
 }
 
 // EditReview is one routine with its step list edited, for review.
@@ -1530,6 +1537,8 @@ func insertedStep(steps []macroir.Step, ed StepEdit) (macroir.Step, string, erro
 		}
 		return macroir.Step{Kind: macroir.StepKey, Key: key, Count: 1},
 			fmt.Sprintf("a press of %q is added %s", key, where), nil
+	case "click":
+		return addedClick(steps, ed, where)
 	case "type":
 		switch {
 		case ed.Text == "":
@@ -1543,7 +1552,7 @@ func insertedStep(steps []macroir.Step, ed StepEdit) (macroir.Step, string, erro
 			fmt.Sprintf("typing %q is added %s", ed.Text, where), nil
 	}
 	return macroir.Step{}, "", fmt.Errorf("%q is not a step that can be added — a wait, a "+
-		"key press or typed text can be", ed.Kind)
+		"key press, typed text or a click can be", ed.Kind)
 }
 
 // newText is the fixed text the step at `at` would type instead, or why it cannot.

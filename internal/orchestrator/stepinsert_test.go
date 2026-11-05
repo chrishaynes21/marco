@@ -114,7 +114,7 @@ func TestAnAdditionIsRefusedWhenAChangeOfItsKindWouldBe(t *testing.T) {
 		{"no text", StepEdit{Op: EditInsert, At: 1, Kind: "type", Text: ""}, "type the text"},
 		{"a negative wait", StepEdit{Op: EditInsert, At: 1, Kind: "wait", To: -5},
 			"cannot be -5ms"},
-		{"a click", StepEdit{Op: EditInsert, At: 1, Kind: "click"},
+		{"a kind that cannot be added", StepEdit{Op: EditInsert, At: 1, Kind: "scroll"},
 			"not a step that can be added"},
 		{"past the end", StepEdit{Op: EditInsert, At: 4, Kind: "wait", To: 5},
 			"no step 5"},

@@ -891,6 +891,11 @@ type link struct {
 // The press that found it was a RIGHT-CLICK, which is now wrapped like any other; the hole it
 // found is not about any particular step, and the list of steps this cannot wrap has only ever
 // got shorter.
+// GuardsAnything says whether any step names a window it is checked against, which is what makes
+// the generated routine a CHECKED one. Exported so the editor can ask the generator's own question
+// — whether a click at a screen point may be added — instead of keeping a second copy of it.
+func GuardsAnything(steps []macroir.Step) bool { return guardsAnything(steps) }
+
 func guardsAnything(steps []macroir.Step) bool {
 	for _, s := range steps {
 		if s.RelTo != "" {
