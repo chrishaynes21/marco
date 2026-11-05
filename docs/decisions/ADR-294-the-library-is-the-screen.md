@@ -70,8 +70,10 @@ rulings:
 - `plugins/studio` `TestASecondLookAtARoutineIsOfferedWithoutOpeningADetail` checks that Simplify
   is in the tab row, is not under More, is shown on `offer`, and that the panel it opens is titled
   a review.
-- `plugins/studio` `TestAStatusWordNeverClaimsAnOutcomeWasVerified` checks that a guarded row
-  carries no word and the two exceptions still do.
+- `plugins/studio` `TestARoutineRowSaysOnlyWhatChangesTheNextAction` checks that a ready row
+  carries no word and only a routine that cannot run does. It replaced the earlier status-word
+  test when the `Unchecked` exception was removed
+  ([[ADR-309-a-routine-row-says-only-what-changes-the-next-action]]).
 - `plugins/studio` `TestTheJourneyPutsTheQuestionFirstAndPlayUnderWhatIsSelected` checks the
   order: Record in the header, then the find box, then the list.
 - `plugins/studio` `TestEverySectionTheWindowLinksToExists` covers the two new Help sections,
