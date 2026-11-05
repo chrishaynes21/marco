@@ -294,8 +294,8 @@ func stepRows(e orchestrator.EditReview) []StepRow {
 		}
 		if partner := e.PairedWith(i); partner >= 0 {
 			r.Pairs, r.PairsAt = true, partner
-			r.PairSays = fmt.Sprintf("removing this removes step %d as well, "+
-				"because they are the two halves of holding %q",
+			r.PairSays = fmt.Sprintf("removes step %d too: they are the two "+
+				"halves of holding %q",
 				partner+1, s.Key)
 		}
 		out = append(out, r)

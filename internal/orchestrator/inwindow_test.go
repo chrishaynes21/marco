@@ -392,15 +392,15 @@ func TestTheChosenWindowClosingEndsARecordingNobodyStopped(t *testing.T) {
 // that the recorder missed something. This is the terminal; `plugins/studio`
 // `TestReviewSaysTheWindowWasLeft` is the window.
 func TestTheTerminalSaysTheWindowWasLeft(t *testing.T) {
-	// THE SENTENCE ITSELF: how often, how long, and that neither the input nor the
-	// waiting is in the routine.
+	// THE SENTENCE ITSELF: how often, how long, and that the wait and the input are both
+	// left out of the routine.
 	rec := &confinedRecorder{events: aDemonstrationWithAnAbsence()}
 	c, err := Deps{Rec: rec, Window: theGameWindow}.Begin("ark graphics")
 	if err != nil {
 		t.Fatalf("Begin: %v", err)
 	}
 	said := c.Finish().AwaySentence()
-	for _, want := range []string{"left the window", "once", "30s", "not in the routine"} {
+	for _, want := range []string{"Left out: ", "outside the window", "once", "30s", "anything you did there"} {
 		if !strings.Contains(said, want) {
 			t.Errorf("the sentence does not mention %q: %q", want, said)
 		}
@@ -426,7 +426,7 @@ func TestTheTerminalSaysTheWindowWasLeft(t *testing.T) {
 	if err := d.Learn("ark graphics"); err != nil {
 		t.Fatalf("Learn: %v\n%s", err, out.String())
 	}
-	if !strings.Contains(out.String(), "left the window") {
+	if !strings.Contains(out.String(), "outside the window (once)") {
 		t.Errorf("the terminal never said it:\n%s", out.String())
 	}
 }

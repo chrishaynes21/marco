@@ -801,9 +801,8 @@ func (a *Acts) Recording() Recording {
 		out.Window = window
 		if shot != nil {
 			if paused, since := shot.Paused(); paused {
-				out.Paused = fmt.Sprintf("Paused: you have left %s. "+
-					"Nothing you do elsewhere is being recorded. "+
-					"(%s)", nameOr(window, "the window"),
+				out.Paused = fmt.Sprintf("Paused: you left %s. Nothing "+
+					"elsewhere is being recorded. (%s)", nameOr(window, "the window"),
 					since.Round(time.Second))
 			}
 		}
@@ -999,8 +998,8 @@ func oneStep(s macroir.Step) string {
 func capturesSentence(m orchestrator.RecordedAs) string {
 	switch m {
 	case orchestrator.Coordinates:
-		return "Where you press and how long you pause, and nothing about how the " +
-			"screen looked. It does not take a picture of anything."
+		return "Records where you press and how long you pause. It does not take a " +
+			"picture of the screen."
 	}
 	return "what this recording captures is not being stated, so it depends on how " +
 		"Marco was started"
@@ -1304,8 +1303,8 @@ func (a *Acts) Resave(id string) string {
 // rule moves again the sentence moves with it rather than going quietly stale. Held by
 // `TestTheWindowSaysWhatARecordingTakesInBeforeRecord`.
 func everywhereSentence(stopKey string) string {
-	return "Records actions in the window you choose. Recording pauses outside it. " +
-		"Return to Studio and press Stop, or press " + stopKey + "."
+	return "Records only the window you choose, and pauses when you leave it. Stop " +
+		"with " + stopKey + " or the Stop button."
 }
 
 // argKeyLabel is the configured "an argument goes here" key, as a person would read it, or ""
@@ -1352,9 +1351,8 @@ func argSentence(key string, argNames []string) string {
 		return "Press " + key + " where each value goes, in order: " +
 			strings.Join(argNames, ", ") + "."
 	default:
-		return "Press " + key + " during the demonstration where the routine " +
-			"should ask for a value instead of typing it. Add " +
-			"“with item” to the name above and the value is called item."
+		return "Press " + key + " where the routine should ask for a value instead " +
+			"of typing. Add “with item” to the name to call it item."
 	}
 }
 

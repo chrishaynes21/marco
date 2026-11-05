@@ -100,3 +100,33 @@ framed rows, the tighter scale, and the accent used as structure.
 - `plugins/studio` `TestPlayIsTheBiggestThingOnARowAndTheRowReadsLeftToRight` and
   `TestTheRowsHoldTogetherInANarrowWindow`: the restyle keeps Play the biggest control on its
   row, and keeps the rows whole at narrow widths.
+
+## Compact copy (2026-11-04)
+
+A second pass cut the words, after the owner ruled that earlier decisions protect meaning, not
+exact wording, and that making paragraphs smaller does not lighten the text. Each sentence keeps
+its facts. Several are shared with `marco learn` through `orchestrator`, so the terminal says the
+same thing.
+
+| Where | Before | Now |
+|---|---|---|
+| Review, keys used to leave (`Draft.ExitSentence`) | *The alt and tab you used to leave the window and come back here are how the recording was ended, not part of it, so they were left out.* | *Left out: Alt+Tab, used to leave the window.* |
+| Review, time away (`Draft.AwaySentence`) | *You left the window once, for 8s in all. Nothing from out there was recorded, and the waiting is not in the routine.* | *Left out: 8s outside the window (once), and anything you did there.* |
+| Review, the withheld scope (`WhyNotThisScope`, also `Keep`'s refusal) | 51 words | *Every press here checks the window it was made in, but "From anywhere → current foreground" names no application, so each would refuse. Save it "Only in notepad" or "From anywhere → notepad".* |
+| Record card, capture | *Where you press and how long you pause, and nothing about how the screen looked. It does not take a picture of anything.* | *Records where you press and how long you pause. It does not take a picture of the screen.* |
+| Record card, window rule | *Records actions in the window you choose. Recording pauses outside it. Return to Studio and press Stop, or press F12.* | *Records only the window you choose, and pauses when you leave it. Stop with F12 or the Stop button.* |
+| Record card, values | 30 words | *Press F9 where the routine should ask for a value instead of typing. Add "with item" to the name to call it item.* |
+| Recording, paused | *Paused: you have left …. Nothing you do elsewhere is being recorded.* | *Paused: you left …. Nothing elsewhere is being recorded.* |
+| Simplify, before and after | 18 and 49 words | Timing (*0.25s*), the way back (*use the original*) and the values it takes off are all still said, in about half the words |
+| Step notes | *removing this removes step 5 as well, because they are the two halves of holding "ctrl"* | *removes step 5 too: they are the two halves of holding "ctrl"* |
+| Others | *Nothing has been recorded yet…*, *Open it first if…*, *Switching back to this window…*, the supply caption, the found-by-picture notes | Each shortened |
+
+**Kept as they were:**
+- the missing-measurement refusal, with its remedy and its this-machine-cannot case;
+- a step's *cannot be checked — … was not measured*, which is the named consequence
+  (`TestReviewExplainsAMeasurementThatFailed` caught a first attempt that dropped it);
+- Help's general explanations.
+
+The keys are the configured ones (`stopLabel`, `argKeyLabel`) and the applications are the
+recorded ones. The tests that pinned the old words were changed to pin the same meanings. The
+harness fixtures carry the new wording. Renders: `docs/images/studio-ui/12-copy-*.png`.

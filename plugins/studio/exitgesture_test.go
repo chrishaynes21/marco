@@ -73,7 +73,7 @@ func TestComingBackByAltTabLeavesARecordingThatSaves(t *testing.T) {
 	// AND REVIEW SAYS SO. This is the only thing the boundary takes out instead of
 	// refusing, so the card has to name it: the person is the only one who can say that
 	// the Alt they held was something they meant.
-	if !strings.Contains(r.Exit, "alt and tab") {
+	if !strings.Contains(r.Exit, "Left out: Alt+Tab") {
 		t.Errorf("the review card says %q about what it left out", r.Exit)
 	}
 }
@@ -144,7 +144,7 @@ setTimeout(() => {
   // gives: an element shown with nothing in it cannot be told from an absent one by
   // reading its text, and a mutation that showed it unconditionally survives a
   // claim-level assertion on its own.
-  document.title = 'exitsaid=' + (shown.includes('alt and tab') ? 1 : 0) +
+  document.title = 'exitsaid=' + (shown.includes('Left out: Alt+Tab') ? 1 : 0) +
     ' exitbox=' + (el.classList.contains('hide') ? 0 : 1)
 }, 5200)`)
 	if !strings.Contains(title, "exitsaid=") {
@@ -164,8 +164,7 @@ setTimeout(() => {
 func TestTheReviewCardSaysWhatTheWayOutLeftOut(t *testing.T) {
 	title, n := aRenderedExitPage(t, `{review: true, name: 'enter freeplay',
 		steps: ['press the left button at 722, 210 in the window'], pressable: 1,
-		exit: 'The alt and tab you used to leave the window and come back here ' +
-			'are how the recording was ended, not part of it, so they were left out.'}`)
+		exit: 'Left out: Alt+Tab, used to leave the window.'}`)
 	if n("exitsaid") != 1 {
 		t.Errorf("the card does not say what was left out: %q", title)
 	}

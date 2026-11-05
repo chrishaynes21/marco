@@ -845,7 +845,7 @@ func TestReviewSaysTheWindowWasLeft(t *testing.T) {
 		t.Fatal(why)
 	}
 	r := a.Recording()
-	if !strings.Contains(r.Away, "left the window") {
+	if !strings.Contains(r.Away, "outside the window") {
 		t.Errorf("the review card says %q about the absence", r.Away)
 	}
 	// AND THE STEPS ON BOTH SIDES ARE THERE, so this is a recording with a gap in it

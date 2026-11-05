@@ -275,9 +275,8 @@ func (d Deps) WhyNotThisScope(dr *Draft, want Scope) string {
 	if dr.App != "" {
 		where = dr.App
 	}
-	return fmt.Sprintf("every press in this recording checks the window it was made in, "+
-		"and %q names no application, so there would be no window for those presses to "+
-		"be checked against and every one of them would refuse. Save it %q or %q.",
+	return fmt.Sprintf("Every press here checks the window it was made in, but %q names "+
+		"no application, so each would refuse. Save it %q or %q.",
 		ScopeLabel(ScopeEverywhere, ""), ScopeLabel(ScopeApp, where),
 		ScopeLabel(ScopeAppAnywhere, where))
 }

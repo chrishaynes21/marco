@@ -73,7 +73,7 @@ func TestTheRecordingCardSaysWhenTheCaptureIsPaused(t *testing.T) {
 		t.Fatal("the card says nothing while the capture is admitting nothing, so " +
 			"somebody demonstrating in the wrong window is never told")
 	}
-	for _, want := range []string{"Paused", "left", "elsewhere is being recorded", "12s"} {
+	for _, want := range []string{"Paused", "you left", "elsewhere is being recorded", "12s"} {
 		if !strings.Contains(got.Paused, want) {
 			t.Errorf("the sentence does not say %q: %q", want, got.Paused)
 		}

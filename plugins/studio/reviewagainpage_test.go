@@ -229,7 +229,7 @@ func TestSimplifySaysWhatItCostsBeforeAndAfter(t *testing.T) {
   steps: ['type "{{item}}"'], said: '1 step(s).', marked: ['item']}`, twoWindows, twoWindows), `
 setTimeout(() => {
   const s = shown('capSimplifySays')
-  document.title = 'ran=1 timing=' + (s.includes('quarter of a second') ? 1 : 0) +
+  document.title = 'ran=1 timing=' + (s.includes('pauses drop to 0.25s') ? 1 : 0) +
     ' marks=' + (s.includes('takes off “item”') ? 1 : 0)
 }, 2500)`)
 	if before("timing") != 1 || before("marks") != 1 {
@@ -242,9 +242,9 @@ setTimeout(() => {
   unmarked: ['item']}`, twoWindows, twoWindows), `
 setTimeout(() => {
   const s = shown('capSimplifySays')
-  document.title = 'ran=1 timing=' + (s.includes('quarter of a') ? 1 : 0) +
+  document.title = 'ran=1 timing=' + (s.includes('pauses are 0.25s') ? 1 : 0) +
     ' back=' + (s.includes('use the original') ? 1 : 0) +
-    ' marks=' + (s.includes('took off “item”') ? 1 : 0) +
+    ' marks=' + (s.includes('Took off “item”') ? 1 : 0) +
     ' notip=' + (document.getElementById('capSimplifyBtn').title ? 0 : 1)
 }, 2500)`)
 	if after("timing") != 1 || after("back") != 1 || after("marks") != 1 {

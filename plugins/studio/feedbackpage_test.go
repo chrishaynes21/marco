@@ -108,10 +108,9 @@ func TestAReviewSaysHowLongTheRecordingWasLeft(t *testing.T) {
 	n := feedbackCounters(t, `{active: false, review: true, name: 'save',
   application: 'notepad', stopped_by: 'the stop key', pressable: 1,
   steps: ['press s'], said: '1 step(s), 1 of which press something.',
-  away: 'You left the window once, for 8s in all. Nothing from out there was ' +
-        'recorded, and the waiting is not in the routine.'}`, `
+  away: 'Left out: 8s outside the window (once), and anything you did there.'}`, `
 setTimeout(() => {
-  document.title = 'ran=1 away=' + (shown('capAway').includes('for 8s in all') ? 1 : 0)
+  document.title = 'ran=1 away=' + (shown('capAway').includes('Left out: 8s outside the window') ? 1 : 0)
 }, 2500)`)
 	if n("away") != 1 {
 		t.Error("the review does not say the recording was left, though the backend said so")

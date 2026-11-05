@@ -428,9 +428,10 @@ func (dr *Draft) AwaySentence() string {
 	if dr.Absences > 1 {
 		times = fmt.Sprintf("%d times", dr.Absences)
 	}
-	return fmt.Sprintf("You left the window %s, for %s in all. Nothing from out there was "+
-		"recorded, and the waiting is not in the routine.", times,
-		dr.Away.Round(time.Second))
+	// "LEFT OUT:" FIRST, because that is the news, and the time is both halves of it: the
+	// wait is out of the routine, and so is whatever was done meanwhile.
+	return fmt.Sprintf("Left out: %s outside the window (%s), and anything you did there.",
+		dr.Away.Round(time.Second), times)
 }
 
 // ExitSentence is what review tells the person was left out of their demonstration, or "" when
@@ -446,8 +447,21 @@ func (dr *Draft) ExitSentence() string {
 	if dr == nil || len(dr.Exit) == 0 {
 		return ""
 	}
-	return "The " + joinWords(dr.Exit) + " you used to leave the window and come back " +
-		"here are how the recording was ended, not part of it, so they were left out."
+	// AS THEY ARE PRESSED: `Alt+Tab`, the way the keys are written on a keyboard, and not
+	// "alt and tab", which reads as two separate things somebody did.
+	return "Left out: " + chordWords(dr.Exit) + ", used to leave the window."
+}
+
+// chordWords is keys as somebody writes them down: each capitalised, joined by `+`.
+func chordWords(keys []string) string {
+	out := make([]string, 0, len(keys))
+	for _, k := range keys {
+		if k == "" {
+			continue
+		}
+		out = append(out, strings.ToUpper(k[:1])+k[1:])
+	}
+	return strings.Join(out, "+")
 }
 
 // Save writes a draft as legal Marco, under the scope it is given.

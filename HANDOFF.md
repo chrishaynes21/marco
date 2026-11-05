@@ -12584,3 +12584,15 @@ preview/save machinery.
 
 Renders are in `docs/images/studio-ui/11-cc-*.png`. Verified headless only, not on the desktop.
 See [[ADR-310-studio-wears-the-control-centres-look]].
+
+### 2026-11-04 — Compact copy
+
+The visible sentences on the record card, the recording band, the review and the step editor are
+cut to about half their words, each keeping its facts. Examples:
+- *Left out: Alt+Tab, used to leave the window.*
+- *Left out: 8s outside the window (once), and anything you did there.*
+
+These come from `orchestrator`, so `marco learn` says the same. Refusals, named consequences,
+the cannot-on-this-machine remedy and Simplify's timing and value-loss warnings are all still on
+screen. One cut was reverted because a guard caught it dropping *cannot be checked*. See ADR-310,
+"Compact copy".

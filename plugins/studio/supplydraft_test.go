@@ -146,7 +146,7 @@ func TestTheReviewOffersToAskForTextItWouldType(t *testing.T) {
 		}
 	}
 	// AND THE CAPTION SAYS WHAT THE CONTROL IS FOR.
-	if !strings.Contains(was.SupplySays, "ask for it when you play it") {
+	if !strings.Contains(was.SupplySays, "Play will ask for that value") {
 		t.Errorf("the caption does not say what happens: %q", was.SupplySays)
 	}
 

@@ -941,7 +941,7 @@
          as well, which is what `capEverywhere` says four lines above it, from the backend.
          Two paragraphs used to sit between them and hid the repetition; with those gone the
          rendered page said it twice in one card. -->
-    <div class="muted" style="margin-top:6px">Open it first if it is not in the list.</div>
+    <div class="muted" style="margin-top:6px">Not listed? Open it, then refresh.</div>
     <div class="row" style="margin-top:10px"><label style="width:7em" for="capName">call it</label>
       <input type="text" id="capName" placeholder="what you will ask Marco for"></div>
     <!-- AND HOW TO MAKE A VALUE SOMETHING YOU SUPPLY, UNDER THE FIELD IT IS ABOUT.
@@ -1034,8 +1034,7 @@
     <div class="muted hide" style="margin-top:8px" id="capArgBand"></div>
     <!-- ONE SENTENCE, AND IN THIS PRODUCT'S WORDS. It said "what you are teaching", and TEACH is
          reserved for the mirror image of this: Marco guiding a person. See CLAUDE.md. -->
-    <div class="muted" style="margin-top:12px">Switching back to this window is left out of
-      the recording.</div>
+    <div class="muted" style="margin-top:12px">Coming back to Studio is not recorded.</div>
     <div class="row" style="margin-top:10px">
       <button class="go" id="capStopBtn" onclick="stopCapture()">Stop recording</button>
       <button class="stop" onclick="cancelCapture()">Cancel</button>
@@ -1336,8 +1335,7 @@
          is moved; the honest failure of changing the rule is silence, so it says its name. -->
     <div class="banner hide" style="margin-top:8px" id="libElsewhere"></div>
     <div id="routineList" style="margin-top:4px"></div>
-    <div class="muted hide" id="routineNone">Nothing has been recorded yet. Record one
-      above and it appears here.</div>
+    <div class="muted hide" id="routineNone">No routines yet. Press Record to make one.</div>
     <!-- WHERE THE PANEL WAITS WHILE NO ROUTINE IS OPEN.
          ONE PANEL, CARRIED, AND NEVER REBUILT. Every routine is a row that opens
          where it is, and what opens is this one set of elements moved into that
@@ -3300,14 +3298,13 @@
      const names = ns => ns.map(n => '“' + n + '”').join(', ')
      const marked = r.marked || [], unmarked = r.unmarked || []
      text($('capSimplifySays'), r.simplified
-       ? 'Simplified: typing is one step and every other pause is a quarter of a ' +
-         'second. If it then presses before a screen has caught up, use the original.' +
-         (unmarked.length ? ' Simplifying took off ' + names(unmarked) +
-           ', so that text is typed as recorded again — mark it again to be asked for it.' : '')
-       : 'Shortens the waits: typing becomes one step and every other pause drops to ' +
-         'a quarter of a second.' +
-         (marked.length ? ' It also takes off ' + names(marked) +
-           ', so that text would be typed as recorded again.' : ''))
+       ? 'Simplified: typing is one step, other pauses are 0.25s. If it presses before ' +
+         'the screen catches up, use the original.' +
+         (unmarked.length ? ' Took off ' + names(unmarked) +
+           ': it types as recorded again. Mark it again to be asked for it.' : '')
+       : 'Shortens waits: typing becomes one step, other pauses drop to 0.25s.' +
+         (marked.length ? ' Also takes off ' + names(marked) +
+           ', so that text types as recorded.' : ''))
      // WHICH ROUTINE THIS WILL BE, from the draft's own name. See capReviewName.
      text($('capReviewName'), r.name ? 'Review “' + r.name + '”' : 'Review this recording')
      // WITHOUT ITS FULL STOP, because the line goes on: ` · recorded in … · ended by …`.

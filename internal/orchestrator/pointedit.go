@@ -191,11 +191,11 @@ func movedPoint(steps []macroir.Step, at, x, y int) (macroir.Step, string, error
 func foundByItsPicture(s macroir.Step) string {
 	switch {
 	case len(s.Template) > 0:
-		return "it is found by its picture, so the position is a place inside that " +
-			"picture rather than a place on the screen"
+		return "found by its picture: the position is inside that picture, not on " +
+			"the screen"
 	case s.AnchorVision != "":
-		return "it is found by what Marco can see there, so the position is a place " +
-			"inside what it looks for"
+		return "found by what Marco can see there: the position is inside what it " +
+			"looks for"
 	case s.AnchorText != "":
 		return "it is found by the words beside it, so the position is a place " +
 			"relative to those words"

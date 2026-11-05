@@ -95,7 +95,7 @@ func TestTheKeysUsedToLeaveAreNotInTheDemonstrationAndWhatPrecededThemIs(t *test
 	// AND IT IS SAID. Leaving something out of somebody's demonstration silently is the
 	// same discard, one layer along: the only person who can disagree is the one who
 	// performed it, and they can only disagree if review tells them.
-	if !strings.Contains(dr.ExitSentence(), "alt and tab") {
+	if !strings.Contains(dr.ExitSentence(), "Left out: Alt+Tab") {
 		t.Errorf("review does not say what was left out: %q", dr.ExitSentence())
 	}
 }
@@ -340,7 +340,7 @@ func TestTheTerminalSaysWhatTheWayOutLeftOut(t *testing.T) {
 	if err := d.Learn("ark graphics"); err != nil {
 		t.Fatalf("Learn: %v\n%s", err, out.String())
 	}
-	if !strings.Contains(out.String(), "alt and tab") {
+	if !strings.Contains(out.String(), "Left out: Alt+Tab") {
 		t.Errorf("the terminal never said what it left out:\n%s", out.String())
 	}
 }

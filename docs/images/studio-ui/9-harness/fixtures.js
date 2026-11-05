@@ -1,7 +1,7 @@
 // FIXTURES — production wording, quoted from the Go backend (file:line in the audit doc).
-const CAPTURES = 'Where you press and how long you pause, and nothing about how the screen looked. It does not take a picture of anything.'
-const EVERYWHERE = 'Records actions in the window you choose. Recording pauses outside it. Return to Studio and press Stop, or press F12.'
-const ARG_SAYS = 'Press F9 during the demonstration where the routine should ask for a value instead of typing it. Add \u201cwith item\u201d to the name above and the value is called item.'
+const CAPTURES = 'Records where you press and how long you pause. It does not take a picture of the screen.'
+const EVERYWHERE = 'Records only the window you choose, and pauses when you leave it. Stop with F12 or the Stop button.'
+const ARG_SAYS = 'Press F9 where the routine should ask for a value instead of typing. Add \u201cwith item\u201d to the name to call it item.'
 const WROTE = "This routine states that generation 1 of Marco's rules wrote it, which is the generation this build writes. You can review a version rebuilt from its stored recording, which will show whether it differs from what is saved."
 const LEGACY = 'Its presses are not checked: each one happens at the point it was recorded at, whatever is there now.'
 const NP = 'notepad \u2014 Untitled - Notepad'
@@ -28,6 +28,7 @@ window.LIB = [
   {id: 'arkascended/focus/graphics-low', name: 'graphics low', slug: 'graphics-low', app: 'arkascended',
    scope: 'app-anywhere', contract: 'incomplete', mode: 'coordinates', captures: CAPTURES, runnable: false,
    why: 'The recording is missing how wide that window was and what scale it was drawn at, so every press refuses. Record it again.',
+   cant: 'Its recording is incomplete. Record it again.',
    saved_at: '2026-10-28 19:55', generation: 'current', declared_generation: '1', wrote: WROTE, rebuildable: true, offer: true,
    source: '// Recorded as: coordinates.\nuse os.\n'},
 ]
