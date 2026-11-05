@@ -5120,6 +5120,16 @@
    }
    stepErrors = {}
    acts.ReviewStepEdit(r.id, stepList.basis, got.changes).then(v => {
+     // REFUSED FOR SOMETHING ASKED, ON A LIST THAT IS STILL CURRENT: a key Marco cannot
+     // press, braces in new text. What was typed stays exactly where it was, so the one
+     // box that is wrong can be corrected — listing the steps again would throw away every
+     // other box with it.
+     if (v && v.why && v.correct) {
+       stepReview = null
+       showing($('routineStepEdit'), false)
+       text($('routineStepsWhy'), v.why)
+       return
+     }
      if (!v || v.why) {
        // REFUSED, AND THE LIST READ AGAIN. The usual reason is that the routine
        // has been written since these rows were listed, and the only honest

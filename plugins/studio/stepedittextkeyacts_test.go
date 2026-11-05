@@ -69,6 +69,18 @@ func TestAKeyMarcoCannotPressIsRefusedByTheStepPanel(t *testing.T) {
 	if sourceOnDisk(t, a, r) != before {
 		t.Error("something was written")
 	}
+	// AND IT IS A CORRECTION, NOT A STALE LIST: the page keeps what was typed for this one.
+	if !v.Correct {
+		t.Error("a key Marco cannot press is reported like a list that is no longer " +
+			"current, so the page would throw away everything typed")
+	}
+	// WHERE A STALE LIST IS NOT, and the page lists the steps again.
+	stale := a.ReviewStepEdit(r.ID, "a-basis-nobody-was-shown",
+		[]StepChange{{Op: "key", At: row.At, Key: "tab"}})
+	if stale.Why == "" || stale.Correct {
+		t.Errorf("a change against a list that was never shown is reported as a "+
+			"correction: %+v", stale)
+	}
 }
 
 // A HELD KEY IS OFFERED AS ONE KEY ON BOTH HALVES, AND CHANGING ONE CHANGES BOTH.

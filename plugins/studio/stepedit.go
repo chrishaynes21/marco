@@ -194,6 +194,11 @@ type StepPreview struct {
 	// an operation that refers to nothing, no routine of that identity. Everything else
 	// is empty when set.
 	Why string `json:"why,omitempty"`
+	// Correct says Why is about something that was ASKED, against a list that is still the one
+	// on screen — an unknown key, braces in new text — so the page keeps what was typed and
+	// the person corrects it. Without it, Why means the list itself is no longer current and
+	// the page lists the steps again. See orchestrator.ErrChangeRefused.
+	Correct bool `json:"correct,omitempty"`
 	// Refused is why these operations produce no routine, with the review still worth
 	// showing: an edit that would empty it, a held key whose partner cannot be found, a
 	// render the generator refuses, a render that is not legal Marco.
@@ -372,7 +377,7 @@ func (a *Acts) ReviewStepEdit(id, basis string, changes []StepChange) StepPrevie
 	e, err := d.PrepareEditOf(chosen.route(), basis, edits)
 	if err != nil {
 		return StepPreview{ID: id, Name: chosen.Name, Was: chosen.Source,
-			Why: err.Error()}
+			Why: err.Error(), Correct: errors.Is(err, orchestrator.ErrChangeRefused)}
 	}
 	// THE PREPARED EDIT STAYS HERE, UNDER ITS OWN TOKEN.
 	a.keepEdit(e)

@@ -142,3 +142,26 @@ Held by:
 
 With the fix removed, all three fail, and the second reproduces the report: the routine types
 `marco`.
+
+## Correction: a refused change keeps what was typed (2026-11-04)
+
+A refused review used to list the steps again, which throws away every box. That was right for
+the refusal it was written for: the routine was written since, so the positions no longer mean
+what they meant. Key editing made a second kind of refusal ordinary. An unknown key is refused
+against a list that is still current, and listing the steps again would discard the other five
+boxes along with the one that is wrong.
+
+So an operation's refusal is now marked (`orchestrator.ErrChangeRefused`, through `errors.Is`).
+Studio reports it as `StepPreview.Correct`, and the page then keeps everything typed and shows
+why. Every other refusal still lists the steps again.
+
+Held by:
+- `plugins/studio` `TestAKeyMarcoCannotPressIsRefusedByTheStepPanel`: an unknown key is a
+  correction, and a list nobody was shown is not.
+- `TestTheStepPanelOffersTextAndKeyBoxesAndSendsWhatWasTyped`: what was typed is still in the
+  boxes after a correction.
+
+Three mutants were killed:
+- the mark dropped;
+- the page ignoring it;
+- every refusal reported as a correction.

@@ -76,6 +76,22 @@ import (
 // Wrapped, so the sentence naming the routine and the reason travels with it.
 var ErrStepsNotWritten = errors.New("its steps were not written down beside it")
 
+// ErrChangeRefused is what `errors.Is` finds on a preparation that failed because of something
+// the caller ASKED for, against a list that is still current: an unknown key, braces in new text,
+// two things asked of one step. Every other preparation failure means the list itself is no
+// longer what was shown, or the routine cannot be edited at all.
+//
+// THE DIFFERENCE DECIDES WHAT HAPPENS TO SOMEBODY'S TYPING. Studio lists the steps again after a
+// stale list, which throws away what was typed — right when the positions no longer mean what
+// they meant, and wrong when one box of six held a key Marco cannot press.
+var ErrChangeRefused = errors.New("a change asked for was refused")
+
+// refusedChange carries an operation's own sentence and answers `errors.Is(err, ErrChangeRefused)`.
+type refusedChange struct{ error }
+
+func (r refusedChange) Is(target error) bool { return target == ErrChangeRefused }
+func (r refusedChange) Unwrap() error        { return r.error }
+
 // EditOp is one of the three things an edit can do; see the note above.
 type EditOp string
 
@@ -467,7 +483,11 @@ func (d Deps) PrepareEditOf(rt routes.Route, shown string, edits []StepEdit) (Ed
 	// ── THE OPERATIONS ──
 	edited, says, refused, declared, aerr := applyEdits(basis.steps, edits)
 	if aerr != nil {
-		return EditReview{}, aerr
+		// MARKED AS A REFUSED CHANGE, because it is a different answer from every refusal
+		// above: the list is still the one that was shown, and what is wrong is something
+		// the person asked for — an unknown key, braces in new text. A surface keeps their
+		// typing for that and only lists the steps again for the others.
+		return EditReview{}, refusedChange{aerr}
 	}
 	// AND THE NAMES THE EDIT DECLARED JOIN THE ROUTINE'S OWN, for the render below.
 	//

@@ -29,7 +29,7 @@ window.go.main.Acts.StepEditing = (id) => Promise.resolve({id: id, name: 'addres
   ]})
 window.go.main.Acts.ReviewStepEdit = (...args) => {
   window.sent = (window.sent || []).concat([JSON.stringify(args[2])])
-  return Promise.resolve({id: args[0], why: 'a stub that prepares nothing'})
+  return Promise.resolve({id: args[0], why: '"F5" is a stub refusal of a change asked for', correct: true})
 }
 const val = (id) => { const e = document.getElementById(id); return e ? e.value : null }
 const type = (id, v) => {
@@ -62,6 +62,12 @@ setTimeout(() => {
     ? 0 : 1
   press('routineStepReviewBtn')
 }, 1800)
+setTimeout(() => {
+  // A REFUSED CHANGE KEEPS WHAT WAS TYPED, so the one wrong box can be corrected.
+  r.kept = val('routineStepText-1') === 'hi there ' && val('routineStepKey-2') === 'F5' ? 1 : 0
+  r.saidWhy = document.getElementById('routineStepsWhy').textContent.includes('stub refusal') ? 1 : 0
+  r.relisted = (window.listed || 0)
+}, 2200)
 setTimeout(() => {
   // AN EMPTY BOX IS A CORRECTION ON ITS ROW, NEVER SENT.
   type('routineStepKey-2', '')
@@ -134,6 +140,10 @@ func TestTheStepPanelOffersTextAndKeyBoxesAndSendsWhatWasTyped(t *testing.T) {
 	}
 	for op := range want {
 		t.Errorf("no %s change was sent: %s", op, raw)
+	}
+	if n("kept") != 1 || n("saidWhy") != 1 {
+		t.Errorf("a change refused for something asked threw away what was typed, or did "+
+			"not say why: %s", title)
 	}
 	if n("emptyError") != 1 || n("reviews") != 1 {
 		t.Errorf("an empty key box was sent, or not said on its row: %s", title)
