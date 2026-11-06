@@ -3177,6 +3177,7 @@
  // observed, nothing is waiting — so rebuilding it two and a half times a second could only take
  // the scope somebody had just chosen and put it back. `shownCapture` is the same guard the
  // Scene review uses, for the same reason.
+ let nameClearedFor = '' // the save whose sentence last cleared the name field
  function pollCapture(){
    acts.Recording().then(r => {
      // AND WHETHER THE HOOKS ARE WATCHING, FOR THE POLLS THAT MUST NOT RUN NOW.
@@ -3294,7 +3295,11 @@
        // second: the window it was recorded in had gone, and somebody is choosing another.
        text($('capNote'), r.saved || r.said || againNote)
        $('capNote').className = (r.failed || (againNote && !r.saved && !r.said)) ? 'no' : 'muted'
-       if (r.saved) { $('capName').value = '' }
+       // THE NAME IS CLEARED ONCE FOR A SAVE, not on every poll the sentence stands: this ran
+       // two and a half times a second and wiped whatever was typed for the next routine
+       // (TestANameTypedAfterASaveIsKept).
+       if (r.saved && r.saved !== nameClearedFor) { $('capName').value = '' }
+       nameClearedFor = r.saved || ''
        shownCapture = ''
        return
      }
