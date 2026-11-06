@@ -20,7 +20,7 @@ import (
 // must fail this.
 func TestAProposedRoutineIsReviewedAndItsValueIsNotLogged(t *testing.T) {
 	const heard = "cloud paul zq7stone9f3k"
-	proposed := aCloudPull("cloud pull resource:zq7stone9f3k", "zq7stone9f3k")
+	proposed := aCloudPull("cloud pull resource: zq7stone9f3k", "zq7stone9f3k")
 	engineReads(t, map[string]lineReading{proposed.Line: proposed})
 	was := askWhichRoutine
 	askWhichRoutine = func(string) (resolved, string) {
@@ -62,6 +62,15 @@ func TestAProposedRoutineIsReviewedAndItsValueIsNotLogged(t *testing.T) {
 	}
 	if takePendingLearn() != "" {
 		t.Error("a proposal became an offer to record the phrase")
+	}
+	// WHAT IT BECAME, NOT WHAT WAS HEARD: the history row and the HUD's own lines name the routine.
+	if n := len(s.history); n == 0 || s.history[n-1].cmd != "cloud pull" {
+		t.Errorf("the history row does not name the proposed routine: %+v", s.history)
+	}
+	for _, l := range s.logs {
+		if strings.Contains(l, "cloud paul") {
+			t.Errorf("the transcript is in the HUD's lines: %q", l)
+		}
 	}
 	mu.Lock()
 	defer mu.Unlock()

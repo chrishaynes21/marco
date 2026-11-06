@@ -261,7 +261,7 @@ func TestASpokenLineWithAValueIsReviewedLikeATypedOne(t *testing.T) {
 	}
 	exact, paraphrase, withValue, proposal := finals[0], finals[1], finals[2], finals[3]
 	pull := aCloudPull(withValue, "stone")
-	proposed := aCloudPull("cloud pull resource:stone", "stone")
+	proposed := aCloudPull("cloud pull resource: stone", "stone")
 	proposed.Parts[0].Said = "(read out of what you said)"
 	engineReads(t, map[string]lineReading{
 		exact:         {Line: exact, Kind: "routine", Slug: "open-social", Name: "open social", Runnable: true},

@@ -178,7 +178,7 @@ func TestOtherLinesGoToTheIntakeAsBefore(t *testing.T) {
 //
 // Forwarding the proposals without the review must fail this.
 func TestAProposedValueIsReviewedBeforeItRuns(t *testing.T) {
-	proposed := aCloudPull("cloud pull resource:stone", "stone")
+	proposed := aCloudPull("cloud pull resource: stone", "stone")
 	proposed.Parts[0].Said = "(read out of what you said)"
 	asked := engineReads(t, map[string]lineReading{proposed.Line: proposed})
 	runs := runsRecorded(t)
@@ -207,7 +207,7 @@ func TestAProposedValueIsReviewedBeforeItRuns(t *testing.T) {
 		t.Fatalf("the proposal is not open for review: editing %v, input %q, y/n prompt %v",
 			s.editing, s.input, promptAsk.Load())
 	}
-	if a := asked(); len(a) == 0 || a[0] != "cloud pull resource:stone --play=cloud-pull --app=game-b "+
+	if a := asked(); len(a) == 0 || a[0] != "cloud pull resource: stone --play=cloud-pull --app=game-b "+
 		"--proposed=resource=stone --proposed-at=v1" {
 		t.Errorf("the reading was asked as %q", a)
 	}
@@ -318,7 +318,7 @@ func TestALateReadingDoesNotReplaceTheCurrentOne(t *testing.T) {
 // A review opens only on the routine Director named: if the line reads as another one (a namesake
 // in a nearer scope), it is the plain offer of the named routine and no proposal is attached.
 func TestAReviewIsOnlyOfTheNamedRoutine(t *testing.T) {
-	namesake := aCloudPull("cloud pull resource:stone", "stone")
+	namesake := aCloudPull("cloud pull resource: stone", "stone")
 	namesake.Slug, namesake.App = "cloud-pull", "notepad"
 	engineReads(t, map[string]lineReading{namesake.Line: namesake})
 	h := newModel()
@@ -337,7 +337,7 @@ func TestAReviewIsOnlyOfTheNamedRoutine(t *testing.T) {
 //
 // Comparing the application and the name alone must fail this.
 func TestAProposalForTheFocusRoutineIsNotPutOnItsNamesake(t *testing.T) {
-	context := aCloudPull("cloud pull resource:stone", "stone") // Focus false: the context one
+	context := aCloudPull("cloud pull resource: stone", "stone") // Focus false: the context one
 	engineReads(t, map[string]lineReading{context.Line: context})
 	runs := runsRecorded(t)
 	prev := askWhichRoutine
@@ -372,7 +372,7 @@ func TestAProposalForTheFocusRoutineIsNotPutOnItsNamesake(t *testing.T) {
 // While Director's values are on the line, only their routine runs from it: edited to name the
 // namesake, Enter runs nothing until the line is dismissed.
 func TestALineEditedAwayFromItsProposalRunsNothing(t *testing.T) {
-	context := aCloudPull("cloud pull resource:stone", "stone")
+	context := aCloudPull("cloud pull resource: stone", "stone")
 	engineReads(t, map[string]lineReading{context.Line: context})
 	runs := runsRecorded(t)
 	h := newModel()

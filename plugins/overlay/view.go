@@ -616,7 +616,7 @@ func editRuns(in string, names []string, accent color.RGBA) []editRun {
 			rs = append(rs, editRun{", ", th.cmd})
 		}
 		if i < len(names) { // colored label in front of the value the user typed
-			rs = append(rs, editRun{names[i] + ":", th.listen})
+			rs = append(rs, editRun{names[i] + ": ", th.listen})
 		}
 		rs = append(rs, editRun{strings.TrimSpace(seg), th.cmd})
 	}

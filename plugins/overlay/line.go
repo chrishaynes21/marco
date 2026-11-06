@@ -294,7 +294,7 @@ func reviewProposal(h *model, name, app, slug string, focus bool, values map[str
 	}
 	sort.Strings(keys)
 	for _, k := range keys {
-		line += " " + k + ":" + values[k]
+		line += " " + k + ": " + values[k] // a space after the colon, for reading; the parser takes either
 	}
 	r, ok := askLine(line, p)
 	switch {

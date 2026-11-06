@@ -22,7 +22,7 @@ import (
 // Narrowing asksWhichRoutine back to `unavailable` must fail this.
 func TestAMisheardSpokenNameIsOfferedWithItsValue(t *testing.T) {
 	const heard = "cloud paul stone"
-	proposed := aCloudPull("cloud pull resource:stone", "stone")
+	proposed := aCloudPull("cloud pull resource: stone", "stone")
 	engineReads(t, map[string]lineReading{
 		heard:         {Line: heard, Kind: "none"},
 		proposed.Line: proposed,

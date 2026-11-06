@@ -203,7 +203,8 @@ func offerResolved(h *model, phrase string, r resolved) disposition {
 		}
 		switch reviewProposal(h, a.Name, a.App, a.Slug, a.Focus, proposed, a.SourceAt) {
 		case reviewed:
-			h.log("you asked: " + phrase)
+			// WHAT WAS SAID IS NOT REPEATED: the line under review is what it became, and a spoken
+			// transcript beside it is noise.
 			return offeredRun
 		case refusedReview:
 			return saidWhyNot

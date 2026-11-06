@@ -1142,6 +1142,10 @@ func runRecordTracked(h *model, name string, track bool, args ...string) childRu
 	disp := name
 	if r.route != "" {
 		disp = r.route // show the canonical play a loose phrase resolved to
+	} else if r.proposed != nil && r.proposed.Answer.Name != "" {
+		// AND THE ROUTINE PROPOSED FOR IT, so the history, the log and the status name what the
+		// words became rather than the transcript (ADR-322).
+		disp = r.proposed.Answer.Name
 	}
 	out := r.outcome()
 	h.setStatus(statusLine(out, disp))

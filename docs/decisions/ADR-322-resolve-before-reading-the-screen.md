@@ -43,6 +43,9 @@ only after that, from the widget, and what the person saw was the failure.
 - **Not resolved:** an answer to a pending question (the same `intent.ParseClarification` reading
   `Decide` uses); a learn, clarification or chat answer; a library mismatch; a run with no identity.
 - Exact names and demonstrations are untouched: they are decided before this arm.
+- **What it became, not what was heard.** The review line writes each value with a space after the
+  colon (`resource: stone`; `routes.ParseInvocation` reads either), and a proposal's history row,
+  status and HUD line name the routine rather than the transcript. The "you asked:" line is gone.
 
 ## Verified (Windows only)
 
