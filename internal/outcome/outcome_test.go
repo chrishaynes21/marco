@@ -26,6 +26,10 @@ func TestTheWireLineIsOneSharedLiteral(t *testing.T) {
 			"the routine Director's resolver proposed; when it stops matching, the proposal is "+
 			"lost and its values are echoed into the console log", ProposedPrefix)
 	}
+	if RanPrefix != "[ran] " {
+		t.Fatalf("the ran prefix changed to %q. plugins/overlay reads it to show what a routine "+
+			"was run with and keeps it out of the console log; plugins/studio skips it", RanPrefix)
+	}
 }
 
 // TestBothWireLinesReadBackWhatTheyWrote — the two prefixes must not be able to shadow each

@@ -55,7 +55,7 @@ func TestAMisheardSpokenNameIsOfferedWithItsValue(t *testing.T) {
 		time.Sleep(5 * time.Millisecond)
 	}
 	s := h.snapshot()
-	if !s.editing || s.input != proposed.Line || !s.hasReading {
+	if !s.editing || s.input != " "+proposed.Line || !s.hasReading {
 		t.Fatalf("not open for review on the routine it meant: editing %v, input %q, reading %v, status %q",
 			s.editing, s.input, s.hasReading, s.status)
 	}

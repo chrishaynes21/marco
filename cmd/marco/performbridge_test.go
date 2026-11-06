@@ -9,6 +9,7 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/director/marcoexec"
 	"github.com/chaynes-simpleclouds/marco/internal/director/service"
 	"github.com/chaynes-simpleclouds/marco/internal/orchestrator"
+	"github.com/chaynes-simpleclouds/marco/internal/outcome"
 	"github.com/chaynes-simpleclouds/marco/internal/platform/screenhost"
 	"github.com/chaynes-simpleclouds/marco/internal/routes"
 	"github.com/chaynes-simpleclouds/marco/internal/runtime"
@@ -618,6 +619,11 @@ func TestABridgeFailureStillAnnouncesTheResolvedRoute(t *testing.T) {
 			"The overlay reads a failure with no [route] as an unknown command and offers "+
 			"to learn it — so a learned play that refused would be presented as one Marco "+
 			"has never heard of.", said)
+	}
+	// AND WHAT IT WAS RUN WITH, which the widget's history shows: a demonstrated routine is
+	// still named by what ran, not by the words that asked for it.
+	if !strings.Contains(said, outcome.RanPrefix+"mute volume\n") {
+		t.Errorf("a demonstrated routine did not say what it ran with:\n%s", said)
 	}
 }
 

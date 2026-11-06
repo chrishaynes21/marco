@@ -803,7 +803,8 @@ func (a *Acts) readRoutine(pr *os.File) {
 				// recognises those.
 				a.routine.reference = r.ID
 			} else if said := strings.TrimSpace(line); said != "" &&
-				!strings.HasPrefix(said, outcome.RoutePrefix) {
+				!strings.HasPrefix(said, outcome.RoutePrefix) &&
+				!strings.HasPrefix(said, outcome.RanPrefix) {
 				// THE LAST THING IT SAID BEFORE ANNOUNCING, which for a
 				// refused guarded press is the sentence naming what could not
 				// be checked: `<routine> stopped: the window …`. Kept verbatim

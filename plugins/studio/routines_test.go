@@ -1821,3 +1821,16 @@ func TestARoutineThatNoLongerChecksSaysWhatToDo(t *testing.T) {
 		t.Errorf("the short refusal a row shows reads %q", r.Cant)
 	}
 }
+
+// WHAT A ROUTINE RAN WITH IS A WIRE LINE, NOT A REASON. `[ran] ` carries the values it was given
+// for the widget's history; it is not the last thing the run said for a person, so it is never
+// kept as why the run went as it did.
+//
+// Dropping the RanPrefix test in readRoutine must fail this.
+func TestTheRanLineIsNotTheReason(t *testing.T) {
+	w := aRunThatSaid(t, "[route] ark graphics", outcome.RanPrefix+"ark graphics quality: low",
+		outcome.Line(outcome.Performed))
+	if strings.Contains(w.Reason, outcome.RanPrefix) {
+		t.Errorf("the ran line was kept as the reason: %q", w.Reason)
+	}
+}

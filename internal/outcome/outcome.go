@@ -235,3 +235,12 @@ func RouteFromLine(line string) (string, bool) {
 //
 // Changing this literal must fail TestTheWireLineIsOneSharedLiteral.
 const ProposedPrefix = "[proposed] "
+
+// RanPrefix is the engine's fourth wire line: WHAT a routine was run with, printed beside
+// `[route] ` — its name and the values it was given, in the routine's own order, never a value the
+// credential store answers. The route line is the name alone; a front end showing a person what
+// ran ("cloud pull resource: stone") reads this one. It carries values, so a front end consumes it
+// and does not echo it into a log.
+//
+// Changing this literal must fail TestTheWireLineIsOneSharedLiteral.
+const RanPrefix = "[ran] "

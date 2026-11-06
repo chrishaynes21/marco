@@ -56,7 +56,8 @@ func TestAProposedRoutineIsReviewedAndItsValueIsNotLogged(t *testing.T) {
 		time.Sleep(5 * time.Millisecond)
 	}
 	s := h.snapshot()
-	if !s.editing || s.input != proposed.Line || !s.hasReading {
+	// With the space a person types after the leader, so it reads "`m cloud pull …".
+	if !s.editing || s.input != " "+proposed.Line || !s.hasReading {
 		t.Fatalf("the proposal was not opened for review: editing %v, input %q, reading %v, status %q",
 			s.editing, s.input, s.hasReading, s.status)
 	}
@@ -76,5 +77,40 @@ func TestAProposedRoutineIsReviewedAndItsValueIsNotLogged(t *testing.T) {
 	defer mu.Unlock()
 	if strings.Contains(logged.String(), "zq7stone9f3k") {
 		t.Errorf("the proposed value reached the console log:\n%s", logged.String())
+	}
+}
+
+// WHAT RAN IS WHAT THE HISTORY SAYS, values and all: the engine names the routine on `[route] `
+// and what it was run with on `[ran] `, and the history row is the second — "cloud pull resource:
+// stone", not "cloud pull" — while the console log names the routine and never the value.
+//
+// Ignoring childRun.ran in runRecordTracked, or echoing the line into the console, must fail this.
+func TestTheHistoryShowsWhatRanWithItsValues(t *testing.T) {
+	const value = "zq7stone9f3k"
+	var logged strings.Builder
+	var mu sync.Mutex
+	prevW, prevLvl := mlogW, mlogLvl
+	mlogInit()
+	mlogW, mlogLvl = lockedWriter{&mu, &logged}, mlogDebug
+	t.Cleanup(func() { mlogW, mlogLvl = prevW, prevLvl })
+
+	t.Setenv("MARCO_BIN", os.Args[0])
+	t.Setenv("MARCO_OVERLAY_ECHO", outcome.RoutePrefix+"cloud pull\n"+
+		outcome.RanPrefix+"cloud pull resource: "+value+"\n"+
+		outcome.ResultPrefix+string(outcome.Performed)+"\n")
+	h := newModel()
+	runRecordTracked(h, "cloud pull "+value, false, "-test.run=TestOverlayEchoHelper", "do", "cloud pull "+value)
+
+	s := h.snapshot()
+	if n := len(s.history); n == 0 || s.history[n-1].cmd != "cloud pull resource: "+value {
+		t.Errorf("the history row is not what ran: %+v", s.history)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if strings.Contains(logged.String(), value) {
+		t.Errorf("the value reached the console log:\n%s", logged.String())
+	}
+	if !strings.Contains(logged.String(), "cloud pull") {
+		t.Errorf("the console log does not name the routine:\n%s", logged.String())
 	}
 }

@@ -12,6 +12,7 @@ import (
 
 	"github.com/chaynes-simpleclouds/marco/internal/invoke"
 	"github.com/chaynes-simpleclouds/marco/internal/orchestrator"
+	"github.com/chaynes-simpleclouds/marco/internal/outcome"
 	"github.com/chaynes-simpleclouds/marco/internal/plays"
 	"github.com/chaynes-simpleclouds/marco/internal/routes"
 )
@@ -314,6 +315,10 @@ func TestAnAnswerReachesTheQuestionAndNothingElseDoes(t *testing.T) {
 	}
 	if !strings.Contains(said, "[route] open mouse settings") {
 		t.Errorf("the play did not run while a stale question was pending:\n%s", said)
+	}
+	// AND WHAT IT RAN WITH, which the widget's history shows (outcome.RanPrefix).
+	if !strings.Contains(said, outcome.RanPrefix+"open mouse settings\n") {
+		t.Errorf("the run did not say what it ran with:\n%s", said)
 	}
 }
 

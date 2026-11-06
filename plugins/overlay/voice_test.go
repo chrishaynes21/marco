@@ -331,7 +331,7 @@ func TestASpokenLineWithAValueIsReviewedLikeATypedOne(t *testing.T) {
 			t.Fatalf("a spoken line with a value ran unread: %q", got)
 		}
 		s := h.snapshot()
-		if !s.editing || s.input != withValue || !s.hasReading || s.status != "Enter runs it" {
+		if !s.editing || s.input != " "+withValue || !s.hasReading || s.status != "Enter runs it" {
 			t.Fatalf("not open for review: editing %v, input %q, reading %v, status %q",
 				s.editing, s.input, s.hasReading, s.status)
 		}
@@ -362,7 +362,7 @@ func TestASpokenLineWithAValueIsReviewedLikeATypedOne(t *testing.T) {
 			time.Sleep(5 * time.Millisecond)
 		}
 		s := h.snapshot()
-		if !s.editing || s.input != proposed.Line || promptAsk.Load() {
+		if !s.editing || s.input != " "+proposed.Line || promptAsk.Load() {
 			t.Fatalf("the proposal is not open for review: editing %v, input %q", s.editing, s.input)
 		}
 		if got := ran(); len(got) != 1 {

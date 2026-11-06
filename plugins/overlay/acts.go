@@ -813,7 +813,7 @@ func streamChild(h *model, trackCancel bool, args ...string) childRun {
 		_ = inW.Close()
 	}()
 
-	route, result, said := "", "", ""
+	route, result, said, ran := "", "", "", ""
 	var proposed *resolved
 	done := make(chan struct{})
 	go func() {
@@ -842,6 +842,12 @@ func streamChild(h *model, trackCancel bool, args ...string) childRun {
 				} else {
 					mlogW2("overlay: a proposal that could not be read")
 				}
+				return
+			}
+			// AND WHAT THE ROUTINE WAS RUN WITH, which carries its values: shown in the history and
+			// never echoed into the console log (outcome.RanPrefix).
+			if v, ok := strings.CutPrefix(s, outcome.RanPrefix); ok {
+				ran = strings.TrimSpace(v)
 				return
 			}
 			if strings.HasPrefix(s, routePrefix) {
@@ -935,7 +941,7 @@ func streamChild(h *model, trackCancel bool, args ...string) childRun {
 	if trackCancel {
 		stopped = untrackRun(cmd)
 	}
-	return childRun{err: err, killed: stopped, route: route, result: result, said: said, proposed: proposed}
+	return childRun{err: err, killed: stopped, route: route, result: result, said: said, proposed: proposed, ran: ran}
 }
 
 // trackRun and untrackRun are the in-flight-child registration.
@@ -1140,7 +1146,11 @@ func runRecordTracked(h *model, name string, track bool, args ...string) childRu
 	r := streamChild(h, track, args...)
 	r.dur = time.Since(start)
 	disp := name
-	if r.route != "" {
+	if r.ran != "" {
+		// WHAT RAN, WITH ITS VALUES ("cloud pull resource: stone"), for the person looking at the
+		// history: the routine's library name and the values it was given, never the transcript.
+		disp = r.ran
+	} else if r.route != "" {
 		disp = r.route // show the canonical play a loose phrase resolved to
 	} else if r.proposed != nil && r.proposed.Answer.Name != "" {
 		// AND THE ROUTINE PROPOSED FOR IT, so the history, the log and the status name what the
@@ -1164,8 +1174,11 @@ func runRecordTracked(h *model, name string, track bool, args ...string) childRu
 	// The name is the routine that ran when one was announced, and otherwise only how long the
 	// request was: an unresolved name is what somebody said (quiet.go). A child given --play was
 	// given a routine out of the library, and its name is that routine's.
+	// The CONSOLE log never carries the values, so it names the route, not what it ran with.
 	logged := disp
-	if r.route == "" && !namesAPlay(args) {
+	if r.route != "" {
+		logged = r.route
+	} else if !namesAPlay(args) {
 		logged = heard(name)
 	}
 	kv := []any{"name", logged, "outcome", string(out), "took", fmtDur(r.dur)}

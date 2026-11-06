@@ -567,6 +567,7 @@ func performOnePlay(d orchestrator.Deps, p playInvocation) (Outcome, error) {
 	// THE FORK. A play Marco wrote by watching is performed by the Director, which can see;
 	// everything else runs here, exactly as it always has.
 	if resolved.Learned() {
+		sayRan(d, p.rt, resolved.Values, p.positional)
 		if err := performLearned(d, resolved, resolved.Values, p.positional); err != nil {
 			noteEnd(lastattempt.StageDirector, err.Error(), "Studio's History has Director's own account of it")
 			return OutcomeFailed, err
@@ -610,6 +611,9 @@ func performOnePlay(d orchestrator.Deps, p playInvocation) (Outcome, error) {
 		fmt.Fprintln(os.Stdout, s.refused)
 		return OutcomeRefused, nil
 	}
+	// WHAT IT IS RUN WITH, once nothing is left that could refuse it, so a refusal never repeats
+	// a value (TestASaveBetweenTheConfirmationAndTheReadRunsNothing).
+	sayRan(d, p.rt, resolved.Values, p.positional)
 	res := citeRoutineRun(began, p.rt, s.did)
 	noteRun(res.ID)
 

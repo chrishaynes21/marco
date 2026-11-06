@@ -251,7 +251,9 @@ var reopenEditHook = func() {}
 
 // reopenLine opens the command line on text again, for the value to be typed in place.
 func reopenLine(h *model, text string) {
-	h.setInput(text)
+	// A SPACE AFTER THE BADGE, the one a person types after the leader: a line the widget writes
+	// for somebody reads "`m cloud pull", not "`mcloud pull". Every reader trims it.
+	h.setInput(" " + strings.TrimSpace(text))
 	h.setEditing(true)
 	h.show(true)
 	reopenEditHook()

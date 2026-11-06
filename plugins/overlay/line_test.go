@@ -109,7 +109,7 @@ func TestNothingWithAValueRunsUnread(t *testing.T) {
 		t.Fatalf("a line nobody had seen read back ran: %q", got)
 	}
 	s := h.snapshot()
-	if !s.editing || s.input != r.Line || !s.hasReading || s.status != "Enter runs it" {
+	if !s.editing || s.input != " "+r.Line || !s.hasReading || s.status != "Enter runs it" {
 		t.Fatalf("after the first Enter: editing %v, input %q, reading %v, status %q",
 			s.editing, s.input, s.hasReading, s.status)
 	}
@@ -132,7 +132,7 @@ func TestNothingWithAValueRunsUnread(t *testing.T) {
 	if got := runs(); len(got) != 1 {
 		t.Errorf("a line with its value missing ran: %q", got)
 	}
-	if s := h.snapshot(); !s.editing || s.input != "cloud pull" || s.status != missing.Says {
+	if s := h.snapshot(); !s.editing || s.input != " cloud pull" || s.status != missing.Says {
 		t.Errorf("a missing value left editing %v, input %q, status %q", s.editing, s.input, s.status)
 	}
 }
@@ -203,7 +203,7 @@ func TestAProposedValueIsReviewedBeforeItRuns(t *testing.T) {
 		t.Fatalf("a proposal ran before anybody looked at it: %q", got)
 	}
 	s := h.snapshot()
-	if !s.editing || s.input != proposed.Line || promptAsk.Load() {
+	if !s.editing || s.input != " "+proposed.Line || promptAsk.Load() {
 		t.Fatalf("the proposal is not open for review: editing %v, input %q, y/n prompt %v",
 			s.editing, s.input, promptAsk.Load())
 	}
