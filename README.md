@@ -606,8 +606,14 @@ disabled" error):
 
 (`setup.cmd` just runs `setup.ps1` with `-ExecutionPolicy Bypass`; call the `.ps1`
 directly if your policy already allows it.) Voice uses a wake word (default
-**computer**, say "computer, <command>"); change it with `-Wake "<word>"`,
-or set it to `off` to listen to every phrase without arming.
+**marco**, say "marco, <command>"; change it in the widget's settings or overlay.json
+`wake`), or set it to `off` to listen to every phrase without arming. The widget starts
+the microphone itself, so voice works from `overlay.cmd`, from Studio's **Open widget** and
+from `Marco.exe --overlay`; it logs whether it is listening, muted, or unavailable and why.
+The installer includes voice: `pack.ps1` builds `voice.exe` and ships it with libvosk and the
+speech model, so the installed widget listens too (it needs `setup.ps1 -Voice` run once in the tree
+that packs). Only one recogniser listens per microphone: if an `overlay.cmd` from an older
+`setup.ps1` already started one, the widget uses it and says so; run `setup.ps1` again.
 
 Natural-language routine matching is **offline and key-free by default** (a
 deterministic matcher maps what you say to your routine names). For loose phrasing
@@ -734,7 +740,8 @@ product does not need you to.
 | `MARCO_TESSERACT` | path to the `tesseract` binary if it isn't on `PATH` (used by the OCR plugin) |
 | `MARCO_BIN` | engine binary the overlay shells out to |
 | `MARCO_OVERLAY_IDLE` | overlay idle opacity (0–1) |
-| `MARCO_VOICE_WAKE` | voice wake word (default `computer`; `off` = always listen) |
+| `MARCO_VOICE_WAKE` | voice wake word, overriding overlay.json `wake` (default `marco`; `off` = always listen) |
+| `MARCO_VOICE_BIN` | the recogniser the widget starts (default `plugins\voice\voice.exe` beside `marco.exe`); `MARCO_NO_VOICE=1` starts none |
 
 ---
 

@@ -49,7 +49,7 @@ import (
 func packedOrFail(t *testing.T) {
 	t.Helper()
 	var missing []string
-	for _, s := range staged {
+	for _, s := range allStaged() {
 		if _, err := assets.ReadFile("assets/" + s.asset); err != nil {
 			missing = append(missing, s.asset)
 		}
@@ -75,7 +75,7 @@ func TestInstallingPutsTheWholeBundleWhereItIsLookedFor(t *testing.T) {
 	if err := install(bin, "v1"); err != nil {
 		t.Fatal(err)
 	}
-	for _, s := range staged {
+	for _, s := range allStaged() {
 		if _, err := os.Stat(filepath.Join(bin, filepath.FromSlash(s.dest))); err != nil {
 			t.Errorf("missing %s: %v", s.dest, err)
 		}
@@ -122,7 +122,7 @@ func TestInstallingPutsTheWholeBundleWhereItIsLookedFor(t *testing.T) {
 // have left a mixture.
 func TestAFailedUpgradeLeavesThePreviousBundleWhole(t *testing.T) {
 	packedOrFail(t)
-	if len(staged) < 2 {
+	if len(allStaged()) < 2 {
 		t.Skip("one component cannot leave a mixture")
 	}
 	root := t.TempDir()
@@ -133,7 +133,8 @@ func TestAFailedUpgradeLeavesThePreviousBundleWhole(t *testing.T) {
 
 	// THE SECOND INSTALL CANNOT COMPLETE: the LAST component's destination is a
 	// directory in the staging area, so writing it fails after the others are written.
-	last := staged[len(staged)-1]
+	all := allStaged()
+	last := all[len(all)-1]
 	staging := bin + "-" + safeName("v2")
 	blocked := filepath.Join(staging, filepath.FromSlash(last.dest))
 	if err := os.MkdirAll(blocked, 0o755); err != nil {
@@ -164,7 +165,7 @@ func anInstalledBundle(t *testing.T, root, ver string) (binDir string, was map[s
 		t.Fatal(err)
 	}
 	was = map[string][]byte{}
-	for _, s := range staged {
+	for _, s := range allStaged() {
 		at := filepath.Join(binDir, filepath.FromSlash(s.dest))
 		b, err := os.ReadFile(at)
 		if err != nil {
@@ -182,7 +183,7 @@ func anInstalledBundle(t *testing.T, root, ver string) (binDir string, was map[s
 // stillWhole asserts that every file of the installed version is still that version's.
 func stillWhole(t *testing.T, binDir, ver string, was map[string][]byte) {
 	t.Helper()
-	for _, s := range staged {
+	for _, s := range allStaged() {
 		b, err := os.ReadFile(filepath.Join(binDir, filepath.FromSlash(s.dest)))
 		if err != nil {
 			t.Errorf("%s is gone: %v", s.dest, err)
@@ -216,7 +217,7 @@ func TestActivationPutsTheStagedVersionInUse(t *testing.T) {
 		string(b) != "v2" {
 		t.Errorf("the active bundle does not say it is v2: %q (%v)", b, err)
 	}
-	for _, s := range staged {
+	for _, s := range allStaged() {
 		b, err := os.ReadFile(filepath.Join(binDir, filepath.FromSlash(s.dest)))
 		if err != nil {
 			t.Errorf("missing %s: %v", s.dest, err)

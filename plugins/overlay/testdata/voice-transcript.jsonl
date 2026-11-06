@@ -1,0 +1,14 @@
+{"feed":"Voice","event":"Heartbeat","data":""}
+{"feed":"Voice","event":"Partial","data":"listening..."}
+{"feed":"Voice","event":"Partial","data":"open"}
+{"feed":"Voice","event":"Final","data":"open social"}
+{"feed":"Voice","event":"Heartbeat","data":""}
+{"feed":"Voice","event":"Partial","data":"listening..."}
+{"feed":"Voice","event":"Partial","data":"bring up the"}
+{"feed":"Voice","event":"Final","data":"bring up the social menu"}
+{"feed":"Voice","event":"Partial","data":"listening..."}
+{"feed":"Voice","event":"Final","data":"cloud pull stone"}
+{"feed":"Voice","event":"Partial","data":"listening..."}
+{"feed":"Voice","event":"Final","data":"pull some stone from the cloud"}
+not a json line
+{"feed":"Other","event":"Final","data":"not voice"}

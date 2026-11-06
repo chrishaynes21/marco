@@ -102,7 +102,7 @@ func runResolveChild(phrase string) (resolved, string) {
 	cmd := exec.CommandContext(ctx, marcoBin(), "resolve", "--json", phrase)
 	out, err := cmd.Output()
 	if ctx.Err() != nil {
-		mlogI("overlay: resolve took too long", "phrase", phrase, "within",
+		mlogI("overlay: resolve took too long", "phrase", heard(phrase), "within",
 			resolveWithin.String())
 		return resolved{}, "the Director did not answer which routine that is within " +
 			resolveWithin.String() + ", so nothing has been selected"
@@ -111,7 +111,7 @@ func runResolveChild(phrase string) (resolved, string) {
 	// STILL prints why, which is the thing worth showing; so the output is read either
 	// way and only unreadable output is a failure.
 	if len(strings.TrimSpace(string(out))) == 0 {
-		mlogI("overlay: resolve said nothing", "phrase", phrase, "err", errText(err))
+		mlogI("overlay: resolve said nothing", "phrase", heard(phrase), "err", errText(err))
 		return resolved{}, "nothing could be asked which routine that is: " +
 			marcoBin() + " answered nothing (" + errText(err) + ")"
 	}
@@ -211,7 +211,7 @@ func offerWhatMarcoHas(h *model, phrase string) disposition {
 		// agrees with itself and is said rather than swallowed: an answer that names
 		// a routine and carries no identity is the one thing this surface cannot act
 		// on, and silence about it would read as Marco having nothing.
-		mlogW2("overlay: a run with no identity", "reply", a.Reply)
+		mlogW2("overlay: a run with no identity", "reply", heard(a.Reply))
 		h.log(saidOr(a.Reply, "") + " (nothing was named to run, so nothing has been " +
 			"selected)")
 		return saidWhyNot

@@ -144,7 +144,9 @@ func runInvocation(d orchestrator.Deps, req invoke.Request) (Outcome, error) {
 	// which half of the product took the words, what it ended as, and the error if there
 	// was one. The decision line above says where the words went; this says where they
 	// got to.
-	kv := []any{"decision", string(dec.Kind), "outcome", string(out), "words", req.Text}
+	// HOW MANY WORDS, NOT WHICH: a request can carry a value somebody supplied, and this log is a
+	// console or a file that outlives the moment.
+	kv := []any{"decision", string(dec.Kind), "outcome", string(out), "words", len(strings.Fields(req.Text))}
 	switch dec.Kind {
 	case invoke.KindPlay:
 		kv = append(kv, "play", dec.Play.Slug)

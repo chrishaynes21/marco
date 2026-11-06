@@ -182,7 +182,7 @@ func configLines() []string {
 		"mini      " + onOff(c.Mini),
 		"metrics   " + onOff(c.Metrics),
 		"coords    " + onOff(c.Coords),
-		"voice     " + onOff(c.Voice),
+		"voice     " + voiceShort(c.Voice),
 	}
 }
 

@@ -77,7 +77,46 @@ var staged = []struct{ asset, dest string }{
 	{"uia.exe", "plugins/uia/uia.exe"},
 	{"overlay.exe", "overlay.exe"},
 	{"overlay.marco", "overlay.marco"},
+	// THE WIDGET'S MICROPHONE, where the widget looks for it: plugins\voice\voice.exe beside
+	// marco.exe, the native recogniser beside it (voice.exe is linked against libvosk.dll, and
+	// libvosk against the three MinGW runtimes), and its speech model in plugins\voice\model —
+	// see stagedTrees. Before this an installed widget always said "voice isn't installed".
+	// See [[ADR-319-the-installer-ships-voice]].
+	{"plugins/voice/voice.exe", "plugins/voice/voice.exe"},
+	{"plugins/voice/libvosk.dll", "plugins/voice/libvosk.dll"},
+	{"plugins/voice/libgcc_s_seh-1.dll", "plugins/voice/libgcc_s_seh-1.dll"},
+	{"plugins/voice/libstdc++-6.dll", "plugins/voice/libstdc++-6.dll"},
+	{"plugins/voice/libwinpthread-1.dll", "plugins/voice/libwinpthread-1.dll"},
 	{"manifest.json", "manifest.json"},
+}
+
+// stagedTrees are directories unpacked whole: a speech model is a dozen files whose names are the
+// model's business, not this table's. Each must hold at least one file; an empty or missing one
+// is reported by name, exactly as a missing file is.
+var stagedTrees = []struct{ asset, dest string }{
+	{"plugins/voice/model", "plugins/voice/model"},
+}
+
+// allStaged is every file this bundle unpacks: the table, and each tree walked. A tree with
+// nothing in it appears as itself, so reading it fails and says which asset is missing.
+func allStaged() []struct{ asset, dest string } {
+	out := append([]struct{ asset, dest string }(nil), staged...)
+	for _, tr := range stagedTrees {
+		found := false
+		_ = fs.WalkDir(assets, "assets/"+tr.asset, func(p string, d fs.DirEntry, err error) error {
+			if err != nil || d.IsDir() {
+				return nil
+			}
+			rel := strings.TrimPrefix(p, "assets/"+tr.asset+"/")
+			out = append(out, struct{ asset, dest string }{tr.asset + "/" + rel, tr.dest + "/" + rel})
+			found = true
+			return nil
+		})
+		if !found {
+			out = append(out, tr)
+		}
+	}
+	return out
 }
 
 func main() {
@@ -297,7 +336,7 @@ func stage(dir, ver string) error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
-	for _, s := range staged {
+	for _, s := range allStaged() {
 		data, err := assets.ReadFile("assets/" + s.asset)
 		if err != nil {
 			// The embed is a directory, so a missing asset arrives here rather than

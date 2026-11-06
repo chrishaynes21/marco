@@ -389,6 +389,7 @@ func whatThisInstallationIsMadeOf() (string, []Problem) {
 	}
 	var said []string
 	var problems []Problem
+	modelFiles := 0
 	for _, f := range m.Files {
 		where := filepath.Join(filepath.Dir(exe), filepath.FromSlash(f.File))
 		// THE PROVIDER IS NOT WHERE THE MANIFEST NAMES IT. `uia.exe` is laid out
@@ -419,7 +420,16 @@ func whatThisInstallationIsMadeOf() (string, []Problem) {
 			})
 			continue
 		}
+		// THE SPEECH MODEL IS A DOZEN FILES and one thing: each is verified above, and the
+		// sentence names the model once rather than every file in it.
+		if strings.HasPrefix(f.File, voiceModelDir) {
+			modelFiles++
+			continue
+		}
 		said = append(said, fmt.Sprintf("%s %s", f.File, id))
+	}
+	if modelFiles > 0 {
+		said = append(said, fmt.Sprintf("the speech model (%d files)", modelFiles))
 	}
 	return fmt.Sprintf("Marco %s, packaged %s: %s", m.Version, m.Packed,
 		strings.Join(said, " · ")), problems
@@ -451,3 +461,7 @@ func hashOf(path string) (string, error) {
 // What was here looked beside the executable only and said the same fact over again in a red
 // problem card above Record. Two statements of one fact on one screen is the thing this window
 // has now been corrected for twice; see `Acts.Library` and `Routines.Checks`.
+
+// voiceModelDir is where an installation keeps the widget's speech model, as the manifest names
+// its files (plugins/marco-app `stagedTrees`).
+const voiceModelDir = "plugins/voice/model/"

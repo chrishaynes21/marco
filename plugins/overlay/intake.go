@@ -58,7 +58,7 @@ func dispatchIntake(h *model, phrase string, source invoke.Source) {
 	// sent to stop, so the leader key would then offer to cancel the cancellation.
 	track := !intent.IsControlPhrase(phrase)
 	args := intakeArgs(phrase, source)
-	mlogI("overlay: intake", "source", string(source), "phrase", phrase, "args", args)
+	mlogI("overlay: intake", "source", string(source), "phrase", heard(phrase), "args", argsShown(args))
 	go func() {
 		r := spawnIntakeChild(h, phrase, track, args...)
 		if r.offersLearn() {
@@ -80,7 +80,7 @@ func dispatchIntake(h *model, phrase string, source invoke.Source) {
 			case offeredRun, saidWhyNot:
 				return
 			}
-			mlogI("overlay: nothing took it — offering learn", "phrase", phrase)
+			mlogI("overlay: nothing took it — offering learn", "phrase", heard(phrase))
 			offerLearn(h, phrase)
 		}
 	}()

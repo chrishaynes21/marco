@@ -32,6 +32,51 @@ if ($LASTEXITCODE) { throw "director build failed" }
 if ($LASTEXITCODE) { throw "overlay build failed" }
 Copy-Item (Join-Path $root "plugins\overlay\overlay.marco") (Join-Path $assets "overlay.marco") -Force
 
+# ==> THE WIDGET'S MICROPHONE (ADR-319).
+#
+# The widget starts plugins\voice\voice.exe beside marco.exe with its model in
+# plugins\voice\model (plugins/overlay/voice.go). Without these an installed widget says
+# "voice isn't installed", so packing without them is a FAILURE, not a smaller bundle.
+#
+# voice.exe is BUILT HERE, from this commit, with cgo: a cgo-free build compiles and answers
+# every start with "built without cgo", which looks like a working binary until somebody speaks.
+# The native pieces are NOT in the repository - setup.ps1 -Voice downloads libvosk (with its
+# MinGW runtimes) and the model into plugins\voice - so this checks they are there and says how
+# to get them.
+Write-Host "==> building voice.exe with cgo, and staging its recogniser and model" -ForegroundColor Cyan
+$voiceSrc = Join-Path $root "plugins\voice"
+$voiceDst = Join-Path $assets "plugins\voice"
+$voiceLibs = @("libvosk.dll", "libgcc_s_seh-1.dll", "libstdc++-6.dll", "libwinpthread-1.dll")
+foreach ($f in ($voiceLibs + @("vosk_api.h"))) {
+    if (-not (Test-Path (Join-Path $voiceSrc $f))) {
+        throw "voice is not set up in this tree: no plugins\voice\$f. Run .\setup.ps1 -Voice (it downloads libvosk and the model), then pack again"
+    }
+}
+if (-not (Test-Path (Join-Path $voiceSrc "model\conf"))) {
+    throw "voice is not set up in this tree: no speech model in plugins\voice\model. Run .\setup.ps1 -Voice, then pack again"
+}
+if (-not (Get-Command gcc -ErrorAction SilentlyContinue)) {
+    throw "voice.exe needs cgo and there is no gcc on PATH (winget install BrechtSanders.WinLibs.POSIX.UCRT)"
+}
+if (Test-Path $voiceDst) { Remove-Item -Recurse -Force $voiceDst }
+New-Item -ItemType Directory -Force -Path $voiceDst | Out-Null
+$cgoWas = @($env:CGO_ENABLED, $env:CGO_CFLAGS, $env:CGO_LDFLAGS)
+$env:CGO_ENABLED = "1"
+$env:CGO_CFLAGS = "-I$voiceSrc"
+$env:CGO_LDFLAGS = "-L$voiceSrc -lvosk"
+try {
+    & go -C $voiceSrc build -o (Join-Path $voiceDst "voice.exe") .
+    $rc = $LASTEXITCODE
+} finally {
+    $env:CGO_ENABLED, $env:CGO_CFLAGS, $env:CGO_LDFLAGS = $cgoWas
+}
+if ($rc) { throw "voice build failed" }
+if (-not (& go version -m (Join-Path $voiceDst "voice.exe") | Select-String -SimpleMatch "CGO_ENABLED=1")) {
+    throw "voice.exe was built without cgo: it would answer every start with 'built without cgo'"
+}
+foreach ($f in $voiceLibs) { Copy-Item (Join-Path $voiceSrc $f) (Join-Path $voiceDst $f) -Force }
+Copy-Item (Join-Path $voiceSrc "model") (Join-Path $voiceDst "model") -Recurse -Force
+
 # The accessibility provider — the Theater's only actor. Built with the .NET Framework
 # csc.exe that ships with Windows (see plugins\uia\build.ps1): no SDK, no restore.
 # It is extracted to bin\plugins\uia\uia.exe, which is the second tier of the discovery
@@ -85,7 +130,9 @@ Set-Content -Path (Join-Path $assets "version.txt") -Value $ver -NoNewline -Enco
 # The embed is a directory (see plugins\marco-app\main.go), so a forgotten asset is no longer a
 # compile error. Check the list HERE, where the person who can fix it is standing — an installer
 # missing director.exe or uia.exe still launches and simply cannot perform anything.
-$required = @("studio.exe", "marco.exe", "marco-macros.exe", "director.exe", "uia.exe", "overlay.exe", "overlay.marco", "version.txt")
+$required = @("studio.exe", "marco.exe", "marco-macros.exe", "director.exe", "uia.exe", "overlay.exe", "overlay.marco",
+    "plugins/voice/voice.exe", "plugins/voice/libvosk.dll", "plugins/voice/libgcc_s_seh-1.dll",
+    "plugins/voice/libstdc++-6.dll", "plugins/voice/libwinpthread-1.dll", "version.txt")
 foreach ($f in $required) {
     if (-not (Test-Path (Join-Path $assets $f))) { throw "not staged: plugins\marco-app\assets\$f" }
 }
@@ -109,13 +156,19 @@ foreach ($f in $required) {
 # package built from outside its own module answers, which is the mistake `build.cmd` made with
 # the director once — and a shipped bundle of them would make every run record unciteable.
 Write-Host "==> writing the bundle manifest" -ForegroundColor Cyan
-$goBins = @("studio.exe", "marco.exe", "marco-macros.exe", "director.exe", "overlay.exe")
+$goBins = @("studio.exe", "marco.exe", "marco-macros.exe", "director.exe", "overlay.exe", "plugins/voice/voice.exe")
 # THE COMPONENTS, WHICH IS NOT THE SAME LIST AS THE STAGED ASSETS.
 #
 # `version.txt` is the embed's own LABEL — its contents are this manifest's `version` field —
 # and it is never extracted, so listing it as a component made a correct installation report
 # "version.txt is in this manifest and is not on disk". Caught by running the bundle.
 $components = $required | Where-Object { $_ -ne "version.txt" }
+# AND EVERY FILE OF THE SPEECH MODEL, named as it lands (plugins/voice/model/...), so Studio
+# verifies each against disk; it reads them back as one item.
+$modelRoot = Join-Path $assets "plugins\voice\model"
+$components += @(Get-ChildItem -Recurse -File $modelRoot | ForEach-Object {
+    "plugins/voice/model/" + $_.FullName.Substring($modelRoot.Length + 1).Replace("\", "/")
+})
 $entries = @()
 foreach ($f in $components) {
     $path = Join-Path $assets $f

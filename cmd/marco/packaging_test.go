@@ -82,6 +82,39 @@ func TestThePackagedLayoutIsWhatMarcoLooksFor(t *testing.T) {
 		}
 	}
 
+	// 2b. THE WIDGET'S MICROPHONE IS WHERE THE WIDGET LOOKS (ADR-319): plugins/overlay
+	//     findVoice joins marco.exe's directory with plugins/voice/voice.exe and takes the model
+	//     from the directory beside it; voice.exe is linked against libvosk.dll, and libvosk
+	//     against the MinGW runtimes, which Windows looks for beside the executable.
+	for asset, wantDest := range map[string]string{
+		"plugins/voice/voice.exe":           "plugins/voice/voice.exe",
+		"plugins/voice/libvosk.dll":         "plugins/voice/libvosk.dll",
+		"plugins/voice/libgcc_s_seh-1.dll":  "plugins/voice/libgcc_s_seh-1.dll",
+		"plugins/voice/libstdc++-6.dll":     "plugins/voice/libstdc++-6.dll",
+		"plugins/voice/libwinpthread-1.dll": "plugins/voice/libwinpthread-1.dll",
+	} {
+		if got, ok := table[asset]; !ok || got != wantDest {
+			t.Errorf("the installer extracts %s to %q (in the table: %v), but the widget looks "+
+				"for it at %q beside marco.exe — an installed widget would say voice isn't "+
+				"installed.", asset, got, ok, wantDest)
+		}
+	}
+	overlay := readRepoFile(t, "plugins/overlay/voice.go")
+	if !strings.Contains(overlay, `filepath.Join(root, "plugins", "voice", "voice.exe")`) ||
+		!strings.Contains(overlay, `filepath.Join(filepath.Dir(exe), "model")`) {
+		t.Error("the widget no longer looks for plugins/voice/voice.exe and its model beside it; " +
+			"this layout and that lookup must change together")
+	}
+	if !regexp.MustCompile(`\{"plugins/voice/model",\s*"plugins/voice/model"\}`).MatchString(src) {
+		t.Error("the installer does not unpack the speech model to plugins/voice/model, so the " +
+			"recogniser it ships cannot load one")
+	}
+	if !strings.Contains(pack, `Copy-Item (Join-Path $voiceSrc "model")`) ||
+		!strings.Contains(pack, `"CGO_ENABLED=1"`) {
+		t.Error("pack.ps1 does not stage the speech model, or does not refuse a voice.exe built " +
+			"without cgo (which answers every start with 'built without cgo')")
+	}
+
 	// 3. pack.ps1 actually produces every file the table extracts. An entry it never stages
 	//    ships as a missing asset, and the person who could have fixed it has gone home.
 	for asset := range table {

@@ -99,7 +99,7 @@ func main() {
 			if listening() {
 				emit("Partial", data)
 			} else {
-				mlogD("voice: partial suppressed (not armed)", "data", data)
+				mlogD("voice: partial suppressed (not armed)", "words", words(data))
 			}
 			return
 		}
@@ -114,7 +114,7 @@ func main() {
 				// Narrate-learn is active: re-arm immediately so the user doesn't
 				// need to repeat the wake word between phrases. The narrate child
 				// handles "done" / "cancel" and the overlay removes the lock file.
-				mlogD("voice: narrate mode re-arm", "phrase", t)
+				mlogD("voice: narrate mode re-arm", "words", words(t))
 				armedAt = time.Now()
 				emit("Partial", "listening...")
 			} else {
@@ -124,7 +124,7 @@ func main() {
 				t = strings.TrimSpace(strings.TrimLeft(after, " ,"))
 			}
 			if t != "" {
-				mlogI("voice: dispatching command", "phrase", t)
+				mlogI("voice: dispatching command", "words", words(t))
 				emit("Final", t)
 			}
 			return
@@ -134,7 +134,7 @@ func main() {
 		// (not shown), so the HUD isn't fed random speech.
 		if after, ok := strings.CutPrefix(t, w); ok {
 			if cmd := strings.TrimSpace(strings.TrimLeft(after, " ,")); cmd != "" {
-				mlogI("voice: one-shot command", "phrase", cmd)
+				mlogI("voice: one-shot command", "words", words(cmd))
 				emit("Final", cmd) // one-shot: "computer login to facebook"
 			} else {
 				mlogI("voice: armed", "wake", w)
@@ -142,7 +142,7 @@ func main() {
 				emit("Partial", "listening...")
 			}
 		} else {
-			mlogD("voice: ignored (not armed, no wake word)", "phrase", t)
+			mlogD("voice: ignored (not armed, no wake word)", "words", words(t))
 		}
 	}
 
@@ -181,3 +181,8 @@ func envOr(name, def string) string {
 	}
 	return def
 }
+
+// words is how much was heard, for a log line. What was heard is never written to the log: a
+// spoken command can carry a value somebody supplied, and stderr is a console or a file that
+// outlives the moment. The words themselves go only to stdout, to the widget.
+func words(s string) int { return len(strings.Fields(s)) }

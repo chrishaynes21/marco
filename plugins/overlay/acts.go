@@ -130,7 +130,7 @@ func dispatch(h *model, req request) response {
 		// While a voice-learn session is live, every phrase IS narration — forward it
 		// to the learn child (it handles "done"/"cancel" and exits) instead of running.
 		if voiceActive.Load() {
-			mlogD("overlay: forwarding to voice-learn", "phrase", name)
+			mlogD("overlay: forwarding to voice-learn", "phrase", heard(name))
 			writeVoicePhrase(name)
 			return okData(nil)
 		}
@@ -151,14 +151,15 @@ func dispatch(h *model, req request) response {
 		// type `m voice on (or `m listen) to un-mute even after muting by voice.
 		if on, matched := voiceToggleCmd(fields); matched {
 			setVoice(on)
+			// THE ANSWER IS WHAT THE MICROPHONE IS DOING, not only the toggle: "voice on" with no
+			// recogniser running is the silence this widget used to be (voice.go).
 			if on {
 				h.setStatus("voice on")
-				h.log("voice on — say a command")
 			} else {
 				h.setStatus("voice off")
-				h.log("voice off — type `m voice on to un-mute")
 				h.setHeard("")
 			}
+			h.log(voiceSays())
 			return okData(nil)
 		}
 		// "narrate learn <name>" (aliases "narrate teach", "voice teach") starts narration-driven
@@ -168,7 +169,7 @@ func dispatch(h *model, req request) response {
 		if len(fields) >= 3 && isLocal && (local.Word == cmdNarrate || local.Word == cmdVoice) &&
 			isWord(fields[1], cmdLearn) {
 			vname := strings.TrimSpace(strings.Join(fields[2:], " "))
-			mlogI("overlay: narrate-learn starting", "name", vname)
+			mlogI("overlay: narrate-learn starting", "name", heard(vname))
 			voiceActive.Store(true) // set before spawning so no early phrase leaks to Run
 			h.setLearnSession(true)
 			h.log("narrate learn \"" + vname + "\" — type or say: click / anchor this / type … / wait for this screen / done")
@@ -176,10 +177,10 @@ func dispatch(h *model, req request) response {
 				err := runNarrateLearn(h, vname)
 				h.setLearnSession(false)
 				if err != nil {
-					mlogE("overlay: narrate-learn failed", "name", vname, "err", err)
+					mlogE("overlay: narrate-learn failed", "name", heard(vname), "err", redactionFor([]string{"learn", vname}).apply(errText(err)))
 					h.log("narrate learn failed: " + vname + " — " + err.Error())
 				} else {
-					mlogI("overlay: narrate-learn done", "name", vname)
+					mlogI("overlay: narrate-learn done", "name", heard(vname))
 				}
 			}()
 			return okData(nil)
@@ -236,11 +237,11 @@ func dispatch(h *model, req request) response {
 		// forget / rename / simplify are instructions about Marco's catalogue, not about
 		// the desktop; they are `marco` subcommands and were never invocations.
 		if verb, ok := overlayVerb(name, fields); ok {
-			mlogI("overlay: running", "name", name, "args", verb)
+			mlogI("overlay: running", "name", heard(name), "args", argsShown(verb))
 			h.setStatus("running: " + name)
 			r := runRecord(h, name, verb...)
 			if r.err != nil {
-				mlogW2("overlay: command failed", "name", name)
+				mlogW2("overlay: command failed", "name", heard(name))
 				return fail("command failed: " + name)
 			}
 			return okData(nil)
@@ -277,15 +278,32 @@ func dispatch(h *model, req request) response {
 		//
 		// Deleting this must fail TestASpokenStopReachesTheRunningPlayImmediately.
 		if intent.IsControlPhrase(name) {
-			mlogI("overlay: control phrase — stopping locally too", "phrase", name)
+			mlogI("overlay: control phrase — stopping locally too", "phrase", heard(name))
 			stopRunningPlays()
 		}
 
-		// A TYPED LINE THAT NAMES A ROUTINE TAKING VALUES runs as its read-back, or waits for one
-		// (line.go). Typed only: a spoken phrase has no read-back on screen, and keeps the intake's
-		// own grammar and Director. Not a control phrase, which must not wait for a reading.
-		if source == invoke.SourceTyped && !intent.IsControlPhrase(name) && typedLine(h, name) {
-			return okData(nil)
+		// A LINE THAT NAMES A ROUTINE TAKING VALUES runs as its read-back, or waits for one
+		// (line.go) — TYPED OR SPOKEN. A spoken one never has a read-back on screen yet, so it
+		// always waits: the command line opens on what was heard with the read-back under it,
+		// and Enter runs it, exactly as a typed line Enter'd before its reading arrived. It used
+		// to go to the intake as words instead, so "cloud pull stone" said aloud skipped the
+		// review a typed one gets. Not a control phrase, which must not wait for a reading.
+		//
+		// A NEW SPOKEN REQUEST IS NOT AN EDIT of a line Director's values are on, so it drops
+		// that proposal rather than being refused as a line edited away from it.
+		//
+		// Sending a spoken line straight to the intake must fail
+		// TestASpokenLineWithAValueIsReviewedLikeATypedOne.
+		if !intent.IsControlPhrase(name) {
+			if source == invoke.SourceSpoken {
+				h.clearProposal()
+			}
+			if typedLine(h, name) {
+				if source == invoke.SourceSpoken {
+					h.setHeard("") // what was heard is on the command line now
+				}
+				return okData(nil)
+			}
 		}
 		h.setStatus("running: " + name)
 		dispatchIntake(h, name, source)
@@ -525,7 +543,7 @@ func launchUI(h *model, args []string, note string) {
 	}
 	editCmd = cmd
 	editMu.Unlock()
-	mlogI("overlay: ui", "args", strings.Join(args, " "))
+	mlogI("overlay: ui", "args", argsShown(append([]string{"ui"}, args...)))
 	h.log("opening " + note + "…")
 
 	// SUCCESS IS REPORTED WHEN IT IS KNOWN, AND NOT BEFORE.
@@ -548,7 +566,7 @@ func launchUI(h *model, args []string, note string) {
 		go func() { done <- cmd.Wait() }() // reap either way, so it cannot linger as a zombie
 		select {
 		case err := <-done:
-			mlogW2("overlay: the control centre stopped before it was up", "err", err, "args", args)
+			mlogW2("overlay: the control centre stopped before it was up", "err", err, "args", argsShown(append([]string{"ui"}, args...)))
 			h.log("could not open " + note)
 		case <-time.After(uiStartupWindow):
 			h.log(note + " — open in your browser")
@@ -645,6 +663,7 @@ func voiceToggleCmd(fields []string) (on bool, matched bool) {
 
 // writeVoicePhrase forwards one narration phrase to the voice-learn child's stdin.
 func writeVoicePhrase(phrase string) {
+	narrationQuiet.add(phrase)
 	voiceMu.Lock()
 	w := voicePipe
 	voiceMu.Unlock()
@@ -687,6 +706,7 @@ func runNarrateLearn(h *model, name string) error {
 		voiceActive.Store(false) // set by the caller; no session will clear it
 		return errNoWindowToNarrate
 	}
+	narrationQuiet.reset(name)
 	cmd := exec.Command(marcoBin(), "learn", "--narrate", "--window", w, name)
 	cmd.Env = append(os.Environ(), "MARCO_NO_PANIC_STOP=1")
 	inW, err := cmd.StdinPipe()
@@ -714,7 +734,7 @@ func runNarrateLearn(h *model, name string) error {
 		sc := bufio.NewScanner(pr)
 		for sc.Scan() {
 			if line := strings.TrimRight(sc.Text(), "\r"); line != "" {
-				fmt.Fprintln(os.Stderr, line) // full detail to the serve console
+				fmt.Fprintln(mlogW, narrationQuiet.apply(line)) // full detail to the serve console, nothing said in it (quiet.go)
 				h.log(line)
 			}
 		}
@@ -745,6 +765,7 @@ const noPlayMatches = "no play matches "
 // thing doing the cancelling.
 func streamChild(h *model, trackCancel bool, args ...string) childRun {
 	cmd := exec.Command(marcoBin(), args...)
+	quiet := redactionFor(args)
 	// NO_PANIC_STOP: the overlay owns the global hook (dueling LL hooks + a route's
 	// injected input deadlock). SIMPLIFY_SAVES: learn's [s] simplifies AND saves (the
 	// HUD can't show the preview to re-confirm). Both harmless to the other subcommands.
@@ -799,7 +820,15 @@ func streamChild(h *model, trackCancel bool, args ...string) childRun {
 			// goes to the CONSOLE — the overlay.cmd window where serve runs — uncapped, so
 			// the complete detail is always visible there even though the HUD only keeps a
 			// short tail.
-			fmt.Fprintln(os.Stderr, s)
+			//
+			// WITH THE REQUEST TAKEN OUT (quiet.go): `marco do` and the Director quote it back in
+			// exactly the lines somebody reads when it went wrong. The announced route is a
+			// library name, not something said, and is echoed as it is.
+			if strings.HasPrefix(s, routePrefix) {
+				fmt.Fprintln(mlogW, s)
+			} else {
+				fmt.Fprintln(mlogW, quiet.apply(s))
+			}
 			// "[route] " is WIRE PROTOCOL, not user text: the engine announces the
 			// resolved play on it and cmd/marco has a live test pinning the producer
 			// side. It is deliberately NOT renamed with the product vocabulary.
@@ -1108,7 +1137,14 @@ func runRecordTracked(h *model, name string, track bool, args ...string) childRu
 	//
 	// `r.err` is the child never starting, which is a different thing from the child
 	// reporting a failure, and the two used to be equally silent here.
-	kv := []any{"name", disp, "outcome", string(out), "took", fmtDur(r.dur)}
+	// The name is the routine that ran when one was announced, and otherwise only how long the
+	// request was: an unresolved name is what somebody said (quiet.go). A child given --play was
+	// given a routine out of the library, and its name is that routine's.
+	logged := disp
+	if r.route == "" && !namesAPlay(args) {
+		logged = heard(name)
+	}
+	kv := []any{"name", logged, "outcome", string(out), "took", fmtDur(r.dur)}
 	if r.err != nil {
 		kv = append(kv, "err", r.err)
 	}
@@ -1181,7 +1217,7 @@ var recording atomic.Bool
 // keeping the panel awake and streaming the engine's prompts into the HUD. Shared by
 // the explicit `m learn <name>` command and the unknown-command learn offer.
 func startLearn(h *model, name string) {
-	mlogI("overlay: learn starting", "name", name)
+	mlogI("overlay: learn starting", "name", heard(name))
 	h.setLearnSession(true) // keep the HUD awake for the whole demonstration
 	recording.Store(true)
 	h.log("recording \"" + name + "\" — demonstrate now, press " + strings.ToUpper(cfgLeader()) + " to save")
@@ -1190,10 +1226,10 @@ func startLearn(h *model, name string) {
 		recording.Store(false)
 		h.setLearnSession(false)
 		if err != nil {
-			mlogE("overlay: learn failed", "name", name, "err", err)
+			mlogE("overlay: learn failed", "name", heard(name), "err", redactionFor([]string{"learn", name}).apply(errText(err)))
 			h.log("learn failed: " + name)
 		} else {
-			mlogI("overlay: learn done", "name", name)
+			mlogI("overlay: learn done", "name", heard(name))
 		}
 	}()
 }
@@ -1276,7 +1312,7 @@ func runOfferedRoutine(h *model, r offeredRoutine) {
 	if r.focus {
 		args = append(args, "--focus")
 	}
-	mlogI("overlay: running what Director named", "id", r.id, "args", args)
+	mlogI("overlay: running what Director named", "id", r.id, "args", argsShown(args))
 	go func() { _ = spawnIntakeChild(h, r.name, true, args...) }()
 }
 

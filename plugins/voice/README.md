@@ -10,14 +10,23 @@ transcript as Marco feed events on stdout — the same event seam `globals` /
 {"feed":"Voice","event":"Final","data":"open chrome"}  # a finished phrase
 ```
 
-Pipe it into a served program:
-
-```
-voice --model vosk-model-small-en-us-0.15 | marco serve --host Overlay=bridge:overlay plugins/overlay/overlay.marco
-```
+**The widget starts it.** `overlay.exe` looks for `plugins\voice\voice.exe` beside
+`marco.exe` (model in `plugins\voice\model`; `$MARCO_VOICE_BIN` / `$MARCO_VOSK_MODEL`
+override, `$MARCO_NO_VOICE=1` starts none), gives it the wake phrase from overlay.json, and
+forwards these lines onto its own bridge output. So every way of starting the widget has voice
+— `overlay.cmd`, Studio's Open widget, `Marco.exe --overlay` — and the HUD says whether it is
+listening or why not. Don't also pipe it into `marco serve`: if one is already running from the
+same path the widget starts none and says so, but two would run every command twice. Its log
+carries `words=N`, never the phrase. See ADR-318 and ADR-319.
 
 `overlay.marco` turns **Partial** into a live preview (`Overlay`'s `Heard`) and
-**Final** into a command (`Overlay`'s `Run`). So speaking a route name runs it.
+**Final** into a command (`Overlay`'s `RunVoice`, the same intake a typed line uses).
+
+For a pipe test with no widget, it can still feed a served program's stdin:
+
+```
+voice --demo | marco serve --host Overlay=bridge:overlay plugins/overlay/overlay.marco
+```
 
 ## Wake word (two-phase activation)
 

@@ -790,7 +790,11 @@ func TestTheLogSaysHowACommandEnded(t *testing.T) {
 	if !strings.Contains(got, "overlay - finished") {
 		t.Fatalf("nothing in the log says how it ended:\n%s", got)
 	}
-	for _, want := range []string{"name=ark graphics live", "outcome=refused"} {
+	// No route was announced, so the name logged is the request's shape, never its words (quiet.go).
+	if strings.Contains(got, "ark graphics live") {
+		t.Errorf("what was asked is in the log:\n%s", got)
+	}
+	for _, want := range []string{"name=‹3 words›", "outcome=refused"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("the log does not carry %q:\n%s", want, got)
 		}

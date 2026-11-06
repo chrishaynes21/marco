@@ -47,6 +47,7 @@ func main() {
 	go pollHeadline(m)          // the NORMAL reading, so a pending question is never invisible
 	go startDirectorForWidget() // a Director started for this widget, ready for the first request
 	emit := func(ev event) { out <- ev }
+	go startVoice(m, emit)                      // the microphone, for every launcher (voice.go)
 	if err := startInput(m, emit); err != nil { // controller: input → model + intents
 		fmt.Fprintln(os.Stderr, "overlay: input capture unavailable:", err)
 	}

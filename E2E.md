@@ -338,6 +338,41 @@ Use a play you already have from section A or G; the steps below say `"<name>"`.
     - FAIL (and this is the bug the phase fixed): the line says `decision=director`, or the HUD
       offers to record a demonstration of a play you already have.
 
+34a. **Voice from every launcher** ([[ADR-318-the-widget-starts-its-own-microphone]]).
+    Start the widget with `.\overlay.cmd`, then close it and start it with Studio's **Open
+    widget**.
+    - PASS: within a few seconds the HUD log says `voice listening — say "marco", then the
+      command` (or your wake phrase), from both. The settings panel's voice line reads
+      `on · listening`.
+    - PASS: `` `m voice off `` says `voice off — type …voice on to listen`, and speaking does
+      nothing until `` `m voice on ``.
+    - PASS: Task Manager shows ONE `voice.exe`, a child of `overlay.exe`.
+    - FAIL: no voice line at all from Open widget (the defect this fixed), or two `voice.exe`.
+    - With voice not built, the line says `voice unavailable: voice isn't installed …` instead.
+
+34b. **A spoken paraphrase.** Say "marco, bring up the social menu" (with a resolver running and
+    a routine called `open social`).
+    - PASS: `[intake] source=spoken decision=director …`, then the HUD offers `Run "open social"?`.
+      Nothing runs until you answer.
+
+34c. **A spoken value is reviewed.** Say "marco, cloud pull stone" (a routine `cloud pull` that
+    takes `resource`).
+    - PASS: the command line opens on `cloud pull stone` with `Cloud pull · resource: stone   Enter
+      runs it` under it, and nothing has run. Enter runs it.
+    - FAIL: it runs straight away, as it did before ADR-318.
+
+34d. **Voice in the installed build, and one recogniser** ([[ADR-319-the-installer-ships-voice]]).
+    Pack and install (`gate.ps1` does both), start `Marco.exe --overlay`, then Studio's **Open
+    widget** from the installed Studio.
+    - PASS: `voice listening — …` from both; Task Manager shows ONE `voice.exe`, under
+      `%LOCALAPPDATA%Marcoinpluginsvoice`. Studio's installation line ends with `the
+      speech model (14 files)` and no problem.
+    - Then in the dev tree, run an OLD overlay.cmd that still pipes `voice.exe | marco serve`.
+      PASS: the HUD says `voice is listening through a recogniser that was already running …`,
+      there is ONE `voice.exe`, and a spoken exact name runs ONCE.
+    - PASS: the console behind overlay.cmd shows `phrase=‹N words›` and never what you said, even
+      for a request that fails.
+
 35. **The same known play, from a shell.**
     `marco do "<name>"` in a terminal.
     - PASS: `[intake] source=cli decision=play play=<slug> …`, the same slug again.

@@ -632,6 +632,26 @@ func TestAnInstalledMarcoSaysWhatItIsMadeOf(t *testing.T) {
 	if len(problems) != 1 || !strings.Contains(problems[0].Says, "not on disk") {
 		t.Errorf("a missing file is reported as %+v", problems)
 	}
+	// AND THE SPEECH MODEL IS ONE ITEM, each of its files still verified (ADR-319).
+	model := filepath.Join(dir, "plugins", "voice", "model")
+	if err := os.MkdirAll(filepath.Join(model, "am"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(filepath.Join(dir, "plugins")) })
+	if err := os.WriteFile(filepath.Join(model, "am", "final.mdl"), []byte("weights"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	weights, _ := hashOf(filepath.Join(model, "am", "final.mdl"))
+	write([]bundled{{File: self, SHA256: sum, Revision: "abc1234"},
+		{File: "plugins/voice/model/am/final.mdl", SHA256: weights},
+		{File: "plugins/voice/model/conf/model.conf", SHA256: weights}})
+	made, problems = whatThisInstallationIsMadeOf()
+	if !strings.Contains(made, "the speech model (1 files)") || strings.Contains(made, "final.mdl") {
+		t.Errorf("the model reads as %q", made)
+	}
+	if len(problems) != 1 || !strings.Contains(problems[0].Says, "model.conf") {
+		t.Errorf("a model file missing from disk is reported as %+v", problems)
+	}
 	// AND BACK TO A GOOD ONE, so the two cases below are about the ENCODING and the
 	// SHAPE of the manifest rather than about its contents.
 	write([]bundled{{File: self, SHA256: sum, Revision: "abc1234"}})

@@ -138,7 +138,8 @@ func TestNothingWithAValueRunsUnread(t *testing.T) {
 }
 
 // Every line this does not take goes to the intake as words, as before: a routine with no values,
-// a line naming nothing, an engine with no `line`, a control word, and anything spoken.
+// a line naming nothing, an engine with no `line`, a control word, and a spoken one the engine
+// could not read.
 func TestOtherLinesGoToTheIntakeAsBefore(t *testing.T) {
 	exact := lineReading{Line: "cloud pull stone", Kind: "routine", Slug: "cloud-pull-stone", Runnable: true}
 	asked := engineReads(t, map[string]lineReading{exact.Line: exact,
@@ -163,9 +164,11 @@ func TestOtherLinesGoToTheIntakeAsBefore(t *testing.T) {
 			t.Errorf("%q was not sent to the intake as words: %q", want, got)
 		}
 	}
+	// A spoken phrase IS read now, like a typed one (voice_test.go); one the engine could not read
+	// still goes as words. A control word never waits for a reading.
 	for _, a := range asked() {
-		if a == "stop" || strings.HasPrefix(a, "cloud pull granite") {
-			t.Errorf("a control word or a spoken phrase waited for a reading: %q", a)
+		if a == "stop" {
+			t.Errorf("a control word waited for a reading: %q", a)
 		}
 	}
 }

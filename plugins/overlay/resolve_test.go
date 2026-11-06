@@ -194,7 +194,13 @@ func TestOnlyDirectorsLearnDecisionBecomesALearnOffer(t *testing.T) {
 		answering(t, how.make(), how.why)
 
 		dispatchIntake(h, "make the pictures nicer", invoke.SourceTyped)
+		// THE REPLY IS LOGGED BEFORE THE LEARN OFFER IS MADE, on the door's goroutine, so when
+		// one is wanted it is the offer that is waited for: waiting for the reply alone read the
+		// prompt in between, and failed about one run in fifteen.
 		settled(t, func() bool {
+			if how.learn {
+				return anOfferIsPending()
+			}
 			return strings.Contains(strings.Join(said(h), " "), how.want) ||
 				anOfferIsPending()
 		})

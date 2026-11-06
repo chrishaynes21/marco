@@ -12694,3 +12694,34 @@ This completes the editor slices: text and keys, insertion, repeats, drags, clic
   centre's help.
 - 16 mutants killed. Not seen on the desktop: whether the open window really comes to the
   front is unproven. See [[ADR-317-the-widgets-help-opens-studio]].
+
+### 2026-11-05 — The widget starts its own microphone
+
+- Voice reached the widget only through `overlay.cmd`'s `voice.exe | marco serve` pipe, so
+  Studio's Open widget and `Marco.exe --overlay` heard nothing and said nothing. The overlay now
+  starts `plugins\voice\voice.exe` beside `marco.exe` itself, with the wake phrase from
+  overlay.json, and forwards its Voice events unchanged. The pipe is gone from `overlay.cmd` and
+  from `setup.ps1`.
+- It says whether voice is listening, muted, starting or unavailable, and why.
+- A spoken line naming a routine that takes values now opens the typed line's read-back
+  instead of going to the intake as words.
+- Verified with a transcript fixture through a stand-in voice.exe, and the engine leg over the
+  real overlay.marco. 11 mutants killed. No real microphone yet; the installer ships no voice.
+  See [[ADR-318-the-widget-starts-its-own-microphone]], and [[Skills-on-a-miss-2026-11-05]] for
+  what the widget can resolve when nothing matches exactly, and the next slice.
+- Fixed a pre-existing race in `TestOnlyDirectorsLearnDecisionBecomesALearnOffer` (3 of 40 on
+  HEAD): it read the learn prompt between the reply being logged and the offer being made.
+
+### 2026-11-05 — Voice ships, one recogniser listens, nothing heard is logged
+
+- `pack.ps1` builds `voice.exe` with cgo from the packed commit and stages it with libvosk, its
+  MinGW runtimes and the speech model under `plugins\voice`; the launcher unpacks the model as a
+  tree and Studio verifies every file. Packing without them is refused. About +127 MB.
+- The widget starts no recogniser when a `voice.exe` from the same path is already running (an old
+  `overlay.cmd`'s pipe) and says so.
+- The widget's log, its echo of a child's output, voice.exe's log and the engine's `intake:
+  finished` line carry word counts, never what was said or supplied (`plugins/overlay/quiet.go`).
+- Verified by tests (mutants killed) and by running pack's voice block into a scratch directory
+  and loading the staged voice.exe. Not packed end to end, not installed, no real microphone.
+  See [[ADR-319-the-installer-ships-voice]].
+

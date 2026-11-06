@@ -9,7 +9,7 @@ used_by:
   - service
   - visibility
   - learned-plays
-updated: 2026-11-04
+updated: 2026-11-05
 source_paths:
   - internal/invoke
   - cmd/marco/intake.go
@@ -404,6 +404,14 @@ overlay (`TestTheUnknownCommandErrorIsOnePrefix`, `TestNoPlayMatchesPrefix`).
 Every one of them reaches `cmd/marco/intake.go` `runInvocation`, the process-side entry, and
 `invoke.Decide` inside it. `TestEveryEntranceReachesTheSamePlay`,
 `TestEveryEntranceReachesDirectorOnAMiss`, `TestEveryEntranceRoutesThroughTheOneIntake`.
+
+The overlay starts the microphone itself and forwards voice.exe's own `Voice` events, so a spoken
+phrase arrives the same way from every launcher, and a spoken line naming a routine that takes
+values opens the same read-back a typed one does ([[ADR-318-the-widget-starts-its-own-microphone]]).
+The installer ships the recogniser, one recogniser listens per microphone, and nothing heard reaches
+the widget's log ([[ADR-319-the-installer-ships-voice]]). 
+What the widget can resolve when nothing matches exactly is mapped in
+[[Skills-on-a-miss-2026-11-05]].
 
 Both overlay paths are **asynchronous**. A replay runs for minutes and a spoken "stop" arrives as
 a second phrase while the first is still going; a blocked act handler could not hear it. That
