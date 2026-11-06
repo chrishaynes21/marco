@@ -82,3 +82,16 @@ func TestTheAnswerSaysWhatHappenedWhyAndWhatNext(t *testing.T) {
 		}
 	}
 }
+
+// What the recogniser is told to expect is what Asks answers to.
+func TestEveryOfferedPhrasingIsAnswered(t *testing.T) {
+	ps := Phrasings()
+	if len(ps) < len(questions) {
+		t.Fatalf("%d phrasings for %d questions", len(ps), len(questions))
+	}
+	for _, p := range ps {
+		if !Asks(p) {
+			t.Errorf("%q is offered to the recogniser and not answered", p)
+		}
+	}
+}

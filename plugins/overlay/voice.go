@@ -148,8 +148,14 @@ func startVoice(h *model, emit func(event)) {
 		setVoicePhase(h, voiceElsewhere, strconv.Itoa(pid), wake)
 		return
 	}
+	// THE ROUTINE NAMES, BEFORE IT STARTS, and kept current while it runs (voicephrases.go).
+	phrases := voicePhrasesPath()
+	writeVoicePhrases(phrases, wake)
+	stopPhrases := make(chan struct{})
+	defer close(stopPhrases)
+	go keepVoicePhrases(phrases, wake, stopPhrases)
 	cmd := exec.Command(found.exe, "--model", found.model)
-	cmd.Env = append(os.Environ(), "MARCO_VOICE_WAKE="+wake)
+	cmd.Env = append(os.Environ(), "MARCO_VOICE_WAKE="+wake, "MARCO_VOICE_PHRASES="+phrases)
 	out, err := cmd.StdoutPipe()
 	if err != nil {
 		setVoicePhase(h, voiceUnavailable, "voice.exe could not be connected: "+err.Error(), wake)

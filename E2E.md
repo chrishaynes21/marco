@@ -365,7 +365,7 @@ Use a play you already have from section A or G; the steps below say `"<name>"`.
     Pack and install (`gate.ps1` does both), start `Marco.exe --overlay`, then Studio's **Open
     widget** from the installed Studio.
     - PASS: `voice listening — …` from both; Task Manager shows ONE `voice.exe`, under
-      `%LOCALAPPDATA%Marcoinpluginsvoice`. Studio's installation line ends with `the
+      `%LOCALAPPDATA%\Marco\bin\plugins\voice`. Studio's installation line ends with `the
       speech model (14 files)` and no problem.
     - Then in the dev tree, run an OLD overlay.cmd that still pipes `voice.exe | marco serve`.
       PASS: the HUD says `voice is listening through a recogniser that was already running …`,
@@ -383,7 +383,7 @@ Use a play you already have from section A or G; the steps below say `"<name>"`.
       contains neither phrase.
 
 34f. **A misheard name goes to the model** ([[ADR-321-a-misheard-name-goes-to-the-model]]). With
-    Ollama running (llama3.1:8b pulled), `pluginslamalama.exe` built, and Director restarted
+    Ollama running (llama3.1:8b pulled), `plugins\llama\llama.exe` built, and Director restarted
     so it finds the plugin, say "marco, cloud pull stone" so that it is heard as "cloud paul
     stone" (or type `cloud paul stone`).
     - PASS: after Director's answer, the command line opens on `cloud pull resource:stone` with

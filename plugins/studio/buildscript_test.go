@@ -97,7 +97,7 @@ func TestTheBuildScriptMakesTheWholeStackFromOneCommit(t *testing.T) {
 			break
 		}
 	}
-	for _, out := range []string{"director.exe", "marco.exe", "marco-macros.exe", "overlay.exe", "llama.exe"} {
+	for _, out := range []string{"director.exe", "marco.exe", "marco-macros.exe", "overlay.exe", "llama.exe", "voice.exe"} {
 		i := lineOf(lines, regexp.MustCompile(regexp.QuoteMeta(`"%STAGE%\`+out+`"`)+` (\.|\.\\cmd)`))
 		if push < 0 || i < push || i > pop {
 			t.Errorf("%s is not built from the root module, so it carries no revision", out)
@@ -144,7 +144,7 @@ func TestTheBuildScriptMakesTheWholeStackFromOneCommit(t *testing.T) {
 	}
 	here := filepath.Join(root, "plugins", "studio")
 	dirs := map[string]string{"%HERE%": here, "%ROOT%": root, "%OVERLAY%": filepath.Join(root, "plugins", "overlay"),
-		"%LLAMA%": filepath.Join(root, "plugins", "llama")}
+		"%LLAMA%": filepath.Join(root, "plugins", "llama"), "%VOICE%": filepath.Join(root, "plugins", "voice")}
 	put := map[string]bool{}
 	putRe := regexp.MustCompile(`^call :put ([\w-]+\.exe) "(%\w+%)" \|\| goto :mixed$`)
 	for i, l := range lines {
@@ -165,6 +165,8 @@ func TestTheBuildScriptMakesTheWholeStackFromOneCommit(t *testing.T) {
 		filepath.Join(root, "director.exe"), filepath.Join(root, "marco.exe"),
 		// Director, marco and Studio find the resolver beside themselves (resolver.Beside).
 		filepath.Join(root, "plugins", "llama", "llama.exe"),
+		// The widget starts the microphone beside marco (findVoice).
+		filepath.Join(root, "plugins", "voice", "voice.exe"),
 	}
 	for _, from := range []string{root, here} {
 		for _, c := range widgetstack.Beside(from).Components() {
@@ -209,4 +211,21 @@ func contains(xs []string, x string) bool {
 		}
 	}
 	return false
+}
+
+// THE MICROPHONE IS BUILT WITH CGO, and a build without it is refused before anything is put in
+// place: voice.exe compiles without cgo and then answers every start "built without cgo".
+func TestTheBuildScriptRefusesAMicrophoneWithoutCgo(t *testing.T) {
+	lines := buildScript(t)
+	build := lineOf(lines, regexp.MustCompile(`^go -C plugins\\voice build `))
+	cgo := lineOf(lines, regexp.MustCompile(`^set "CGO_ENABLED=1"$`))
+	link := lineOf(lines, regexp.MustCompile(`^set "CGO_LDFLAGS=-L%VOICE% -lvosk"$`))
+	if build < 0 || cgo < 0 || cgo > build || link < 0 || link > build {
+		t.Error("voice.exe is not built with cgo against libvosk")
+	}
+	check := lineOf(lines, regexp.MustCompile(`^go version -m "%STAGE%\\voice\.exe" \| findstr /c:"CGO_ENABLED=1" >nul \|\| \(.*goto :failed\)$`))
+	put := lineOf(lines, regexp.MustCompile(`^call :put voice.exe `))
+	if check < 0 || put < 0 || check > put {
+		t.Error("a voice.exe built without cgo is not refused before it is put in place")
+	}
 }

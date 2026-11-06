@@ -13,6 +13,7 @@ rem   plugins\studio\   studio.exe  studio-console.exe  director.exe  marco.exe
 rem   repo root\        studio.exe  director.exe  marco.exe  marco-macros.exe
 rem   plugins\overlay\  overlay.exe          (overlay.marco is source, already there)
 rem   plugins\llama\    llama.exe            (the local resolver; Director finds it beside marco)
+rem   plugins\voice\    voice.exe            (the microphone; cgo, against libvosk beside it)
 rem
 rem Studio can be opened from either studio.exe. Open widget (internal/widgetstack) starts the
 rem ROOT stack from either one, and refuses unless every piece carries the same build revision as
@@ -73,6 +74,7 @@ set "ROOT=%CD%"
 popd
 set "OVERLAY=%ROOT%\plugins\overlay"
 set "LLAMA=%ROOT%\plugins\llama"
+set "VOICE=%ROOT%\plugins\voice"
 
 rem ONE COMMIT: what HEAD is, and nothing changed on top of it.
 set "HEAD="
@@ -92,7 +94,7 @@ if defined DIRTY (
 )
 
 rem NOTHING RUNNING FROM A DESTINATION, or its file cannot be replaced and the stack ends up mixed.
-powershell -NoProfile -Command "$t = @('%HERE%\studio.exe','%HERE%\studio-console.exe','%HERE%\director.exe','%HERE%\marco.exe','%ROOT%\studio.exe','%ROOT%\director.exe','%ROOT%\marco.exe','%ROOT%\marco-macros.exe','%OVERLAY%\overlay.exe','%LLAMA%\llama.exe'); $r = @(Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.Path -and ($t -contains $_.Path) }); foreach ($p in $r) { Write-Output ('  process ' + $p.Id + '  ' + $p.Path) }; if ($r.Count -gt 0) { exit 1 }"
+powershell -NoProfile -Command "$t = @('%HERE%\studio.exe','%HERE%\studio-console.exe','%HERE%\director.exe','%HERE%\marco.exe','%ROOT%\studio.exe','%ROOT%\director.exe','%ROOT%\marco.exe','%ROOT%\marco-macros.exe','%OVERLAY%\overlay.exe','%LLAMA%\llama.exe','%VOICE%\voice.exe'); $r = @(Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.Path -and ($t -contains $_.Path) }); foreach ($p in $r) { Write-Output ('  process ' + $p.Id + '  ' + $p.Path) }; if ($r.Count -gt 0) { exit 1 }"
 if errorlevel 1 (
   echo studio: the processes above are running from files this script replaces. Close Studio and
   echo         the widget, or end them, then run this again. Nothing was built.
@@ -112,13 +114,25 @@ go build -o "%STAGE%\marco.exe" .\cmd\marco || (popd & set "WHAT=marco" & goto :
 go build -o "%STAGE%\marco-macros.exe" .\cmd\marco-macros || (popd & set "WHAT=marco-macros" & goto :failed)
 go -C plugins\overlay build -o "%STAGE%\overlay.exe" . || (popd & set "WHAT=the overlay" & goto :failed)
 go -C plugins\llama build -o "%STAGE%\llama.exe" . || (popd & set "WHAT=the llama resolver" & goto :failed)
+rem THE MICROPHONE NEEDS CGO: without it voice.exe builds and answers every start "built without
+rem cgo". gcc and libvosk.dll (setup.ps1 -Voice) must be there; its stamp is checked for cgo below.
+where gcc >nul 2>&1 || (popd & set "WHAT=voice.exe: no gcc on PATH, winget install BrechtSanders.WinLibs.POSIX.UCRT" & goto :failed)
+if not exist "%VOICE%\libvosk.dll" (popd & set "WHAT=voice.exe: no libvosk.dll in plugins\voice, run setup.ps1 -Voice" & goto :failed)
+set "CGO_ENABLED=1"
+set "CGO_CFLAGS=-I%VOICE%"
+set "CGO_LDFLAGS=-L%VOICE% -lvosk"
+go -C plugins\voice build -o "%STAGE%\voice.exe" . || (popd & set "WHAT=voice.exe" & goto :failed)
+set "CGO_ENABLED="
+set "CGO_CFLAGS="
+set "CGO_LDFLAGS="
 popd
 
 rem EVERY STAMP IS HEAD, UNMODIFIED, before anything is put in place.
-for %%f in (studio.exe studio-console.exe director.exe marco.exe marco-macros.exe overlay.exe llama.exe) do (
+for %%f in (studio.exe studio-console.exe director.exe marco.exe marco-macros.exe overlay.exe llama.exe voice.exe) do (
   go version -m "%STAGE%\%%f" | findstr /c:"vcs.revision=%HEAD%" >nul || (set "WHAT=%%f is not stamped %HEAD%" & goto :failed)
   go version -m "%STAGE%\%%f" | findstr /c:"vcs.modified=false" >nul || (set "WHAT=%%f is stamped as modified" & goto :failed)
 )
+go version -m "%STAGE%\voice.exe" | findstr /c:"CGO_ENABLED=1" >nul || (set "WHAT=voice.exe was built without cgo" & goto :failed)
 
 call :put studio.exe "%HERE%" || goto :mixed
 call :put studio-console.exe "%HERE%" || goto :mixed
@@ -130,6 +144,7 @@ call :put marco.exe "%ROOT%" || goto :mixed
 call :put marco-macros.exe "%ROOT%" || goto :mixed
 call :put overlay.exe "%OVERLAY%" || goto :mixed
 call :put llama.exe "%LLAMA%" || goto :mixed
+call :put voice.exe "%VOICE%" || goto :mixed
 rd /s /q "%STAGE%"
 
 echo studio: built %HEAD:~0,7%, every piece from that one commit:
@@ -137,6 +152,7 @@ echo         %HERE%\  studio.exe (windowed), studio-console.exe (keeps stdout), 
 echo         %ROOT%\  studio.exe, director.exe, marco.exe, marco-macros.exe
 echo         %OVERLAY%\  overlay.exe
 echo         %LLAMA%\  llama.exe
+echo         %VOICE%\  voice.exe
 exit /b 0
 
 :put

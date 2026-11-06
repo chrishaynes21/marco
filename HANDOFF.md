@@ -12756,3 +12756,11 @@ This completes the editor slices: text and keys, insertion, repeats, drags, clic
   looked for. The intake's Director arm now asks Director's resolver first; a routine it names goes
   out on `[proposed] `, the intake ends `clarify`, and the widget opens the review. Nothing runs.
   See [[ADR-322-resolve-before-reading-the-screen]].
+
+### 2026-11-05 — The recogniser is told the routine names
+
+- voice.exe runs a second Vosk recogniser restricted to a phrase list the widget writes (routine
+  names, its own words, wake, stop, "why"); a whole listed phrase corrects the open transcript,
+  values and free requests keep it. On synthetic speech: "cloud poll stone" → "cloud pull stone",
+  "opensocial" → "open social", nothing else changed. `build.cmd` builds voice.exe with cgo now.
+  See [[ADR-323-the-recogniser-is-told-the-routine-names]].

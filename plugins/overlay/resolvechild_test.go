@@ -19,6 +19,7 @@ package main
 
 import (
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -67,7 +68,17 @@ func TestMain(m *testing.M) {
 	// NO TEST READS A LINE THROUGH A REAL `marco` unless it says which engine answers: the
 	// default is no reading, which is the line going to the intake as words, as before S6.
 	askLine = func(string, *lineProposal) (lineReading, bool) { return lineReading{}, false }
-	os.Exit(m.Run())
+	// NO TEST WRITES THE REAL VOICE PHRASE LIST: a running widget's recogniser reads that file. And
+	// the routine names are the test's own, not whatever a `marco` on PATH answers.
+	phraseDir, err := os.MkdirTemp("", "marco-overlay-phrases-")
+	if err != nil {
+		os.Exit(1)
+	}
+	voicePhrasesPath = func() string { return filepath.Join(phraseDir, "phrases.json") }
+	voiceRoutineNames = func() []string { return nil }
+	code := m.Run()
+	_ = os.RemoveAll(phraseDir)
+	os.Exit(code)
 }
 
 func TestTheResolverChildIsBoundedAndReaped(t *testing.T) {

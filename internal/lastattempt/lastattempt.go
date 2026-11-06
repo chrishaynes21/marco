@@ -299,3 +299,17 @@ func ago(d time.Duration) string {
 	}
 	return fmt.Sprintf("%d days ago", int(d.Hours()/24))
 }
+
+// Phrasings is every phrasing Asks answers to, for a recogniser told what to expect. They are in
+// their normal form, without apostrophes ("why didnt that work"), so each is offered with them too.
+func Phrasings() []string {
+	out := make([]string, 0, 2*len(questions))
+	for q := range questions {
+		out = append(out, q)
+		if strings.Contains(q, "didnt") {
+			out = append(out, strings.ReplaceAll(q, "didnt", "didn't"))
+		}
+	}
+	sort.Strings(out)
+	return out
+}

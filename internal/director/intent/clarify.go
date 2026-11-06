@@ -190,10 +190,15 @@ func digitsOnly(word string) (int, bool) {
 func IsControlPhrase(phrase string) bool {
 	s := strings.ToLower(strings.TrimSpace(phrase))
 	s = strings.Trim(s, ".,!?")
-	switch s {
-	case "stop", "cancel", "stop that", "cancel that",
-		"stop it", "cancel it", "abort", "halt":
-		return true
+	for _, c := range controlPhrases {
+		if s == c {
+			return true
+		}
 	}
 	return false
 }
+
+var controlPhrases = []string{"stop", "cancel", "stop that", "cancel that", "stop it", "cancel it", "abort", "halt"}
+
+// ControlPhrases is every phrase IsControlPhrase answers to, for a recogniser told what to expect.
+func ControlPhrases() []string { return append([]string(nil), controlPhrases...) }

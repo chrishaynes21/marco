@@ -40,6 +40,21 @@ heard without the wake word shows in the preview but isn't run. Change the word
 with `--wake <word>` / `$MARCO_VOICE_WAKE` (installer: `setup.cmd -Voice -Wake
 "computer"`); `--wake ""` (or `off`) listens to every phrase, no activation.
 
+## It is told your routine names
+
+The widget writes a phrase list — your routine names, its own words, the wake word, stop and the
+"why didn't that work" questions — and passes it as `$MARCO_VOICE_PHRASES`. A second recogniser
+listens restricted to that list, and wherever it heard one of those phrases whole, its spelling
+replaces the open recogniser's ("cloud poll stone" becomes "cloud pull stone"); values and anything
+else keep what the open recogniser heard. The list is re-read between phrases when it changes. Its
+log carries how many entries, never the names. See ADR-323.
+
+Build it with `plugins\studio\build.cmd` (cgo, against `libvosk.dll` here). The real-model test:
+
+```
+set CGO_ENABLED=1& set CGO_CFLAGS=-I.& set CGO_LDFLAGS=-L. -lvosk& go test -tags vosk .
+```
+
 ## How it knows you're done
 
 No key/word to end — it's silence-based. Speak your phrase and **pause**; Vosk

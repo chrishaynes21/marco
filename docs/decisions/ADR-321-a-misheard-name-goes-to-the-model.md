@@ -98,9 +98,9 @@ against the running Director: `cloud pull`, source `advisor`), and three things 
   `internal/bridgehost` already does for bridges).
 - **The widget waited six seconds**, and a cold model takes about nine: the first misheard request
   after a start was lost. It waits 25s now, under Director's own 30s.
-- **`llama.exe` was a month old**, because `pluginsstudiouild.cmd` did not build it, so the
+- **`llama.exe` was a month old**, because `plugins\studio\build.cmd` did not build it, so the
   value question's routine hint never reached the model (it proposed the whole phrase). The script
-  builds, stamp-checks and places `pluginslamalama.exe` with the rest of the stack now.
+  builds, stamp-checks and places `plugins\llama\llama.exe` with the rest of the stack now.
 
 ## Not established
 

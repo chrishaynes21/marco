@@ -162,7 +162,8 @@ go run ./cmd/cleanroom                 # its second: builds the COMMITTED source
   `overlay.exe` under `plugins\overlay`), because Open widget starts the ROOT stack from either
   `studio.exe` and refuses any piece whose revision is not that Studio's — before, a freshly
   built Studio could never open the widget. It builds the local resolver too
-  (`pluginslamalama.exe`), which Director finds beside marco. It refuses a dirty tree and anything running from a
+  (`plugins\llama\llama.exe`), which Director finds beside marco, and the microphone
+  (`plugins\voice\voice.exe`, with cgo, so it needs gcc and libvosk). It refuses a dirty tree and anything running from a
   destination, stages every build and checks every stamp against HEAD before replacing anything.
   Never copy a piece in to satisfy the check. `TestTheBuildScriptMakesTheWholeStackFromOneCommit`
   holds it; see [[ADR-302-studio-opens-the-widget]].

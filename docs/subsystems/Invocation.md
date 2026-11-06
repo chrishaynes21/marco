@@ -419,6 +419,9 @@ nothing took the words, and Director asks the local model, found beside marco wh
 ([[ADR-321-a-misheard-name-goes-to-the-model]]).
 And the intake asks that resolver BEFORE reading unmatched words against the screen: a routine it
 names is proposed for review and nothing runs ([[ADR-322-resolve-before-reading-the-screen]]).
+Before any of that, the recogniser itself is told the routine names: a second Vosk recogniser over
+a phrase list the widget writes corrects a whole listed phrase in what the open one heard
+([[ADR-323-the-recogniser-is-told-the-routine-names]]).
 What the widget can resolve when nothing matches exactly is mapped in
 [[Skills-on-a-miss-2026-11-05]].
 
