@@ -61,6 +61,12 @@ func dispatchIntake(h *model, phrase string, source invoke.Source) {
 	mlogI("overlay: intake", "source", string(source), "phrase", heard(phrase), "args", argsShown(args))
 	go func() {
 		r := spawnIntakeChild(h, phrase, track, args...)
+		// THE INTAKE ASKED DIRECTOR'S RESOLVER FIRST, and it named a saved routine: nothing ran, and the
+		// routine is reviewed (ADR-322). Asking again would be the same question twice.
+		if r.proposed != nil {
+			offerResolved(h, phrase, *r.proposed)
+			return
+		}
 		if r.asksWhichRoutine() {
 			// ── BEFORE OFFERING TO RECORD ONE, ASK WHETHER MARCO HAS IT ──
 			//

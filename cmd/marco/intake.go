@@ -388,6 +388,25 @@ func askDirector(d orchestrator.Deps, dec invoke.Decision, req invoke.Request) (
 	if dec.Phrase == "" {
 		return OutcomeFailed, nil
 	}
+	// ── A SAVED ROUTINE THE WORDS MAY HAVE MEANT, BEFORE THE SCREEN IS READ ──
+	//
+	// Nothing matched exactly, and the next step reads the words against the screen and tries to
+	// act on them. Measured live: "cloud paul stone" (the recogniser mishearing "cloud pull
+	// stone") went there, was tried as a screen task, ended `failed`, and the routine it named was
+	// never offered. So Director's resolver — the model — is asked first which saved routine was
+	// meant. A routine it names is PROPOSED, never performed: the answer goes out on its wire line
+	// for a front end to review, and the outcome is a question. An answer to a question Director
+	// is holding is not a request and is not asked about.
+	//
+	// Deleting this must fail TestAMisheardNameIsProposedBeforeTheScreenIsRead.
+	if !(req.Pending && isClarificationAnswer(dec.Phrase)) {
+		if line, name, ok := proposeRoutine(dec.Phrase); ok {
+			fmt.Printf("%s%s\n", outcome.ProposedPrefix, line)
+			fmt.Printf("Marco has a saved routine that may be what you meant: %s. Nothing has run; "+
+				"review it first (marco resolve shows the same answer).\n", name)
+			return OutcomeClarify, nil
+		}
+	}
 	out := outcomeOfDirectorExit(submitPhrase(dec.Phrase, false))
 	if out == OutcomeUnavailable {
 		// NOBODY COULD TAKE IT. No play answers to these words and Director was never

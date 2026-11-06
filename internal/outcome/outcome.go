@@ -227,3 +227,11 @@ func RouteFromLine(line string) (string, bool) {
 	name := strings.TrimSpace(rest)
 	return name, name != ""
 }
+
+// ProposedPrefix is the engine's third wire line: a SAVED ROUTINE Director's resolver proposed
+// for words nothing matched exactly, offered for review instead of reading the words against the
+// screen. What follows it is one JSON object, the same answer `marco resolve --json` prints. It
+// carries proposed values, so a front end consumes it and does not echo it into a log.
+//
+// Changing this literal must fail TestTheWireLineIsOneSharedLiteral.
+const ProposedPrefix = "[proposed] "

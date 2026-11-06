@@ -814,6 +814,7 @@ func streamChild(h *model, trackCancel bool, args ...string) childRun {
 	}()
 
 	route, result, said := "", "", ""
+	var proposed *resolved
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
@@ -832,6 +833,17 @@ func streamChild(h *model, trackCancel bool, args ...string) childRun {
 			// WITH THE REQUEST TAKEN OUT (quiet.go): `marco do` and the Director quote it back in
 			// exactly the lines somebody reads when it went wrong. The announced route is a
 			// library name, not something said, and is echoed as it is.
+			// A PROPOSAL IS CONSUMED BEFORE THE CONSOLE SEES IT: it carries proposed values, which are
+			// things somebody said, and it is for this program, not for a person (intake.go).
+			if v, ok := strings.CutPrefix(s, outcome.ProposedPrefix); ok {
+				var p resolved
+				if json.Unmarshal([]byte(v), &p) == nil {
+					proposed = &p
+				} else {
+					mlogW2("overlay: a proposal that could not be read")
+				}
+				return
+			}
 			if strings.HasPrefix(s, routePrefix) {
 				fmt.Fprintln(mlogW, s)
 			} else {
@@ -923,7 +935,7 @@ func streamChild(h *model, trackCancel bool, args ...string) childRun {
 	if trackCancel {
 		stopped = untrackRun(cmd)
 	}
-	return childRun{err: err, killed: stopped, route: route, result: result, said: said}
+	return childRun{err: err, killed: stopped, route: route, result: result, said: said, proposed: proposed}
 }
 
 // trackRun and untrackRun are the in-flight-child registration.

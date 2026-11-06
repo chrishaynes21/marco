@@ -170,6 +170,13 @@ func offerWhatMarcoHas(h *model, phrase string) disposition {
 		h.log(why)
 		return saidWhyNot
 	}
+	return offerResolved(h, phrase, r)
+}
+
+// offerResolved renders one answer of Director's about which routine a phrase named: asked for here
+// (offerWhatMarcoHas), or proposed by the intake itself before it read the words against the
+// screen (childRun.proposed).
+func offerResolved(h *model, phrase string, r resolved) disposition {
 	// AND A DIRECTOR THAT ANSWERED AND COULD NOT HELP IS THE SAME: its own sentence,
 	// and no second offer.
 	switch {

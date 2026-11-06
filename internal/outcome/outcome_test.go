@@ -21,6 +21,11 @@ func TestTheWireLineIsOneSharedLiteral(t *testing.T) {
 			"a loose phrase became; when it stops matching, the HUD quietly loses the play name "+
 			"and its unknown-command offer to learn misfires", RoutePrefix)
 	}
+	if ProposedPrefix != "[proposed] " {
+		t.Fatalf("the proposal prefix changed to %q. plugins/overlay reads it to open a review of "+
+			"the routine Director's resolver proposed; when it stops matching, the proposal is "+
+			"lost and its values are echoed into the console log", ProposedPrefix)
+	}
 }
 
 // TestBothWireLinesReadBackWhatTheyWrote — the two prefixes must not be able to shadow each

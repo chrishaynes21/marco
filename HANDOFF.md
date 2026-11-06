@@ -12749,3 +12749,10 @@ This completes the editor slices: text and keys, insertion, repeats, drags, clic
 - First live try after the rebuild: a terminal window opened (Director's `llama.exe` children got
   consoles — now started with CREATE_NO_WINDOW), the widget's 6s wait was shorter than a cold
   model (now 25s), and `llama.exe` was stale because `build.cmd` never built it (it does now).
+
+### 2026-11-05 — Resolve before reading the screen
+
+- Second live try: "cloud paul stone" was tried as a screen task and failed before any routine was
+  looked for. The intake's Director arm now asks Director's resolver first; a routine it names goes
+  out on `[proposed] `, the intake ends `clarify`, and the widget opens the review. Nothing runs.
+  See [[ADR-322-resolve-before-reading-the-screen]].

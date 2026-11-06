@@ -417,6 +417,8 @@ The widget asks Director which saved routine was meant after a Director failure 
 nothing took the words, and Director asks the local model, found beside marco when
 `$MARCO_RESOLVER` is unset, which recovers a misheard name and its value
 ([[ADR-321-a-misheard-name-goes-to-the-model]]).
+And the intake asks that resolver BEFORE reading unmatched words against the screen: a routine it
+names is proposed for review and nothing runs ([[ADR-322-resolve-before-reading-the-screen]]).
 What the widget can resolve when nothing matches exactly is mapped in
 [[Skills-on-a-miss-2026-11-05]].
 

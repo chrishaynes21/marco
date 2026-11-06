@@ -73,6 +73,9 @@ type childRun struct {
 	said string
 	// dur is how long it took, for the history row.
 	dur time.Duration
+	// proposed is the saved routine Director's resolver proposed instead of reading the words
+	// against the screen (`[proposed] `); nil when there was none. Nothing ran.
+	proposed *resolved
 }
 
 // outcome reads the engine's word, and only falls back where there is none to read.
