@@ -147,3 +147,25 @@ func statusLine(o outcome.Outcome, disp string) string {
 		return "failed: " + disp
 	}
 }
+
+// asksWhichRoutine is when the widget asks Director which SAVED routine the words named: nothing
+// took them, or Director took them and could not do it.
+//
+// # Why a failure asks too
+//
+// With Director running, a phrase it cannot act on comes back `failed`, not `unavailable` —
+// `unavailable` is only what a Director that could not be REACHED produces. So asking only after
+// `unavailable` meant the question was asked exactly when Director was down, and never in the
+// ordinary case. Measured live: "cloud paul stone", the recogniser mishearing "cloud pull", came
+// back `failed` with nothing pressed, and the routine it meant was never looked for.
+//
+// Asking is read-only and offers; it never runs anything. What it does NOT widen is the learn
+// offer, which stays offersLearn: a Director that failed is not an unknown command.
+//
+// A child that never started (r.err) is not a request anybody answered, and is not asked about.
+//
+// Narrowing this back to `unavailable` must fail TestAMisheardSpokenNameIsOfferedWithItsValue.
+func (r childRun) asksWhichRoutine() bool {
+	o := r.outcome()
+	return r.route == "" && r.err == nil && (o == outcome.Unavailable || o == outcome.Failed)
+}

@@ -26,8 +26,9 @@
     -Llama     the LOCAL-first NL resolver plugin (plugins/llama). Builds llama.exe
                and provisions a small model that runs ON THIS MACHINE via Ollama
                (installs Ollama via winget if missing, then `ollama pull` the
-               -LlamaModel), then pins MARCO_RESOLVER + MARCO_ASSISTANT (the
-               conversational director) + MARCO_LLM_MODEL. No API key,
+               plugin's two default models, llama3.2:3b and llama3.1:8b, or only
+               -LlamaModel when given), then pins MARCO_RESOLVER + MARCO_ASSISTANT (the
+               conversational director), and MARCO_LLM_MODEL only for -LlamaModel. No API key,
                no cost, nothing leaves the computer. If Ollama can't be installed the
                plugin is still wired and degrades to "no match" until it's running.
                Overrides -Resolver (both set MARCO_RESOLVER; local wins).
@@ -86,7 +87,7 @@ param(
     [string]$OnnxRuntimeVersion = "1.26.0",
     [string]$VisionModelUrl = "https://huggingface.co/microsoft/OmniParser-v2.0/resolve/main/icon_detect/model.pt",
     [string]$VisionLabels = "icon",
-    [string]$LlamaModel = "llama3.2:3b"
+    [string]$LlamaModel = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -226,8 +227,14 @@ function Install-Ollama {
     Info "have ollama ($found)"
     # Pull the model now so the first `marco` command isn't a multi-GB download. `ollama
     # pull` is a no-op (fast) when the model is already present.
-    Info "pulling model $LlamaModel (first run downloads a few GB)..."
-    try { & $found pull $LlamaModel } catch { Warn "ollama pull failed: $($_.Exception.Message)" }
+    # The plugin's own defaults, one per kind of question (plugins/llama llm.go), unless a model
+    # was named: llama3.2:3b for the screen, llama3.1:8b for the routine library.
+    $models = @("llama3.2:3b", "llama3.1:8b")
+    if ($LlamaModel -ne "") { $models = @($LlamaModel) }
+    foreach ($m in $models) {
+        Info "pulling model $m (first run downloads a few GB)..."
+        try { & $found pull $m } catch { Warn "ollama pull failed: $($_.Exception.Message)" }
+    }
     return $found
 }
 
@@ -514,7 +521,7 @@ if ($llamaReady) {
     # run/teach/chat/clarify. Those are WIRE VALUES: "teach" is what IntentLearn
     # marshals to, and plugins/llama accepts only that spelling. Do not rename it.
     [void]$lines.Add('set "MARCO_ASSISTANT=%CD%\plugins\llama\llama.exe"')
-    [void]$lines.Add("set `"MARCO_LLM_MODEL=$LlamaModel`"")
+    if ($LlamaModel -ne "") { [void]$lines.Add("set `"MARCO_LLM_MODEL=$LlamaModel`"") }
 } elseif ($resolverReady) {
     # Claude resolves loose phrasing the local matcher misses (needs ANTHROPIC_API_KEY).
     [void]$lines.Add('set "MARCO_RESOLVER=%CD%\plugins\claude-resolver\claude-resolver.exe"')

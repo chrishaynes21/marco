@@ -211,13 +211,15 @@ type Resolver struct {
 	// Advisor is the configured resolver plugin, or nil. A test substitutes it.
 	Advisor dispatch.Advisor
 	// Extract asks which words of a request are which argument's value, or nil when
-	// nothing may be asked. Production is `resolver.Extract`; a test substitutes it.
+	// nothing may be asked. Production is `resolver.ExtractFor`; a test substitutes it.
 	//
 	// IT ANSWERS IN SPANS AND NEVER IN TEXT, which is the whole safety of the question:
 	// `resolver.Span` has no field for a value, so the words come out of Marco's own copy
 	// of the request through `Span.Value` below, and a value nobody said is not something
 	// this boundary refuses — it is something it cannot express.
-	Extract func(ctx context.Context, input string, names []string) ([]resolver.Span, bool)
+	//
+	// It is told the chosen routine's name, so the words that name it are not read as a value.
+	Extract func(ctx context.Context, input, routine string, names []string) ([]resolver.Span, bool)
 }
 
 // Resolve reads one request against the eligible routines and answers which one it meant.
@@ -351,7 +353,7 @@ func (r Resolver) proposals(ctx context.Context, request string, c Candidate) ([
 	if len(ask) == 0 {
 		return nil, ""
 	}
-	spans, ok := r.Extract(ctx, request, ask)
+	spans, ok := r.Extract(ctx, request, c.Name, ask)
 	if !ok {
 		return nil, ""
 	}
@@ -654,7 +656,8 @@ func whyNothing(where Context) string {
 func ResolverSentence(a dispatch.Advisor, state string) string {
 	if a == nil {
 		return "no resolver is configured, so only an exact name or a near match can be " +
-			"found — set $MARCO_RESOLVER (setup.ps1 points it at plugins\\llama)"
+			"found — there is no plugins\\llama\\llama.exe beside marco and $MARCO_RESOLVER " +
+			"is not set (setup.ps1 -Llama builds the plugin)"
 	}
 	switch state {
 	case dispatch.AdvisorAnswered:

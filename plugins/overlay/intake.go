@@ -61,7 +61,7 @@ func dispatchIntake(h *model, phrase string, source invoke.Source) {
 	mlogI("overlay: intake", "source", string(source), "phrase", heard(phrase), "args", argsShown(args))
 	go func() {
 		r := spawnIntakeChild(h, phrase, track, args...)
-		if r.offersLearn() {
+		if r.asksWhichRoutine() {
 			// ── BEFORE OFFERING TO RECORD ONE, ASK WHETHER MARCO HAS IT ──
 			//
 			// Nothing took the phrase, which is the moment a person is about to
@@ -78,6 +78,11 @@ func dispatchIntake(h *model, phrase string, source invoke.Source) {
 			// become a recording session either.
 			switch offerWhatMarcoHas(h, phrase) {
 			case offeredRun, saidWhyNot:
+				return
+			}
+			// AND ONLY A REQUEST NOTHING TOOK IS OFFERED FOR RECORDING (offersLearn): a Director
+			// that tried and failed is not an unknown command.
+			if !r.offersLearn() {
 				return
 			}
 			mlogI("overlay: nothing took it — offering learn", "phrase", heard(phrase))

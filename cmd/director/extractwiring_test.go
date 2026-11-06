@@ -2,7 +2,7 @@ package main
 
 // DIRECTOR'S OWN HANDLER REACHES THE REAL EXTRACTION QUESTION.
 //
-// Prove wiring by deleting it: `Extract: resolver.Extract` is a single line in
+// Prove wiring by deleting it: `Extract: resolver.ExtractFor` is a single line in
 // `ResolveRoute`, and every other test in this package hands the policy a stand-in. A stand-in
 // establishes the policy and NOTHING about whether the production path reaches the thing the
 // policy calls — which is the defect this repository keeps finding, and the reason the resolver

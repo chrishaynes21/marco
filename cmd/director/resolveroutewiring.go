@@ -64,7 +64,7 @@ func (r *Runtime) ResolveRoute(p service.ResolveRoutePayload) service.ResolveRou
 		// words of it are which argument's value. Not $MARCO_INTERPRETER: that is
 		// the shadow-mode question about a control on screen, and
 		// `internal/director/meaning` stays its only reader.
-		Extract: resolver.Extract}
+		Extract: resolver.ExtractFor}
 	where := r.whereToRead(p.Target)
 
 	library := theLibrary(reg)

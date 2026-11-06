@@ -24,7 +24,7 @@ type config struct {
 func loadConfig() config {
 	c := config{
 		BaseURL: env("MARCO_LLM_URL", "http://localhost:11434/v1"),
-		Model:   env("MARCO_LLM_MODEL", "llama3.2:3b"),
+		Model:   env("MARCO_LLM_MODEL", interpretModel),
 		Key:     os.Getenv("MARCO_LLM_KEY"),
 		Timeout: 20 * time.Second,
 	}
@@ -305,4 +305,28 @@ func isBoundary(s string, i int) bool {
 	}
 	c := s[i]
 	return !(c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || c == '-')
+}
+
+// THE DEFAULT MODEL DEPENDS ON THE QUESTION, and $MARCO_LLM_MODEL overrides both.
+//
+// interpretModel answers the questions about the SCREEN — what a sentence meant, which control
+// was meant — and stays what it was: Experiment-072 measured llama3.1:8b turning honest refusals
+// into wrong actions there, and a model swap on that path is a re-run of the oracle, not a
+// default changed in passing.
+//
+// routineModel answers the questions about the LIBRARY — which saved routine a request named,
+// and which of its words are a value — where nothing is acted on until somebody reviews it. A
+// live misheard request ("cloud paul stone" for "cloud pull") was resolved by both, and only
+// llama3.1:8b also found the value ("stone") in it. See ADR-321.
+const (
+	interpretModel = "llama3.2:3b"
+	routineModel   = "llama3.1:8b"
+)
+
+// forRoutines is cfg with the routine questions' default model, unless one was named.
+func (c config) forRoutines() config {
+	if strings.TrimSpace(os.Getenv("MARCO_LLM_MODEL")) == "" {
+		c.Model = routineModel
+	}
+	return c
 }

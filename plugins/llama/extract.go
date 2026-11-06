@@ -54,6 +54,9 @@ import (
 // extractRequest is the question, as it arrives.
 type extractRequest struct {
 	Names []string `json:"names"`
+	// Routine is the routine the request was resolved to. The words naming it are not a value,
+	// even when they were misheard ("cloud paul" for "cloud pull").
+	Routine string `json:"routine,omitempty"`
 }
 
 // span is where one argument's value is, in the request that was sent. NO TEXT FIELD, matching
@@ -84,6 +87,9 @@ const extractPrompt = "You pick out the parts of a computer user's request that 
 	"capitalisation. The words you give back must appear in the request verbatim.\n" +
 	"- Give the value only, not the words around it: \"write a note saying hello there\" with " +
 	"an input named message -> {\"message\":\"hello there\"}.\n" +
+	"- The words that NAME THE ROUTINE are never a value, even when they are misheard or " +
+	"misspelled: for the routine \"open map\", \"open mop desert\" with an input named region " +
+	"-> {\"region\":\"desert\"}.\n" +
 	"- LEAVE OUT any name whose value the user did not say. Omitting a name is always better " +
 	"than inventing one, and something else will ask them for it.\n" +
 	"- Never invent a value and never use a default. If you cannot see the words in the " +
@@ -91,8 +97,18 @@ const extractPrompt = "You pick out the parts of a computer user's request that 
 	"- If the request contains no values at all, reply exactly NONE.\n" +
 	"Output JSON only."
 
-func extractUser(input string, names []string) string {
+func extractUser(input, routine string, names []string) string {
 	var b strings.Builder
+	if routine != "" {
+		// SEPARATE THE NAME FIRST. A small model told only "this is the routine" still copies
+		// the misheard name into the value ("cloud paul stone" -> "cloud paul stone"); made to
+		// write down which words name the routine before the value, it leaves them out. The
+		// extra key is not a name anybody asked for, so parseValues never reads it.
+		fmt.Fprintf(&b, "The request is for the routine %q. The user's words for that name may "+
+			"be misheard or misspelled.\n", routine)
+		b.WriteString("Put the words that say the routine's name, exactly as the user wrote " +
+			"them, under \"routine_words\" FIRST. A value never contains any of those words.\n")
+	}
 	b.WriteString("Input names:\n")
 	for _, n := range names {
 		fmt.Fprintf(&b, "- %s\n", n)
@@ -104,6 +120,11 @@ func extractUser(input string, names []string) string {
 
 // extract asks the model which words are which value. nil means nothing was extracted.
 func extract(ctx context.Context, cfg config, input string, names []string) []span {
+	return extractFor(ctx, cfg, input, "", names)
+}
+
+// extractFor is extract told which routine the request was resolved to.
+func extractFor(ctx context.Context, cfg config, input, routine string, names []string) []span {
 	if strings.TrimSpace(input) == "" || len(names) == 0 {
 		return nil
 	}
@@ -111,7 +132,7 @@ func extract(ctx context.Context, cfg config, input string, names []string) []sp
 		Model: cfg.Model,
 		Messages: []message{
 			{Role: "system", Content: extractPrompt},
-			{Role: "user", Content: extractUser(input, names)},
+			{Role: "user", Content: extractUser(input, routine, names)},
 		},
 		Temperature: 0, // copying words out of a sentence, not writing
 		MaxTokens:   256,

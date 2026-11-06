@@ -35,6 +35,9 @@ import (
 	"encoding/json"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"runtime"
+	"strings"
 )
 
 type request struct {
@@ -46,8 +49,40 @@ type response struct {
 	Route string `json:"route"`
 }
 
-// Path returns the configured resolver-plugin executable ($MARCO_RESOLVER).
-func Path() string { return os.Getenv("MARCO_RESOLVER") }
+// Path returns the resolver-plugin executable: $MARCO_RESOLVER when it is SET — an empty value
+// meaning none, which is how a test or a person turns it off — and otherwise the local plugin
+// beside this executable (Beside).
+//
+// # Why it is looked for
+//
+// Because nothing else set it. setup.ps1 pinned $MARCO_RESOLVER into overlay.cmd only, so a
+// Director started from Studio's Open widget had no model to ask, and a misheard spoken request
+// ("cloud paul stone") was answered by the deterministic arms alone, which cannot recover a
+// name. The plugin is looked for where every other optional piece is: beside marco.exe, as the
+// widget looks for voice.exe. See ADR-321.
+func Path() string {
+	if p, set := os.LookupEnv("MARCO_RESOLVER"); set {
+		return strings.TrimSpace(p)
+	}
+	return Beside()
+}
+
+// Beside is plugins/llama/llama.exe beside this executable, or "" when it is not there.
+func Beside() string {
+	exe, err := os.Executable()
+	if err != nil {
+		return ""
+	}
+	name := "llama"
+	if runtime.GOOS == "windows" {
+		name += ".exe"
+	}
+	at := filepath.Join(filepath.Dir(exe), "plugins", "llama", name)
+	if fi, err := os.Stat(at); err != nil || fi.IsDir() {
+		return ""
+	}
+	return at
+}
 
 // Configured reports whether a resolver plugin is set.
 func Configured() bool { return Path() != "" }

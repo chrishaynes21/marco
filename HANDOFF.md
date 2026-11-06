@@ -12733,3 +12733,16 @@ This completes the editor slices: text and keys, insertion, repeats, drags, clic
   with no model. The plan format waits for Chain.
 - Verified through the intake and the widget by tests, mutants killed. Not asked live.
   See [[ADR-320-why-didnt-that-work]].
+
+### 2026-11-05 — A misheard name goes to the model
+
+- Live: "cloud pull stone" was heard as "cloud paul stone"; Director ended it `failed`, pressed
+  nothing, and nothing was offered. Two causes: the widget asked which saved routine was meant
+  only after `unavailable` (a running Director answers `failed`), and the Director started from
+  Studio's Open widget had no `$MARCO_RESOLVER`, so no model was ever asked.
+- The widget now asks after a failure too (never offering to record it). The resolver plugin is
+  found beside marco (`plugins\llama\llama.exe`) when `$MARCO_RESOLVER` is unset. The value
+  question is told the chosen routine's name, and routine questions default to llama3.1:8b while
+  the screen's keep llama3.2:3b. A deterministic word-by-word matcher was tried and removed.
+- Probed against the real library and models: both llama models recover `cloud pull`; 8b also
+  gives `resource: stone`. See [[ADR-321-a-misheard-name-goes-to-the-model]].

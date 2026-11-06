@@ -413,6 +413,10 @@ the widget's log ([[ADR-319-the-installer-ships-voice]]). `runInvocation` also w
 became of every attempt that is not a control phrase — refusals before a run included, scrubbed of
 anything supplied — and the widget answers "why didn't that work?" from it
 ([[ADR-320-why-didnt-that-work]]).
+The widget asks Director which saved routine was meant after a Director failure as well as when
+nothing took the words, and Director asks the local model, found beside marco when
+`$MARCO_RESOLVER` is unset, which recovers a misheard name and its value
+([[ADR-321-a-misheard-name-goes-to-the-model]]).
 What the widget can resolve when nothing matches exactly is mapped in
 [[Skills-on-a-miss-2026-11-05]].
 

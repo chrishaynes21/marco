@@ -22,18 +22,19 @@ import (
 
 // recordingExtractor says what it was asked and answers with the spans it was told to.
 type recordingExtractor struct {
-	asked int
-	input string
-	names []string
-	spans []resolver.Span
-	ok    bool
+	asked   int
+	input   string
+	names   []string
+	spans   []resolver.Span
+	ok      bool
+	routine string
 }
 
-func (e *recordingExtractor) extract(_ context.Context, input string,
+func (e *recordingExtractor) extract(_ context.Context, input, routine string,
 	names []string) ([]resolver.Span, bool) {
 
 	e.asked++
-	e.input, e.names = input, names
+	e.input, e.names, e.routine = input, names, routine
 	return e.spans, e.ok
 }
 
@@ -380,5 +381,22 @@ func TestProposalsDoNotMakeAnIneligibleRoutineAnswer(t *testing.T) {
 	}
 	if e.asked != 0 {
 		t.Errorf("an unrunnable routine was asked about: %v", e.names)
+	}
+}
+
+// THE VALUE QUESTION IS TOLD WHICH ROUTINE WAS CHOSEN, so the words that name it — however they
+// were misheard — are not taken for a value (ADR-321). Not passing the name must fail this.
+func TestTheValueQuestionNamesTheRoutine(t *testing.T) {
+	e := &recordingExtractor{ok: true,
+		spans: []resolver.Span{{Name: "quality", Start: 20, End: 24}}}
+	c := aCandidate("ark-graphics", "arkascended", true)
+	c.Takes, c.SourceAt = []routes.Argument{text("quality")}, "sha256:abc"
+	r := Resolver{Reg: routes.Registry{Dir: t.TempDir()},
+		Advisor: &recordingAdvisor{ok: true, offers: dispatch.Decision{Intent: dispatch.IntentRun,
+			Route: "ark-graphics", Source: dispatch.SourceAdvisor}},
+		Extract: e.extract}
+	r.Resolve(context.Background(), request, []Candidate{c}, at("arkascended"))
+	if e.asked != 1 || e.routine != c.Name {
+		t.Errorf("the value question was asked %d time(s) about the routine %q, want %q", e.asked, e.routine, c.Name)
 	}
 }

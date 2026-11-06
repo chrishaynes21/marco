@@ -65,6 +65,10 @@ import (
 // extractRequest is the question, as it arrives.
 type extractRequest struct {
 	Names []string `json:"names"`
+	// Routine is the name of the routine the request was resolved to, so the words that NAME it —
+	// however the recogniser or the person got them wrong — are not taken for a value. Empty when
+	// nothing was chosen; an older plugin ignores it.
+	Routine string `json:"routine,omitempty"`
 }
 
 // Span is where one argument's value is, in the request that was sent.
@@ -124,6 +128,13 @@ var ExtractTimeout = 20 * time.Second
 // than of the whole answer — one unusable span should not cost the person the others. An answer
 // with no usable span at all reports false, which is the same as not having asked.
 func Extract(ctx context.Context, input string, names []string) ([]Span, bool) {
+	return ExtractFor(ctx, input, "", names)
+}
+
+// ExtractFor is Extract told which routine the request was resolved to. A request whose routine
+// name was misheard ("cloud paul stone" for the routine "cloud pull") otherwise reads to the model
+// as if every word were the value.
+func ExtractFor(ctx context.Context, input, routine string, names []string) ([]Span, bool) {
 	path := Path()
 	switch {
 	case path == "", strings.TrimSpace(input) == "", len(names) == 0:
@@ -144,7 +155,7 @@ func Extract(ctx context.Context, input string, names []string) ([]Span, bool) {
 	reqBytes, err := json.Marshal(struct {
 		Input   string          `json:"input"`
 		Extract *extractRequest `json:"extract"`
-	}{Input: input, Extract: &extractRequest{Names: names}})
+	}{Input: input, Extract: &extractRequest{Names: names, Routine: routine}})
 	if err != nil {
 		return nil, false
 	}

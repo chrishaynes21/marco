@@ -73,6 +73,11 @@ func main() {
 	cfg := loadConfig()
 	ctx, cancel := context.WithTimeout(context.Background(), cfg.Timeout)
 	defer cancel()
+	answer(ctx, cfg, req)
+}
+
+// answer asks the one question a request carries and prints the reply.
+func answer(ctx context.Context, cfg config, req request) {
 	// WHAT DID THE SENTENCE MEAN, asked first because it is identified by a field rather than
 	// by a mode word, and a request carrying it is never also a route question.
 	if req.Interpret != nil {
@@ -89,14 +94,14 @@ func main() {
 	// WHICH WORDS ARE THIS ARGUMENT'S VALUE. Told the sentence and a list of names, and
 	// nothing else — not the screen, and not what the routine does with them.
 	if req.Extract != nil {
-		emitValues(extract(ctx, cfg, req.Input, req.Extract.Names))
+		emitValues(extractFor(ctx, cfg.forRoutines(), req.Input, req.Extract.Routine, req.Extract.Names))
 		return
 	}
 	if req.Mode == "converse" {
-		emitDecision(converse(ctx, cfg, req))
+		emitDecision(converse(ctx, cfg.forRoutines(), req))
 		return
 	}
-	emit(resolve(ctx, cfg, req))
+	emit(resolve(ctx, cfg.forRoutines(), req))
 }
 
 func emit(route string) {

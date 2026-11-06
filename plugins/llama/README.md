@@ -60,6 +60,7 @@ builds a world model of the desktop and plans UI actions against it.)
 # 1. Install Ollama and pull a small instruct model (one time)
 #    https://ollama.com/download  — then:
 ollama pull llama3.2:3b
+ollama pull llama3.1:8b
 
 # 2. Build the plugin
 go -C plugins/llama build -o llama.exe .
@@ -82,7 +83,7 @@ the model, wires `MARCO_RESOLVER` into `overlay.cmd`).
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `MARCO_LLM_URL` | `http://localhost:11434/v1` | OpenAI-compatible base URL |
-| `MARCO_LLM_MODEL` | `llama3.2:3b` | model tag to ask |
+| `MARCO_LLM_MODEL` | `llama3.2:3b` for the screen's questions (interpret, which control), `llama3.1:8b` for the routine library's (which routine, which words are a value) | model tag to ask; when set, used for every question |
 | `MARCO_LLM_KEY` | *(none)* | bearer token — only for authenticated endpoints |
 | `MARCO_LLM_TIMEOUT_MS` | `20000` | hard cap so a cold model can't hang the assistant |
 

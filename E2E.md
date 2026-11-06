@@ -382,6 +382,14 @@ Use a play you already have from section A or G; the steps below say `"<name>"`.
       with how to learn it. `marco last` in a terminal says the same; `%APPDATA%marcoast-attempt.json`
       contains neither phrase.
 
+34f. **A misheard name goes to the model** ([[ADR-321-a-misheard-name-goes-to-the-model]]). With
+    Ollama running (llama3.1:8b pulled), `pluginslamalama.exe` built, and Director restarted
+    so it finds the plugin, say "marco, cloud pull stone" so that it is heard as "cloud paul
+    stone" (or type `cloud paul stone`).
+    - PASS: after Director's answer, the command line opens on `cloud pull resource:stone` with
+      `Cloud pull · resource: stone   Enter runs it` under it. Nothing has run; Enter runs it.
+    - FAIL: Director's failure and nothing else (the defect), or an offer to record the phrase.
+
 35. **The same known play, from a shell.**
     `marco do "<name>"` in a terminal.
     - PASS: `[intake] source=cli decision=play play=<slug> …`, the same slug again.

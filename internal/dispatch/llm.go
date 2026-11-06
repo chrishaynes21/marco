@@ -7,6 +7,8 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+
+	"github.com/chaynes-simpleclouds/marco/internal/resolver"
 )
 
 // PluginAdvisor is the Advisor that consults an external plugin over a tiny JSON
@@ -30,13 +32,14 @@ import (
 // dispatch discards (Advise reports not-ok, and the deterministic fallback runs).
 type PluginAdvisor struct{}
 
-// PluginPath is the configured plugin ($MARCO_ASSISTANT, else $MARCO_RESOLVER — the
-// same llama binary typically serves both, so wiring one enables the other).
+// PluginPath is the configured plugin ($MARCO_ASSISTANT, else the resolver — $MARCO_RESOLVER, or
+// the local plugin beside this executable when that is unset; see resolver.Path). The same llama
+// binary serves both, so wiring one enables the other.
 func PluginPath() string {
 	if p := os.Getenv("MARCO_ASSISTANT"); p != "" {
 		return p
 	}
-	return os.Getenv("MARCO_RESOLVER")
+	return resolver.Path()
 }
 
 // PluginConfigured reports whether a plugin is available.
