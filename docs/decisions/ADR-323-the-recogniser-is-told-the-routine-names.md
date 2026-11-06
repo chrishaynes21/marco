@@ -62,7 +62,9 @@ in the decoder; `build.cmd` without the voice build or without its cgo check.
 
 ## Not established
 
-- **Not tried with a real microphone or a real voice.** Synthetic speech is clean; a person is not.
+- **Tried live once, not measured.** After a rebuild with `build.cmd` (2026-11-06), the owner, with a
+  real microphone and voice: "much better at hearing cloud pull now". That is a report, not a rate;
+  how often a name is heard right first time has not been counted.
 - **Values are not corrected**: routines declare no fixed values, so "metal" heard as "medal" stays
   (ADR-322's review is where it is fixed). A routine name with a word the model does not know is not
   in the list.
