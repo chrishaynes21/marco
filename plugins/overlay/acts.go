@@ -18,6 +18,7 @@ import (
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/intent"
 	"github.com/chaynes-simpleclouds/marco/internal/invoke"
+	"github.com/chaynes-simpleclouds/marco/internal/lastattempt"
 	"github.com/chaynes-simpleclouds/marco/internal/outcome"
 	"github.com/chaynes-simpleclouds/marco/internal/stopsignal"
 )
@@ -145,6 +146,13 @@ func dispatch(h *model, req request) response {
 		// intent: `forget my play` sent to the intake is Director hunting the screen for
 		// something to forget.
 		local, isLocal := overlayCommand(fields)
+		// "WHY DIDN'T THAT WORK?" is answered here, from the record the intake keeps of the latest
+		// attempt (why.go). The phrasings are the engine's one list, so a spoken question and a
+		// typed one are the same question; anything else starting with "why" is an ordinary request.
+		if (isLocal && local.Word == cmdWhy && len(fields) == 1) || lastattempt.Asks(name) {
+			explainLast(h)
+			return okData(nil)
+		}
 		// Voice-listening toggle (the overlay's mic config): "voice on|off|toggle", or the
 		// natural aliases "mute"/"unmute" and "stop listening"/"listen". setVoice mirrors it to
 		// the settings panel and persists it. Typed commands are never gated, so you can always

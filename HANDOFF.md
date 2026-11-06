@@ -12725,3 +12725,11 @@ This completes the editor slices: text and keys, insertion, repeats, drags, clic
   and loading the staged voice.exe. Not packed end to end, not installed, no real microphone.
   See [[ADR-319-the-installer-ships-voice]].
 
+### 2026-11-05 — "Why didn't that work?"
+
+- `runInvocation` writes one latest-attempt record (`internal/lastattempt`), refusals before a run
+  included, scrubbed of anything supplied; a control phrase does not replace it. `marco last
+  [--json]` reads it; the widget answers a fixed set of "why" phrasings from it, typed or spoken,
+  with no model. The plan format waits for Chain.
+- Verified through the intake and the widget by tests, mutants killed. Not asked live.
+  See [[ADR-320-why-didnt-that-work]].

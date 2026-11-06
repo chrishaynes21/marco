@@ -126,6 +126,11 @@ func main() {
 	case "line":
 		runLine(os.Args[2:])
 		return
+	case "last":
+		// WHAT BECAME OF THE LATEST COMMAND, and why, from the record the intake keeps. The
+		// widget's answer to "why didn't that work?". See lastattempt.go.
+		runLast(os.Args[2:])
+		return
 	case "forget":
 		runForget(os.Args[2:])
 		return
@@ -327,6 +332,7 @@ Watching (optional, and off until you ask):
 
 Plays — name something once, ask for it by name after that:
   marco do "<name>"        run a play you saved
+  marco last [--json]      what became of the last thing you asked for, and why
   marco learn "<name>"     record/overwrite a play by demonstration
   marco simplify "<name>"  re-simplify a saved play as far as it goes
   marco ui                 open the control center (all plays, bindings, help) in a browser

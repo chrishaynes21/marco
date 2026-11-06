@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/chaynes-simpleclouds/marco/internal/invoke"
+	"github.com/chaynes-simpleclouds/marco/internal/lastattempt"
 	"github.com/chaynes-simpleclouds/marco/internal/mlog"
 	"github.com/chaynes-simpleclouds/marco/internal/orchestrator"
 	"github.com/chaynes-simpleclouds/marco/internal/oshost"
@@ -110,6 +111,7 @@ func traceIntake(d invoke.Decision, req invoke.Request) {
 // Deleting any caller's use of this — routing a surface's words anywhere else — must fail
 // TestEveryEntranceRoutesThroughTheOneIntake.
 func runInvocation(d orchestrator.Deps, req invoke.Request) (Outcome, error) {
+	beginAttempt()
 	if req.App == "" {
 		req.App = appOf(d)
 	}
@@ -131,6 +133,8 @@ func runInvocation(d orchestrator.Deps, req invoke.Request) (Outcome, error) {
 	traceIntake(dec, req)
 
 	out, err := carryOut(d, dec, req)
+	// AND WHAT BECAME OF IT, WRITTEN DOWN for "why didn't that work?" (lastattempt.go).
+	keepLastAttempt(dec, req, out, err)
 
 	// ── AND WHAT BECAME OF IT, AT INFO, WHERE THE DECISION WAS MADE ──
 	//
@@ -145,7 +149,7 @@ func runInvocation(d orchestrator.Deps, req invoke.Request) (Outcome, error) {
 	// was one. The decision line above says where the words went; this says where they
 	// got to.
 	// HOW MANY WORDS, NOT WHICH: a request can carry a value somebody supplied, and this log is a
-	// console or a file that outlives the moment.
+	// console or a file that outlives the moment (internal/lastattempt).
 	kv := []any{"decision", string(dec.Kind), "outcome", string(out), "words", len(strings.Fields(req.Text))}
 	switch dec.Kind {
 	case invoke.KindPlay:
@@ -470,6 +474,7 @@ var stopper = withPanicStop
 //
 // Deleting the Authorize call must fail TestExactPlayMatchDoesNotBypassAuthority.
 func performOnePlay(d orchestrator.Deps, p playInvocation) (Outcome, error) {
+	noteStep(p)
 	// AND THE VALUES IT WILL RUN WITH, COPIED ONTO THE THING BEING AUTHORISED.
 	//
 	// Everything below reads them off `resolved` rather than off `p`, which is what makes
@@ -512,12 +517,14 @@ func performOnePlay(d orchestrator.Deps, p playInvocation) (Outcome, error) {
 	if why := orchestrator.AdmitInPlace(p.rt, orchestrator.InPlace{
 		HandedTo: d.HandedTo, Foreground: foreground}); why != "" {
 		mlog.Info("intake: not admitted here", "play", p.rt.Slug, "why", why)
+		noteEnd(lastattempt.StageScope, why, "")
 		fmt.Fprintln(os.Stdout, why)
 		return OutcomeRefused, nil
 	}
 	if inFront != nil {
 		if err := d.Hosts["*"].(*oshost.Host).BindInFront(*inFront); err != nil {
 			mlog.Info("intake: the window in front could not be bound", "play", p.rt.Slug, "err", err)
+			noteEnd(lastattempt.StageWindow, err.Error(), "bring the routine's window to the front and ask again")
 			fmt.Fprintln(os.Stdout, err)
 			return OutcomeRefused, nil
 		}
@@ -528,6 +535,7 @@ func performOnePlay(d orchestrator.Deps, p playInvocation) (Outcome, error) {
 	mlog.Info("intake: authority", "play", p.rt.Slug,
 		"verdict", string(decision.Verdict), "reason", decision.Reason)
 	if !decision.Allow() {
+		noteEnd(lastattempt.StageAuthority, firstOf(decision.Sentence, decision.Reason), "")
 		if decision.Sentence != "" {
 			fmt.Fprintln(os.Stdout, decision.Sentence)
 		}
@@ -541,6 +549,7 @@ func performOnePlay(d orchestrator.Deps, p playInvocation) (Outcome, error) {
 	// everything else runs here, exactly as it always has.
 	if resolved.Learned() {
 		if err := performLearned(d, resolved, resolved.Values, p.positional); err != nil {
+			noteEnd(lastattempt.StageDirector, err.Error(), "Studio's History has Director's own account of it")
 			return OutcomeFailed, err
 		}
 		return OutcomePerformed, nil
@@ -578,10 +587,12 @@ func performOnePlay(d orchestrator.Deps, p playInvocation) (Outcome, error) {
 	// supply, invoked without it, is that case -- and the alternative is what it did
 	// before, which was to type nothing and report `performed`.
 	if s.refused != "" {
+		noteEnd(s.refusedAt, s.refused, s.refusedNext)
 		fmt.Fprintln(os.Stdout, s.refused)
 		return OutcomeRefused, nil
 	}
 	res := citeRoutineRun(began, p.rt, s.did)
+	noteRun(res.ID)
 
 	var cancelled bool
 	err := stopper(true, func(ctx context.Context) error {
@@ -680,6 +691,11 @@ func performOnePlay(d orchestrator.Deps, p playInvocation) (Outcome, error) {
 	// AND WHAT BECAME OF IT, INTO THE REFERENCE THAT WAS ALREADY PRINTED. The same
 	// identity the reservation was given, not a second reading of the file.
 	keepRoutineRun(res, began, p.rt, s.did, out, because, askedOf(d))
+	if s.err != nil {
+		noteEnd(lastattempt.StageReading, because, "")
+	} else {
+		noteEnd(lastattempt.StageRunning, because, "")
+	}
 	return out, err
 }
 

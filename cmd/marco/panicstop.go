@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 
 	"github.com/chaynes-simpleclouds/marco/internal/driver"
+	"github.com/chaynes-simpleclouds/marco/internal/lastattempt"
 	"github.com/chaynes-simpleclouds/marco/internal/mlog"
 	"github.com/chaynes-simpleclouds/marco/internal/orchestrator"
 	"github.com/chaynes-simpleclouds/marco/internal/oshost"
@@ -197,6 +198,9 @@ type snapshot struct {
 	// one read of it -- asking again would be a second answer about one file, which is the
 	// whole reason this snapshot exists.
 	refused string
+	// refusedAt is the stage the refusal belongs to, and refusedNext what to do about it, for the
+	// latest-attempt record (lastattempt.go). Neither carries a value.
+	refusedAt, refusedNext string
 }
 
 // take reads the routine once and says what is about to run.
@@ -243,6 +247,7 @@ func take(d orchestrator.Deps, rt routes.Route, named map[string]string,
 		s.refused = fmt.Sprintf("%q changed between the shortcut being pressed and the "+
 			"run starting, so nothing has been run — press it again",
 			plays.Pretty(rt.Slug))
+		s.refusedAt, s.refusedNext = lastattempt.StageVersion, "press the shortcut again"
 		s.did = ran{Digest: routes.DigestOf(string(src)), Contract: contractUnstated}
 		return s
 	}
@@ -252,6 +257,8 @@ func take(d orchestrator.Deps, rt routes.Route, named map[string]string,
 		s.refused = fmt.Sprintf("%q has been saved again since you confirmed what it "+
 			"would do, so nothing has been run — look at it again",
 			plays.Pretty(rt.Slug))
+		s.refusedAt, s.refusedNext = lastattempt.StageVersion,
+			"ask for it again, check the read-back of what it will do, then confirm"
 		s.did = ran{Digest: routes.DigestOf(string(src)), Contract: contractUnstated}
 		return s
 	}
@@ -263,6 +270,8 @@ func take(d orchestrator.Deps, rt routes.Route, named map[string]string,
 	if why := routes.CheckFlagged(string(src), flagged); why != nil {
 		mlog.Info("run: refused", "route", rt.Slug, "why", why.Error())
 		s.refused = fmt.Sprintf("%q: %v", plays.Pretty(rt.Slug), why)
+		s.refusedAt, s.refusedNext = lastattempt.StageValues,
+			"say the value as part of the request, or open it in Studio — a secret is never given as a flag"
 		s.did = ran{Digest: routes.DigestOf(string(src)), Contract: contractUnstated}
 		return s
 	}
@@ -270,6 +279,7 @@ func take(d orchestrator.Deps, rt routes.Route, named map[string]string,
 		mlog.Info("run: refused", "route", rt.Slug, "why", why.Error())
 		s.refused = fmt.Sprintf("%q: %v%s", plays.Pretty(rt.Slug), why,
 			whereToReviewIt(why, expect))
+		s.refusedAt, s.refusedNext = lastattempt.StageValues, valuesNext(rt, why)
 		s.did = ran{Digest: routes.DigestOf(string(src)), Contract: contractUnstated}
 		return s
 	}

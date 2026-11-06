@@ -615,6 +615,13 @@ speech model, so the installed widget listens too (it needs `setup.ps1 -Voice` r
 that packs). Only one recogniser listens per microphone: if an `overlay.cmd` from an older
 `setup.ps1` already started one, the widget uses it and says so; run `setup.ps1` again.
 
+**"Why didn't that work?"** Type or say it (or `why`, "what happened") in the widget and it
+answers from what Marco wrote down about the last thing you asked for: what it became, how it
+ended, why, and what to do next — including a request refused before anything ran (a value
+missing, another app in front, nothing answering). `marco last` says the same in a terminal. The
+record holds how many words you said, never the words, and no value you supplied; the widget's
+log does the same.
+
 Natural-language routine matching is **offline and key-free by default** (a
 deterministic matcher maps what you say to your routine names). For loose phrasing
 ("fire up the pirate game") add the cloud Claude resolver: `setup.cmd -Resolver

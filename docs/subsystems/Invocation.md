@@ -409,7 +409,10 @@ The overlay starts the microphone itself and forwards voice.exe's own `Voice` ev
 phrase arrives the same way from every launcher, and a spoken line naming a routine that takes
 values opens the same read-back a typed one does ([[ADR-318-the-widget-starts-its-own-microphone]]).
 The installer ships the recogniser, one recogniser listens per microphone, and nothing heard reaches
-the widget's log ([[ADR-319-the-installer-ships-voice]]). 
+the widget's log ([[ADR-319-the-installer-ships-voice]]). `runInvocation` also writes down what
+became of every attempt that is not a control phrase — refusals before a run included, scrubbed of
+anything supplied — and the widget answers "why didn't that work?" from it
+([[ADR-320-why-didnt-that-work]]).
 What the widget can resolve when nothing matches exactly is mapped in
 [[Skills-on-a-miss-2026-11-05]].
 

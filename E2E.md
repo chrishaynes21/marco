@@ -373,6 +373,15 @@ Use a play you already have from section A or G; the steps below say `"<name>"`.
     - PASS: the console behind overlay.cmd shows `phrase=‹N words›` and never what you said, even
       for a request that fails.
 
+34e. **"Why didn't that work?"** ([[ADR-320-why-didnt-that-work]]). Say "marco, cloud pull" (no
+    value), then "marco, why didn't that work".
+    - PASS: the status reads `“cloud pull” was refused before anything ran (just now).`, and the log
+      adds `Why: …no value was given for "resource"…` and `Next: say it again with the value —
+      for example “cloud pull resource:…”`. Nothing ran.
+    - Then say something nothing answers to, and ask again. PASS: `Nothing took your last command`,
+      with how to learn it. `marco last` in a terminal says the same; `%APPDATA%marcoast-attempt.json`
+      contains neither phrase.
+
 35. **The same known play, from a shell.**
     `marco do "<name>"` in a terminal.
     - PASS: `[intake] source=cli decision=play play=<slug> …`, the same slug again.

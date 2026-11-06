@@ -33,7 +33,7 @@ exist.
 | Find by meaning | "bring up the social menu" → `open social` | **works** | Miss → `marco resolve --json` → `resolveroute.Resolve`, exact, then the advisor (`resolveroute.go:224,247`) → offered (`plugins/overlay/resolve.go:183`) | Meaning needs `$MARCO_RESOLVER`; without one only exact names and aliases match |
 | Fill arguments | "pull some stone from the cloud" → `resource: stone` | **works** | `proposals()` asks for word spans and copies values out of Marco's copy of the request (`resolveroute.go:340-379`); the widget reviews them editably (`line.go` `reviewProposal`) | Needs a model that answers the extract question |
 | Chain | "open social, then mute Discord" | **wire** for exact names, **new** by meaning | `routes.SplitChain` + `grammar()` run a chain when every step is an exact name (`cmd/marco/intake.go:347-370`) | A step that is not exact sends the WHOLE phrase to Director. No per-step resolution, no ordered review, no plan |
-| Explain a refusal | "why didn't that work?" | **wire**, with a gap | Routine records keep `Outcome` and `Because` (`cmd/marco/routinerecord.go:126`); Director keeps `refused`; Studio History reads them | A refusal before the run is claimed (a missing value) is printed, not recorded (`intake.go:576-580`). `marco` has no reader for the last routine record. Nothing maps the question to one |
+| Explain a refusal | "why didn't that work?" | **works** (deterministic) — [[ADR-320-why-didnt-that-work]] | The intake writes one record of the latest attempt, refusals before the run included (`internal/lastattempt`); `marco last`; the widget answers a fixed set of phrasings from it, typed or spoken | Director's own sentence for a Director-run request is not carried back; a phrasing outside the fixed set is an ordinary request |
 | Discover | "what can I run in this game?" | **works** as the word `plays`; **wire** by meaning | `plays` groups `marco routes --json` by scope for the app in front; `marco bindings --here` lists shortcuts | The resolver answers only run/learn/chat/clarify, so the question is not mapped to the listing |
 | Recall / rerun | "what did I just run?", "run that again" | **wire** for recall, **new** for rerun | The widget's history is in memory; routine records are durable | No rerun of a routine. "do that again" is Director's `IntentRepeat`, which replays a Director action, not a saved routine |
 | Prepare a shortcut | "put mute Discord on E, only in this game" | **works** as `bind`; **wire** by meaning | `bind <key> <routine>` → `marco bind`, scoped to the app in front by default, stored by identity | The sentence is not turned into a bind proposal for review |
@@ -69,15 +69,21 @@ plan {
   question (`resolveroute.go:326-330`), and a span cannot carry text. **Supplied text stays out of
   durable logs**: routine records hold no argument values, and a reviewed run logs the routine id
   and an argument count. The widget's log now carries a phrase's length, never its words, and
-  redacts a child's echo of the request and its values; voice.exe logs a word count
-  ([[ADR-319-the-installer-ships-voice]]).
+  redacts a child's echo of the request and its values; voice.exe logs a word count; the latest-
+  attempt record is scrubbed ([[ADR-319-the-installer-ships-voice]], [[ADR-320-why-didnt-that-work]]).
   The engine's own `intake: routed` line and an unknown command's error still name the phrase on
   `marco`'s stderr.
 
-## The smallest next slice: the plan format, and Explain
+## Explain is built; Chain is next, and brings the plan
 
-Explain comes first because it needs no new execution, only reading what was already recorded.
-The slice also puts the plan format in place for Chain to use next.
+**Explain landed** as a deterministic lookup ([[ADR-320-why-didnt-that-work]]): items 1–3 below,
+with one record of the latest attempt rather than a refusal written into the routine run records
+(a refusal pressed nothing, so it has no run to cite). Item 4, the plan type, was deliberately NOT
+built: Explain is one step and needed none. **Chain is the next slice and introduces the plan
+format**, because it is the first real multi-step operation the format has to represent. Repeat
+stays on the list for later.
+
+The original Explain plan, for the record:
 
 1. **Record the early refusal.** A run refused before it is claimed (a missing value, a stale
    version) writes the same routine record with `Outcome: refused` and its `Because`. It carries no

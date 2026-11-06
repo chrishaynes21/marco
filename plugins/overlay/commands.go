@@ -67,6 +67,8 @@ const (
 	cmdRename   = "rename"
 
 	cmdStop = "stop"
+
+	cmdWhy = "why"
 )
 
 // cmdSite is which of the three consumers owns a word at run time.
@@ -156,6 +158,8 @@ var hudCommands = []hudCommand{
 		What: "this listing — everything you can ask for from here"},
 	{Word: cmdStop, Site: siteStop, Listed: true, Hint: true,
 		What: "stop whatever is running, wherever it is running"},
+	{Word: cmdWhy, Arg: "[didn't that work]", Site: siteOverlay, Listed: true,
+		What: "what became of the last thing you asked for, why, and what to do"},
 	{Word: cmdUI, Arg: "[view]", Site: siteOverlay, Listed: true,
 		What: "open the control centre in your browser"},
 	{Word: cmdEdit, Arg: "<routine>", Site: siteOverlay, Listed: true,
