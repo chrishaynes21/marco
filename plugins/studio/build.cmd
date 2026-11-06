@@ -12,6 +12,7 @@ rem
 rem   plugins\studio\   studio.exe  studio-console.exe  director.exe  marco.exe
 rem   repo root\        studio.exe  director.exe  marco.exe  marco-macros.exe
 rem   plugins\overlay\  overlay.exe          (overlay.marco is source, already there)
+rem   plugins\llama\    llama.exe            (the local resolver; Director finds it beside marco)
 rem
 rem Studio can be opened from either studio.exe. Open widget (internal/widgetstack) starts the
 rem ROOT stack from either one, and refuses unless every piece carries the same build revision as
@@ -71,6 +72,7 @@ pushd "%~dp0..\.."
 set "ROOT=%CD%"
 popd
 set "OVERLAY=%ROOT%\plugins\overlay"
+set "LLAMA=%ROOT%\plugins\llama"
 
 rem ONE COMMIT: what HEAD is, and nothing changed on top of it.
 set "HEAD="
@@ -90,7 +92,7 @@ if defined DIRTY (
 )
 
 rem NOTHING RUNNING FROM A DESTINATION, or its file cannot be replaced and the stack ends up mixed.
-powershell -NoProfile -Command "$t = @('%HERE%\studio.exe','%HERE%\studio-console.exe','%HERE%\director.exe','%HERE%\marco.exe','%ROOT%\studio.exe','%ROOT%\director.exe','%ROOT%\marco.exe','%ROOT%\marco-macros.exe','%OVERLAY%\overlay.exe'); $r = @(Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.Path -and ($t -contains $_.Path) }); foreach ($p in $r) { Write-Output ('  process ' + $p.Id + '  ' + $p.Path) }; if ($r.Count -gt 0) { exit 1 }"
+powershell -NoProfile -Command "$t = @('%HERE%\studio.exe','%HERE%\studio-console.exe','%HERE%\director.exe','%HERE%\marco.exe','%ROOT%\studio.exe','%ROOT%\director.exe','%ROOT%\marco.exe','%ROOT%\marco-macros.exe','%OVERLAY%\overlay.exe','%LLAMA%\llama.exe'); $r = @(Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.Path -and ($t -contains $_.Path) }); foreach ($p in $r) { Write-Output ('  process ' + $p.Id + '  ' + $p.Path) }; if ($r.Count -gt 0) { exit 1 }"
 if errorlevel 1 (
   echo studio: the processes above are running from files this script replaces. Close Studio and
   echo         the widget, or end them, then run this again. Nothing was built.
@@ -109,10 +111,11 @@ go build -o "%STAGE%\director.exe" .\cmd\director || (popd & set "WHAT=director"
 go build -o "%STAGE%\marco.exe" .\cmd\marco || (popd & set "WHAT=marco" & goto :failed)
 go build -o "%STAGE%\marco-macros.exe" .\cmd\marco-macros || (popd & set "WHAT=marco-macros" & goto :failed)
 go -C plugins\overlay build -o "%STAGE%\overlay.exe" . || (popd & set "WHAT=the overlay" & goto :failed)
+go -C plugins\llama build -o "%STAGE%\llama.exe" . || (popd & set "WHAT=the llama resolver" & goto :failed)
 popd
 
 rem EVERY STAMP IS HEAD, UNMODIFIED, before anything is put in place.
-for %%f in (studio.exe studio-console.exe director.exe marco.exe marco-macros.exe overlay.exe) do (
+for %%f in (studio.exe studio-console.exe director.exe marco.exe marco-macros.exe overlay.exe llama.exe) do (
   go version -m "%STAGE%\%%f" | findstr /c:"vcs.revision=%HEAD%" >nul || (set "WHAT=%%f is not stamped %HEAD%" & goto :failed)
   go version -m "%STAGE%\%%f" | findstr /c:"vcs.modified=false" >nul || (set "WHAT=%%f is stamped as modified" & goto :failed)
 )
@@ -126,12 +129,14 @@ call :put director.exe "%ROOT%" || goto :mixed
 call :put marco.exe "%ROOT%" || goto :mixed
 call :put marco-macros.exe "%ROOT%" || goto :mixed
 call :put overlay.exe "%OVERLAY%" || goto :mixed
+call :put llama.exe "%LLAMA%" || goto :mixed
 rd /s /q "%STAGE%"
 
 echo studio: built %HEAD:~0,7%, every piece from that one commit:
 echo         %HERE%\  studio.exe (windowed), studio-console.exe (keeps stdout), director.exe, marco.exe
 echo         %ROOT%\  studio.exe, director.exe, marco.exe, marco-macros.exe
 echo         %OVERLAY%\  overlay.exe
+echo         %LLAMA%\  llama.exe
 exit /b 0
 
 :put

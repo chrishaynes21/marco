@@ -121,6 +121,7 @@ func WhichControl(ctx context.Context, input, application string,
 	ctx, cancel := context.WithTimeout(ctx, howLongToWaitForAChoice)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, path)
+	Quiet(cmd)
 	cmd.Stdin = bytes.NewReader(append(body, '\n'))
 	out, err := cmd.Output()
 	if err != nil {

@@ -12746,3 +12746,6 @@ This completes the editor slices: text and keys, insertion, repeats, drags, clic
   the screen's keep llama3.2:3b. A deterministic word-by-word matcher was tried and removed.
 - Probed against the real library and models: both llama models recover `cloud pull`; 8b also
   gives `resource: stone`. See [[ADR-321-a-misheard-name-goes-to-the-model]].
+- First live try after the rebuild: a terminal window opened (Director's `llama.exe` children got
+  consoles — now started with CREATE_NO_WINDOW), the widget's 6s wait was shorter than a cold
+  model (now 25s), and `llama.exe` was stale because `build.cmd` never built it (it does now).

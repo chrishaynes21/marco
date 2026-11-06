@@ -100,6 +100,7 @@ func Resolve(ctx context.Context, input string, routes []string) string {
 		return ""
 	}
 	cmd := exec.CommandContext(ctx, path)
+	Quiet(cmd)
 	cmd.Stdin = bytes.NewReader(append(reqBytes, '\n'))
 	out, err := cmd.Output()
 	if err != nil {

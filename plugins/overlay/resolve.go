@@ -68,14 +68,16 @@ type resolved struct {
 
 // resolveWithin bounds the ask.
 //
-// Short, because this sits between a person's request and an answer they are waiting for. The
-// plugin's own cold-model bound is longer than this; a first call that pays it will miss, and the
-// second will not.
+// LONG ENOUGH FOR A COLD MODEL, and shorter than Director's own bound (resolveTimeout, 30s) so the
+// widget's answer is never "nothing" while Director is still working. It was six seconds, which a
+// first call to a model that is not loaded yet misses (llama3.1:8b measured ~9s cold): the price was
+// one lost request, and once a misheard spoken name is recovered by the model (ADR-321) that
+// request is the one somebody is waiting on. Warm, an answer takes well under a second.
 // A VARIABLE rather than a constant purely so a test can shorten it, with the same justification
 // `resolver.InterpretTimeout` carries: "a child that is abandoned keeps running" is a property
-// that must hold before any of this is trusted, and at six seconds it is a property nobody would
+// that must hold before any of this is trusted, and at this bound it is a property nobody would
 // run. Production never reassigns it.
-var resolveWithin = 6 * time.Second
+var resolveWithin = 25 * time.Second
 
 // askWhichRoutine is a package variable for the same reason `spawnIntakeChild` is: this surface
 // has to be exercisable without spawning `marco.exe`. Production never reassigns it.

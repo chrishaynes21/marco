@@ -80,6 +80,7 @@ func TestTheBuildScriptMakesTheWholeStackFromOneCommit(t *testing.T) {
 		"marco.exe":          regexp.MustCompile(` \.\\cmd\\marco( |$)`),
 		"marco-macros.exe":   regexp.MustCompile(` \.\\cmd\\marco-macros( |$)`),
 		"overlay.exe":        regexp.MustCompile(`^go -C plugins\\overlay build .* \.( |$)`),
+		"llama.exe":          regexp.MustCompile(`^go -C plugins\\llama build .* \.( |$)`),
 	} {
 		if !want.MatchString(builds[out]) {
 			t.Errorf("%s is not built as it must be (%s); the script has %q", out, want, builds[out])
@@ -96,7 +97,7 @@ func TestTheBuildScriptMakesTheWholeStackFromOneCommit(t *testing.T) {
 			break
 		}
 	}
-	for _, out := range []string{"director.exe", "marco.exe", "marco-macros.exe", "overlay.exe"} {
+	for _, out := range []string{"director.exe", "marco.exe", "marco-macros.exe", "overlay.exe", "llama.exe"} {
 		i := lineOf(lines, regexp.MustCompile(regexp.QuoteMeta(`"%STAGE%\`+out+`"`)+` (\.|\.\\cmd)`))
 		if push < 0 || i < push || i > pop {
 			t.Errorf("%s is not built from the root module, so it carries no revision", out)
@@ -142,7 +143,8 @@ func TestTheBuildScriptMakesTheWholeStackFromOneCommit(t *testing.T) {
 		}
 	}
 	here := filepath.Join(root, "plugins", "studio")
-	dirs := map[string]string{"%HERE%": here, "%ROOT%": root, "%OVERLAY%": filepath.Join(root, "plugins", "overlay")}
+	dirs := map[string]string{"%HERE%": here, "%ROOT%": root, "%OVERLAY%": filepath.Join(root, "plugins", "overlay"),
+		"%LLAMA%": filepath.Join(root, "plugins", "llama")}
 	put := map[string]bool{}
 	putRe := regexp.MustCompile(`^call :put ([\w-]+\.exe) "(%\w+%)" \|\| goto :mixed$`)
 	for i, l := range lines {
@@ -161,6 +163,8 @@ func TestTheBuildScriptMakesTheWholeStackFromOneCommit(t *testing.T) {
 		// Studio spawns these beside itself.
 		filepath.Join(here, "director.exe"), filepath.Join(here, "marco.exe"),
 		filepath.Join(root, "director.exe"), filepath.Join(root, "marco.exe"),
+		// Director, marco and Studio find the resolver beside themselves (resolver.Beside).
+		filepath.Join(root, "plugins", "llama", "llama.exe"),
 	}
 	for _, from := range []string{root, here} {
 		for _, c := range widgetstack.Beside(from).Components() {

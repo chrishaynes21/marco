@@ -87,11 +87,25 @@ latest-attempt record ([[ADR-320-why-didnt-that-work]]): spoken, 3 words, Direct
   routine's name not passed, the prompt not naming it, the library's questions asked with the
   screen's model (extract and resolve).
 
+## And what the first live try found
+
+The rebuilt stack resolved "cloud paul stone" through the model (`marco resolve --json`, read-only,
+against the running Director: `cloud pull`, source `advisor`), and three things were in the way:
+
+- **A terminal window opened.** Director runs with no console, so each `llama.exe` it started got a
+  console window of its own. Every plugin start in `internal/resolver` and the advisor in
+  `internal/dispatch` now goes through `resolver.Quiet` (CREATE_NO_WINDOW, as
+  `internal/bridgehost` already does for bridges).
+- **The widget waited six seconds**, and a cold model takes about nine: the first misheard request
+  after a start was lost. It waits 25s now, under Director's own 30s.
+- **`llama.exe` was a month old**, because `pluginsstudiouild.cmd` did not build it, so the
+  value question's routine hint never reached the model (it proposed the whole phrase). The script
+  builds, stamp-checks and places `pluginslamalama.exe` with the rest of the stack now.
+
 ## Not established
 
-- **Not re-tried live.** It needs `plugins\llama\llama.exe` rebuilt (the plugin on disk predates
-  this), the stack rebuilt (`plugins\studio\build.cmd`), and the running Director restarted so it
-  finds the plugin.
+- **Not re-tried live since these three fixes.** `plugins\studio\build.cmd` now rebuilds the plugin
+  too; Director must be restarted after it.
 - The installer ships no llama plugin, so an installed Marco still has no model.
 - A model's answer is not deterministic. llama3.1:8b got a two-word value after a misheard name
   wrong; llama3.2:3b leaves misheard values empty for the review to fill.
@@ -106,3 +120,5 @@ latest-attempt record ([[ADR-320-why-didnt-that-work]]): spoken, 3 words, Direct
 - `internal/dispatch` `TestTheAdvisorIsThePluginBesideTheExecutable`.
 - `internal/resolveroute` `TestTheValueQuestionNamesTheRoutine`.
 - `plugins/llama` `TestTheDefaultModelDependsOnTheQuestion`, `TestEachQuestionIsAskedWithItsModel`, `TestTheValueQuestionNamesTheRoutine`.
+- `internal/resolver` `TestAPluginIsGivenNoConsoleWindow`, `TestEveryPluginStartIsQuiet`.
+- `plugins/studio` `TestTheBuildScriptMakesTheWholeStackFromOneCommit` (llama.exe).

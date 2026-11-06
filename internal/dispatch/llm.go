@@ -80,6 +80,7 @@ func (PluginAdvisor) Advise(ctx context.Context, input string, routes []string, 
 		return Decision{}, false
 	}
 	cmd := exec.CommandContext(ctx, path)
+	resolver.Quiet(cmd)
 	cmd.Stdin = bytes.NewReader(append(reqBytes, '\n'))
 	out, err := cmd.Output()
 	if err != nil {

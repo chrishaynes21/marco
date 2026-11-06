@@ -130,6 +130,7 @@ func Interpret(ctx context.Context, input string, verbs []string) (Semantic, boo
 	ctx, cancel := context.WithTimeout(ctx, InterpretTimeout)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, path)
+	Quiet(cmd)
 	cmd.Stdin = bytes.NewReader(append(reqBytes, '\n'))
 	out, err := cmd.Output()
 	if err != nil {

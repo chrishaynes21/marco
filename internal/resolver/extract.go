@@ -163,6 +163,7 @@ func ExtractFor(ctx context.Context, input, routine string, names []string) ([]S
 	ctx, cancel := context.WithTimeout(ctx, ExtractTimeout)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, path)
+	Quiet(cmd)
 	cmd.Stdin = bytes.NewReader(append(reqBytes, '\n'))
 	out, err := cmd.Output()
 	if err != nil {
