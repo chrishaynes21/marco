@@ -248,7 +248,10 @@ The **whole phrase** is tried before any invocation grammar is applied to it, so
 which exists. The grammar (`ParseInvocation`, `SplitChain`) gets its turn afterwards, in
 `cmd/marco/intake.go`'s `grammar`, and a chain is only a chain when EVERY step names a Play —
 otherwise "turn the lights on then make coffee" is one request for Director rather than two offers
-to record a demonstration. `TestAPlayNamedWithTheGrammarIsStillReachable`.
+to record a demonstration. `TestAPlayNamedWithTheGrammarIsStillReachable`. Each step is read as a
+line alone is (`lineRoutine`), so "discord mute then notepad type hello" gives `notepad type` the
+value "hello" without `with` — but words after a name are its value only when the routine takes
+exactly one, or they could land on the wrong one. `TestAChainStepTakesItsValueAsALineDoes`.
 
 **AND A ROUTINE MAY ANSWER TO MORE THAN ITS OWN NAME — BUT NOT HERE.** Phrases kept beside the
 source (`<slug>.aliases.json`) are NOT consulted by this arm. A phrase is exact, which is why

@@ -412,3 +412,19 @@ func countWord(n int) string {
 	}
 	return fmt.Sprint(n)
 }
+
+// typedArgs is how many values a routine takes as text, not counting the ones the credential store
+// answers; -1 when its source cannot be read.
+func typedArgs(d orchestrator.Deps, rt routes.Route) int {
+	raw, err := os.ReadFile(d.Reg.Path(rt))
+	if err != nil {
+		return -1
+	}
+	n := 0
+	for _, a := range routes.Arguments(string(raw)) {
+		if !a.Secret {
+			n++
+		}
+	}
+	return n
+}

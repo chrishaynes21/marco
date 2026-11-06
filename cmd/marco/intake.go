@@ -362,8 +362,14 @@ func grammar(d orchestrator.Deps, text string, app string) ([]playInvocation, bo
 	}
 	steps := make([]playInvocation, 0, len(parts))
 	for _, p := range parts {
-		base, named, positional := routes.ParseInvocation(p)
-		rt, ok := d.Reg.Resolve(app, base)
+		// EACH STEP IS READ AS A LINE IS (lineRoutine): "notepad type hello" names `notepad type`
+		// with "hello", as it does alone, and not only "notepad type with hello". Measured live:
+		// the chain without `with` went to Director and failed. Words after a routine's name are
+		// its value only when it takes exactly one, or they could land on the wrong one.
+		rt, form, named, positional, ok := lineRoutine(d, app, p)
+		if ok && form == "bare" && typedArgs(d, rt) != 1 {
+			ok = false
+		}
 		if !ok {
 			// One unknown step and the whole phrase belongs to Director. Running the
 			// known prefix and then asking about the rest would be half an answer to a
