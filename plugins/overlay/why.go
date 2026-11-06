@@ -56,11 +56,14 @@ func explainLast(h *model) {
 			h.log(failed)
 			return
 		}
-		h.setStatus(a.Says[0])
+		// THE LINES FIRST, THE STATUS LAST: the status is what says the answer has arrived, so
+		// anything that sees it sees the whole answer. The other order was a race, caught by
+		// TestWhyDidntThatWorkIsAnsweredFromTheRecord reading the log between the two.
 		for _, s := range a.Says {
 			if s = strings.TrimSpace(s); s != "" {
 				h.log(s)
 			}
 		}
+		h.setStatus(a.Says[0])
 	}()
 }
