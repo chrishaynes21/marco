@@ -20,9 +20,10 @@ func aFocus(line string) lineReading {
 		Runnable: true}
 }
 
-// SEARCH RUNS ONLY FROM ITS READ-BACK, typed or spoken, and as its identity: never as words and
+// WITH SEARCHES CONFIRMED, A SEARCH RUNS ONLY FROM ITS READ-BACK, typed or spoken, and as its identity: never as words and
 // never as a routine. Treating a skill as an ordinary line must fail this.
 func TestASkillRunsOnlyFromItsReadBack(t *testing.T) {
+	searchesConfirmed(t, true)
 	r := aSearch("search the web for ark wiki")
 	engineReads(t, map[string]lineReading{r.Line: r})
 	runs := runsRecorded(t)
@@ -32,7 +33,7 @@ func TestASkillRunsOnlyFromItsReadBack(t *testing.T) {
 	if got := runs(); len(got) != 0 {
 		t.Fatalf("a skill nobody had seen read back ran: %q", got)
 	}
-	if got := h.recalled(); !reflect.DeepEqual(got, []string{"Search the web"}) {
+	if got := h.recalled(); !reflect.DeepEqual(got, []string{"search the web for ark wiki"}) {
 		t.Errorf("a spoken skill was not kept by its name: %q", got)
 	}
 	if s := h.snapshot(); !s.editing || s.input != " "+r.Line {
@@ -45,7 +46,7 @@ func TestASkillRunsOnlyFromItsReadBack(t *testing.T) {
 		t.Errorf("Enter on the read-back ran %q, want %q", got, want)
 	}
 	// AND IT IS RECALLED BY ITS NAME, whose reading asks for the query again.
-	if got := h.recalled(); !reflect.DeepEqual(got, []string{"Search the web"}) {
+	if got := h.recalled(); !reflect.DeepEqual(got, []string{"search the web for ark wiki"}) {
 		t.Errorf("kept %q", got)
 	}
 }
@@ -213,6 +214,36 @@ func TestFocusIsRecalledWithTheProgramItWentTo(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 	}
 	if got := h.recalled(); !reflect.DeepEqual(got, []string{"focus Discord", "focus ChatGPT"}) {
+		t.Errorf("kept %q", got)
+	}
+}
+
+// searchesConfirmed sets "confirmSearch" for one test.
+func searchesConfirmed(t *testing.T, on bool) {
+	t.Helper()
+	prev := confirmSearch
+	confirmSearch = func() bool { return on }
+	t.Cleanup(func() { confirmSearch = prev })
+}
+
+// BY DEFAULT A SEARCH RUNS ON THE FIRST ENTER, typed or spoken, and comes back from ↑ with its
+// query; "confirmSearch" puts the read-back first (TestASkillRunsOnlyFromItsReadBack).
+func TestASearchRunsOnTheFirstEnterUnlessConfirmed(t *testing.T) {
+	searchesConfirmed(t, false)
+	r := aSearch("search the web for ark wiki")
+	engineReads(t, map[string]lineReading{r.Line: r})
+	runs := runsRecorded(t)
+	h := newModel()
+	typedEnter(h, r.Line) // not on screen yet
+	want := "do --source=typed --skill=search-the-web --arg=query=ark wiki"
+	if got := runs(); len(got) != 1 || got[0] != want {
+		t.Fatalf("ran %q, want %q", got, want)
+	}
+	dispatch(h, request{Action: "RunVoice", Input: r.Line})
+	if got := runs(); len(got) != 2 {
+		t.Errorf("a spoken search did not run: %q", got)
+	}
+	if got := h.recalled(); !reflect.DeepEqual(got, []string{"search the web for ark wiki"}) {
 		t.Errorf("kept %q", got)
 	}
 }

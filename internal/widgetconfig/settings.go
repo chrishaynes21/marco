@@ -61,6 +61,9 @@ type Settings struct {
 	// startpage, or an https address with {query} in it; "" is google (internal/skills). Which
 	// BROWSER opens it is Windows' default, a separate setting that is not Marco's.
 	Search string `json:"search"`
+	// ConfirmSearch makes "search the web for …" wait for its read-back and a second Enter before
+	// it runs, as a routine with a value does; off, it runs on the first Enter like Focus app.
+	ConfirmSearch bool `json:"confirmSearch"`
 }
 
 // Defaults are the widget's own defaults, and the control centre's activation phrase.
@@ -75,7 +78,7 @@ func (s *Settings) fields() map[string]any {
 		"theme": &s.Theme, "idle": &s.Idle, "monitor": &s.Monitor, "corner": &s.Corner,
 		"width": &s.Width, "height": &s.Height, "leader": &s.Leader, "font": &s.Font,
 		"maxLines": &s.MaxLines, "border": &s.Border, "mini": &s.Mini, "metrics": &s.Metrics,
-		"coords": &s.Coords, "voice": &s.Voice, "wake": &s.Wake, "search": &s.Search,
+		"coords": &s.Coords, "voice": &s.Voice, "wake": &s.Wake, "search": &s.Search, "confirmSearch": &s.ConfirmSearch,
 	}
 }
 

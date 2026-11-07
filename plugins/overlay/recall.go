@@ -75,8 +75,12 @@ func recallOf(line string, r lineReading) string {
 			}
 		}
 	}
+	if r.Kind == "skill" && r.Slug == searchSkill && strings.TrimSpace(r.Values["query"]) != "" {
+		// AND A SEARCH WITH ITS QUERY, "search the web for ark wiki", for the same reason.
+		return "search the web for " + strings.TrimSpace(r.Values["query"])
+	}
 	if r.Kind == "skill" && strings.TrimSpace(r.Name) != "" {
-		return r.Name // "Search the web", whose reading asks for the query again
+		return r.Name // "Search the web" with nothing yet, whose reading asks for the query
 	}
 	if r.Kind != "routine" || strings.TrimSpace(r.Name) == "" {
 		return line

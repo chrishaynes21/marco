@@ -209,7 +209,8 @@ need the program's real name: "focus my browser" or a misheard "focus chat cheap
 out by Marco's model from the programs that are open. **"Search
 the web for ark black pearl locations"** opens the results in your default browser. The search
 provider is the `search` setting in the control centre's Config view (google, bing, duckduckgo,
-brave, startpage, or an `https://…{query}` address). A routine you saved with the same words wins,
+brave, startpage, or an `https://…{query}` address). Both run when you press Enter; turn on **Confirm searches
+before they run** there if you want a search read back first. A routine you saved with the same words wins,
 and Director can map other phrasings ("switch me back to Discord") to them for you to confirm.
 
 A **routine** is one durable behaviour: a small, readable Marco program on disk with

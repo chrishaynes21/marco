@@ -99,7 +99,11 @@ asked about.
 - **Where they are read.** On the command line only when no routine took the line (`readLine`).
   At the intake, after the grammar and only when no routine reads the words in any form
   (`skillInWords`); performed, as words naming a routine with its value are. In the widget Search
-  runs only from its read-back on screen, typed or spoken, because its words leave the machine.
+  runs on the first Enter too (amended the same day, the owner: "go ahead and make search the same
+  way"), and comes back from ↑ with its query, "search the web for ark wiki"; the setting
+  `confirmSearch` (the control centre's "Confirm searches before they run", off by default)
+  makes it wait for its read-back and a second Enter, for whoever wants the words checked before
+  they leave the machine.
   FOCUS APP RUNS ON THE FIRST ENTER, typed or spoken (amended the same day: the owner had to
   press Enter twice on "focus chatpgt"): it changes nothing but which window is in front, so it
   runs with the window its reading found or, while that is still being found, with the words for
@@ -111,7 +115,7 @@ asked about.
   the intake proposes it and runs nothing, and the widget opens the command line on that line, or
   says why not when the line reads as anything but that skill. Studio does not ask, because its
   Play button runs routines.
-- **Recall.** Search the web is kept by its name, like a routine. Focus app is kept WITH THE
+- **Recall.** Search the web is kept with its query. Focus app is kept WITH THE
   PROGRAM IT WENT TO, "focus ChatGPT" (amended the same day: the owner pressed ↑ and had to type
   the app again): which window to bring forward is the whole request, not a value from last time,
   and it is the program and never what was heard. From the read-back when it had found the
@@ -132,5 +136,5 @@ asked about.
 - `internal/skills` `TestTheExplicitFormsAreRead`, `TestALineWrittenForASkillReadsAsIt`, `TestFocusTakesTheMostRecentlyActiveWindow`, `TestFocusAsksWhenTheNameIsAmbiguousAndSaysWhenNothingIsOpen`, `TestASearchOpensOnlyAWebAddress`, `TestTheOpenProgramsAreNamedAsTheirWindowsNameThem`, `TestAnOpenIsFocusOnlyForAProgramThatIsOpen`.
 - `cmd/marco` `TestALineInASkillsFormReadsAsTheSkill`, `TestASavedRoutineWinsOverASkill`, `TestASkillRunsByItsIdentity`, `TestAnAmbiguousAppIsAskedAbout`, `TestASkillInWordsIsPerformedAfterTheRoutines`, `TestASkillDirectorNamedIsProposedNotRun`, `TestAProgramNotNamedExactlyIsAskedOfTheModel`, `TestASkillsAttemptIsWrittenDown`, `TestEverydayWordsAreFocusOnlyForAnOpenProgram`, `TestAMisheardOpenIsProposedAsFocus`, `TestAMisheardOpenLeavesARoutinesWordsAlone`, `TestASkillPassesTheDoEntrance`, `TestFocusIsReadBackWithTheProgramItBringsForward`, `TestEnterRaisesTheWindowThatWasReadBack`, `TestTheResolveFlagIsRead`.
 - `internal/resolveroute` `TestASkillTheResolverNamesIsAnsweredAsTheSkillsLine`; `cmd/director` `TestASkillIsOfferedOnlyToACallerThatAsked`.
-- `plugins/overlay` `TestASkillRunsOnlyFromItsReadBack`, `TestASkillDirectorNamedIsReviewedBeforeItRuns`, `TestAReadBackShowsTheProgramOnceItIsFound`, `TestFocusRunsOnTheFirstEnter`, `TestFocusIsRecalledWithTheProgramItWentTo`.
+- `plugins/overlay` `TestASkillRunsOnlyFromItsReadBack`, `TestASkillDirectorNamedIsReviewedBeforeItRuns`, `TestAReadBackShowsTheProgramOnceItIsFound`, `TestFocusRunsOnTheFirstEnter`, `TestFocusIsRecalledWithTheProgramItWentTo`, `TestASearchRunsOnTheFirstEnterUnlessConfirmed`; `internal/widgetconfig` `TestTheSkillsSettingsAreReadAndWritten`.
 - `internal/resolver` `TestOnlyAnOfferedProgramIsAnswered`; `plugins/llama` `TestTheProgramAnswerIsOneThatIsOpen`, `TestTheProgramQuestionIsAnswered`.

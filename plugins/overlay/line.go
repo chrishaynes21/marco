@@ -256,14 +256,15 @@ func typedLineFrom(h *model, line string, spoken bool) bool {
 		h.clearProposal()
 		return false
 	}
-	// FOCUS APP RUNS ON THE FIRST ENTER, typed or spoken: it changes nothing but which window is in
+	// FOCUS APP, AND SEARCH UNLESS SEARCHES ARE CONFIRMED (firstEnterRuns), RUN ON THE FIRST ENTER,
+	// typed or spoken. Focus app changes nothing but which window is in
 	// front, and a second Enter to confirm that was the owner's complaint. With its window found
 	// it raises that window; while it is still being found, the run works it out the same way
 	// (cmd/marco skill.go). The history names the program it brought forward. A line that cannot
 	// run (no app, two programs, nothing open) still stays open and says why.
 	//
 	// Asking for the read-back first must fail TestFocusRunsOnTheFirstEnter.
-	if r.Kind == "skill" && r.Slug == focusSkill && (r.Runnable || r.Resolving) {
+	if r.Kind == "skill" && firstEnterRuns(r) && (r.Runnable || r.Resolving) {
 		h.clearProposal()
 		args := lineRunArgs(r)
 		mlogI("overlay: running the read-back", "id", r.ID, "args", len(args))

@@ -69,3 +69,19 @@ func focusRan(r childRun) (string, bool) {
 	prog, ok := strings.CutPrefix(r.ran, "Focus app · program: ")
 	return strings.TrimSpace(prog), ok && strings.TrimSpace(prog) != ""
 }
+
+// searchSkill is Search the web's slug, the engine's (internal/skills).
+const searchSkill = "search-the-web"
+
+// firstEnterRuns is whether a skill runs on the first Enter rather than after its read-back:
+// Focus app always, and Search the web unless the person asked for searches to be confirmed
+// (overlay.json "confirmSearch", off by default — the owner's call: "I don't mind that").
+//
+// Ignoring the setting must fail TestASearchRunsOnTheFirstEnterUnlessConfirmed.
+func firstEnterRuns(r lineReading) bool {
+	return r.Slug == focusSkill || (r.Slug == searchSkill && !confirmSearch())
+}
+
+// confirmSearch is the setting, read where it is needed. A package variable so a test can set it;
+// production never reassigns it.
+var confirmSearch = func() bool { return cfgSnapshot().ConfirmSearch }
