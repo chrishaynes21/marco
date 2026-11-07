@@ -111,7 +111,7 @@ asked about.
 ## Enforced by
 
 - `internal/skills` `TestTheExplicitFormsAreRead`, `TestALineWrittenForASkillReadsAsIt`, `TestFocusTakesTheMostRecentlyActiveWindow`, `TestFocusAsksWhenTheNameIsAmbiguousAndSaysWhenNothingIsOpen`, `TestASearchOpensOnlyAWebAddress`, `TestTheOpenProgramsAreNamedAsTheirWindowsNameThem`, `TestAnOpenIsFocusOnlyForAProgramThatIsOpen`.
-- `cmd/marco` `TestALineInASkillsFormReadsAsTheSkill`, `TestASavedRoutineWinsOverASkill`, `TestASkillRunsByItsIdentity`, `TestAnAmbiguousAppIsAskedAbout`, `TestASkillInWordsIsPerformedAfterTheRoutines`, `TestASkillDirectorNamedIsProposedNotRun`, `TestAProgramNotNamedExactlyIsAskedOfTheModel`, `TestASkillsAttemptIsWrittenDown`, `TestEverydayWordsAreFocusOnlyForAnOpenProgram`, `TestAMisheardOpenIsProposedAsFocus`, `TestAMisheardOpenLeavesARoutinesWordsAlone`.
+- `cmd/marco` `TestALineInASkillsFormReadsAsTheSkill`, `TestASavedRoutineWinsOverASkill`, `TestASkillRunsByItsIdentity`, `TestAnAmbiguousAppIsAskedAbout`, `TestASkillInWordsIsPerformedAfterTheRoutines`, `TestASkillDirectorNamedIsProposedNotRun`, `TestAProgramNotNamedExactlyIsAskedOfTheModel`, `TestASkillsAttemptIsWrittenDown`, `TestEverydayWordsAreFocusOnlyForAnOpenProgram`, `TestAMisheardOpenIsProposedAsFocus`, `TestAMisheardOpenLeavesARoutinesWordsAlone`, `TestASkillPassesTheDoEntrance`.
 - `internal/resolveroute` `TestASkillTheResolverNamesIsAnsweredAsTheSkillsLine`; `cmd/director` `TestASkillIsOfferedOnlyToACallerThatAsked`.
 - `plugins/overlay` `TestASkillRunsOnlyFromItsReadBack`, `TestASkillDirectorNamedIsReviewedBeforeItRuns`.
 - `internal/resolver` `TestOnlyAnOfferedProgramIsAnswered`; `plugins/llama` `TestTheProgramAnswerIsOneThatIsOpen`, `TestTheProgramQuestionIsAnswered`.

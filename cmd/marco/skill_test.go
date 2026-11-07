@@ -379,3 +379,19 @@ func TestAMisheardOpenLeavesARoutinesWordsAlone(t *testing.T) {
 
 // lastRoutines is what the model was last told are routine names, not applications.
 var lastRoutines []string
+
+// A SKILL BY ITS IDENTITY GETS PAST `marco do`'S ENTRANCE: the exact argv the widget sends.
+func TestASkillPassesTheDoEntrance(t *testing.T) {
+	for _, argv := range [][]string{
+		{"--source=typed", "--skill=focus-app", "--arg=app=chatgpt"},
+		{"--source=typed", "--skill=search-the-web", "--arg=query=ark black pearl locations"},
+	} {
+		req, _, _, err := parseDoArgs(argv)
+		if err != nil || !somethingToDo(req) {
+			t.Errorf("%q was turned away at the entrance: %v", argv, err)
+		}
+	}
+	if req, _, _, _ := parseDoArgs([]string{"--source=typed"}); somethingToDo(req) {
+		t.Error("a do with nothing in it got past the entrance")
+	}
+}

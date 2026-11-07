@@ -137,7 +137,7 @@ func runAssistantDo(args []string) {
 		fmt.Fprintln(os.Stderr, "marco: "+err.Error())
 		os.Exit(2)
 	}
-	if req.Text == "" && req.Play == nil {
+	if !somethingToDo(req) {
 		fmt.Fprintln(os.Stderr, `usage: marco do "<name>" [--arg=name=value] `+
 			`[--explain] [--window=<which>]`)
 		os.Exit(2)
@@ -1156,4 +1156,14 @@ func exists(p string) bool { _, err := os.Stat(p); return err == nil }
 func readWindowAnswer() string {
 	line, _ := readStdinLine()
 	return line
+}
+
+// somethingToDo is whether a parsed `marco do` asks for anything: words, a play, or a built-in
+// skill by its identity. Measured live: without the skill, every confirmed `--skill=` run from
+// the widget exited with the usage line and performed nothing, while every test of the skill
+// entered one step later.
+//
+// Dropping the skill must fail TestASkillPassesTheDoEntrance.
+func somethingToDo(req invoke.Request) bool {
+	return req.Text != "" || req.Play != nil || req.Skill != ""
 }
