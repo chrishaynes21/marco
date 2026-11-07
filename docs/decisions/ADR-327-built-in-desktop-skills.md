@@ -66,6 +66,15 @@ asked about.
   first wording refused "vs code" and took the nonsense "zorblax" for Trackmania; the shipped one
   took "chat cheap tea", "the chat bot", "my browser", "music", "visual studio" and "dis cord" to
   the right program and refused "zorblax", "photoshop" and "word", and still refuses "vs code".
+- **Everyday words** ("open X", "go to X", "go back to X", "switch me back to X", "switch me to X",
+  "bring up X", "show me X") are Focus app ONLY when X, reduced the same way, is an open
+  program's executable or the application's name in its window title (`skills.Opens`,
+  `NamesOpenProgram`); otherwise the line goes on as before. Added the same day, after the owner
+  said "open chat gp t" and Director's resolver chose the routine "enter freeplay": with only
+  labels to go on, llama3.1:8b sent "switch me back to discord" to `discord-mute` and "open
+  chatgpt" to `search-the-web`, and descriptive extra labels fixed one case and broke another. These
+  words also name routines ("open social", "go to free play"), so they are claimed only for a
+  program that is open, which leaves a misheard routine name to Director as it was.
 - **Which address.** A named provider or an https/http template with `{query}`; the words are
   query-encoded and otherwise untouched. Anything else, including a template whose host would be
   the words, is refused before the shell sees it. The read-back names the provider, because the
@@ -94,8 +103,8 @@ asked about.
 
 ## Enforced by
 
-- `internal/skills` `TestTheExplicitFormsAreRead`, `TestALineWrittenForASkillReadsAsIt`, `TestFocusTakesTheMostRecentlyActiveWindow`, `TestFocusAsksWhenTheNameIsAmbiguousAndSaysWhenNothingIsOpen`, `TestASearchOpensOnlyAWebAddress`, `TestTheOpenProgramsAreNamedAsTheirWindowsNameThem`.
-- `cmd/marco` `TestALineInASkillsFormReadsAsTheSkill`, `TestASavedRoutineWinsOverASkill`, `TestASkillRunsByItsIdentity`, `TestAnAmbiguousAppIsAskedAbout`, `TestASkillInWordsIsPerformedAfterTheRoutines`, `TestASkillDirectorNamedIsProposedNotRun`, `TestAProgramNotNamedExactlyIsAskedOfTheModel`, `TestASkillsAttemptIsWrittenDown`.
+- `internal/skills` `TestTheExplicitFormsAreRead`, `TestALineWrittenForASkillReadsAsIt`, `TestFocusTakesTheMostRecentlyActiveWindow`, `TestFocusAsksWhenTheNameIsAmbiguousAndSaysWhenNothingIsOpen`, `TestASearchOpensOnlyAWebAddress`, `TestTheOpenProgramsAreNamedAsTheirWindowsNameThem`, `TestAnOpenIsFocusOnlyForAProgramThatIsOpen`.
+- `cmd/marco` `TestALineInASkillsFormReadsAsTheSkill`, `TestASavedRoutineWinsOverASkill`, `TestASkillRunsByItsIdentity`, `TestAnAmbiguousAppIsAskedAbout`, `TestASkillInWordsIsPerformedAfterTheRoutines`, `TestASkillDirectorNamedIsProposedNotRun`, `TestAProgramNotNamedExactlyIsAskedOfTheModel`, `TestASkillsAttemptIsWrittenDown`, `TestEverydayWordsAreFocusOnlyForAnOpenProgram`.
 - `internal/resolveroute` `TestASkillTheResolverNamesIsAnsweredAsTheSkillsLine`; `cmd/director` `TestASkillIsOfferedOnlyToACallerThatAsked`.
 - `plugins/overlay` `TestASkillRunsOnlyFromItsReadBack`, `TestASkillDirectorNamedIsReviewedBeforeItRuns`.
 - `internal/resolver` `TestOnlyAnOfferedProgramIsAnswered`; `plugins/llama` `TestTheProgramAnswerIsOneThatIsOpen`, `TestTheProgramQuestionIsAnswered`.

@@ -203,7 +203,7 @@ In the widget, say or type **"repeat open inventory five times"**: it is read ba
 *Open inventory ×5* and runs when you press Enter. Each run is checked like any other, the
 first one that fails ends it, Stop ends it, and the history says how many ran.
 
-Two things work with nothing demonstrated first. **"focus Discord"** brings the Discord window
+Two things work with nothing demonstrated first. **"focus Discord"** (or "open Discord", "switch me back to Discord", when Discord is open) brings the Discord window
 you used last to the front (it says so if Discord isn't open; it never launches it). You don't
 need the program's real name: "focus my browser" or a misheard "focus chat cheap tea" is worked
 out by Marco's model from the programs that are open. **"Search

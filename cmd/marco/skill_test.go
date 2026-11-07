@@ -183,14 +183,14 @@ func TestASkillDirectorNamedIsProposedNotRun(t *testing.T) {
 	t.Cleanup(func() { proposeRoutine = prev })
 	var out Outcome
 	said := stdoutOf(t, func() {
-		out, _ = runInvocation(d, invoke.Request{Text: "switch me back to discord", Source: invoke.SourceSpoken})
+		out, _ = runInvocation(d, invoke.Request{Text: "take me back to my chat app", Source: invoke.SourceSpoken})
 	})
 	if out != OutcomeClarify || len(desk.raised) != 0 || !strings.Contains(said, outcome.ProposedPrefix) ||
 		!strings.Contains(said, "built-in skill") {
 		t.Errorf("ended %q, raised %v:\n%s", out, desk.raised, said)
 	}
 	said = stdoutOf(t, func() {
-		out, _ = runInvocation(d, invoke.Request{Text: "switch me back to discord five times"})
+		out, _ = runInvocation(d, invoke.Request{Text: "take me back to my chat app five times"})
 	})
 	if out != OutcomeRefused || strings.Contains(said, outcome.ProposedPrefix) || len(desk.raised) != 0 {
 		t.Errorf("a repeated skill ended %q:\n%s", out, said)
@@ -279,5 +279,39 @@ func TestASkillsAttemptIsWrittenDown(t *testing.T) {
 	}
 	if strings.Contains(a.Because, "zorblax") {
 		t.Errorf("what was said was kept: %q", a.Because)
+	}
+}
+
+// EVERYDAY WORDS ARE FOCUS ONLY WHEN THEY NAME A PROGRAM THAT IS OPEN; otherwise they go on as
+// before, so a misheard routine name still reaches Director.
+func TestEverydayWordsAreFocusOnlyForAnOpenProgram(t *testing.T) {
+	d, desk := skillWorld(t, "", append(discordDesk, skills.Window{Handle: 15, Image: "chatgpt", Title: "ChatGPT"})...)
+	if r := readLine(d, "", "open chat gp t", lineProposal{}); r.Kind != "skill" || r.Values["app"] != "chat gp t" || !r.Runnable {
+		t.Errorf("open chat gp t read as %+v", r)
+	}
+	for _, line := range []string{"open inventory", "go to free play", "open sosh al"} {
+		if r := readLine(d, "", line, lineProposal{}); r.Kind != "none" {
+			t.Errorf("%q was claimed: %+v", line, r)
+		}
+	}
+	if r := readLine(d, "", "open social", lineProposal{}); r.Kind != "routine" {
+		t.Errorf("the routine open social read as %+v", r)
+	}
+	asked := ""
+	prev := proposeRoutine
+	proposeRoutine = func(p string) (string, string, bool) { asked = p; return "", "", false }
+	t.Cleanup(func() { proposeRoutine = prev })
+	var out Outcome
+	_ = stdoutOf(t, func() {
+		out, _ = runInvocation(d, invoke.Request{Text: "switch me back to discord", Source: invoke.SourceSpoken})
+	})
+	if out != OutcomePerformed || len(desk.raised) != 1 || desk.raised[0] != 12 || asked != "" {
+		t.Errorf("switch me back to discord ended %q, raised %v, Director asked %q", out, desk.raised, asked)
+	}
+	_ = stdoutOf(t, func() {
+		_, _ = runInvocation(d, invoke.Request{Text: "open sosh al", Source: invoke.SourceSpoken})
+	})
+	if asked != "open sosh al" || len(desk.raised) != 1 {
+		t.Errorf("a misheard routine did not reach Director: asked %q, raised %v", asked, desk.raised)
 	}
 }

@@ -34,7 +34,7 @@ import (
 
 // readSkill is the reading of a line in a skill's explicit form, and false when it is not one.
 func readSkill(line string) (lineReading, bool) {
-	s, value, ok := skills.Read(line)
+	s, value, ok := skillOf(line)
 	if !ok {
 		return lineReading{}, false
 	}
@@ -147,7 +147,7 @@ func performSkill(s skills.Skill, value string) (Outcome, error) {
 //
 // Skipping the check must fail TestASavedRoutineWinsOverASkill.
 func skillInWords(d orchestrator.Deps, phrase, app string) (Outcome, bool, error) {
-	s, value, ok := skills.Read(phrase)
+	s, value, ok := skillOf(phrase)
 	if !ok {
 		return "", false, nil
 	}
@@ -247,4 +247,21 @@ func keepSkillAttempt(req invoke.Request, out Outcome, err error) {
 	if werr := lastattempt.Write(attemptAt(), a); werr != nil {
 		mlog.Info("intake: the latest attempt could not be written down", "err", werr)
 	}
+}
+
+// skillOf is the skill a line asks for: an explicit form ("focus Discord", "search the web for
+// …"), or everyday words ("open chat gp t", "switch me back to Discord") when what follows them
+// is the name of a program open right now (skills.Opens). The window list is read only for a line
+// that begins with those words.
+//
+// Claiming them without the program being open must fail TestEverydayWordsAreFocusOnlyForAnOpenProgram.
+func skillOf(line string) (skills.Skill, string, bool) {
+	if s, v, ok := skills.Read(line); ok {
+		return s, v, true
+	}
+	if rest, ok := skills.ReadOpen(line); ok && skills.NamesOpenProgram(rest, openWindows(), isMarcoProgram) {
+		s, _ := skills.Of(skills.Focus)
+		return s, rest, true
+	}
+	return skills.Skill{}, "", false
 }

@@ -419,3 +419,44 @@ func slug(s string) string {
 	}
 	return b.String()
 }
+
+// Opens are the everyday ways of asking for an application that are Focus app ONLY when the rest
+// of the line is the name of a program that is open right now: "open chat gp t" with ChatGPT open.
+// Unlike "focus" and "switch to", these words are also how routines are named ("open social",
+// "go to free play"), so a line whose rest names no open program is not claimed and goes on as it
+// did, to Director, where a misheard routine name is recovered.
+var Opens = []string{"switch me back to ", "switch back to ", "switch me to ", "go back to ",
+	"bring up ", "show me ", "open ", "go to "}
+
+// ReadOpen is the rest of a line beginning with one of Opens, as typed.
+func ReadOpen(line string) (string, bool) {
+	line = strings.TrimSpace(line)
+	low := strings.ToLower(line)
+	for _, o := range Opens {
+		if strings.HasPrefix(low, o) {
+			if rest := strings.TrimSpace(strings.TrimRight(line[len(o):], ".!?")); rest != "" {
+				return rest, true
+			}
+		}
+	}
+	return "", false
+}
+
+// NamesOpenProgram is whether a name IS an open program's, by its executable or by the
+// application's own name in its window title, reduced the same way ("chat gp t" is chatgpt).
+// Not a prefix and not a model: this decides whether everyday words are claimed at all.
+func NamesOpenProgram(name string, ws []Window, ours func(image string) bool) bool {
+	want := key(name)
+	if want == "" {
+		return false
+	}
+	for _, w := range ws {
+		if ours != nil && ours(w.Image) {
+			continue
+		}
+		if key(w.Image) == want || key(AppName(w.Title)) == want {
+			return true
+		}
+	}
+	return false
+}

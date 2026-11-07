@@ -156,3 +156,30 @@ func TestTheOpenProgramsAreNamedAsTheirWindowsNameThem(t *testing.T) {
 		}
 	}
 }
+
+// EVERYDAY WORDS ARE FOCUS ONLY FOR A PROGRAM THAT IS OPEN BY THAT NAME.
+func TestAnOpenIsFocusOnlyForAProgramThatIsOpen(t *testing.T) {
+	for _, c := range []struct{ line, rest string }{
+		{"open chat gp t", "chat gp t"}, {"switch me back to Discord.", "Discord"},
+		{"go to Steam", "Steam"}, {"bring up visual studio code", "visual studio code"},
+	} {
+		if rest, ok := ReadOpen(c.line); !ok || rest != c.rest {
+			t.Errorf("ReadOpen(%q) = %q %v", c.line, rest, ok)
+		}
+	}
+	if _, ok := ReadOpen("open"); ok {
+		t.Error("open alone was read")
+	}
+	ws := append(desk, Window{Handle: 20, Image: "chatgpt", Title: "ChatGPT"},
+		Window{Handle: 21, Image: "steamwebhelper", Title: "Steam"})
+	for _, n := range []string{"chat gp t", "ChatGPT", "discord", "Visual Studio Code", "steam"} {
+		if !NamesOpenProgram(n, ws, marco) {
+			t.Errorf("%q is open and was not recognised", n)
+		}
+	}
+	for _, n := range []string{"social", "free play", "disc", "overlay", "inventory"} {
+		if NamesOpenProgram(n, ws, marco) {
+			t.Errorf("%q was taken for an open program", n)
+		}
+	}
+}
