@@ -6,6 +6,7 @@ package main
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 )
@@ -95,5 +96,59 @@ func TestASkillDirectorNamedIsReviewedBeforeItRuns(t *testing.T) {
 	}
 	if got := runs(); len(got) != 1 {
 		t.Errorf("a refused review ran: %q", got)
+	}
+}
+
+// A READ-BACK STILL FINDING ITS PROGRAM SAYS SO AND RUNS NOTHING, and is replaced by the one that
+// found it, which names the program Enter will bring forward.
+func TestAReadBackShowsTheProgramOnceItIsFound(t *testing.T) {
+	const line = "focus chat gp jpg"
+	finding := lineReading{Line: line, Kind: "skill", Slug: "focus-app", Name: "Focus app", Needs: true,
+		Resolving: true, Says: `finding which open program "chat gp jpg" is…`}
+	found := lineReading{Line: line, Kind: "skill", Slug: "focus-app", Name: "Focus app", Needs: true,
+		Values: map[string]string{"app": "chat gp jpg", "window": "15:7"}, Runnable: true,
+		Parts: []linePart{{Label: "app", Value: "chat gp jpg"},
+			{Label: "program", Value: "ChatGPT", Said: "(worked out by Marco's model)"}}}
+	engineReads(t, map[string]lineReading{line: finding})
+	release := make(chan struct{})
+	prev := askResolved
+	askResolved = func(l string) (lineReading, bool) { <-release; return found, l == line }
+	t.Cleanup(func() { askResolved = prev })
+	runs := runsRecorded(t)
+	h := newModel()
+	h.setEditing(true)
+	h.setInput(" " + line)
+
+	refreshReading(h, line)
+	drawn := func() string {
+		s := ""
+		for _, r := range readingRuns(h.snapshot()) {
+			s += r.s
+		}
+		return s
+	}
+	if got := drawn(); got != finding.Says {
+		t.Errorf("while finding, drawn as %q", got)
+	}
+	h.takeInput()
+	h.setEditing(false)
+	typedEnter(h, line)
+	if got := runs(); len(got) != 0 {
+		t.Fatalf("Enter ran a skill whose program was not found yet: %q", got)
+	}
+	close(release)
+	deadline := time.Now().Add(3 * time.Second)
+	for !strings.Contains(drawn(), "program: ChatGPT") && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if got := drawn(); !strings.Contains(got, "program: ChatGPT (worked out by Marco's model)") {
+		t.Fatalf("once found, drawn as %q", got)
+	}
+	time.Sleep(readDwell + 50*time.Millisecond)
+	h.takeInput()
+	h.setEditing(false)
+	typedEnter(h, line)
+	if got := runs(); len(got) != 1 || !strings.Contains(got[0], "--arg=window=15:7") {
+		t.Errorf("Enter on the found program ran %q", got)
 	}
 }

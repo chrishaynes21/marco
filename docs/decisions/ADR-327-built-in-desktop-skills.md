@@ -82,6 +82,15 @@ asked about.
   llama3.1:8b on the owner's desktop: "chad gpt", "chat cheap", "this cord" and "my browser" to
   the right program, and "sosh al", "so shell", "free plea", "cloud pole" and "zorblax" to none;
   without the routine names "sosh al" went to Discord. "spot if i" is not found.
+- **The read-back names the program, and Enter raises that window** (added the same day, after
+  the owner pressed Enter on "Focus app · app: chat gp jpg" with nothing saying what it would do).
+  `marco line` reads Focus app back as "… · app: chat gp jpg · program: ChatGPT", with "(worked
+  out by Marco's model)" when the model chose it, and carries the window as the value `window`
+  (`<handle>:<owner>`); Enter raises that window if that process still owns it, and nothing
+  otherwise, rather than working the words out again. A name no open program has is not asked of
+  the model as somebody types: the reading says "finding which open program … is…", is not
+  runnable, and the widget reads it again with `--resolve` in the background and replaces it.
+  `[ran] ` and the history name the program that came forward.
 - **Which address.** A named provider or an https/http template with `{query}`; the words are
   query-encoded and otherwise untouched. Anything else, including a template whose host would be
   the words, is refused before the shell sees it. The read-back names the provider, because the
@@ -111,7 +120,7 @@ asked about.
 ## Enforced by
 
 - `internal/skills` `TestTheExplicitFormsAreRead`, `TestALineWrittenForASkillReadsAsIt`, `TestFocusTakesTheMostRecentlyActiveWindow`, `TestFocusAsksWhenTheNameIsAmbiguousAndSaysWhenNothingIsOpen`, `TestASearchOpensOnlyAWebAddress`, `TestTheOpenProgramsAreNamedAsTheirWindowsNameThem`, `TestAnOpenIsFocusOnlyForAProgramThatIsOpen`.
-- `cmd/marco` `TestALineInASkillsFormReadsAsTheSkill`, `TestASavedRoutineWinsOverASkill`, `TestASkillRunsByItsIdentity`, `TestAnAmbiguousAppIsAskedAbout`, `TestASkillInWordsIsPerformedAfterTheRoutines`, `TestASkillDirectorNamedIsProposedNotRun`, `TestAProgramNotNamedExactlyIsAskedOfTheModel`, `TestASkillsAttemptIsWrittenDown`, `TestEverydayWordsAreFocusOnlyForAnOpenProgram`, `TestAMisheardOpenIsProposedAsFocus`, `TestAMisheardOpenLeavesARoutinesWordsAlone`, `TestASkillPassesTheDoEntrance`.
+- `cmd/marco` `TestALineInASkillsFormReadsAsTheSkill`, `TestASavedRoutineWinsOverASkill`, `TestASkillRunsByItsIdentity`, `TestAnAmbiguousAppIsAskedAbout`, `TestASkillInWordsIsPerformedAfterTheRoutines`, `TestASkillDirectorNamedIsProposedNotRun`, `TestAProgramNotNamedExactlyIsAskedOfTheModel`, `TestASkillsAttemptIsWrittenDown`, `TestEverydayWordsAreFocusOnlyForAnOpenProgram`, `TestAMisheardOpenIsProposedAsFocus`, `TestAMisheardOpenLeavesARoutinesWordsAlone`, `TestASkillPassesTheDoEntrance`, `TestFocusIsReadBackWithTheProgramItBringsForward`, `TestEnterRaisesTheWindowThatWasReadBack`, `TestTheResolveFlagIsRead`.
 - `internal/resolveroute` `TestASkillTheResolverNamesIsAnsweredAsTheSkillsLine`; `cmd/director` `TestASkillIsOfferedOnlyToACallerThatAsked`.
-- `plugins/overlay` `TestASkillRunsOnlyFromItsReadBack`, `TestASkillDirectorNamedIsReviewedBeforeItRuns`.
+- `plugins/overlay` `TestASkillRunsOnlyFromItsReadBack`, `TestASkillDirectorNamedIsReviewedBeforeItRuns`, `TestAReadBackShowsTheProgramOnceItIsFound`.
 - `internal/resolver` `TestOnlyAnOfferedProgramIsAnswered`; `plugins/llama` `TestTheProgramAnswerIsOneThatIsOpen`, `TestTheProgramQuestionIsAnswered`.

@@ -85,6 +85,10 @@ type lineReading struct {
 	// Times is how many times the line asks for the routine ("repeat open social five
 	// times"), 0 for once. It travels as `--times` (repeat.go).
 	Times int `json:"times,omitempty"`
+	// Resolving says a built-in skill's target is still being worked out (Focus app asking the
+	// model which open program was meant): not runnable yet, and `--resolve` reads it again with
+	// the model asked (skill.go).
+	Resolving bool `json:"resolving,omitempty"`
 }
 
 // linePart is one argument in the read-back.
@@ -102,6 +106,9 @@ type lineProposal struct {
 	Values   map[string]string
 	At       string
 	Carrying bool
+	// Resolve is not a proposal: it is `--resolve`, asking the reading to work out a skill's
+	// target with the model when nothing names it exactly.
+	Resolve bool
 }
 
 // runLine: `marco line --json [--play=<slug> [--app=<app>] [--focus] --proposed=name=value…
@@ -140,6 +147,8 @@ func lineArgs(args []string) (line string, p lineProposal, ok bool) {
 				p.Values = map[string]string{}
 			}
 			p.Values[strings.ToLower(strings.TrimSpace(name))] = value
+		case a == "--resolve":
+			p.Resolve = true
 		case strings.HasPrefix(a, "--proposed-at="):
 			p.At = strings.TrimPrefix(a, "--proposed-at=")
 		default:
@@ -161,7 +170,7 @@ func readLine(d orchestrator.Deps, app, line string, p lineProposal) lineReading
 	//
 	// Reading the skill first must fail TestASavedRoutineWinsOverASkill.
 	if r.Kind == "none" && !p.Carrying {
-		if s, ok := readSkill(line); ok {
+		if s, ok := readSkill(line, p.Resolve); ok {
 			return s
 		}
 	}

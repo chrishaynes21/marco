@@ -27,6 +27,16 @@ func skillWorld(t *testing.T, provider string, ws ...skills.Window) (orchestrato
 	desk := &skillDesk{}
 	prevW, prevR, prevO, prevP := openWindows, raiseWindow, openAddress, searchProvider
 	openWindows = func() []skills.Window { return ws }
+	prevL := lookUpWindow
+	lookUpWindow = func(h uintptr, pid uint32) (skills.Window, bool) {
+		for _, w := range ws {
+			if w.Handle == h && w.PID == pid {
+				return w, true
+			}
+		}
+		return skills.Window{}, false
+	}
+	t.Cleanup(func() { lookUpWindow = prevL })
 	raiseWindow = func(h uintptr) error { desk.raised = append(desk.raised, h); return nil }
 	openAddress = func(u string) error { desk.opened = append(desk.opened, u); return nil }
 	searchProvider = func() string { return provider }
@@ -49,10 +59,10 @@ var discordDesk = []skills.Window{
 // THE EXPLICIT FORM IS READ BACK ON THE COMMAND LINE AS THE SKILL, and the bare name asks for its
 // value, so a recalled "Focus app" asks for the app again.
 func TestALineInASkillsFormReadsAsTheSkill(t *testing.T) {
-	d, _ := skillWorld(t, "")
+	d, _ := skillWorld(t, "", discordDesk...)
 	r := readLine(d, "", "focus Discord", lineProposal{})
 	if r.Kind != "skill" || r.Slug != skills.Focus || !r.Runnable || r.Values["app"] != "Discord" ||
-		r.Readback != "Focus app · app: Discord" {
+		r.Readback != "Focus app · app: Discord · program: Discord" {
 		t.Errorf("focus Discord read as %+v", r)
 	}
 	r = readLine(d, "", "Focus app", lineProposal{})
@@ -110,7 +120,7 @@ func TestASkillRunsByItsIdentity(t *testing.T) {
 	if out != OutcomePerformed || err != nil || len(desk.raised) != 1 || desk.raised[0] != 12 {
 		t.Fatalf("focus Discord: %q %v raised %v\n%s", out, err, desk.raised, said)
 	}
-	if lastRan(said) != "Focus app · app: Discord" {
+	if lastRan(said) != "Focus app · app: Discord · program: Discord" {
 		t.Errorf("ran %q", lastRan(said))
 	}
 	out, _, err = run("--skill=focus-app", "--arg=app=Spotify")
@@ -129,7 +139,7 @@ func TestASkillRunsByItsIdentity(t *testing.T) {
 	}
 	for _, bad := range [][]string{
 		{"--skill=focus-app", "--arg=app=Discord", "--times=2"},
-		{"--skill=focus-app", "--arg=window=Discord"},
+		{"--skill=focus-app", "--arg=title=Discord"},
 		{"--skill=launch-rockets", "--arg=app=x"},
 	} {
 		if out, _, _ := run(bad...); out != OutcomeRefused {
@@ -393,5 +403,63 @@ func TestASkillPassesTheDoEntrance(t *testing.T) {
 	}
 	if req, _, _, _ := parseDoArgs([]string{"--source=typed"}); somethingToDo(req) {
 		t.Error("a do with nothing in it got past the entrance")
+	}
+}
+
+// FOCUS IS READ BACK WITH THE PROGRAM IT WILL BRING FORWARD, and the window travels with the
+// reading; a name no program has is worked out by the model only when asked to resolve, and the
+// reading says it is finding it until then.
+func TestFocusIsReadBackWithTheProgramItBringsForward(t *testing.T) {
+	d, _ := skillWorld(t, "", append(discordDesk, skills.Window{Handle: 15, PID: 7, Image: "chatgpt", Title: "ChatGPT"})...)
+	r := readLine(d, "", "focus discord", lineProposal{})
+	if !r.Runnable || r.Values["window"] != "12:0" || r.Readback != "Focus app · app: discord · program: Discord" {
+		t.Errorf("focus discord read as %+v", r)
+	}
+	r = readLine(d, "", "focus chat gp jpg", lineProposal{})
+	if r.Runnable || !r.Resolving || !strings.Contains(r.Says, "finding which open program") {
+		t.Errorf("an unresolved name read as %+v", r)
+	}
+	modelAnswers(t, true, "chatgpt")
+	r = readLine(d, "", "focus chat gp jpg", lineProposal{Resolve: true})
+	if !r.Runnable || r.Resolving || r.Values["window"] != "15:7" ||
+		r.Readback != "Focus app · app: chat gp jpg · program: ChatGPT (worked out by Marco's model)" {
+		t.Errorf("a resolved name read as %+v", r)
+	}
+	modelAnswers(t, true, "")
+	if r := readLine(d, "", "focus zorblax", lineProposal{Resolve: true}); r.Runnable || !strings.Contains(r.Says, "isn't open") {
+		t.Errorf("a name nothing resolved read as %+v", r)
+	}
+}
+
+// ENTER RAISES THE WINDOW THAT WAS READ BACK, not whatever the words name now, and a window gone
+// since raises nothing.
+func TestEnterRaisesTheWindowThatWasReadBack(t *testing.T) {
+	d, desk := skillWorld(t, "", discordDesk...)
+	run := func(window string) (Outcome, error) {
+		var out Outcome
+		var err error
+		_ = stdoutOf(t, func() {
+			out, err = runInvocation(d, invoke.Request{Skill: skills.Focus, Source: invoke.SourceTyped,
+				Named: map[string]string{"app": "discord", "window": window}})
+		})
+		return out, err
+	}
+	if out, err := run("13:0"); out != OutcomePerformed || err != nil || len(desk.raised) != 1 || desk.raised[0] != 13 {
+		t.Errorf("ended %q %v, raised %v; want the window read back, 13", out, err, desk.raised)
+	}
+	if out, err := run("99:0"); out != OutcomeFailed || err == nil || !strings.Contains(err.Error(), "closed since") ||
+		len(desk.raised) != 1 {
+		t.Errorf("a window gone since ended %q %v, raised %v", out, err, desk.raised)
+	}
+}
+
+// `marco line --resolve` asks the reading to work out a skill's target; without it, it does not.
+func TestTheResolveFlagIsRead(t *testing.T) {
+	line, p, ok := lineArgs([]string{"--json", "--resolve", "--", "focus chat gp jpg"})
+	if !ok || !p.Resolve || line != "focus chat gp jpg" {
+		t.Errorf("read %q %+v %v", line, p, ok)
+	}
+	if _, p, _ := lineArgs([]string{"--json", "--", "focus x"}); p.Resolve {
+		t.Error("resolve without the flag")
 	}
 }

@@ -95,7 +95,9 @@ type model struct {
 	recallAt            int
 	recallDraft         string
 	recallDraftProposal *lineProposal
-	quit                bool
+	// resolvingFor is the line whose skill target is being worked out (resolveReading), "" when none.
+	resolvingFor string
+	quit         bool
 }
 
 // beginArm starts a new press of the leader in app and returns its number. A list fetched for an

@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -37,7 +38,16 @@ import (
 )
 
 // readSkill is the reading of a line in a skill's explicit form, and false when it is not one.
-func readSkill(line string) (lineReading, bool) {
+//
+// FOCUS APP IS READ BACK WITH THE PROGRAM IT WILL BRING FORWARD, not only the words: "Focus app ·
+// app: chat gp jpg · program: ChatGPT", and the window's identity travels as the value `window`,
+// so Enter raises the window that was read back and nothing is worked out again. When no open
+// program is called the words, the model is asked — only with resolve (`--resolve`), because the
+// reading is asked as somebody types; without it the reading says it is finding the program, is
+// not runnable, and asks to be read again (Resolving).
+//
+// Reading back the words without the program must fail TestFocusIsReadBackWithTheProgramItBringsForward.
+func readSkill(line string, resolve bool) (lineReading, bool) {
 	s, value, ok := skillOf(line)
 	if !ok {
 		return lineReading{}, false
@@ -63,6 +73,30 @@ func readSkill(line string) (lineReading, bool) {
 		}
 		out.Parts = append(out.Parts, linePart{Label: "provider", Value: skills.ProviderName(provider)})
 	}
+	if s.Slug == skills.Focus {
+		ws := openWindows()
+		w, err := skills.ChooseWindow(value, ws, isMarcoProgram)
+		said := ""
+		var none skills.NotOpen
+		switch {
+		case errors.As(err, &none) && !resolve:
+			out.Resolving = true
+			out.Says = fmt.Sprintf("finding which open program %q is…", value)
+			return out, true
+		case errors.As(err, &none):
+			p, ok, why := programByModel(value, ws, nil)
+			if !ok {
+				out.Says = err.Error() + why
+				return out, true
+			}
+			w, said = p.Window, "(worked out by Marco's model)"
+		case err != nil:
+			out.Says = err.Error()
+			return out, true
+		}
+		out.Values["window"] = windowTerm(w)
+		out.Parts = append(out.Parts, linePart{Label: "program", Value: skills.AppName(w.Title), Said: said})
+	}
 	out.Readback = readbackOf(s.Name, out.Parts)
 	out.Runnable = true
 	return out, true
@@ -81,15 +115,18 @@ func performSkillRequest(req invoke.Request) (Outcome, error) {
 		return OutcomeRefused, fmt.Errorf("a built-in skill is not repeated; nothing was run")
 	}
 	for k := range req.Named {
-		if k != s.Arg {
+		if k != s.Arg && !(s.Slug == skills.Focus && k == "window") {
 			return OutcomeRefused, fmt.Errorf("%s takes %s, not %s; nothing was run", s.Name, s.Arg, k)
 		}
 	}
-	return performSkill(s, req.Named[s.Arg])
+	return performSkill(s, req.Named[s.Arg], req.Named["window"])
 }
 
-// performSkill does one skill with its value, and says what ran on `[ran] `.
-func performSkill(s skills.Skill, value string) (Outcome, error) {
+// performSkill does one skill with its value, and says what ran on `[ran] `. window is the window
+// a Focus app read-back named (windowTerm), or "" to work it out here (a terminal, the intake).
+//
+// Working the window out again when one was read back must fail TestEnterRaisesTheWindowThatWasReadBack.
+func performSkill(s skills.Skill, value, window string) (Outcome, error) {
 	value = strings.TrimSpace(value)
 	if value == "" {
 		return OutcomeClarify, fmt.Errorf("%s · %s", neededWord([]string{s.Arg}), s.Name+" "+
@@ -100,7 +137,18 @@ func performSkill(s skills.Skill, value string) (Outcome, error) {
 	switch s.Slug {
 	case skills.Focus:
 		ws := openWindows()
-		w, err := skills.ChooseWindow(value, ws, isMarcoProgram)
+		var w skills.Window
+		var err error
+		if window != "" {
+			// THE WINDOW THAT WAS READ BACK, still that window, or nothing.
+			var ok bool
+			if w, ok = windowOf(window); !ok {
+				return OutcomeFailed, fmt.Errorf("the window that was read back has closed since, " +
+					"so nothing was brought forward")
+			}
+		} else {
+			w, err = skills.ChooseWindow(value, ws, isMarcoProgram)
+		}
 		var amb skills.Ambiguous
 		var none skills.NotOpen
 		how := ""
@@ -123,7 +171,9 @@ func performSkill(s skills.Skill, value string) (Outcome, error) {
 		if err := raiseWindow(w.Handle); err != nil {
 			return OutcomeFailed, fmt.Errorf("%s is open, and %v", skills.AppName(w.Title), err)
 		}
-		fmt.Printf("%s%s\n", outcome.RanPrefix, readbackOf(s.Name, []linePart{{Label: s.Arg, Value: value}}))
+		// WHAT RAN, WITH THE PROGRAM IT BROUGHT FORWARD, not only the words that asked for it.
+		fmt.Printf("%s%s\n", outcome.RanPrefix, readbackOf(s.Name, []linePart{{Label: s.Arg, Value: value},
+			{Label: "program", Value: skills.AppName(w.Title)}}))
 		// THE APPLICATION'S NAME, NOT ITS WINDOW'S TITLE: a title can carry a document's name.
 		fmt.Printf("brought %s forward%s\n", skills.AppName(w.Title), how)
 		return OutcomePerformed, nil
@@ -158,7 +208,7 @@ func skillInWords(d orchestrator.Deps, phrase, app string) (Outcome, bool, error
 	if _, _, _, _, routine := lineRoutine(d, app, phrase); routine {
 		return "", false, nil
 	}
-	out, err := performSkill(s, value)
+	out, err := performSkill(s, value, "")
 	return out, true, err
 }
 
@@ -308,4 +358,34 @@ func proposeOpenProgram(d orchestrator.Deps, phrase, app string) (Outcome, bool)
 	fmt.Printf("Marco's model took \"%s\" to mean %s, which is open. Nothing has run; review it first.\n",
 		rest, p.Name)
 	return OutcomeClarify, true
+}
+
+// windowTerm is a window's identity on the wire, `<handle>:<owner>`: the window AND the process
+// that owned it when it was read back, so a handle Windows has given to another window since is
+// not raised.
+func windowTerm(w skills.Window) string { return fmt.Sprintf("%d:%d", w.Handle, w.PID) }
+
+// windowOf is the window a term names, if it is still that window.
+func windowOf(term string) (skills.Window, bool) {
+	h, p, ok := strings.Cut(strings.TrimSpace(term), ":")
+	if !ok {
+		return skills.Window{}, false
+	}
+	hwnd, err1 := strconv.ParseUint(h, 10, 64)
+	pid, err2 := strconv.ParseUint(p, 10, 32)
+	if err1 != nil || err2 != nil || hwnd == 0 {
+		return skills.Window{}, false
+	}
+	return lookUpWindow(uintptr(hwnd), uint32(pid))
+}
+
+// lookUpWindow is the window with a handle, if that process still owns it. A package variable so
+// a test can stand in for the desktop; production never reassigns it.
+var lookUpWindow = func(hwnd uintptr, pid uint32) (skills.Window, bool) {
+	lw, ok := winctx.LookUpWindow(hwnd)
+	if !ok || lw.ProcessID != pid {
+		return skills.Window{}, false
+	}
+	return skills.Window{Handle: lw.Handle, PID: lw.ProcessID, Image: lw.Image, Title: lw.Title,
+		Minimized: lw.Minimized}, true
 }

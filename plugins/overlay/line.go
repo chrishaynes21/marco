@@ -60,6 +60,9 @@ type lineReading struct {
 	Runnable bool              `json:"runnable"`
 	SourceAt string            `json:"source_at"`
 	Times    int               `json:"times"`
+	// Resolving is a skill whose target is still being worked out (Focus app asking Marco's model
+	// which open program was meant): not runnable, and read again with --resolve (resolveReading).
+	Resolving bool `json:"resolving"`
 }
 
 // linePart is one argument in the read-back.
@@ -113,9 +116,14 @@ var askLine = readLineChild
 // reading at all (an engine too old to have `line`, a timeout, an unreadable answer), and the line
 // is then sent as words, as it always was.
 func readLineChild(line string, p *lineProposal) (lineReading, bool) {
-	ctx, cancel := context.WithTimeout(context.Background(), lineWithin)
+	return readLineChildWith(line, p, lineWithin)
+}
+
+// readLineChildWith is readLineChild bounded by within, with any extra flags first.
+func readLineChildWith(line string, p *lineProposal, within time.Duration, extra ...string) (lineReading, bool) {
+	ctx, cancel := context.WithTimeout(context.Background(), within)
 	defer cancel()
-	args := append([]string{"line", "--json"}, p.flags()...)
+	args := append(append([]string{"line", "--json"}, extra...), p.flags()...)
 	args = append(args, "--", line)
 	out, err := exec.CommandContext(ctx, marcoBin(), args...).Output()
 	if ctx.Err() != nil || len(strings.TrimSpace(string(out))) == 0 {
@@ -201,6 +209,9 @@ func refreshReading(m *model, line string) {
 		r = lineReading{Line: line, Kind: "none"}
 	}
 	m.setReading(line, r)
+	if r.Resolving {
+		go resolveReading(m, line)
+	}
 }
 
 // typedLine is what Enter does with a typed line. It reports whether this file took the line;
@@ -463,4 +474,29 @@ func timesSuffix(n int) string {
 		return ""
 	}
 	return " ×" + strconv.Itoa(n)
+}
+
+// askResolved reads a line again with its skill's target worked out (`marco line --resolve`),
+// bounded like the ask about which routine a phrase named, because it may wait on a model. A
+// package variable so a test can answer for it; production never reassigns it.
+var askResolved = func(line string) (lineReading, bool) {
+	return readLineChildWith(line, nil, resolveWithin, "--resolve")
+}
+
+// resolveReading replaces a reading that is still finding its target with the one that found it
+// (or says it could not), if the line is still that line. One at a time per line.
+//
+// Not asking again must fail TestAReadBackShowsTheProgramOnceItIsFound.
+func resolveReading(m *model, line string) {
+	m.mu.Lock()
+	if m.resolvingFor == line {
+		m.mu.Unlock()
+		return
+	}
+	m.resolvingFor = line
+	m.mu.Unlock()
+	defer func() { m.mu.Lock(); m.resolvingFor = ""; m.mu.Unlock() }()
+	if r, ok := askResolved(line); ok {
+		m.setReading(line, r)
+	}
 }
