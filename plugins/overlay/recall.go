@@ -110,7 +110,7 @@ func (h *model) recallOlder() {
 		return // the oldest: ↑ stays on it
 	}
 	h.proposal = nil // a recalled line is not the routine Director's values were for
-	h.input = " " + h.recall[h.recallAt]
+	h.input, h.cursorBack = " "+h.recall[h.recallAt], 0
 }
 
 // recallNewer is ↓: the command after the one on the line, and past the newest, the line as it was
@@ -125,10 +125,10 @@ func (h *model) recallNewer() {
 	}
 	if h.recallAt < len(h.recall)-1 {
 		h.recallAt++
-		h.input = " " + h.recall[h.recallAt]
+		h.input, h.cursorBack = " "+h.recall[h.recallAt], 0
 		return
 	}
-	h.input, h.proposal = h.recallDraft, h.recallDraftProposal
+	h.input, h.proposal, h.cursorBack = h.recallDraft, h.recallDraftProposal, 0
 	h.endRecallLocked()
 }
 

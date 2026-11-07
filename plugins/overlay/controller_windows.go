@@ -114,6 +114,12 @@ const (
 	vkUp     = 0x26
 	vkRight  = 0x27
 	vkDown   = 0x28
+	vkEnd    = 0x23
+	vkHome   = 0x24
+	vkDelete = 0x2E
+	vkCtrl   = 0x11
+	vkLCtrl  = 0xA2
+	vkRCtrl  = 0xA3
 )
 
 type kbdllHookStruct struct {
@@ -155,13 +161,19 @@ const (
 	actCfgDown   // config editor: move selection down
 	actCfgLeft   // config editor: change selected setting down
 	actCfgRight
-	actCfgSave      // config editor: persist to disk
-	actCfgClose     // config editor: close
-	actPromptType   // interactive prompt: a typed y/n/s (or "" to clear) — shown, not yet sent
-	actPromptSubmit // interactive prompt: Enter — send the pending answer to the child
-	actAcceptHint   // Tab — append the next auto-popped "name:" arg label to the command
-	actRecallOlder  // ↑ on the command line — the command before (recall.go)
-	actRecallNewer  // ↓ on the command line — the command after, then the line as it was
+	actCfgSave       // config editor: persist to disk
+	actCfgClose      // config editor: close
+	actPromptType    // interactive prompt: a typed y/n/s (or "" to clear) — shown, not yet sent
+	actPromptSubmit  // interactive prompt: Enter — send the pending answer to the child
+	actAcceptHint    // Tab — append the next auto-popped "name:" arg label to the command
+	actRecallOlder   // ↑ on the command line — the command before (recall.go)
+	actRecallNewer   // ↓ on the command line — the command after, then the line as it was
+	actCaretLeft     // ← on the command line, one character (lineedit.go); r == 1 for a word
+	actCaretRight    // →, one character; r == 1 for a word
+	actCaretHome     // Home
+	actCaretEnd      // End
+	actDeleteFwd     // Delete; r == 1 for a word
+	actBackspaceWord // Ctrl+Backspace
 )
 
 // leaderTimeout disarms the leader if no key follows the backtick.
@@ -171,6 +183,7 @@ var (
 	editing   atomic.Bool // marco command line open
 	armed     atomic.Bool // backtick pressed, awaiting the command key
 	shiftDown atomic.Bool
+	ctrlDown  atomic.Bool  // Ctrl held, for word-wise moves on the command line
 	leaderGen atomic.Int64 // cancels a stale disarm timer
 	actCh     = make(chan action, 256)
 )
@@ -229,6 +242,18 @@ func processFrom(ch <-chan action, h *model, emit func(event)) {
 			h.recallOlder()
 		case actRecallNewer:
 			h.recallNewer()
+		case actCaretLeft:
+			h.moveCaret(-1, a.r == 1)
+		case actCaretRight:
+			h.moveCaret(1, a.r == 1)
+		case actCaretHome:
+			h.caretHome()
+		case actCaretEnd:
+			h.caretEnd()
+		case actDeleteFwd:
+			h.deleteForward(a.r == 1)
+		case actBackspaceWord:
+			h.deleteBack(true)
 		case actAcceptHint:
 			// Tab autocompletes the route name first; once it's fully typed, Tab
 			// advances to the next argument slot.
@@ -378,6 +403,9 @@ func handleKey(vk uint16, down bool) bool {
 	case vkShift, vkLShift, vkRShift:
 		shiftDown.Store(down)
 		return editing.Load() // hide shift from the game only while typing
+	case vkCtrl, vkLCtrl, vkRCtrl:
+		ctrlDown.Store(down)
+		return false // Ctrl reaches the application: it is held for its own shortcuts
 	}
 
 	// A learn save/scope prompt is waiting: capture the y/n/s answer (Enter = yes)
@@ -444,13 +472,29 @@ func handleKey(vk uint16, down bool) bool {
 			case vkTab:
 				push(action{kind: actAcceptHint}) // accept the next auto-popped "name:" label
 			case vkBack:
-				push(action{kind: actBackspace})
+				if ctrlDown.Load() {
+					push(action{kind: actBackspaceWord})
+				} else {
+					push(action{kind: actBackspace})
+				}
 			case vkUp:
 				push(action{kind: actRecallOlder})
 			case vkDown:
 				push(action{kind: actRecallNewer})
+			// AN EDITOR'S CARET (lineedit.go): pushed only, the edit happens on the action loop.
+			case vkLeft:
+				push(action{kind: actCaretLeft, r: wordWise()})
+			case vkRight:
+				push(action{kind: actCaretRight, r: wordWise()})
+			case vkHome:
+				push(action{kind: actCaretHome})
+			case vkEnd:
+				push(action{kind: actCaretEnd})
+			case vkDelete:
+				push(action{kind: actDeleteFwd, r: wordWise()})
 			default:
-				if r, ok := vkToText(vk, shiftDown.Load()); ok {
+				// NOT TEXT WHILE CTRL IS HELD: Ctrl+C is not a "c".
+				if r, ok := vkToText(vk, shiftDown.Load()); ok && !ctrlDown.Load() {
 					push(action{kind: actAppend, r: r})
 				}
 			}
@@ -562,4 +606,12 @@ func vkToText(vk uint16, shift bool) (rune, bool) {
 		return pick('\\', '|')
 	}
 	return 0, false
+}
+
+// wordWise is 1 while Ctrl is held, for an action's r: the move or delete is a word (lineedit.go).
+func wordWise() rune {
+	if ctrlDown.Load() {
+		return 1
+	}
+	return 0
 }

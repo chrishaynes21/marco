@@ -34,12 +34,14 @@ const (
 // controller, and the clock/app pollers mutate it; the view's Draw reads it. All
 // access goes through the mutex.
 type model struct {
-	mu            sync.Mutex
-	visible       bool
-	editing       bool
-	status        string // raw status text from the engine
-	state         string // idle | listen | run | ok | error
-	input         string
+	mu      sync.Mutex
+	visible bool
+	editing bool
+	status  string // raw status text from the engine
+	state   string // idle | listen | run | ok | error
+	input   string
+	// cursorBack is the caret, as how many characters it is from the end of input (lineedit.go).
+	cursorBack    int
 	logs          []string
 	lastRun       string
 	app           string    // foreground app (polled via `marco active`)
@@ -178,7 +180,7 @@ func (h *model) completeRoute() bool {
 		return false // already at the common prefix (or fully typed)
 	}
 	lead := h.input[:len(h.input)-len(strings.TrimLeft(h.input, " "))] // keep typed spaces
-	h.input = lead + lcp
+	h.input, h.cursorBack = lead+lcp, 0
 	h.lastActive = time.Now()
 	return true
 }
@@ -218,6 +220,7 @@ func (h *model) acceptArgHint() bool {
 			h.input += " "
 		}
 		h.input += "with "
+		h.cursorBack = 0
 		h.lastActive = time.Now()
 		return true
 	}
@@ -233,7 +236,7 @@ func (h *model) acceptArgHint() bool {
 	if filled >= len(h.argHints) || strings.TrimSpace(segs[len(segs)-1]) == "" {
 		return false
 	}
-	h.input = strings.TrimRight(h.input, " ") + ", "
+	h.input, h.cursorBack = strings.TrimRight(h.input, " ")+", ", 0
 	h.lastActive = time.Now()
 	return true
 }
@@ -593,7 +596,7 @@ func (h *model) setHeard(s string) {
 	h.mu.Unlock()
 }
 
-func (h *model) setInput(s string) { h.mu.Lock(); h.input = s; h.mu.Unlock() }
+func (h *model) setInput(s string) { h.mu.Lock(); h.input, h.cursorBack = s, 0; h.mu.Unlock() }
 func (h *model) show(v bool)       { h.mu.Lock(); h.visible = v; h.mu.Unlock() }
 func (h *model) setEditing(v bool) {
 	h.mu.Lock()
@@ -607,26 +610,17 @@ func (h *model) setRoutes([]string) {}
 func (h *model) clear()             { h.mu.Lock(); h.logs = nil; h.mu.Unlock() }
 func (h *model) requestQuit()       { h.mu.Lock(); h.quit = true; h.mu.Unlock() }
 func (h *model) setApp(a string)    { h.mu.Lock(); h.app = a; h.mu.Unlock() }
-func (h *model) appendRune(r rune) {
-	h.mu.Lock()
-	h.input += string(r)
-	h.lastActive = time.Now()
-	h.mu.Unlock()
-}
 
-func (h *model) backspace() {
-	h.mu.Lock()
-	if n := len(h.input); n > 0 {
-		h.input = h.input[:n-1]
-	}
-	h.lastActive = time.Now()
-	h.mu.Unlock()
-}
+// appendRune types r at the caret (lineedit.go), which is the end unless it was moved.
+func (h *model) appendRune(r rune) { h.insertRune(r) }
+
+// backspace deletes the character before the caret: a character, not a byte.
+func (h *model) backspace() { h.deleteBack(false) }
 
 func (h *model) takeInput() string {
 	h.mu.Lock()
 	s := strings.TrimSpace(h.input) // the typed `m + space separator isn't part of the command
-	h.input, h.lastRun = "", s
+	h.input, h.lastRun, h.cursorBack = "", s, 0
 	h.mu.Unlock()
 	return s
 }
@@ -659,6 +653,7 @@ type snapshot struct {
 	insightOn                          bool
 	insight                            []string
 	status, state, input, lastRun, app string
+	cursorBack                         int // the caret, from the end of input (lineedit.go)
 	leaderEcho, heard                  string
 	cpu, ram                           float64
 	curX, curY                         int
@@ -703,7 +698,7 @@ func (h *model) snapshot() snapshot {
 	copy(arm, h.arm)
 	return snapshot{
 		visible: h.visible, editing: h.editing, helpOn: h.helpOn, configOn: h.configOn,
-		status: h.status, state: h.state, input: h.input, lastRun: h.lastRun, app: h.app,
+		status: h.status, state: h.state, input: h.input, cursorBack: h.cursorBack, lastRun: h.lastRun, app: h.app,
 		leaderEcho: h.leaderEcho, heard: h.heard, cpu: h.cpu, ram: h.ram,
 		curX: h.curX, curY: h.curY, curHasPos: h.curHasPos, learnSession: h.learnSession,
 		learnStart: h.learnStart, configSel: h.configSel,

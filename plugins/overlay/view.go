@@ -506,7 +506,7 @@ func drawTerminalLine(dst *ebiten.Image, pad, y, innerW float64, s snapshot, sco
 		if s.hasReading {
 			pending = s.reading.Pending
 		}
-		drawEditLine(dst, s.input, blink, s.argHints, pending, pad+bw, y, innerW-bw, scol)
+		drawEditLine(dst, s.input, blink, s.cursorBack, s.argHints, pending, pad+bw, y, innerW-bw, scol)
 		// AND WHAT ENTER WOULD RUN, under it (line.go): the read-back, or what is needed.
 		if rs := readingRuns(s); len(rs) > 0 {
 			_, row := layoutRuns(editRuns(s.input, s.argHints, th.name), 0, innerW-bw, nil)
@@ -660,12 +660,19 @@ func layoutRuns(rs []editRun, x0, avail float64, emit func(s string, col color.R
 // drawEditLine renders the command being typed, wrapping across rows from (x, y).
 // Before a "with" clause exists, the arg labels trail as a "name:  (tab)" suggestion;
 // once it does, they sit in front of each value (see editRuns).
-func drawEditLine(dst *ebiten.Image, in, blink string, names []string, pending string, x, y, avail float64, accent color.RGBA) {
+func drawEditLine(dst *ebiten.Image, in, blink string, back int, names []string, pending string, x, y, avail float64, accent color.RGBA) {
 	rs := editRuns(in, names, accent)
 	endX, row := layoutRuns(rs, x, avail, func(s string, col color.RGBA, ax float64, r int) {
 		drawText(dst, s, ax, y+float64(r)*termContH, faceBody, col)
 	})
 	ry := y + float64(row)*termContH
+	if rs := []rune(in); back > 0 && back <= len(rs) {
+		// THE CARET WHERE IT IS (lineedit.go): under the character it sits before, measured by
+		// laying out the text up to it the same way the line was laid out.
+		cx, crow := layoutRuns(editRuns(string(rs[:len(rs)-back]), names, accent), x, avail, nil)
+		drawText(dst, blink, cx, y+float64(crow)*termContH, faceBody, th.cmd)
+		blink = " " // the hint after the line keeps its place
+	}
 	drawText(dst, blink, endX, ry, faceBody, th.cmd)
 	if pending != "" {
 		// THE VALUE STILL TO TYPE, muted, where it goes: `cloud pull ‹resource›` (line.go).
