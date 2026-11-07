@@ -117,49 +117,11 @@ func onOff(b bool) string {
 
 func applyTheme() { th = themeByName(cfgSnapshot().Theme) }
 
-// applyWindow re-selects the monitor and re-places the window (config change /
-// startup). placeWindow(false) is the lighter path used when only the auto-fit
-// height changed.
-func applyWindow() { placeWindow(true) }
-
-// placeWindow sizes the window to (configured width × auto-fit height) and pins
-// it to the configured monitor corner. $MARCO_OVERLAY_POS overrides with x,y.
-func placeWindow(setMonitor bool) {
-	c := cfgSnapshot()
-	h := int(winH.Load())
-	if h <= 0 {
-		h = 200 // not yet measured; ebiten rejects a non-positive size
-	}
-	mons := ebiten.AppendMonitors(nil)
-	mw, mh := 1920, 1080
-	if len(mons) > 0 {
-		i := c.Monitor
-		if i < 0 || i >= len(mons) {
-			i = 0
-		}
-		if setMonitor {
-			ebiten.SetMonitor(mons[i])
-		}
-		mw, mh = mons[i].Size()
-	}
-	ebiten.SetWindowSize(c.Width, h)
-	const m = 10
-	x, y := mw-c.Width-m, m // top-right default
-	switch c.Corner {
-	case "top-left":
-		x, y = m, m
-	case "bottom-right":
-		x, y = mw-c.Width-m, mh-h-m
-	case "bottom-left":
-		x, y = m, mh-h-m
-	case "top-center":
-		x, y = (mw-c.Width)/2, m
-	}
-	if px, py, ok := envPair("MARCO_OVERLAY_POS", ","); ok {
-		x, y = px, py
-	}
-	ebiten.SetWindowPosition(x, y)
-}
+// applyWindow asks for the widget to be moved onto the chosen monitor and into its corner, at the
+// configured size (config change / startup). It only asks: the window calls are made by the view's
+// loop (anchor.frame), which is the only place that can wait for Ebiten to agree which display the
+// window is on — see anchor.go for why placing straight after SetMonitor lands on the old screen.
+func applyWindow() { monitorRequested.Store(true) }
 
 // ---- editor field model ----
 
@@ -174,7 +136,7 @@ func configLines() []string {
 		"leader    " + c.Leader,
 		"theme     " + c.Theme,
 		"opacity   " + fmt.Sprintf("%.2f", c.Idle),
-		"monitor   " + strconv.Itoa(c.Monitor),
+		"monitor   " + monitorLabel(c.Monitor), // counted from 1; the saved value is still zero-based
 		"corner    " + c.Corner,
 		"width     " + strconv.Itoa(c.Width),
 		"max lines " + strconv.Itoa(cfgMaxLines()),

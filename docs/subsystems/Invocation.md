@@ -22,6 +22,7 @@ source_paths:
   - plugins/overlay/intake.go
   - plugins/overlay/outcome.go
   - internal/widgetconfig
+  - plugins/overlay/anchor.go
   - plugins/overlay/compat.go
   - cmd/marco/line.go
   - plugins/overlay/line.go
@@ -120,6 +121,11 @@ it without reading `Request.Text` at all.
   by the widget, the control centre and Studio: the widget's precedence everywhere, and a save
   writes only the keys its person changed, keeping every other field (F5). See
   [[ADR-300-one-owner-for-the-widgets-settings]].
+- The widget's `monitor` setting is placed by, on a switch and on every auto-fit resize: the corner
+  is given to Ebiten only while Ebiten's cached current monitor is the chosen display, because
+  Ebiten v2.9.9 measures SetWindowPosition from that cache and SetMonitor does not update it. The
+  panel counts displays from 1; the file keeps the zero-based index. See
+  [[ADR-330-the-widget-anchors-to-the-chosen-display]].
 - The widget's command line reads back what Enter would run (`marco line --json`, read-only): an
   exact name first, then the intake's grammar, then a routine taking one value followed by it.
   A line with values runs as its identity and the version read (`--play`, `--expect`, `--arg`),

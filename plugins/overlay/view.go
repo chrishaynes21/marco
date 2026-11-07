@@ -149,6 +149,7 @@ type view struct {
 	tick               int
 	alphaBg, alphaText float64
 	positioned         bool
+	anchor             anchor // keeps the window in its corner of the chosen display
 }
 
 func (g *view) Update() error {
@@ -203,9 +204,10 @@ func (g *view) Update() error {
 	if nh := layoutHeight(s); nh != int(winH.Load()) {
 		winH.Store(int32(nh))
 		if g.positioned {
-			placeWindow(false) // resize + re-anchor to the corner (no monitor switch)
+			g.anchor.resized() // resize + re-anchor to the corner of the CHOSEN display
 		}
 	}
+	g.anchor.frame()
 	return nil
 }
 
