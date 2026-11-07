@@ -283,8 +283,8 @@ go run ./cmd/cleanroom                 # its second: builds the COMMITTED source
   the pixels through the production perception path. `-frames` is a BOOL and the directory is
   POSITIONAL; putting the directory first silently ignores `-stride`.
 - **The live resolver test is behind `-tags resolver`**: `go test -tags resolver ./cmd/director/`,
-  REQUIRED for a resolver change, because it is the only test that asks the real plugin and a
-  real model server rather than a stand-in. It is out of the default suite for a reason about the
+  run at milestones with the other major suites (not after every resolver change), because it is
+  the only test that asks the real plugin and a real model server rather than a stand-in. It is out of the default suite for a reason about the
   LEDGER and not about the test: a conditional skip is the one thing `gate-skips.txt` cannot
   express — an undeclared skip fails the gate and a declaration whose test ran fails it too, so
   the same honest test was a finding with Ollama running and a finding without it. The ledger is

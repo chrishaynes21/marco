@@ -102,7 +102,7 @@ func answer(ctx context.Context, cfg config, req request) {
 	}
 	// WHICH OPEN PROGRAM. Told what was said and the programs that are open, and nothing else.
 	if req.Program != nil {
-		emitProgram(program(ctx, cfg.forRoutines(), req.Input, req.Program.Programs))
+		emitProgram(program(ctx, cfg.forRoutines(), req.Input, req.Program.Programs, req.Program.Routines))
 		return
 	}
 	if req.Mode == "converse" {

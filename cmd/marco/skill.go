@@ -21,12 +21,16 @@ import (
 	"strings"
 	"time"
 
+	"github.com/chaynes-simpleclouds/marco/internal/director/service"
+	"github.com/chaynes-simpleclouds/marco/internal/dispatch"
 	"github.com/chaynes-simpleclouds/marco/internal/invoke"
 	"github.com/chaynes-simpleclouds/marco/internal/lastattempt"
 	"github.com/chaynes-simpleclouds/marco/internal/mlog"
 	"github.com/chaynes-simpleclouds/marco/internal/orchestrator"
 	"github.com/chaynes-simpleclouds/marco/internal/outcome"
+	"github.com/chaynes-simpleclouds/marco/internal/plays"
 	"github.com/chaynes-simpleclouds/marco/internal/resolver"
+	"github.com/chaynes-simpleclouds/marco/internal/resolveroute"
 	"github.com/chaynes-simpleclouds/marco/internal/skills"
 	"github.com/chaynes-simpleclouds/marco/internal/widgetconfig"
 	"github.com/chaynes-simpleclouds/marco/internal/winctx"
@@ -108,7 +112,7 @@ func performSkill(s skills.Skill, value string) (Outcome, error) {
 			// should have to know that Steam's window is steamwebhelper.exe, and a recogniser
 			// hears "chat cheap tea". It chooses among the programs that are open and nothing
 			// else; Marco raises the window.
-			got, ok, why := programByModel(value, ws)
+			got, ok, why := programByModel(value, ws, nil)
 			if !ok {
 				return OutcomeFailed, fmt.Errorf("%v%s", err, why)
 			}
@@ -198,7 +202,7 @@ func skillProposal(line string) bool {
 // program, or why there is none to add to "isn't open".
 //
 // Asking nothing when no program matched exactly must fail TestAProgramNotNamedExactlyIsAskedOfTheModel.
-func programByModel(said string, ws []skills.Window) (skills.Program, bool, string) {
+func programByModel(said string, ws []skills.Window, routines []string) (skills.Program, bool, string) {
 	ps := skills.Programs(ws, isMarcoProgram)
 	if len(ps) == 0 {
 		return skills.Program{}, false, ""
@@ -212,7 +216,7 @@ func programByModel(said string, ws []skills.Window) (skills.Program, bool, stri
 		offer = append(offer, resolver.ProgramChoice{Label: p.Label, Name: p.Name, Exe: p.Window.Image})
 		byLabel[p.Label] = p
 	}
-	label, ok := askProgram(context.Background(), said, offer)
+	label, ok := askProgram(context.Background(), said, offer, routines)
 	if !ok {
 		mlog.Info("intake: the model named no open program", "offered", len(offer))
 		return skills.Program{}, false, ", and Marco's model didn't recognise it as any program that is open"
@@ -264,4 +268,44 @@ func skillOf(line string) (skills.Skill, string, bool) {
 		return s, rest, true
 	}
 	return skills.Skill{}, "", false
+}
+
+// proposeOpenProgram answers everyday words naming an open program the recogniser misheard
+// ("open chad gpt" with ChatGPT open): the model is asked which open program was meant, and the
+// one it names is PROPOSED as "focus <its name>" for review on the widget's command line, never
+// raised from here — the words were two guesses, that an application was meant and which. ok is
+// false when they are not that form, a routine reads them, or the model names nothing; they then
+// go on to Director as before.
+//
+// Not asking must fail TestAMisheardOpenIsProposedAsFocus.
+func proposeOpenProgram(d orchestrator.Deps, phrase, app string) (Outcome, bool) {
+	rest, ok := skills.ReadOpen(phrase)
+	if !ok {
+		return "", false
+	}
+	if _, _, _, _, routine := lineRoutine(d, app, phrase); routine {
+		return "", false
+	}
+	// YOUR ROUTINES' NAMES GO WITH IT, as not applications: "open sosh al" is "open social"
+	// misheard, and is left for Director. Measured live, ADR-327.
+	var names []string
+	for _, rt := range d.Reg.List() {
+		names = append(names, plays.Pretty(rt.Slug))
+	}
+	p, ok, _ := programByModel(rest, openWindows(), names)
+	if !ok {
+		return "", false
+	}
+	s, _ := skills.Of(skills.Focus)
+	b, err := json.Marshal(service.ResolveRouteResponse{Answer: resolveroute.Answer{
+		Kind: dispatch.IntentRun, ID: s.ID(), Slug: s.Slug, Name: s.Name, Scope: "built in",
+		Source: "advisor", Resolver: "Marco's model named an open program",
+		Builtin: true, Line: skills.LineFor(s.Slug, p.Name)}})
+	if err != nil {
+		return "", false
+	}
+	fmt.Printf("%s%s\n", outcome.ProposedPrefix, b)
+	fmt.Printf("Marco's model took \"%s\" to mean %s, which is open. Nothing has run; review it first.\n",
+		rest, p.Name)
+	return OutcomeClarify, true
 }

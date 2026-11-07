@@ -20,7 +20,7 @@ var open = []programChoice{
 func TestTheProgramAnswerIsOneThatIsOpen(t *testing.T) {
 	var body string
 	srv := serverReplying(t, "chatgpt", &body)
-	got := program(context.Background(), cfgFor(srv.URL), "chat cheap tea", open)
+	got := program(context.Background(), cfgFor(srv.URL), "chat cheap tea", open, nil)
 	srv.Close()
 	if got != "chatgpt" {
 		t.Errorf("got %q", got)
@@ -30,7 +30,7 @@ func TestTheProgramAnswerIsOneThatIsOpen(t *testing.T) {
 	}
 	for _, reply := range []string{"NONE", "spotify", ""} {
 		srv := serverReplying(t, reply, nil)
-		if got := program(context.Background(), cfgFor(srv.URL), "music", open); got != "" {
+		if got := program(context.Background(), cfgFor(srv.URL), "music", open, nil); got != "" {
 			t.Errorf("reply %q chose %q", reply, got)
 		}
 		srv.Close()

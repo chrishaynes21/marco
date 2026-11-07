@@ -426,6 +426,10 @@ func askDirector(d orchestrator.Deps, dec invoke.Decision, req invoke.Request) (
 		if out, ok, err := skillInWords(d, dec.Phrase, req.App); ok {
 			return out, err
 		}
+		// AND EVERYDAY WORDS NAMING AN OPEN PROGRAM THE RECOGNISER MISHEARD, proposed for review.
+		if out, ok := proposeOpenProgram(d, dec.Phrase, req.App); ok {
+			return out, nil
+		}
 	}
 	// ── "REPEAT <ROUTINE> <N> TIMES", PROPOSED AND NEVER RUN FROM WORDS ──
 	//

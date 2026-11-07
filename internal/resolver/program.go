@@ -29,10 +29,12 @@ var ProgramTimeout = 20 * time.Second
 //
 // The answer is a label that was SENT, or false: no plugin, one that does not know the question,
 // NONE, a timeout, or a label nobody offered. Only the request's words and the program names go to
-// the plugin, never a window's title beyond the application's own name.
+// the plugin, never a window's title beyond the application's own name. Routines, when given, are the
+// person's saved routine names, told to the model as NOT applications, so a misheard routine name
+// is not taken for a program.
 //
 // Accepting a label that was not offered must fail TestOnlyAnOfferedProgramIsAnswered.
-func WhichProgram(ctx context.Context, said string, programs []ProgramChoice) (string, bool) {
+func WhichProgram(ctx context.Context, said string, programs []ProgramChoice, routines []string) (string, bool) {
 	path := Path()
 	if path == "" || strings.TrimSpace(said) == "" || len(programs) == 0 || len(programs) > MaxPrograms {
 		return "", false
@@ -45,10 +47,12 @@ func WhichProgram(ctx context.Context, said string, programs []ProgramChoice) (s
 		Input   string `json:"input"`
 		Program struct {
 			Programs []ProgramChoice `json:"programs"`
+			Routines []string        `json:"routines,omitempty"`
 		} `json:"program"`
 	}{Input: said, Program: struct {
 		Programs []ProgramChoice `json:"programs"`
-	}{programs}})
+		Routines []string        `json:"routines,omitempty"`
+	}{programs, routines}})
 	if err != nil {
 		return "", false
 	}

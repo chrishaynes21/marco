@@ -33,7 +33,7 @@ func skillWorld(t *testing.T, provider string, ws ...skills.Window) (orchestrato
 	// NO MODEL unless a test says otherwise: $MARCO_RESOLVER may be set on this machine.
 	prevM, prevA := modelConfigured, askProgram
 	modelConfigured = func() bool { return false }
-	askProgram = func(context.Context, string, []resolver.ProgramChoice) (string, bool) { return "", false }
+	askProgram = func(context.Context, string, []resolver.ProgramChoice, []string) (string, bool) { return "", false }
 	t.Cleanup(func() { modelConfigured, askProgram = prevM, prevA })
 	t.Cleanup(func() { openWindows, raiseWindow, openAddress, searchProvider = prevW, prevR, prevO, prevP })
 	return d, desk
@@ -203,7 +203,8 @@ func modelAnswers(t *testing.T, configured bool, label string) *[]string {
 	t.Helper()
 	var offered []string
 	prevA, prevC := askProgram, modelConfigured
-	askProgram = func(_ context.Context, _ string, ps []resolver.ProgramChoice) (string, bool) {
+	askProgram = func(_ context.Context, _ string, ps []resolver.ProgramChoice, routines []string) (string, bool) {
+		lastRoutines = routines
 		offered = offered[:0]
 		for _, p := range ps {
 			offered = append(offered, p.Label)
@@ -315,3 +316,66 @@ func TestEverydayWordsAreFocusOnlyForAnOpenProgram(t *testing.T) {
 		t.Errorf("a misheard routine did not reach Director: asked %q, raised %v", asked, desk.raised)
 	}
 }
+
+// EVERYDAY WORDS NAMING AN OPEN PROGRAM THE RECOGNISER MISHEARD ARE PROPOSED AS FOCUS, never raised
+// from the words; the model naming nothing leaves them for Director.
+func TestAMisheardOpenIsProposedAsFocus(t *testing.T) {
+	d, desk := skillWorld(t, "", append(discordDesk, skills.Window{Handle: 15, Image: "chatgpt", Title: "ChatGPT"})...)
+	modelAnswers(t, true, "chatgpt")
+	asked := ""
+	prev := proposeRoutine
+	proposeRoutine = func(p string) (string, string, bool) { asked = p; return "", "", false }
+	t.Cleanup(func() { proposeRoutine = prev })
+	var out Outcome
+	said := stdoutOf(t, func() {
+		out, _ = runInvocation(d, invoke.Request{Text: "open chad gpt", Source: invoke.SourceSpoken})
+	})
+	if out != OutcomeClarify || len(desk.raised) != 0 || asked != "" {
+		t.Fatalf("ended %q, raised %v, Director asked %q:\n%s", out, desk.raised, asked, said)
+	}
+	if !skillProposal(proposedLine(said)) || !strings.Contains(said, `"line":"focus ChatGPT"`) {
+		t.Errorf("not proposed as focus ChatGPT:\n%s", said)
+	}
+	// AND THE MODEL WAS TOLD THE ROUTINES' NAMES, so a misheard one is not taken for a program.
+	if !strings.Contains(strings.Join(lastRoutines, ","), "open social") {
+		t.Errorf("the model was not told the routine names: %q", lastRoutines)
+	}
+	modelAnswers(t, true, "")
+	_ = stdoutOf(t, func() {
+		out, _ = runInvocation(d, invoke.Request{Text: "open sosh al", Source: invoke.SourceSpoken})
+	})
+	if asked != "open sosh al" || len(desk.raised) != 0 {
+		t.Errorf("words the model did not name did not reach Director: asked %q", asked)
+	}
+}
+
+func proposedLine(out string) string {
+	for _, l := range strings.Split(out, "\n") {
+		if v, ok := strings.CutPrefix(strings.TrimRight(l, "\r"), outcome.ProposedPrefix); ok {
+			return v
+		}
+	}
+	return ""
+}
+
+// A ROUTINE THE LINE NAMES IS NOT PROPOSED AWAY AS FOCUS, however the model would answer.
+func TestAMisheardOpenLeavesARoutinesWordsAlone(t *testing.T) {
+	d, desk := skillWorld(t, "", skills.Window{Handle: 15, Image: "chatgpt", Title: "ChatGPT"})
+	if err := d.Reg.Save(routes.Route{Slug: "open"}, runnableSrc+"// {{text}}\n"); err != nil {
+		t.Fatal(err)
+	}
+	modelAnswers(t, true, "chatgpt")
+	asked := ""
+	prev := proposeRoutine
+	proposeRoutine = func(p string) (string, string, bool) { asked = p; return "", "", false }
+	t.Cleanup(func() { proposeRoutine = prev })
+	said := stdoutOf(t, func() {
+		_, _ = runInvocation(d, invoke.Request{Text: "open chad gpt", Source: invoke.SourceSpoken})
+	})
+	if skillProposal(proposedLine(said)) || asked != "open chad gpt" || len(desk.raised) != 0 {
+		t.Errorf("the routine's words were proposed as focus (Director asked %q):\n%s", asked, said)
+	}
+}
+
+// lastRoutines is what the model was last told are routine names, not applications.
+var lastRoutines []string

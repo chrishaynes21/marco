@@ -21,6 +21,10 @@ import (
 // programRequest is the question: the open programs, each a label the answer must copy.
 type programRequest struct {
 	Programs []programChoice `json:"programs"`
+	// Routines are the person's saved routine names, which are NOT applications: words that
+	// sound more like one of them are answered NONE, so a misheard routine name ("open sosh al"
+	// for "open social") is left for the routine resolver.
+	Routines []string `json:"routines,omitempty"`
 }
 
 type programChoice struct {
@@ -53,8 +57,16 @@ const programPrompt = "The user wants to switch to an application that is alread
 	"the list.\n" +
 	"Reply with ONLY the label, copied exactly, or NONE, and nothing else."
 
-func programUser(said string, ps []programChoice) string {
+func programUser(said string, ps []programChoice, routines []string) string {
 	var b strings.Builder
+	if len(routines) > 0 {
+		b.WriteString("Saved commands (NOT applications; if what they said sounds more like one " +
+			"of these, reply NONE):\n")
+		for _, r := range routines {
+			fmt.Fprintf(&b, "- %s\n", r)
+		}
+		b.WriteString("\n")
+	}
 	b.WriteString("Open applications:\n")
 	for _, p := range ps {
 		fmt.Fprintf(&b, "- %s: %s (%s.exe)\n", p.Label, p.Name, p.Exe)
@@ -65,7 +77,7 @@ func programUser(said string, ps []programChoice) string {
 }
 
 // program asks the model and answers a label it was sent, or "".
-func program(ctx context.Context, cfg config, said string, ps []programChoice) string {
+func program(ctx context.Context, cfg config, said string, ps []programChoice, routines []string) string {
 	if strings.TrimSpace(said) == "" || len(ps) == 0 {
 		return ""
 	}
@@ -73,7 +85,7 @@ func program(ctx context.Context, cfg config, said string, ps []programChoice) s
 		Model: cfg.Model,
 		Messages: []message{
 			{Role: "system", Content: programPrompt},
-			{Role: "user", Content: programUser(said, ps)},
+			{Role: "user", Content: programUser(said, ps, routines)},
 		},
 		Temperature: 0, // choosing from a list, not writing
 		MaxTokens:   32,

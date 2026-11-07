@@ -75,6 +75,13 @@ asked about.
   chatgpt" to `search-the-web`, and descriptive extra labels fixed one case and broke another. These
   words also name routines ("open social", "go to free play"), so they are claimed only for a
   program that is open, which leaves a misheard routine name to Director as it was.
+  And when no open program is called X exactly (the recogniser heard "open chad gpt"), the
+  intake asks the model which open program was meant, telling it the person's routine names as
+  NOT applications, and PROPOSES "focus <that program>" for review rather than raising it; the
+  model naming nothing leaves the words for Director (`proposeOpenProgram`). Measured with
+  llama3.1:8b on the owner's desktop: "chad gpt", "chat cheap", "this cord" and "my browser" to
+  the right program, and "sosh al", "so shell", "free plea", "cloud pole" and "zorblax" to none;
+  without the routine names "sosh al" went to Discord. "spot if i" is not found.
 - **Which address.** A named provider or an https/http template with `{query}`; the words are
   query-encoded and otherwise untouched. Anything else, including a template whose host would be
   the words, is refused before the shell sees it. The read-back names the provider, because the
@@ -104,7 +111,7 @@ asked about.
 ## Enforced by
 
 - `internal/skills` `TestTheExplicitFormsAreRead`, `TestALineWrittenForASkillReadsAsIt`, `TestFocusTakesTheMostRecentlyActiveWindow`, `TestFocusAsksWhenTheNameIsAmbiguousAndSaysWhenNothingIsOpen`, `TestASearchOpensOnlyAWebAddress`, `TestTheOpenProgramsAreNamedAsTheirWindowsNameThem`, `TestAnOpenIsFocusOnlyForAProgramThatIsOpen`.
-- `cmd/marco` `TestALineInASkillsFormReadsAsTheSkill`, `TestASavedRoutineWinsOverASkill`, `TestASkillRunsByItsIdentity`, `TestAnAmbiguousAppIsAskedAbout`, `TestASkillInWordsIsPerformedAfterTheRoutines`, `TestASkillDirectorNamedIsProposedNotRun`, `TestAProgramNotNamedExactlyIsAskedOfTheModel`, `TestASkillsAttemptIsWrittenDown`, `TestEverydayWordsAreFocusOnlyForAnOpenProgram`.
+- `cmd/marco` `TestALineInASkillsFormReadsAsTheSkill`, `TestASavedRoutineWinsOverASkill`, `TestASkillRunsByItsIdentity`, `TestAnAmbiguousAppIsAskedAbout`, `TestASkillInWordsIsPerformedAfterTheRoutines`, `TestASkillDirectorNamedIsProposedNotRun`, `TestAProgramNotNamedExactlyIsAskedOfTheModel`, `TestASkillsAttemptIsWrittenDown`, `TestEverydayWordsAreFocusOnlyForAnOpenProgram`, `TestAMisheardOpenIsProposedAsFocus`, `TestAMisheardOpenLeavesARoutinesWordsAlone`.
 - `internal/resolveroute` `TestASkillTheResolverNamesIsAnsweredAsTheSkillsLine`; `cmd/director` `TestASkillIsOfferedOnlyToACallerThatAsked`.
 - `plugins/overlay` `TestASkillRunsOnlyFromItsReadBack`, `TestASkillDirectorNamedIsReviewedBeforeItRuns`.
 - `internal/resolver` `TestOnlyAnOfferedProgramIsAnswered`; `plugins/llama` `TestTheProgramAnswerIsOneThatIsOpen`, `TestTheProgramQuestionIsAnswered`.
