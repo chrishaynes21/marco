@@ -115,6 +115,7 @@ func runInvocation(d orchestrator.Deps, req invoke.Request) (Outcome, error) {
 	// A SKILL CONFIRMED BY ITS IDENTITY is not words, and no routine is decided for it.
 	if req.Skill != "" {
 		out, err := performSkillRequest(req)
+		keepSkillAttempt(req, out, err)
 		mlog.Info("intake: finished", "decision", "skill", "skill", req.Skill, "outcome", string(out))
 		return out, err
 	}

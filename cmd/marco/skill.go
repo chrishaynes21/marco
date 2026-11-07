@@ -14,15 +14,19 @@ package main
 // never performed. See [[ADR-327-built-in-desktop-skills]].
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/chaynes-simpleclouds/marco/internal/invoke"
+	"github.com/chaynes-simpleclouds/marco/internal/lastattempt"
 	"github.com/chaynes-simpleclouds/marco/internal/mlog"
 	"github.com/chaynes-simpleclouds/marco/internal/orchestrator"
 	"github.com/chaynes-simpleclouds/marco/internal/outcome"
+	"github.com/chaynes-simpleclouds/marco/internal/resolver"
 	"github.com/chaynes-simpleclouds/marco/internal/skills"
 	"github.com/chaynes-simpleclouds/marco/internal/widgetconfig"
 	"github.com/chaynes-simpleclouds/marco/internal/winctx"
@@ -91,19 +95,33 @@ func performSkill(s skills.Skill, value string) (Outcome, error) {
 	mlog.Info("intake: a built-in skill", "skill", s.Slug)
 	switch s.Slug {
 	case skills.Focus:
-		w, err := skills.ChooseWindow(value, openWindows(), isMarcoProgram)
+		ws := openWindows()
+		w, err := skills.ChooseWindow(value, ws, isMarcoProgram)
 		var amb skills.Ambiguous
+		var none skills.NotOpen
+		how := ""
 		switch {
 		case errors.As(err, &amb):
 			return OutcomeClarify, err
+		case errors.As(err, &none):
+			// NO PROGRAM IS CALLED THAT, so the model is asked which open one was meant: nobody
+			// should have to know that Steam's window is steamwebhelper.exe, and a recogniser
+			// hears "chat cheap tea". It chooses among the programs that are open and nothing
+			// else; Marco raises the window.
+			got, ok, why := programByModel(value, ws)
+			if !ok {
+				return OutcomeFailed, fmt.Errorf("%v%s", err, why)
+			}
+			w, how = got.Window, " (Marco's model took \""+value+"\" to mean "+got.Name+")"
 		case err != nil:
 			return OutcomeFailed, err
 		}
 		if err := raiseWindow(w.Handle); err != nil {
-			return OutcomeFailed, fmt.Errorf("%s is open, and %v", value, err)
+			return OutcomeFailed, fmt.Errorf("%s is open, and %v", skills.AppName(w.Title), err)
 		}
 		fmt.Printf("%s%s\n", outcome.RanPrefix, readbackOf(s.Name, []linePart{{Label: s.Arg, Value: value}}))
-		fmt.Printf("brought %s forward: %s\n", w.Image, w.Title)
+		// THE APPLICATION'S NAME, NOT ITS WINDOW'S TITLE: a title can carry a document's name.
+		fmt.Printf("brought %s forward%s\n", skills.AppName(w.Title), how)
 		return OutcomePerformed, nil
 	case skills.Search:
 		u, err := skills.SearchURL(searchProvider(), value)
@@ -174,4 +192,59 @@ func skillProposal(line string) bool {
 		} `json:"answer"`
 	}
 	return json.Unmarshal([]byte(line), &out) == nil && out.Answer.Builtin
+}
+
+// programByModel asks the configured model which open program somebody meant, and answers that
+// program, or why there is none to add to "isn't open".
+//
+// Asking nothing when no program matched exactly must fail TestAProgramNotNamedExactlyIsAskedOfTheModel.
+func programByModel(said string, ws []skills.Window) (skills.Program, bool, string) {
+	ps := skills.Programs(ws, isMarcoProgram)
+	if len(ps) == 0 {
+		return skills.Program{}, false, ""
+	}
+	if !modelConfigured() {
+		return skills.Program{}, false, "; no model is set up to work out which open program you meant"
+	}
+	offer := make([]resolver.ProgramChoice, 0, len(ps))
+	byLabel := map[string]skills.Program{}
+	for _, p := range ps {
+		offer = append(offer, resolver.ProgramChoice{Label: p.Label, Name: p.Name, Exe: p.Window.Image})
+		byLabel[p.Label] = p
+	}
+	label, ok := askProgram(context.Background(), said, offer)
+	if !ok {
+		mlog.Info("intake: the model named no open program", "offered", len(offer))
+		return skills.Program{}, false, ", and Marco's model didn't recognise it as any program that is open"
+	}
+	mlog.Info("intake: the model named an open program", "program", byLabel[label].Window.Image)
+	return byLabel[label], true, ""
+}
+
+// askProgram is the model's answer. A package variable so a test answers for it; production never
+// reassigns it.
+var askProgram = resolver.WhichProgram
+
+// modelConfigured is whether a model can be asked at all, a variable for the same reason.
+var modelConfigured = resolver.Configured
+
+// keepSkillAttempt writes down what became of a skill run by its identity, for "why didn't that
+// work?" (lastattempt.go): the skill, the outcome and why, with what was said scrubbed out of it
+// as every attempt's is.
+func keepSkillAttempt(req invoke.Request, out Outcome, err error) {
+	a := lastattempt.Attempt{At: time.Now().Format(time.RFC3339), Source: string(req.Source),
+		Outcome: string(out), Stage: "running"}
+	if s, ok := skills.Of(req.Skill); ok {
+		a.Routine = s.Name
+	}
+	if err != nil {
+		var said []string
+		for _, v := range req.Named {
+			said = append(said, v)
+		}
+		a.Because = lastattempt.Scrub(err.Error(), said)
+	}
+	if werr := lastattempt.Write(attemptAt(), a); werr != nil {
+		mlog.Info("intake: the latest attempt could not be written down", "err", werr)
+	}
 }

@@ -1,12 +1,15 @@
 package main
 
 import (
+	"context"
 	"strings"
 	"testing"
 
 	"github.com/chaynes-simpleclouds/marco/internal/invoke"
+	"github.com/chaynes-simpleclouds/marco/internal/lastattempt"
 	"github.com/chaynes-simpleclouds/marco/internal/orchestrator"
 	"github.com/chaynes-simpleclouds/marco/internal/outcome"
+	"github.com/chaynes-simpleclouds/marco/internal/resolver"
 	"github.com/chaynes-simpleclouds/marco/internal/routes"
 	"github.com/chaynes-simpleclouds/marco/internal/skills"
 )
@@ -27,6 +30,11 @@ func skillWorld(t *testing.T, provider string, ws ...skills.Window) (orchestrato
 	raiseWindow = func(h uintptr) error { desk.raised = append(desk.raised, h); return nil }
 	openAddress = func(u string) error { desk.opened = append(desk.opened, u); return nil }
 	searchProvider = func() string { return provider }
+	// NO MODEL unless a test says otherwise: $MARCO_RESOLVER may be set on this machine.
+	prevM, prevA := modelConfigured, askProgram
+	modelConfigured = func() bool { return false }
+	askProgram = func(context.Context, string, []resolver.ProgramChoice) (string, bool) { return "", false }
+	t.Cleanup(func() { modelConfigured, askProgram = prevM, prevA })
 	t.Cleanup(func() { openWindows, raiseWindow, openAddress, searchProvider = prevW, prevR, prevO, prevP })
 	return d, desk
 }
@@ -186,5 +194,90 @@ func TestASkillDirectorNamedIsProposedNotRun(t *testing.T) {
 	})
 	if out != OutcomeRefused || strings.Contains(said, outcome.ProposedPrefix) || len(desk.raised) != 0 {
 		t.Errorf("a repeated skill ended %q:\n%s", out, said)
+	}
+}
+
+// modelAnswers stands in for the model asked which open program was meant, and records what it was
+// offered; configured false is a machine with no model set up.
+func modelAnswers(t *testing.T, configured bool, label string) *[]string {
+	t.Helper()
+	var offered []string
+	prevA, prevC := askProgram, modelConfigured
+	askProgram = func(_ context.Context, _ string, ps []resolver.ProgramChoice) (string, bool) {
+		offered = offered[:0]
+		for _, p := range ps {
+			offered = append(offered, p.Label)
+		}
+		return label, label != ""
+	}
+	modelConfigured = func() bool { return configured }
+	t.Cleanup(func() { askProgram, modelConfigured = prevA, prevC })
+	return &offered
+}
+
+// A NAME NO OPEN PROGRAM IS CALLED IS ASKED OF THE MODEL, which chooses among the open programs,
+// and Marco raises the one it chose. A name that IS a program's is not asked about.
+func TestAProgramNotNamedExactlyIsAskedOfTheModel(t *testing.T) {
+	ws := []skills.Window{{Handle: 21, Image: "overlay", Title: "marco overlay"},
+		{Handle: 22, Image: "steamwebhelper", Title: "Steam"},
+		{Handle: 23, Image: "chatgpt", Title: "ChatGPT"}}
+	d, desk := skillWorld(t, "", ws...)
+	offered := modelAnswers(t, true, "chatgpt")
+	focus := func(app string) (Outcome, string, error) {
+		var out Outcome
+		var err error
+		said := stdoutOf(t, func() {
+			out, err = runInvocation(d, invoke.Request{Skill: skills.Focus,
+				Named: map[string]string{"app": app}, Source: invoke.SourceTyped})
+		})
+		return out, said, err
+	}
+	out, said, err := focus("chat cheap tea")
+	if out != OutcomePerformed || err != nil || len(desk.raised) != 1 || desk.raised[0] != 23 {
+		t.Fatalf("ended %q %v, raised %v\n%s", out, err, desk.raised, said)
+	}
+	if !strings.Contains(said, "brought ChatGPT forward") || !strings.Contains(said, "took \"chat cheap tea\"") {
+		t.Errorf("did not say what the model took it for:\n%s", said)
+	}
+	if strings.Join(*offered, ",") != "steam,chatgpt" {
+		t.Errorf("the model was offered %q", *offered)
+	}
+
+	// A NAME THAT IS A PROGRAM'S IS NOT ASKED ABOUT.
+	*offered = []string{"not asked"}
+	if out, _, _ := focus("ChatGPT"); out != OutcomePerformed || (*offered)[0] != "not asked" {
+		t.Errorf("an exact name ended %q and the model was offered %q", out, *offered)
+	}
+
+	// THE MODEL NAMING NOTHING, OR NO MODEL, IS SAID, AND NOTHING COMES FORWARD.
+	modelAnswers(t, true, "")
+	if out, _, err := focus("spotify"); out != OutcomeFailed || err == nil ||
+		!strings.Contains(err.Error(), "didn't recognise") {
+		t.Errorf("no answer: %q %v", out, err)
+	}
+	asked := modelAnswers(t, false, "chatgpt")
+	if out, _, err := focus("chat cheap tea"); out != OutcomeFailed || err == nil ||
+		!strings.Contains(err.Error(), "no model is set up") || len(*asked) != 0 {
+		t.Errorf("no model: %q %v, offered %q", out, err, *asked)
+	}
+	if len(desk.raised) != 2 {
+		t.Errorf("raised %v", desk.raised)
+	}
+}
+
+// WHAT BECAME OF A SKILL IS WRITTEN DOWN for "why didn't that work?", with what was said scrubbed.
+func TestASkillsAttemptIsWrittenDown(t *testing.T) {
+	d, _ := skillWorld(t, "")
+	modelAnswers(t, true, "")
+	_ = stdoutOf(t, func() {
+		_, _ = runInvocation(d, invoke.Request{Skill: skills.Focus,
+			Named: map[string]string{"app": "zorblax"}, Source: invoke.SourceTyped})
+	})
+	a, ok, err := lastattempt.Read(attemptAt())
+	if !ok || err != nil || a.Routine != "Focus app" || a.Outcome != string(OutcomeFailed) || a.Because == "" {
+		t.Fatalf("written down: %+v %v %v", a, ok, err)
+	}
+	if strings.Contains(a.Because, "zorblax") {
+		t.Errorf("what was said was kept: %q", a.Because)
 	}
 }

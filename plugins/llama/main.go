@@ -49,6 +49,9 @@ type request struct {
 	// Selected by its field like the two above, so an older plugin never sees it and a
 	// newer one answers the questions it knows. See extract.go.
 	Extract *extractRequest `json:"extract"`
+	// Program, when present, asks WHICH OF THE OPEN PROGRAMS somebody meant ("focus chat
+	// cheap tea"). Selected by its field like the others. See program.go.
+	Program *programRequest `json:"program"`
 }
 
 type response struct {
@@ -95,6 +98,11 @@ func answer(ctx context.Context, cfg config, req request) {
 	// nothing else — not the screen, and not what the routine does with them.
 	if req.Extract != nil {
 		emitValues(extractFor(ctx, cfg.forRoutines(), req.Input, req.Extract.Routine, req.Extract.Names))
+		return
+	}
+	// WHICH OPEN PROGRAM. Told what was said and the programs that are open, and nothing else.
+	if req.Program != nil {
+		emitProgram(program(ctx, cfg.forRoutines(), req.Input, req.Program.Programs))
 		return
 	}
 	if req.Mode == "converse" {

@@ -204,7 +204,9 @@ In the widget, say or type **"repeat open inventory five times"**: it is read ba
 first one that fails ends it, Stop ends it, and the history says how many ran.
 
 Two things work with nothing demonstrated first. **"focus Discord"** brings the Discord window
-you used last to the front (it says so if Discord isn't open; it never launches it), and **"search
+you used last to the front (it says so if Discord isn't open; it never launches it). You don't
+need the program's real name: "focus my browser" or a misheard "focus chat cheap tea" is worked
+out by Marco's model from the programs that are open. **"Search
 the web for ark black pearl locations"** opens the results in your default browser. The search
 provider is the `search` setting in the control centre's Config view (google, bing, duckduckgo,
 brave, startpage, or an `https://…{query}` address). A routine you saved with the same words wins,

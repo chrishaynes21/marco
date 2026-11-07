@@ -123,3 +123,36 @@ func TestASearchOpensOnlyAWebAddress(t *testing.T) {
 		t.Error("an empty query was searched")
 	}
 }
+
+// EACH OPEN PROGRAM ONCE, BY ITS OWN NAME, AND NOTHING ELSE OF ITS TITLE.
+func TestTheOpenProgramsAreNamedAsTheirWindowsNameThem(t *testing.T) {
+	ws := []Window{
+		{Handle: 1, Image: "chrome", Title: "(101) Some Video - YouTube - Google Chrome"},
+		{Handle: 2, Image: "chatgpt", Title: "ChatGPT"},
+		{Handle: 3, Image: "steamwebhelper", Title: "Steam"},
+		{Handle: 4, Image: "chrome", Title: "Inbox - Gmail - Google Chrome"},
+		{Handle: 5, Image: "overlay", Title: "marco overlay"},
+		{Handle: 6, Image: "notepad", Title: "secret plans.txt - Notepad"},
+		{Handle: 7, Image: "notepad2", Title: "Notepad"},
+	}
+	got := Programs(ws, marco)
+	want := []struct {
+		label, name string
+		handle      uintptr
+	}{{"google-chrome", "Google Chrome", 1}, {"chatgpt", "ChatGPT", 2}, {"steam", "Steam", 3},
+		{"notepad", "Notepad", 6}, {"notepad2", "Notepad", 7}}
+	if len(got) != len(want) {
+		t.Fatalf("got %+v", got)
+	}
+	for i, w := range want {
+		if got[i].Label != w.label || got[i].Name != w.name || got[i].Window.Handle != w.handle {
+			t.Errorf("program %d = %q %q %d, want %q %q %d", i, got[i].Label, got[i].Name,
+				got[i].Window.Handle, w.label, w.name, w.handle)
+		}
+	}
+	for _, p := range got {
+		if strings.Contains(p.Name, "YouTube") || strings.Contains(p.Name, "secret") {
+			t.Errorf("a title's content was kept: %q", p.Name)
+		}
+	}
+}

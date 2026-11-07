@@ -2,12 +2,14 @@
 type: adr
 status: accepted
 date: 2026-11-07
-decision: "ACCEPTED — MARCO HAS BUILT-IN DESKTOP SKILLS, AND THE FIRST TWO ARE FOCUS APP AND SEARCH THE WEB. \"focus Discord\" brings the most recently active window of a program that is already open to the front, says so when none is open, asks which when the name matches more than one program, and never launches anything. \"search the web for …\" opens the configured provider's results (overlay.json `search`: a named provider or an https address with {query}; google by default) for the words as entered, in Windows' default browser, and opens nothing that is not a web address. A saved routine's name always wins over a skill's words. The explicit forms are read locally (`marco line` reads them back as \"Focus app · app: Discord\", Enter runs `marco do --skill=focus-app --arg=app=…`); a paraphrase is Director's resolver's, which is offered the skills beside the routines only when the caller asks (`skills`), and an answer naming one carries `builtin` and the skill's explicit line, which the widget puts on its command line for review. Which window, and which address, are decided by Marco and never by a model. Skills are not repeated."
+decision: "ACCEPTED — MARCO HAS BUILT-IN DESKTOP SKILLS, AND THE FIRST TWO ARE FOCUS APP AND SEARCH THE WEB. \"focus Discord\" brings the most recently active window of a program that is already open to the front, says so when none is open, asks which when the name matches more than one program, and never launches anything. A name no open program is called is asked of the configured model, which chooses among the open programs only (amended the same day). \"search the web for …\" opens the configured provider's results (overlay.json `search`: a named provider or an https address with {query}; google by default) for the words as entered, in Windows' default browser, and opens nothing that is not a web address. A saved routine's name always wins over a skill's words. The explicit forms are read locally (`marco line` reads them back as \"Focus app · app: Discord\", Enter runs `marco do --skill=focus-app --arg=app=…`); a paraphrase is Director's resolver's, which is offered the skills beside the routines only when the caller asks (`skills`), and an answer naming one carries `builtin` and the skill's explicit line, which the widget puts on its command line for review. Which address is decided by Marco and never by a model; a model may choose which open program, among the ones Marco offers. Skills are not repeated."
 supersedes: []
 affects:
   - interface
 source_paths:
   - internal/skills
+  - internal/resolver/program.go
+  - plugins/llama/program.go
   - cmd/marco/skill.go
   - cmd/marco/line.go
   - cmd/marco/intake.go
@@ -49,8 +51,21 @@ asked about.
   executable is the name, else it begins with it, else the program's titles end with it (as
   applications write their own, "… - Visual Studio Code"). A title merely mentioning the name is
   not the program. Two programs at one step are a question. Marco's own windows are never chosen.
-  Raised through `winctx.Raise`, which reports whether it really came forward. Not open is said
-  and nothing is launched.
+  Raised through `winctx.Raise`, which reports whether it really came forward. Nothing is
+  launched.
+- **A name no open program is called** ("chat cheap tea", "my browser", "vs code") is asked of
+  the configured model (amended 2026-11-07, after "switch to chatgpt" did not work for the owner
+  and a person cannot be expected to know an executable's name). It is offered the open programs,
+  each once, labelled from the application's own name in its window title and never the rest of
+  a title (`skills.Programs`), asked which one was meant (the plugin's `program` question,
+  `resolver.WhichProgram`), and its answer is accepted only as one of the labels it was sent:
+  it chooses among windows that exist and Marco raises the one chosen, saying what it took the
+  words to mean. An exact name is not asked about, because a model cannot improve on the program
+  being called that and it would cost a second and a running model server. No model, or no
+  answer, is said beside "isn't open". Tuned on a real desktop's list with llama3.1:8b: the
+  first wording refused "vs code" and took the nonsense "zorblax" for Trackmania; the shipped one
+  took "chat cheap tea", "the chat bot", "my browser", "music", "visual studio" and "dis cord" to
+  the right program and refused "zorblax", "photoshop" and "word", and still refuses "vs code".
 - **Which address.** A named provider or an https/http template with `{query}`; the words are
   query-encoded and otherwise untouched. Anything else, including a template whose host would be
   the words, is refused before the shell sees it. The read-back names the provider, because the
@@ -67,7 +82,8 @@ asked about.
   Play button runs routines.
 - **Recall.** A skill is kept by its name ("Focus app"), like a routine.
 - **Logs.** The skill's name only, never the app or the query; `[ran] ` carries what ran, for the
-  history.
+  history. A skill run by its identity writes the last attempt, scrubbed, for "why didn't that
+  work?".
 
 ## Not established
 
@@ -78,7 +94,8 @@ asked about.
 
 ## Enforced by
 
-- `internal/skills` `TestTheExplicitFormsAreRead`, `TestALineWrittenForASkillReadsAsIt`, `TestFocusTakesTheMostRecentlyActiveWindow`, `TestFocusAsksWhenTheNameIsAmbiguousAndSaysWhenNothingIsOpen`, `TestASearchOpensOnlyAWebAddress`.
-- `cmd/marco` `TestALineInASkillsFormReadsAsTheSkill`, `TestASavedRoutineWinsOverASkill`, `TestASkillRunsByItsIdentity`, `TestAnAmbiguousAppIsAskedAbout`, `TestASkillInWordsIsPerformedAfterTheRoutines`, `TestASkillDirectorNamedIsProposedNotRun`.
+- `internal/skills` `TestTheExplicitFormsAreRead`, `TestALineWrittenForASkillReadsAsIt`, `TestFocusTakesTheMostRecentlyActiveWindow`, `TestFocusAsksWhenTheNameIsAmbiguousAndSaysWhenNothingIsOpen`, `TestASearchOpensOnlyAWebAddress`, `TestTheOpenProgramsAreNamedAsTheirWindowsNameThem`.
+- `cmd/marco` `TestALineInASkillsFormReadsAsTheSkill`, `TestASavedRoutineWinsOverASkill`, `TestASkillRunsByItsIdentity`, `TestAnAmbiguousAppIsAskedAbout`, `TestASkillInWordsIsPerformedAfterTheRoutines`, `TestASkillDirectorNamedIsProposedNotRun`, `TestAProgramNotNamedExactlyIsAskedOfTheModel`, `TestASkillsAttemptIsWrittenDown`.
 - `internal/resolveroute` `TestASkillTheResolverNamesIsAnsweredAsTheSkillsLine`; `cmd/director` `TestASkillIsOfferedOnlyToACallerThatAsked`.
 - `plugins/overlay` `TestASkillRunsOnlyFromItsReadBack`, `TestASkillDirectorNamedIsReviewedBeforeItRuns`.
+- `internal/resolver` `TestOnlyAnOfferedProgramIsAnswered`; `plugins/llama` `TestTheProgramAnswerIsOneThatIsOpen`, `TestTheProgramQuestionIsAnswered`.

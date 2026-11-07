@@ -341,3 +341,81 @@ func SearchURL(provider, query string) (string, error) {
 	}
 	return out, nil
 }
+
+// Program is one open program as the question about which one somebody meant sees it: a label
+// the answer must copy, the name its window gives it, and its most recently active window.
+type Program struct {
+	Label  string
+	Name   string
+	Window Window
+}
+
+// Programs is each open program once, front to back, with a unique slug-shaped label made from
+// the application's own name in its window title ("Google Chrome" out of "… - Google Chrome"),
+// never the rest of a title: a page or a document's name is not the program and stays here.
+// Marco's own programs are left out.
+func Programs(ws []Window, ours func(image string) bool) []Program {
+	seen, taken := map[string]bool{}, map[string]bool{}
+	var out []Program
+	for _, w := range ws {
+		if seen[w.Image] || (ours != nil && ours(w.Image)) {
+			continue
+		}
+		seen[w.Image] = true
+		name := AppName(w.Title)
+		label := ""
+		for _, try := range []string{slug(name), slug(w.Image)} {
+			if try != "" && !taken[try] {
+				label = try
+				break
+			}
+		}
+		for n := 2; label == ""; n++ {
+			if try := fmt.Sprintf("%s-%d", slug(w.Image), n); !taken[try] {
+				label = try
+			}
+		}
+		taken[label] = true
+		if name == "" {
+			name = w.Image
+		}
+		out = append(out, Program{Label: label, Name: name, Window: w})
+	}
+	return out
+}
+
+// AppName is the application's name in a window title: what follows the last " - ", " — ",
+// " – " or " | ", which is where applications write their own, or the whole title when there is
+// none ("Steam", "ChatGPT").
+func AppName(title string) string {
+	t := strings.TrimSpace(title)
+	cut := -1
+	sepLen := 0
+	for _, sep := range []string{" - ", " — ", " – ", " | "} {
+		if i := strings.LastIndex(t, sep); i > cut {
+			cut, sepLen = i, len(sep)
+		}
+	}
+	if cut >= 0 {
+		return strings.TrimSpace(t[cut+sepLen:])
+	}
+	return t
+}
+
+// slug is a label: lowercase letters and digits, words joined by "-".
+func slug(s string) string {
+	var b strings.Builder
+	dash := false
+	for _, r := range strings.ToLower(s) {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			if dash && b.Len() > 0 {
+				b.WriteByte('-')
+			}
+			b.WriteRune(r)
+			dash = false
+		} else {
+			dash = true
+		}
+	}
+	return b.String()
+}
