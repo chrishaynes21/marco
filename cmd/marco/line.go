@@ -81,6 +81,9 @@ type lineReading struct {
 	Runnable bool   `json:"runnable,omitempty"`
 	// SourceAt is the version the read-back was read from. It travels as `--expect`.
 	SourceAt string `json:"source_at,omitempty"`
+	// Times is how many times the line asks for the routine ("repeat open social five
+	// times"), 0 for once. It travels as `--times` (repeat.go).
+	Times int `json:"times,omitempty"`
 }
 
 // linePart is one argument in the read-back.
@@ -148,6 +151,44 @@ func lineArgs(args []string) (line string, p lineProposal, ok bool) {
 // readLine is the whole reading, with the registry and the foreground handed in.
 func readLine(d orchestrator.Deps, app, line string, p lineProposal) lineReading {
 	line = strings.TrimSpace(line)
+	if r, ok := readRepeat(d, app, line, p); ok {
+		return r
+	}
+	return readOnce(d, app, line, p)
+}
+
+// readRepeat is the reading of "repeat <routine> <count> times": the routine's own reading, with
+// the count beside it and "×5" at the end of the read-back. A routine's exact name wins over it,
+// and without the word "repeat" so does any reading of the whole line, so "notepad type I said
+// it 3 times" still types what was said.
+//
+// Reading the count without the routine's own checks must fail TestARepeatIsReadBackWithItsCount.
+func readRepeat(d orchestrator.Deps, app, line string, p lineProposal) (lineReading, bool) {
+	inner, times, explicit, ok := parseRepeat(line)
+	if !ok {
+		return lineReading{}, false
+	}
+	if _, form, _, _, whole := lineRoutine(d, app, line); whole && (form == "exact" || !explicit) {
+		return lineReading{}, false
+	}
+	r := readOnce(d, app, inner, p)
+	if r.Kind != "routine" {
+		return lineReading{}, false
+	}
+	r.Line, r.Times = line, times
+	if times > maxRepeat {
+		r.Runnable, r.Readback = false, ""
+		r.Says = fmt.Sprintf("a repeat runs at most %d times", maxRepeat)
+		return r, true
+	}
+	if r.Readback != "" {
+		r.Readback += " " + timesWord(times)
+	}
+	return r, true
+}
+
+// readOnce is the reading of a line naming one routine, once.
+func readOnce(d orchestrator.Deps, app, line string, p lineProposal) lineReading {
 	out := lineReading{Line: line, Kind: "none"}
 	if line == "" {
 		return out

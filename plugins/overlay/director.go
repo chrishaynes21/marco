@@ -116,6 +116,12 @@ var awaitingKey = questionStatus + " — press " +
 func directorStatusLine(line string) (string, bool) {
 	s := strings.TrimSpace(line)
 	switch {
+	case strings.HasPrefix(s, "[repeat "):
+		// WHICH RUN OF A REPEAT, "[repeat 2/5] Open social" (cmd/marco repeat.go): the routine's name
+		// and the count, never a value.
+		if n, name, ok := strings.Cut(strings.TrimPrefix(s, "[repeat "), "] "); ok {
+			return "running " + strings.Replace(n, "/", " of ", 1) + ": " + name, true
+		}
 	case strings.HasPrefix(s, "heard: "):
 		return "heard " + strconv.Quote(strings.TrimPrefix(s, "heard: ")), true
 	case strings.Contains(s, "screen you are on"):

@@ -37,6 +37,7 @@ import (
 	"encoding/json"
 	"os/exec"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -58,6 +59,7 @@ type lineReading struct {
 	Says     string            `json:"says"`
 	Runnable bool              `json:"runnable"`
 	SourceAt string            `json:"source_at"`
+	Times    int               `json:"times"`
 }
 
 // linePart is one argument in the read-back.
@@ -128,7 +130,9 @@ func readLineChild(line string, p *lineProposal) (lineReading, bool) {
 }
 
 // takesValues is whether a reading is one this file runs itself: a routine that takes values.
-func (r lineReading) takesValues() bool { return r.Kind == "routine" && r.Needs }
+func (r lineReading) takesValues() bool {
+	return r.Kind == "routine" && (r.Needs || r.Times > 0)
+}
 
 // lineRunArgs is the invocation a runnable reading becomes: its identity, its version and its
 // values, and nothing read from words.
@@ -143,6 +147,9 @@ func lineRunArgs(r lineReading) []string {
 		args = append(args, "--focus")
 	}
 	args = append(args, "--expect="+r.SourceAt)
+	if r.Times > 0 {
+		args = append(args, "--times="+strconv.Itoa(r.Times))
+	}
 	keys := make([]string, 0, len(r.Values))
 	for k := range r.Values {
 		keys = append(keys, k)
@@ -238,7 +245,7 @@ func typedLine(h *model, line string) bool {
 	// it was shown, under the line.
 	//
 	// Tracking the read-back must fail TestASuppliedValueNeverReachesTheLog.
-	label := capitalisedName(r.Name)
+	label := capitalisedName(r.Name) + timesSuffix(r.Times)
 	mlogI("overlay: running the read-back", "id", r.ID, "args", len(args))
 	h.setStatus("running: " + label)
 	go func() { _ = spawnIntakeChild(h, label, true, args...) }()
@@ -288,6 +295,15 @@ func sameRoute(r lineReading, p *lineProposal) bool {
 // Forwarding the proposed values without this review must fail
 // TestAProposedValueIsReviewedBeforeItRuns.
 func reviewProposal(h *model, name, app, slug string, focus bool, values map[string]string, at string) review {
+	return reviewProposalTimes(h, name, app, slug, focus, values, at, 0)
+}
+
+// reviewProposalTimes is reviewProposal for a routine asked for a number of times: the line it
+// opens on is the explicit repeat, "repeat open social 5 times", read back as "Open social ×5".
+//
+// Opening the line without the count must fail TestAProposedRepeatIsReviewedWithItsCount.
+func reviewProposalTimes(h *model, name, app, slug string, focus bool, values map[string]string,
+	at string, times int) review {
 	p := &lineProposal{app: app, slug: slug, focus: focus, values: values, at: at}
 	line := name
 	keys := make([]string, 0, len(values))
@@ -297,6 +313,9 @@ func reviewProposal(h *model, name, app, slug string, focus bool, values map[str
 	sort.Strings(keys)
 	for _, k := range keys {
 		line += " " + k + ": " + values[k] // a space after the colon, for reading; the parser takes either
+	}
+	if times > 0 {
+		line = "repeat " + line + " " + strconv.Itoa(times) + " times"
 	}
 	r, ok := askLine(line, p)
 	switch {
@@ -389,6 +408,9 @@ func readingRuns(s snapshot) []editRun {
 		return []editRun{{r.Says, th.idle}}
 	}
 	rs := []editRun{{capitalisedName(r.Name), th.run}}
+	if r.Times > 0 {
+		rs = append(rs, editRun{timesSuffix(r.Times), th.run})
+	}
 	for _, p := range r.Parts {
 		rs = append(rs, editRun{" · " + p.Label + ": ", th.desc})
 		switch {
@@ -413,4 +435,12 @@ func capitalisedName(s string) string {
 	}
 	r := []rune(s)
 	return strings.ToUpper(string(r[0])) + string(r[1:])
+}
+
+// timesSuffix is " ×5" for a routine asked for five times, and nothing for once.
+func timesSuffix(n int) string {
+	if n <= 0 {
+		return ""
+	}
+	return " ×" + strconv.Itoa(n)
 }

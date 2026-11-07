@@ -294,6 +294,15 @@ func parseDoArgs(args []string) (invoke.Request, bool, string, error) {
 			}
 			req.Named[name] = value
 			req.Flagged = append(req.Flagged, name)
+		case strings.HasPrefix(a, "--times="):
+			// HOW MANY TIMES, CONFIRMED (repeat.go). A count that is not one is refused
+			// here rather than read as once: somebody asked for a number of runs.
+			n, ok := repeatCount(strings.TrimPrefix(a, "--times="))
+			if !ok || n > maxRepeat {
+				return req, false, "", fmt.Errorf("--times needs a whole number from 1 to %d",
+					maxRepeat)
+			}
+			req.Times = n
 		case strings.HasPrefix(a, "--window="):
 			// WHICH WINDOW THIS RUN ACTS IN. A run's term and never a route's:
 			// it goes nowhere near the library. Absent is the behaviour this

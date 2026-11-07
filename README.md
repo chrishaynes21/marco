@@ -196,7 +196,12 @@ marco learn "open inventory"     # record clicks/keys; press F12 to finish
 marco do   "open inventory"      # replay it (real input on Windows)
 marco plays                      # list every routine you have
 marco routes                     # list the routines you can ask for (unchanged)
+marco do --play=open-inventory --times=5   # run it five times, one after another
 ```
+
+In the widget, say or type **"repeat open inventory five times"**: it is read back as
+*Open inventory ×5* and runs when you press Enter. Each run is checked like any other, the
+first one that fails ends it, Stop ends it, and the history says how many ran.
 
 A **routine** is one durable behaviour: a small, readable Marco program on disk with
 a record of where it came from. It's the noun the product uses everywhere — the

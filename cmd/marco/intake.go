@@ -170,6 +170,14 @@ func runInvocation(d orchestrator.Deps, req invoke.Request) (Outcome, error) {
 // report. Four `return`s with a log line before each is four places to forget it, and the one
 // that would get forgotten is whichever arm is added next.
 func carryOut(d orchestrator.Deps, dec invoke.Decision, req invoke.Request) (Outcome, error) {
+	// A CONFIRMED REPEAT IS OF A ROUTINE MARCO RUNS BY NAME, and nothing else is repeated: a
+	// phrase Director would read, or a stop, is not run N times (repeat.go).
+	//
+	// Dropping this must fail TestARepeatIsOnlyOfARoutine.
+	if req.Times > 0 && dec.Kind != invoke.KindPlay {
+		fmt.Println("only a saved routine can be repeated, and these words name none — nothing was run")
+		return OutcomeRefused, nil
+	}
 	switch dec.Kind {
 	case invoke.KindControl:
 		return runControl(), nil
@@ -323,6 +331,12 @@ func performDecidedPlay(d orchestrator.Deps, dec invoke.Decision, req invoke.Req
 		_, named, positional := routes.ParseInvocation(strings.TrimSpace(req.Text))
 		steps[0].named, steps[0].positional = named, positional
 	}
+	// CONFIRMED AS "×N" (repeat.go): each run is the ordinary one.
+	//
+	// Dropping this must fail TestARepeatRunsTheRoutineThatManyTimes.
+	if req.Times > 0 {
+		return performRepeated(d, steps[0], req.Times)
+	}
 	return performPlaySteps(d, steps)
 }
 
@@ -393,6 +407,17 @@ func askDirector(d orchestrator.Deps, dec invoke.Decision, req invoke.Request) (
 	}
 	if dec.Phrase == "" {
 		return OutcomeFailed, nil
+	}
+	// ── "REPEAT <ROUTINE> <N> TIMES", PROPOSED AND NEVER RUN FROM WORDS ──
+	//
+	// It runs only as a confirmed `--times` on the routine's identity (repeat.go). Not while
+	// Director is waiting for an answer: then the words are the answer.
+	//
+	// Running it from the words must fail TestARepeatInWordsIsProposedNotRun.
+	if !(req.Pending && isClarificationAnswer(dec.Phrase)) {
+		if out, ok := proposeRepeat(d, dec.Phrase, req.App); ok {
+			return out, nil
+		}
 	}
 	// ── A SAVED ROUTINE THE WORDS MAY HAVE MEANT, BEFORE THE SCREEN IS READ ──
 	//

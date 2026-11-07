@@ -31,6 +31,7 @@ import (
 	"context"
 	"encoding/json"
 	"os/exec"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -64,6 +65,9 @@ type resolved struct {
 	} `json:"answer"`
 	Mismatch string `json:"mismatch"`
 	Why      string `json:"why"`
+	// Times is the count asked for beside the answer ("repeat … five times"), set by the intake and
+	// never by Director: 0 is once.
+	Times int `json:"times"`
 }
 
 // resolveWithin bounds the ask.
@@ -201,12 +205,19 @@ func offerResolved(h *model, phrase string, r resolved) disposition {
 		for _, v := range a.Values {
 			proposed[strings.ToLower(v.Name)] = v.Value
 		}
-		switch reviewProposal(h, a.Name, a.App, a.Slug, a.Focus, proposed, a.SourceAt) {
+		// AND A COUNT IS REVIEWED WITH IT, whatever the routine takes: nothing runs N times unread.
+		switch reviewProposalTimes(h, a.Name, a.App, a.Slug, a.Focus, proposed, a.SourceAt, r.Times) {
 		case reviewed:
 			// WHAT WAS SAID IS NOT REPEATED: the line under review is what it became, and a spoken
 			// transcript beside it is noise.
 			return offeredRun
 		case refusedReview:
+			return saidWhyNot
+		}
+		if r.Times > 0 {
+			// A COUNT THAT COULD NOT BE PUT ON THE LINE IS NOT OFFERED AS ONE RUN.
+			h.log("Marco could not read " + a.Name + " back to run it " + strconv.Itoa(r.Times) +
+				" times, so nothing was run")
 			return saidWhyNot
 		}
 		offerRoutine(h, a.Name, a.ID, a.App, a.Slug, a.Focus)

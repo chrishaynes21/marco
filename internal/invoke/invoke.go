@@ -164,6 +164,10 @@ type Request struct {
 	// place that can tell the two apart is the entrance that read them. `Decide` never
 	// looks at this — it is cargo, like the values themselves.
 	Flagged []string
+	// Times is how many times to run the play, one after another, when somebody confirmed a
+	// repeat ("repeat open social five times" read back as "Open social ×5"); 0 is once, as
+	// always. Cargo, like Expect; Decide never reads it.
+	Times int
 	// App is the foreground application, when the entrance knows it. Scope resolution needs it.
 	App string
 	// Pending says Director is holding a question nobody has answered yet.

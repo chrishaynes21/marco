@@ -253,6 +253,12 @@ line alone is (`lineRoutine`), so "discord mute then notepad type hello" gives `
 value "hello" without `with` — but words after a name are its value only when the routine takes
 exactly one, or they could land on the wrong one. `TestAChainStepTakesItsValueAsALineDoes`.
 
+**AND "REPEAT <ROUTINE> <N> TIMES" IS NEVER RUN FROM WORDS.** The widget's command line reads it
+(`marco line`, with `times`) and reviews it as "Open social ×5"; only `--times` on a confirmed
+identity runs it, one ordinary run at a time, stopping at the first that does not perform or at a
+Stop. Words in that form reaching this arm are proposed with the count beside the answer. See
+[[ADR-325-repeat-a-routine-a-fixed-number-of-times]].
+
 **AND A ROUTINE MAY ANSWER TO MORE THAN ITS OWN NAME — BUT NOT HERE.** Phrases kept beside the
 source (`<slug>.aliases.json`) are NOT consulted by this arm. A phrase is exact, which is why
 claiming one here looked right; what it is not is necessarily UNAMBIGUOUS, and that is a fact about
