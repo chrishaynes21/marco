@@ -268,7 +268,13 @@ func typedLineFrom(h *model, line string, spoken bool) bool {
 		args := lineRunArgs(r)
 		mlogI("overlay: running the read-back", "id", r.ID, "args", len(args))
 		h.setStatus("running: " + capitalisedName(r.Name))
-		go func() { _ = spawnIntakeChild(h, capitalisedName(r.Name), true, args...) }()
+		kept := recallOf(line, r)
+		go func() {
+			res := spawnIntakeChild(h, capitalisedName(r.Name), true, args...)
+			if prog, ok := focusRan(res); ok {
+				h.rememberAsRoutine(kept, "focus "+prog)
+			}
+		}()
 		return true
 	}
 	if !r.Runnable || !shown {

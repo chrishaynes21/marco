@@ -64,8 +64,19 @@ func (h *model) rememberAsRoutine(said, routine string) {
 //
 // Keeping a routine's values must fail TestARecalledRoutineAsksForItsValueAgain.
 func recallOf(line string, r lineReading) string {
+	if r.Kind == "skill" && r.Slug == focusSkill {
+		// FOCUS APP IS KEPT WITH THE PROGRAM IT BROUGHT FORWARD, "focus ChatGPT", so ↑ goes
+		// back to it (the owner's ask): which window to bring forward is the whole request, not a
+		// value from last time. The PROGRAM, never what was heard. Still being found, it is kept
+		// by its name and replaced once the run says which program (focusRan).
+		for _, p := range r.Parts {
+			if p.Label == "program" && strings.TrimSpace(p.Value) != "" {
+				return "focus " + p.Value
+			}
+		}
+	}
 	if r.Kind == "skill" && strings.TrimSpace(r.Name) != "" {
-		return r.Name // "Focus app", whose reading asks for the app again
+		return r.Name // "Search the web", whose reading asks for the query again
 	}
 	if r.Kind != "routine" || strings.TrimSpace(r.Name) == "" {
 		return line

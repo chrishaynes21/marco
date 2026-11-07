@@ -111,7 +111,11 @@ asked about.
   the intake proposes it and runs nothing, and the widget opens the command line on that line, or
   says why not when the line reads as anything but that skill. Studio does not ask, because its
   Play button runs routines.
-- **Recall.** A skill is kept by its name ("Focus app"), like a routine.
+- **Recall.** Search the web is kept by its name, like a routine. Focus app is kept WITH THE
+  PROGRAM IT WENT TO, "focus ChatGPT" (amended the same day: the owner pressed ↑ and had to type
+  the app again): which window to bring forward is the whole request, not a value from last time,
+  and it is the program and never what was heard. From the read-back when it had found the
+  program, or from the run's `[ran] ` line when it was still finding it.
 - **Logs.** The skill's name only, never the app or the query; `[ran] ` carries what ran, for the
   history. A skill run by its identity writes the last attempt, scrubbed, for "why didn't that
   work?".
@@ -128,5 +132,5 @@ asked about.
 - `internal/skills` `TestTheExplicitFormsAreRead`, `TestALineWrittenForASkillReadsAsIt`, `TestFocusTakesTheMostRecentlyActiveWindow`, `TestFocusAsksWhenTheNameIsAmbiguousAndSaysWhenNothingIsOpen`, `TestASearchOpensOnlyAWebAddress`, `TestTheOpenProgramsAreNamedAsTheirWindowsNameThem`, `TestAnOpenIsFocusOnlyForAProgramThatIsOpen`.
 - `cmd/marco` `TestALineInASkillsFormReadsAsTheSkill`, `TestASavedRoutineWinsOverASkill`, `TestASkillRunsByItsIdentity`, `TestAnAmbiguousAppIsAskedAbout`, `TestASkillInWordsIsPerformedAfterTheRoutines`, `TestASkillDirectorNamedIsProposedNotRun`, `TestAProgramNotNamedExactlyIsAskedOfTheModel`, `TestASkillsAttemptIsWrittenDown`, `TestEverydayWordsAreFocusOnlyForAnOpenProgram`, `TestAMisheardOpenIsProposedAsFocus`, `TestAMisheardOpenLeavesARoutinesWordsAlone`, `TestASkillPassesTheDoEntrance`, `TestFocusIsReadBackWithTheProgramItBringsForward`, `TestEnterRaisesTheWindowThatWasReadBack`, `TestTheResolveFlagIsRead`.
 - `internal/resolveroute` `TestASkillTheResolverNamesIsAnsweredAsTheSkillsLine`; `cmd/director` `TestASkillIsOfferedOnlyToACallerThatAsked`.
-- `plugins/overlay` `TestASkillRunsOnlyFromItsReadBack`, `TestASkillDirectorNamedIsReviewedBeforeItRuns`, `TestAReadBackShowsTheProgramOnceItIsFound`, `TestFocusRunsOnTheFirstEnter`.
+- `plugins/overlay` `TestASkillRunsOnlyFromItsReadBack`, `TestASkillDirectorNamedIsReviewedBeforeItRuns`, `TestAReadBackShowsTheProgramOnceItIsFound`, `TestFocusRunsOnTheFirstEnter`, `TestFocusIsRecalledWithTheProgramItWentTo`.
 - `internal/resolver` `TestOnlyAnOfferedProgramIsAnswered`; `plugins/llama` `TestTheProgramAnswerIsOneThatIsOpen`, `TestTheProgramQuestionIsAnswered`.

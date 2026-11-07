@@ -6,6 +6,7 @@ package main
 
 import (
 	"reflect"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -170,8 +171,9 @@ func TestFocusRunsOnTheFirstEnter(t *testing.T) {
 	typedEnter(h, found.Line) // not on screen yet, and runs anyway
 	dispatch(h, request{Action: "RunVoice", Input: finding.Line})
 	got := runs()
-	if len(got) != 2 || !strings.Contains(got[0], "--skill=focus-app") || !strings.Contains(got[0], "--arg=window=12:3") ||
-		!strings.Contains(got[1], "--arg=app=chatpgt") || strings.Contains(got[1], "window") {
+	sort.Strings(got) // two runs, started apart and finishing in either order
+	if len(got) != 2 || !strings.Contains(got[1], "--skill=focus-app") || !strings.Contains(got[1], "--arg=window=12:3") ||
+		!strings.Contains(got[0], "--arg=app=chatpgt") || strings.Contains(got[0], "window") {
 		t.Fatalf("ran %q", got)
 	}
 	typedEnter(h, missing.Line)
@@ -180,5 +182,37 @@ func TestFocusRunsOnTheFirstEnter(t *testing.T) {
 	}
 	if s := h.snapshot(); !s.editing {
 		t.Error("a focus with no app did not stay open to say so")
+	}
+}
+
+// FOCUS IS RECALLED WITH THE PROGRAM IT WENT TO, "focus ChatGPT", never what was heard: from the
+// read-back when it had found the program, and from the run when it was still finding it.
+func TestFocusIsRecalledWithTheProgramItWentTo(t *testing.T) {
+	found := aFocus("focus discord")
+	found.Parts = []linePart{{Label: "program", Value: "Discord"}}
+	finding := lineReading{Line: "focus church tpg", Kind: "skill", Slug: "focus-app", Name: "Focus app",
+		Needs: true, Resolving: true, Values: map[string]string{"app": "church tpg"}}
+	engineReads(t, map[string]lineReading{found.Line: found, finding.Line: finding})
+	done := make(chan struct{}, 2)
+	restore := stubIntakeChild(t, func(_ *model, _ string, _ bool, args ...string) childRun {
+		defer func() { done <- struct{}{} }()
+		if strings.Contains(strings.Join(args, " "), "church tpg") {
+			return childRun{result: "performed", ran: "Focus app · program: ChatGPT"}
+		}
+		// NO PROGRAM ON THE RUN'S LINE: what is kept comes from the read-back.
+		return childRun{result: "performed"}
+	})
+	t.Cleanup(restore)
+	h := newModel()
+	typedEnter(h, found.Line)
+	<-done
+	dispatch(h, request{Action: "RunVoice", Input: finding.Line})
+	<-done
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) && !reflect.DeepEqual(h.recalled(), []string{"focus Discord", "focus ChatGPT"}) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if got := h.recalled(); !reflect.DeepEqual(got, []string{"focus Discord", "focus ChatGPT"}) {
+		t.Errorf("kept %q", got)
 	}
 }

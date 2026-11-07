@@ -59,3 +59,13 @@ func saidAs(r lineReading) string {
 
 // focusSkill is Focus app's slug, the engine's (internal/skills).
 const focusSkill = "focus-app"
+
+// focusRan is the program a Focus app run brought forward, from its `[ran] ` line ("Focus app ·
+// program: ChatGPT"), when it performed.
+func focusRan(r childRun) (string, bool) {
+	if r.result != "performed" {
+		return "", false
+	}
+	prog, ok := strings.CutPrefix(r.ran, "Focus app · program: ")
+	return strings.TrimSpace(prog), ok && strings.TrimSpace(prog) != ""
+}
