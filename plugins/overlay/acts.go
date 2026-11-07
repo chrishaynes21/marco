@@ -146,6 +146,10 @@ func dispatch(h *model, req request) response {
 		// intent: `forget my play` sent to the intake is Director hunting the screen for
 		// something to forget.
 		local, isLocal := overlayCommand(fields)
+		// THE WIDGET'S OWN WORDS ARE KEPT FOR ↑ as typed (recall.go); a routine is kept by typedLine.
+		if isLocal && req.Action == "Run" {
+			h.remember(name)
+		}
 		// "WHY DIDN'T THAT WORK?" is answered here, from the record the intake keeps of the latest
 		// attempt (why.go). The phrasings are the engine's one list, so a spoken question and a
 		// typed one are the same question; anything else starting with "why" is an ordinary request.
@@ -306,7 +310,7 @@ func dispatch(h *model, req request) response {
 			if source == invoke.SourceSpoken {
 				h.clearProposal()
 			}
-			if typedLine(h, name) {
+			if typedLineFrom(h, name, source == invoke.SourceSpoken) {
 				if source == invoke.SourceSpoken {
 					h.setHeard("") // what was heard is on the command line now
 				}

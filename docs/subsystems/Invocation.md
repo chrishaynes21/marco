@@ -123,6 +123,9 @@ it without reading `Request.Text` at all.
   A line with values runs as its identity and the version read (`--play`, `--expect`, `--arg`),
   only once its read-back has been on screen; values Director proposed are reviewed there before
   they run. See [[ADR-301-the-command-line-reads-back-what-it-will-run]].
+- ↑ and ↓ on the widget's command line walk the commands, as a shell's history does, and ↓ past the
+  newest puts back what was being typed. A routine is kept by its name and never its values, so a
+  recalled `cloud pull` asks for the value afresh. See [[ADR-326-the-command-line-recalls-commands]].
 - Studio opens the widget (Open widget). It starts the installer's own stack beside it, with
   Studio's library and store, never a second one beside one already running, and never from pieces
   of different builds. A widget Studio did not start is said to be running with its library and

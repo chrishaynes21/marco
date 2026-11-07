@@ -160,6 +160,8 @@ const (
 	actPromptType   // interactive prompt: a typed y/n/s (or "" to clear) — shown, not yet sent
 	actPromptSubmit // interactive prompt: Enter — send the pending answer to the child
 	actAcceptHint   // Tab — append the next auto-popped "name:" arg label to the command
+	actRecallOlder  // ↑ on the command line — the command before (recall.go)
+	actRecallNewer  // ↓ on the command line — the command after, then the line as it was
 )
 
 // leaderTimeout disarms the leader if no key follows the backtick.
@@ -214,6 +216,7 @@ func processFrom(ch <-chan action, h *model, emit func(event)) {
 			h.closeHelp()
 			h.endArm()
 			h.setLeaderEcho("")
+			h.endRecall()
 			h.setEditing(true)
 			h.setInput("")
 			h.show(true)
@@ -222,6 +225,10 @@ func processFrom(ch <-chan action, h *model, emit func(event)) {
 			h.appendRune(a.r)
 		case actBackspace:
 			h.backspace()
+		case actRecallOlder:
+			h.recallOlder()
+		case actRecallNewer:
+			h.recallNewer()
 		case actAcceptHint:
 			// Tab autocompletes the route name first; once it's fully typed, Tab
 			// advances to the next argument slot.
@@ -231,6 +238,7 @@ func processFrom(ch <-chan action, h *model, emit func(event)) {
 		case actSubmit:
 			cmd := h.takeInput()
 			h.setEditing(false)
+			h.endRecall()
 			// WHICH PANEL A WORD OPENS IS NOT DECIDED HERE ANY MORE.
 			//
 			// This switch used to carry its own list of spellings — help/?/h,
@@ -250,6 +258,7 @@ func processFrom(ch <-chan action, h *model, emit func(event)) {
 			case cmd == "":
 				h.dismiss()
 			case isPanel:
+				h.remember(cmd)
 				openPanel(h, panel)
 			default:
 				h.setStatus("running: " + cmd)
@@ -436,6 +445,10 @@ func handleKey(vk uint16, down bool) bool {
 				push(action{kind: actAcceptHint}) // accept the next auto-popped "name:" label
 			case vkBack:
 				push(action{kind: actBackspace})
+			case vkUp:
+				push(action{kind: actRecallOlder})
+			case vkDown:
+				push(action{kind: actRecallNewer})
 			default:
 				if r, ok := vkToText(vk, shiftDown.Load()); ok {
 					push(action{kind: actAppend, r: r})

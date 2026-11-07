@@ -198,14 +198,25 @@ func refreshReading(m *model, line string) {
 // false means it goes to the intake as words, as before.
 //
 // Running a line whose read-back was not on screen must fail TestNothingWithAValueRunsUnread.
-func typedLine(h *model, line string) bool {
+func typedLine(h *model, line string) bool { return typedLineFrom(h, line, false) }
+
+// typedLineFrom is typedLine for a line typed or spoken, which it also keeps for ↑ (recall.go): a
+// routine by its name and nothing it was given, anything else typed as typed, and a spoken line
+// only when it named a routine.
+func typedLineFrom(h *model, line string, spoken bool) bool {
 	r, shown := h.readingFor(line)
 	if !shown {
 		got, ok := askLine(line, h.lineProposal())
 		if !ok {
+			if !spoken {
+				h.remember(line) // replaced by the routine it ran as, if it ran as one (intake.go)
+			}
 			return false
 		}
 		r = got
+	}
+	if r.Kind == "routine" || !spoken {
+		h.remember(recallOf(line, r))
 	}
 	// WHILE DIRECTOR'S VALUES ARE ON THE LINE, ONLY THEIR ROUTINE RUNS FROM IT. A line edited to
 	// name another routine (a namesake in another scope above all) would have its reading drop

@@ -87,7 +87,15 @@ type model struct {
 	readingLine string
 	readingAt   time.Time
 	proposal    *lineProposal
-	quit        bool
+	// recall is the commands ↑ walks back through, oldest first; recallAt is where the walk is while
+	// recalling, and recallDraft (with its proposal) the line as it was before the first ↑. See
+	// recall.go.
+	recall              []string
+	recalling           bool
+	recallAt            int
+	recallDraft         string
+	recallDraftProposal *lineProposal
+	quit                bool
 }
 
 // beginArm starts a new press of the leader in app and returns its number. A list fetched for an
