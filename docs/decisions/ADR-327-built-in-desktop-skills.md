@@ -84,11 +84,12 @@ asked about.
   without the routine names "sosh al" went to Discord. "spot if i" is not found.
 - **The read-back names the program, and Enter raises that window** (added the same day, after
   the owner pressed Enter on "Focus app · app: chat gp jpg" with nothing saying what it would do).
-  `marco line` reads Focus app back as "… · app: chat gp jpg · program: ChatGPT", with "(worked
-  out by Marco's model)" when the model chose it, and carries the window as the value `window`
+  `marco line` reads Focus app back as "Focus app · program: ChatGPT" and nothing of what was
+  heard ("church tpg" says nothing anybody needs once a program is chosen; the owner called it
+  ugly), and carries the window as the value `window`
   (`<handle>:<owner>`); Enter raises that window if that process still owns it, and nothing
   otherwise, rather than working the words out again. A name no open program has is not asked of
-  the model as somebody types: the reading says "finding which open program … is…", is not
+  the model as somebody types: the reading says "finding the program…", is not
   runnable, and the widget reads it again with `--resolve` in the background and replaces it.
   `[ran] ` and the history name the program that came forward.
 - **Which address.** A named provider or an https/http template with `{query}`; the words are
@@ -97,8 +98,13 @@ asked about.
   words leave the machine.
 - **Where they are read.** On the command line only when no routine took the line (`readLine`).
   At the intake, after the grammar and only when no routine reads the words in any form
-  (`skillInWords`); performed, as words naming a routine with its value are. In the widget a skill
-  always takes a value, so it runs only from its read-back on screen, typed or spoken.
+  (`skillInWords`); performed, as words naming a routine with its value are. In the widget Search
+  runs only from its read-back on screen, typed or spoken, because its words leave the machine.
+  FOCUS APP RUNS ON THE FIRST ENTER, typed or spoken (amended the same day: the owner had to
+  press Enter twice on "focus chatpgt"): it changes nothing but which window is in front, so it
+  runs with the window its reading found or, while that is still being found, with the words for
+  the run to work out; one that cannot run (no app, two programs, nothing open) stays open and
+  says why. A Focus app Director proposed from a paraphrase is still reviewed.
 - **A paraphrase.** `marco resolve` and the intake's proposal ask Director with `skills: true`, and
   Director appends the skills as candidates (`builtin/<slug>`, everywhere, one argument). An
   answer naming one is marked `builtin` with the skill's explicit line and the value proposed;
@@ -122,5 +128,5 @@ asked about.
 - `internal/skills` `TestTheExplicitFormsAreRead`, `TestALineWrittenForASkillReadsAsIt`, `TestFocusTakesTheMostRecentlyActiveWindow`, `TestFocusAsksWhenTheNameIsAmbiguousAndSaysWhenNothingIsOpen`, `TestASearchOpensOnlyAWebAddress`, `TestTheOpenProgramsAreNamedAsTheirWindowsNameThem`, `TestAnOpenIsFocusOnlyForAProgramThatIsOpen`.
 - `cmd/marco` `TestALineInASkillsFormReadsAsTheSkill`, `TestASavedRoutineWinsOverASkill`, `TestASkillRunsByItsIdentity`, `TestAnAmbiguousAppIsAskedAbout`, `TestASkillInWordsIsPerformedAfterTheRoutines`, `TestASkillDirectorNamedIsProposedNotRun`, `TestAProgramNotNamedExactlyIsAskedOfTheModel`, `TestASkillsAttemptIsWrittenDown`, `TestEverydayWordsAreFocusOnlyForAnOpenProgram`, `TestAMisheardOpenIsProposedAsFocus`, `TestAMisheardOpenLeavesARoutinesWordsAlone`, `TestASkillPassesTheDoEntrance`, `TestFocusIsReadBackWithTheProgramItBringsForward`, `TestEnterRaisesTheWindowThatWasReadBack`, `TestTheResolveFlagIsRead`.
 - `internal/resolveroute` `TestASkillTheResolverNamesIsAnsweredAsTheSkillsLine`; `cmd/director` `TestASkillIsOfferedOnlyToACallerThatAsked`.
-- `plugins/overlay` `TestASkillRunsOnlyFromItsReadBack`, `TestASkillDirectorNamedIsReviewedBeforeItRuns`, `TestAReadBackShowsTheProgramOnceItIsFound`.
+- `plugins/overlay` `TestASkillRunsOnlyFromItsReadBack`, `TestASkillDirectorNamedIsReviewedBeforeItRuns`, `TestAReadBackShowsTheProgramOnceItIsFound`, `TestFocusRunsOnTheFirstEnter`.
 - `internal/resolver` `TestOnlyAnOfferedProgramIsAnswered`; `plugins/llama` `TestTheProgramAnswerIsOneThatIsOpen`, `TestTheProgramQuestionIsAnswered`.

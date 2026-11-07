@@ -256,6 +256,21 @@ func typedLineFrom(h *model, line string, spoken bool) bool {
 		h.clearProposal()
 		return false
 	}
+	// FOCUS APP RUNS ON THE FIRST ENTER, typed or spoken: it changes nothing but which window is in
+	// front, and a second Enter to confirm that was the owner's complaint. With its window found
+	// it raises that window; while it is still being found, the run works it out the same way
+	// (cmd/marco skill.go). The history names the program it brought forward. A line that cannot
+	// run (no app, two programs, nothing open) still stays open and says why.
+	//
+	// Asking for the read-back first must fail TestFocusRunsOnTheFirstEnter.
+	if r.Kind == "skill" && r.Slug == focusSkill && (r.Runnable || r.Resolving) {
+		h.clearProposal()
+		args := lineRunArgs(r)
+		mlogI("overlay: running the read-back", "id", r.ID, "args", len(args))
+		h.setStatus("running: " + capitalisedName(r.Name))
+		go func() { _ = spawnIntakeChild(h, capitalisedName(r.Name), true, args...) }()
+		return true
+	}
 	if !r.Runnable || !shown {
 		// NOTHING RUNS: the line stays open on what was typed, with what it needs or with
 		// the read-back it now has, and the next Enter is the one that runs it.

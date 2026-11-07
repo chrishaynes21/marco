@@ -62,7 +62,7 @@ func TestALineInASkillsFormReadsAsTheSkill(t *testing.T) {
 	d, _ := skillWorld(t, "", discordDesk...)
 	r := readLine(d, "", "focus Discord", lineProposal{})
 	if r.Kind != "skill" || r.Slug != skills.Focus || !r.Runnable || r.Values["app"] != "Discord" ||
-		r.Readback != "Focus app · app: Discord · program: Discord" {
+		r.Readback != "Focus app · program: Discord" {
 		t.Errorf("focus Discord read as %+v", r)
 	}
 	r = readLine(d, "", "Focus app", lineProposal{})
@@ -120,7 +120,7 @@ func TestASkillRunsByItsIdentity(t *testing.T) {
 	if out != OutcomePerformed || err != nil || len(desk.raised) != 1 || desk.raised[0] != 12 {
 		t.Fatalf("focus Discord: %q %v raised %v\n%s", out, err, desk.raised, said)
 	}
-	if lastRan(said) != "Focus app · app: Discord · program: Discord" {
+	if lastRan(said) != "Focus app · program: Discord" {
 		t.Errorf("ran %q", lastRan(said))
 	}
 	out, _, err = run("--skill=focus-app", "--arg=app=Spotify")
@@ -247,7 +247,7 @@ func TestAProgramNotNamedExactlyIsAskedOfTheModel(t *testing.T) {
 	if out != OutcomePerformed || err != nil || len(desk.raised) != 1 || desk.raised[0] != 23 {
 		t.Fatalf("ended %q %v, raised %v\n%s", out, err, desk.raised, said)
 	}
-	if !strings.Contains(said, "brought ChatGPT forward") || !strings.Contains(said, "took \"chat cheap tea\"") {
+	if !strings.Contains(said, "brought ChatGPT forward") || strings.Contains(said, "chat cheap tea") {
 		t.Errorf("did not say what the model took it for:\n%s", said)
 	}
 	if strings.Join(*offered, ",") != "steam,chatgpt" {
@@ -412,17 +412,17 @@ func TestASkillPassesTheDoEntrance(t *testing.T) {
 func TestFocusIsReadBackWithTheProgramItBringsForward(t *testing.T) {
 	d, _ := skillWorld(t, "", append(discordDesk, skills.Window{Handle: 15, PID: 7, Image: "chatgpt", Title: "ChatGPT"})...)
 	r := readLine(d, "", "focus discord", lineProposal{})
-	if !r.Runnable || r.Values["window"] != "12:0" || r.Readback != "Focus app · app: discord · program: Discord" {
+	if !r.Runnable || r.Values["window"] != "12:0" || r.Readback != "Focus app · program: Discord" {
 		t.Errorf("focus discord read as %+v", r)
 	}
 	r = readLine(d, "", "focus chat gp jpg", lineProposal{})
-	if r.Runnable || !r.Resolving || !strings.Contains(r.Says, "finding which open program") {
+	if r.Runnable || !r.Resolving || !strings.Contains(r.Says, "finding the program") {
 		t.Errorf("an unresolved name read as %+v", r)
 	}
 	modelAnswers(t, true, "chatgpt")
 	r = readLine(d, "", "focus chat gp jpg", lineProposal{Resolve: true})
 	if !r.Runnable || r.Resolving || r.Values["window"] != "15:7" ||
-		r.Readback != "Focus app · app: chat gp jpg · program: ChatGPT (worked out by Marco's model)" {
+		r.Readback != "Focus app · program: ChatGPT" || strings.Contains(r.Says+r.Pending, "chat gp jpg") {
 		t.Errorf("a resolved name read as %+v", r)
 	}
 	modelAnswers(t, true, "")

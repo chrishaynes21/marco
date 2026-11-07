@@ -15,14 +15,14 @@ import (
 func aFocus(line string) lineReading {
 	return lineReading{Line: line, Kind: "skill", ID: "builtin/focus-app", Slug: "focus-app",
 		Name: "Focus app", Needs: true, Values: map[string]string{"app": "Discord"},
-		Parts: []linePart{{Label: "app", Value: "Discord"}}, Readback: "Focus app · app: Discord",
+		Parts: []linePart{{Label: "program", Value: "Discord"}}, Readback: "Focus app · program: Discord",
 		Runnable: true}
 }
 
-// A SKILL RUNS ONLY FROM ITS READ-BACK, typed or spoken, and as its identity: never as words and
+// SEARCH RUNS ONLY FROM ITS READ-BACK, typed or spoken, and as its identity: never as words and
 // never as a routine. Treating a skill as an ordinary line must fail this.
 func TestASkillRunsOnlyFromItsReadBack(t *testing.T) {
-	r := aFocus("focus Discord")
+	r := aSearch("search the web for ark wiki")
 	engineReads(t, map[string]lineReading{r.Line: r})
 	runs := runsRecorded(t)
 	h := newModel()
@@ -31,7 +31,7 @@ func TestASkillRunsOnlyFromItsReadBack(t *testing.T) {
 	if got := runs(); len(got) != 0 {
 		t.Fatalf("a skill nobody had seen read back ran: %q", got)
 	}
-	if got := h.recalled(); !reflect.DeepEqual(got, []string{"Focus app"}) {
+	if got := h.recalled(); !reflect.DeepEqual(got, []string{"Search the web"}) {
 		t.Errorf("a spoken skill was not kept by its name: %q", got)
 	}
 	if s := h.snapshot(); !s.editing || s.input != " "+r.Line {
@@ -39,12 +39,12 @@ func TestASkillRunsOnlyFromItsReadBack(t *testing.T) {
 	}
 	onScreen(h, r)
 	typedEnter(h, r.Line)
-	want := "do --source=typed --skill=focus-app --arg=app=Discord"
+	want := "do --source=typed --skill=search-the-web --arg=query=ark wiki"
 	if got := runs(); len(got) != 1 || got[0] != want {
 		t.Errorf("Enter on the read-back ran %q, want %q", got, want)
 	}
-	// AND IT IS RECALLED BY ITS NAME, whose reading asks for the app again.
-	if got := h.recalled(); !reflect.DeepEqual(got, []string{"Focus app"}) {
+	// AND IT IS RECALLED BY ITS NAME, whose reading asks for the query again.
+	if got := h.recalled(); !reflect.DeepEqual(got, []string{"Search the web"}) {
 		t.Errorf("kept %q", got)
 	}
 }
@@ -104,11 +104,10 @@ func TestASkillDirectorNamedIsReviewedBeforeItRuns(t *testing.T) {
 func TestAReadBackShowsTheProgramOnceItIsFound(t *testing.T) {
 	const line = "focus chat gp jpg"
 	finding := lineReading{Line: line, Kind: "skill", Slug: "focus-app", Name: "Focus app", Needs: true,
-		Resolving: true, Says: `finding which open program "chat gp jpg" is…`}
+		Resolving: true, Says: "finding the program…"}
 	found := lineReading{Line: line, Kind: "skill", Slug: "focus-app", Name: "Focus app", Needs: true,
 		Values: map[string]string{"app": "chat gp jpg", "window": "15:7"}, Runnable: true,
-		Parts: []linePart{{Label: "app", Value: "chat gp jpg"},
-			{Label: "program", Value: "ChatGPT", Said: "(worked out by Marco's model)"}}}
+		Parts: []linePart{{Label: "program", Value: "ChatGPT"}}}
 	engineReads(t, map[string]lineReading{line: finding})
 	release := make(chan struct{})
 	prev := askResolved
@@ -130,18 +129,12 @@ func TestAReadBackShowsTheProgramOnceItIsFound(t *testing.T) {
 	if got := drawn(); got != finding.Says {
 		t.Errorf("while finding, drawn as %q", got)
 	}
-	h.takeInput()
-	h.setEditing(false)
-	typedEnter(h, line)
-	if got := runs(); len(got) != 0 {
-		t.Fatalf("Enter ran a skill whose program was not found yet: %q", got)
-	}
 	close(release)
 	deadline := time.Now().Add(3 * time.Second)
 	for !strings.Contains(drawn(), "program: ChatGPT") && time.Now().Before(deadline) {
 		time.Sleep(10 * time.Millisecond)
 	}
-	if got := drawn(); !strings.Contains(got, "program: ChatGPT (worked out by Marco's model)") {
+	if got := drawn(); !strings.Contains(got, "Focus app · program: ChatGPT") {
 		t.Fatalf("once found, drawn as %q", got)
 	}
 	time.Sleep(readDwell + 50*time.Millisecond)
@@ -150,5 +143,42 @@ func TestAReadBackShowsTheProgramOnceItIsFound(t *testing.T) {
 	typedEnter(h, line)
 	if got := runs(); len(got) != 1 || !strings.Contains(got[0], "--arg=window=15:7") {
 		t.Errorf("Enter on the found program ran %q", got)
+	}
+}
+
+// aSearch is the engine's reading of a search.
+func aSearch(line string) lineReading {
+	return lineReading{Line: line, Kind: "skill", ID: "builtin/search-the-web", Slug: "search-the-web",
+		Name: "Search the web", Needs: true, Values: map[string]string{"query": "ark wiki"},
+		Parts:    []linePart{{Label: "query", Value: "ark wiki"}, {Label: "provider", Value: "google"}},
+		Runnable: true}
+}
+
+// FOCUS RUNS ON THE FIRST ENTER, typed or spoken: with the window it found, or, while it is still
+// finding it, with the words for the run to work out. One that cannot run stays open.
+func TestFocusRunsOnTheFirstEnter(t *testing.T) {
+	found := aFocus("focus discord")
+	found.Values = map[string]string{"app": "discord", "window": "12:3"}
+	finding := lineReading{Line: "focus chatpgt", Kind: "skill", Slug: "focus-app", Name: "Focus app",
+		Needs: true, Resolving: true, Values: map[string]string{"app": "chatpgt"}, Says: "finding the program…"}
+	missing := lineReading{Line: "focus", Kind: "skill", Slug: "focus-app", Name: "Focus app",
+		Needs: true, Says: "App needed · Focus app ‹app›"}
+	engineReads(t, map[string]lineReading{found.Line: found, finding.Line: finding, missing.Line: missing})
+	runs := runsRecorded(t)
+	h := newModel()
+
+	typedEnter(h, found.Line) // not on screen yet, and runs anyway
+	dispatch(h, request{Action: "RunVoice", Input: finding.Line})
+	got := runs()
+	if len(got) != 2 || !strings.Contains(got[0], "--skill=focus-app") || !strings.Contains(got[0], "--arg=window=12:3") ||
+		!strings.Contains(got[1], "--arg=app=chatpgt") || strings.Contains(got[1], "window") {
+		t.Fatalf("ran %q", got)
+	}
+	typedEnter(h, missing.Line)
+	if got := runs(); len(got) != 2 {
+		t.Errorf("a focus with no app ran: %q", got)
+	}
+	if s := h.snapshot(); !s.editing {
+		t.Error("a focus with no app did not stay open to say so")
 	}
 }

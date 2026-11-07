@@ -76,12 +76,11 @@ func readSkill(line string, resolve bool) (lineReading, bool) {
 	if s.Slug == skills.Focus {
 		ws := openWindows()
 		w, err := skills.ChooseWindow(value, ws, isMarcoProgram)
-		said := ""
 		var none skills.NotOpen
 		switch {
 		case errors.As(err, &none) && !resolve:
 			out.Resolving = true
-			out.Says = fmt.Sprintf("finding which open program %q is…", value)
+			out.Says = "finding the program…"
 			return out, true
 		case errors.As(err, &none):
 			p, ok, why := programByModel(value, ws, nil)
@@ -89,13 +88,15 @@ func readSkill(line string, resolve bool) (lineReading, bool) {
 				out.Says = err.Error() + why
 				return out, true
 			}
-			w, said = p.Window, "(worked out by Marco's model)"
+			w = p.Window
 		case err != nil:
 			out.Says = err.Error()
 			return out, true
 		}
 		out.Values["window"] = windowTerm(w)
-		out.Parts = append(out.Parts, linePart{Label: "program", Value: skills.AppName(w.Title), Said: said})
+		// THE PROGRAM, NOT WHAT WAS HEARD: once a program is chosen, the words that asked for it
+		// ("church tpg") say nothing anybody needs. They still travel as the value.
+		out.Parts = []linePart{{Label: "program", Value: skills.AppName(w.Title)}}
 	}
 	out.Readback = readbackOf(s.Name, out.Parts)
 	out.Runnable = true
@@ -151,7 +152,6 @@ func performSkill(s skills.Skill, value, window string) (Outcome, error) {
 		}
 		var amb skills.Ambiguous
 		var none skills.NotOpen
-		how := ""
 		switch {
 		case errors.As(err, &amb):
 			return OutcomeClarify, err
@@ -164,7 +164,7 @@ func performSkill(s skills.Skill, value, window string) (Outcome, error) {
 			if !ok {
 				return OutcomeFailed, fmt.Errorf("%v%s", err, why)
 			}
-			w, how = got.Window, " (Marco's model took \""+value+"\" to mean "+got.Name+")"
+			w = got.Window
 		case err != nil:
 			return OutcomeFailed, err
 		}
@@ -172,10 +172,10 @@ func performSkill(s skills.Skill, value, window string) (Outcome, error) {
 			return OutcomeFailed, fmt.Errorf("%s is open, and %v", skills.AppName(w.Title), err)
 		}
 		// WHAT RAN, WITH THE PROGRAM IT BROUGHT FORWARD, not only the words that asked for it.
-		fmt.Printf("%s%s\n", outcome.RanPrefix, readbackOf(s.Name, []linePart{{Label: s.Arg, Value: value},
-			{Label: "program", Value: skills.AppName(w.Title)}}))
+		fmt.Printf("%s%s\n", outcome.RanPrefix, readbackOf(s.Name, []linePart{{Label: "program",
+			Value: skills.AppName(w.Title)}}))
 		// THE APPLICATION'S NAME, NOT ITS WINDOW'S TITLE: a title can carry a document's name.
-		fmt.Printf("brought %s forward%s\n", skills.AppName(w.Title), how)
+		fmt.Printf("brought %s forward\n", skills.AppName(w.Title))
 		return OutcomePerformed, nil
 	case skills.Search:
 		u, err := skills.SearchURL(searchProvider(), value)

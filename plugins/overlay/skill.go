@@ -56,3 +56,6 @@ func saidAs(r lineReading) string {
 	}
 	return "something else"
 }
+
+// focusSkill is Focus app's slug, the engine's (internal/skills).
+const focusSkill = "focus-app"
