@@ -3093,6 +3093,7 @@ const OCFG=[
  {k:'leader', label:'Leader key', type:'select', opts:[BT,'/','capslock','tab','f8']},
  {k:'wake', label:'Activation phrase', type:'text', ph:'marco'},
  {k:'voice', label:'Voice listening', type:'bool'},
+ {k:'search', label:'Web search provider', type:'text', ph:'google'},
  {k:'theme', label:'Theme', type:'select', opts:['default','dracula','solarized-dark','monokai','nord','tokyo-night','catppuccin-mocha','gruvbox-dark','rose-pine','light']},
  {k:'idle', label:'Opacity', type:'number', step:'0.05', min:'0.2', max:'1'},
  {k:'corner', label:'HUD corner', type:'select', opts:['top-right','top-left','bottom-right','bottom-left','top-center']},

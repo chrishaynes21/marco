@@ -203,6 +203,13 @@ In the widget, say or type **"repeat open inventory five times"**: it is read ba
 *Open inventory ×5* and runs when you press Enter. Each run is checked like any other, the
 first one that fails ends it, Stop ends it, and the history says how many ran.
 
+Two things work with nothing demonstrated first. **"focus Discord"** brings the Discord window
+you used last to the front (it says so if Discord isn't open; it never launches it), and **"search
+the web for ark black pearl locations"** opens the results in your default browser. The search
+provider is the `search` setting in the control centre's Config view (google, bing, duckduckgo,
+brave, startpage, or an `https://…{query}` address). A routine you saved with the same words wins,
+and Director can map other phrasings ("switch me back to Discord") to them for you to confirm.
+
 A **routine** is one durable behaviour: a small, readable Marco program on disk with
 a record of where it came from. It's the noun the product uses everywhere — the
 `marco routes` command, the `routes/` directory and `$MARCO_ROUTES` keep their

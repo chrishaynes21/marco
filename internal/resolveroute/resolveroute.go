@@ -42,6 +42,7 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/plays"
 	"github.com/chaynes-simpleclouds/marco/internal/resolver"
 	"github.com/chaynes-simpleclouds/marco/internal/routes"
+	"github.com/chaynes-simpleclouds/marco/internal/skills"
 )
 
 // Candidate is one saved routine a request may be answered with.
@@ -81,6 +82,9 @@ type Candidate struct {
 	// the new version declares the same names, because the same name in a rewritten
 	// routine may be typed somewhere else entirely.
 	SourceAt string
+	// Builtin is a BUILT-IN DESKTOP SKILL offered beside the routines (internal/skills): ID is
+	// `builtin/<slug>`, and the answer naming it says so, so no surface takes it for a routine.
+	Builtin bool
 }
 
 // Slug, App and Focus are the route's, read through the candidate so the policy below reads as
@@ -202,6 +206,11 @@ type Answer struct {
 	// SourceAt is the digest of the routine source those names were read from. See
 	// Candidate.SourceAt for why a proposal cannot outlive the revision it was made for.
 	SourceAt string `json:"sourceAt,omitempty"`
+	// Builtin says the answer names a built-in desktop skill and not a saved routine, and Line is
+	// that skill's explicit line with the value proposed ("focus Discord"), which a surface puts
+	// on its command line for review. Never set for a routine.
+	Builtin bool   `json:"builtin,omitempty"`
+	Line    string `json:"line,omitempty"`
 }
 
 // Resolver answers one request against one library.
@@ -268,6 +277,7 @@ func (r Resolver) Resolve(ctx context.Context, request string, cs []Candidate,
 		}
 		said.ID, said.Name, said.Scope = c.ID, c.Name, c.Scope
 		said.App, said.Slug, said.Focus = c.App(), c.Slug(), c.Focus()
+		said.Builtin = c.Builtin
 		if said.Reply == "" {
 			said.Reply = fmt.Sprintf("%s — %s", c.Name, c.Scope)
 		}
@@ -318,6 +328,15 @@ func (r Resolver) Resolve(ctx context.Context, request string, cs []Candidate,
 	// if a later edit reads a value before the re-check, or lets `said.Kind` change after
 	// the switch, this decision needs making again rather than extending.
 	said.Values, said.SourceAt = r.proposals(ctx, request, chosen)
+	// A SKILL IS REVIEWED AS ITS EXPLICIT LINE, which Marco reads back itself: there is no source
+	// for a version to be of.
+	if chosen.Builtin {
+		value := ""
+		if len(said.Values) > 0 {
+			value = said.Values[0].Value
+		}
+		said.Line, said.SourceAt = skills.LineFor(chosen.Slug(), value), ""
+	}
 	return said
 }
 

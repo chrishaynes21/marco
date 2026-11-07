@@ -253,6 +253,12 @@ func proposeRepeat(d orchestrator.Deps, phrase, app string) (Outcome, bool) {
 	// NOT A ROUTINE BY ITS NAME: Director's resolver is asked about the routine's words alone,
 	// and the count travels beside its answer.
 	if line, name, ok := proposeRoutine(inner); ok {
+		if skillProposal(line) {
+			// A BUILT-IN SKILL IS NOT REPEATED in this slice: there is nothing to say "×5" about.
+			fmt.Printf("%s is one of Marco's built-in skills, and those are not repeated — nothing "+
+				"was run\n", name)
+			return OutcomeRefused, true
+		}
 		fmt.Printf("%s%s\n", outcome.ProposedPrefix, withTimes(line, times))
 		fmt.Printf("Marco has a saved routine that may be what you meant: %s, %s. Nothing has run; "+
 			"review it first.\n", name, timesWord(times))

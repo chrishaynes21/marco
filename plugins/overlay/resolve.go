@@ -55,6 +55,11 @@ type resolved struct {
 		} `json:"context"`
 		Source   string `json:"source"`
 		Resolver string `json:"resolver"`
+		// Builtin says the answer names one of Marco's built-in desktop skills, never a
+		// routine, and Line is that skill's explicit line with the value proposed: what the
+		// command line is opened on for review (reviewSkill).
+		Builtin bool   `json:"builtin"`
+		Line    string `json:"line"`
 		// Values is what Director PROPOSED for the routine's arguments, and SourceAt the
 		// revision they were read against. Never sent as they are: see reviewProposal.
 		Values []struct {
@@ -193,6 +198,9 @@ func offerResolved(h *model, phrase string, r resolved) disposition {
 	}
 	a := r.Answer
 	switch {
+	case a.Kind == "run" && a.Builtin:
+		h.log(a.Resolver)
+		return reviewSkill(h, a.Name, a.Slug, a.Line, r.Times)
 	case a.Kind == "run" && a.ID != "":
 		if a.Context.Says != "" {
 			h.log(a.Context.Says)

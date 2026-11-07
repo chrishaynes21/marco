@@ -57,6 +57,10 @@ type Settings struct {
 	Coords   bool    `json:"coords"`
 	Voice    bool    `json:"voice"` // act on spoken commands
 	Wake     string  `json:"wake"`  // the voice activation phrase, read at launch as $MARCO_VOICE_WAKE
+	// Search is where "search the web for …" searches: google | bing | duckduckgo | brave |
+	// startpage, or an https address with {query} in it; "" is google (internal/skills). Which
+	// BROWSER opens it is Windows' default, a separate setting that is not Marco's.
+	Search string `json:"search"`
 }
 
 // Defaults are the widget's own defaults, and the control centre's activation phrase.
@@ -71,7 +75,7 @@ func (s *Settings) fields() map[string]any {
 		"theme": &s.Theme, "idle": &s.Idle, "monitor": &s.Monitor, "corner": &s.Corner,
 		"width": &s.Width, "height": &s.Height, "leader": &s.Leader, "font": &s.Font,
 		"maxLines": &s.MaxLines, "border": &s.Border, "mini": &s.Mini, "metrics": &s.Metrics,
-		"coords": &s.Coords, "voice": &s.Voice, "wake": &s.Wake,
+		"coords": &s.Coords, "voice": &s.Voice, "wake": &s.Wake, "search": &s.Search,
 	}
 }
 

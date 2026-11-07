@@ -81,6 +81,8 @@ func runResolve(args []string) {
 		// when it is reading a different one rather than serving a routine of that
 		// name out of somewhere else.
 		Library: marcopaths.Routes(),
+		// AND THE BUILT-IN SKILLS: the widget asks here, and reviews and runs one (skill.go).
+		Skills: true,
 	})
 	if err != nil {
 		resolveFailed(jsonMode, whyRefusedHere(err))

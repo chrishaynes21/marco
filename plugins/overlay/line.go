@@ -129,9 +129,10 @@ func readLineChild(line string, p *lineProposal) (lineReading, bool) {
 	return r, true
 }
 
-// takesValues is whether a reading is one this file runs itself: a routine that takes values.
+// takesValues is whether a reading is one this file runs itself: a routine that takes values, or a
+// built-in skill, which always takes one (internal/skills), so nothing with a value runs unread.
 func (r lineReading) takesValues() bool {
-	return r.Kind == "routine" && (r.Needs || r.Times > 0)
+	return (r.Kind == "routine" && (r.Needs || r.Times > 0)) || r.Kind == "skill"
 }
 
 // lineRunArgs is the invocation a runnable reading becomes: its identity, its version and its
@@ -139,6 +140,14 @@ func (r lineReading) takesValues() bool {
 //
 // Reading the words again here must fail TestAReadBackRunsAsItsIdentityAndVersion.
 func lineRunArgs(r lineReading) []string {
+	if r.Kind == "skill" {
+		// A BUILT-IN SKILL RUNS BY ITS IDENTITY too, with its one value; it has no version.
+		args := []string{"do", "--source=typed", "--skill=" + r.Slug}
+		for k, v := range r.Values {
+			args = append(args, "--arg="+k+"="+v)
+		}
+		return args
+	}
 	args := []string{"do", "--source=typed", "--play=" + r.Slug}
 	if r.App != "" {
 		args = append(args, "--app="+r.App)
@@ -215,7 +224,7 @@ func typedLineFrom(h *model, line string, spoken bool) bool {
 		}
 		r = got
 	}
-	if r.Kind == "routine" || !spoken {
+	if r.Kind == "routine" || r.Kind == "skill" || !spoken {
 		h.remember(recallOf(line, r))
 	}
 	// WHILE DIRECTOR'S VALUES ARE ON THE LINE, ONLY THEIR ROUTINE RUNS FROM IT. A line edited to

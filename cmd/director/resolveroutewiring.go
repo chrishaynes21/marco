@@ -44,6 +44,7 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/resolver"
 	"github.com/chaynes-simpleclouds/marco/internal/resolveroute"
 	"github.com/chaynes-simpleclouds/marco/internal/routes"
+	"github.com/chaynes-simpleclouds/marco/internal/skills"
 )
 
 // resolveTimeout bounds one resolution, including the plugin call.
@@ -68,6 +69,12 @@ func (r *Runtime) ResolveRoute(p service.ResolveRoutePayload) service.ResolveRou
 	where := r.whereToRead(p.Target)
 
 	library := theLibrary(reg)
+	// AND THE BUILT-IN SKILLS, for a caller that can review and run one (internal/skills).
+	//
+	// Not offering them must fail TestASkillIsOfferedOnlyToACallerThatAsked.
+	if p.Skills {
+		library = append(library, skillCandidates()...)
+	}
 	// ── AND A TARGET NOBODY HAS ROUTINES FOR IS SAID, NOT SILENTLY HONOURED ──
 	//
 	// A stated target is authoritative about INTENT and is still a claim about this
@@ -207,4 +214,18 @@ func anyRoutineFor(cs []resolveroute.Candidate, app string) bool {
 		}
 	}
 	return false
+}
+
+// skillCandidates are Marco's built-in desktop skills as candidates: everywhere, always runnable,
+// each taking its one value, and marked so the answer naming one says it is not a routine.
+func skillCandidates() []resolveroute.Candidate {
+	var out []resolveroute.Candidate
+	for _, s := range skills.All() {
+		out = append(out, resolveroute.Candidate{
+			Route: routes.Route{Slug: s.Slug}, ID: s.ID(), Name: s.Name,
+			Scope: "built in", Runnable: true, Builtin: true,
+			Takes: []routes.Argument{{Name: s.Arg}},
+		})
+	}
+	return out
 }

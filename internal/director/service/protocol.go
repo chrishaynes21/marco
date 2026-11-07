@@ -971,6 +971,11 @@ type ResolveRoutePayload struct {
 	// surface selecting a routine from a library Director was not reading would be
 	// offering a routine of that name rather than that routine. Empty does not check.
 	Library string `json:"library,omitempty"`
+	// Skills asks for Marco's BUILT-IN DESKTOP SKILLS (internal/skills) to be offered beside the
+	// routines, so a paraphrase ("switch me back to Discord") can name one. Only a caller that can
+	// review and run a skill sets it: an answer naming one carries `builtin` and the skill's
+	// explicit line, and is never a routine to press Play on.
+	Skills bool `json:"skills,omitempty"`
 }
 
 // ResolveRouteResponse carries the answer.

@@ -35,7 +35,9 @@ func directorPropose(phrase string) (string, string, bool) {
 		return "", "", false
 	}
 	defer c.Close()
-	out, err := c.ResolveRoute(service.ResolveRoutePayload{Request: phrase, Library: marcopaths.Routes()})
+	out, err := c.ResolveRoute(service.ResolveRoutePayload{Request: phrase, Library: marcopaths.Routes(),
+		// THE INTAKE CAN PERFORM A SKILL, and its proposal is reviewed on the widget's line.
+		Skills: true})
 	if err != nil {
 		mlog.Info("intake: the resolver could not be asked", "err", err)
 		return "", "", false

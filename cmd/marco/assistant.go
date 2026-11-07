@@ -294,6 +294,9 @@ func parseDoArgs(args []string) (invoke.Request, bool, string, error) {
 			}
 			req.Named[name] = value
 			req.Flagged = append(req.Flagged, name)
+		case strings.HasPrefix(a, "--skill="):
+			// A BUILT-IN SKILL BY ITS IDENTITY, confirmed on a read-back (skill.go).
+			req.Skill = strings.TrimSpace(strings.TrimPrefix(a, "--skill="))
 		case strings.HasPrefix(a, "--times="):
 			// HOW MANY TIMES, CONFIRMED (repeat.go). A count that is not one is refused
 			// here rather than read as once: somebody asked for a number of runs.

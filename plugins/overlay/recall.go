@@ -64,6 +64,9 @@ func (h *model) rememberAsRoutine(said, routine string) {
 //
 // Keeping a routine's values must fail TestARecalledRoutineAsksForItsValueAgain.
 func recallOf(line string, r lineReading) string {
+	if r.Kind == "skill" && strings.TrimSpace(r.Name) != "" {
+		return r.Name // "Focus app", whose reading asks for the app again
+	}
 	if r.Kind != "routine" || strings.TrimSpace(r.Name) == "" {
 		return line
 	}

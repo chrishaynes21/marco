@@ -112,6 +112,12 @@ func traceIntake(d invoke.Decision, req invoke.Request) {
 // TestEveryEntranceRoutesThroughTheOneIntake.
 func runInvocation(d orchestrator.Deps, req invoke.Request) (Outcome, error) {
 	beginAttempt()
+	// A SKILL CONFIRMED BY ITS IDENTITY is not words, and no routine is decided for it.
+	if req.Skill != "" {
+		out, err := performSkillRequest(req)
+		mlog.Info("intake: finished", "decision", "skill", "skill", req.Skill, "outcome", string(out))
+		return out, err
+	}
 	if req.App == "" {
 		req.App = appOf(d)
 	}
@@ -408,6 +414,18 @@ func askDirector(d orchestrator.Deps, dec invoke.Decision, req invoke.Request) (
 	if dec.Phrase == "" {
 		return OutcomeFailed, nil
 	}
+	// ── A BUILT-IN SKILL'S EXPLICIT FORM, after every routine has had its turn ──
+	//
+	// "focus discord", "search the web for …": performed as the skill, as words naming a
+	// routine with its value are performed as the routine (skill.go). Not while Director is
+	// waiting for an answer.
+	//
+	// Deleting this must fail TestASkillInWordsIsPerformedAfterTheRoutines.
+	if !(req.Pending && isClarificationAnswer(dec.Phrase)) {
+		if out, ok, err := skillInWords(d, dec.Phrase, req.App); ok {
+			return out, err
+		}
+	}
 	// ── "REPEAT <ROUTINE> <N> TIMES", PROPOSED AND NEVER RUN FROM WORDS ──
 	//
 	// It runs only as a confirmed `--times` on the routine's identity (repeat.go). Not while
@@ -433,6 +451,11 @@ func askDirector(d orchestrator.Deps, dec invoke.Decision, req invoke.Request) (
 	if !(req.Pending && isClarificationAnswer(dec.Phrase)) {
 		if line, name, ok := proposeRoutine(dec.Phrase); ok {
 			fmt.Printf("%s%s\n", outcome.ProposedPrefix, line)
+			if skillProposal(line) {
+				fmt.Printf("Marco can do that with a built-in skill: %s. Nothing has run; review "+
+					"it first.\n", name)
+				return OutcomeClarify, nil
+			}
 			fmt.Printf("Marco has a saved routine that may be what you meant: %s. Nothing has run; "+
 				"review it first (marco resolve shows the same answer).\n", name)
 			return OutcomeClarify, nil

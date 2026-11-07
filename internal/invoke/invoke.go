@@ -168,6 +168,10 @@ type Request struct {
 	// repeat ("repeat open social five times" read back as "Open social ×5"); 0 is once, as
 	// always. Cargo, like Expect; Decide never reads it.
 	Times int
+	// Skill is a built-in desktop skill confirmed by its identity (`--skill=focus-app`), with its
+	// value in Named: performed as that skill and never read from words (internal/skills). Cargo,
+	// like Times; Decide never reads it.
+	Skill string
 	// App is the foreground application, when the entrance knows it. Scope resolution needs it.
 	App string
 	// Pending says Director is holding a question nobody has answered yet.

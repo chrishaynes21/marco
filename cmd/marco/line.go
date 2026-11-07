@@ -53,8 +53,9 @@ import (
 // lineReading is `marco line --json`.
 type lineReading struct {
 	Line string `json:"line"`
-	// Kind is "routine" when the line names one, and "none" when it goes to the intake as
-	// words.
+	// Kind is "routine" when the line names one, "skill" for a built-in desktop skill
+	// (skill.go, read only when no routine took the line), and "none" when it goes to the
+	// intake as words.
 	Kind  string `json:"kind"`
 	ID    string `json:"id,omitempty"`
 	App   string `json:"app,omitempty"`
@@ -154,7 +155,17 @@ func readLine(d orchestrator.Deps, app, line string, p lineProposal) lineReading
 	if r, ok := readRepeat(d, app, line, p); ok {
 		return r
 	}
-	return readOnce(d, app, line, p)
+	r := readOnce(d, app, line, p)
+	// A BUILT-IN SKILL ONLY WHEN NO ROUTINE TOOK THE LINE: a saved routine's name always wins, and
+	// a line carrying Director's values for a routine is about that routine.
+	//
+	// Reading the skill first must fail TestASavedRoutineWinsOverASkill.
+	if r.Kind == "none" && !p.Carrying {
+		if s, ok := readSkill(line); ok {
+			return s
+		}
+	}
+	return r
 }
 
 // readRepeat is the reading of "repeat <routine> <count> times": the routine's own reading, with
