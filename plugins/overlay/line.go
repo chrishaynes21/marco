@@ -217,7 +217,8 @@ func refreshReading(m *model, line string) {
 // typedLine is what Enter does with a typed line. It reports whether this file took the line;
 // false means it goes to the intake as words, as before.
 //
-// Running a line whose read-back was not on screen must fail TestNothingWithAValueRunsUnread.
+// Running a spoken or proposed line whose read-back was not on screen must fail
+// TestAValueNobodyTypedIsReadBackFirst.
 func typedLine(h *model, line string) bool { return typedLineFrom(h, line, false) }
 
 // typedLineFrom is typedLine for a line typed or spoken, which it also keeps for ↑ (recall.go): a
