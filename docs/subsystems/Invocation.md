@@ -133,8 +133,8 @@ it without reading `Request.Text` at all.
   only once its read-back has been on screen; values Director proposed are reviewed there before
   they run. See [[ADR-301-the-command-line-reads-back-what-it-will-run]].
 - ↑ and ↓ on the widget's command line walk the commands, as a shell's history does, and ↓ past the
-  newest puts back what was being typed. A routine is kept by its name and never its values, so a
-  recalled `cloud pull` asks for the value afresh. See [[ADR-326-the-command-line-recalls-commands]].
+  newest puts back what was being typed. A command comes back as it ran, values and all, so ↑ then
+  Enter runs it again. See [[ADR-326-the-command-line-recalls-commands]].
 - The widget's command line has a caret: ← → (Ctrl for a word), Home, End, Delete, Ctrl+Backspace;
   typing inserts at it. See [[ADR-328-the-command-line-edits-like-an-editor]].
 - Built-in desktop skills: `focus <app>` brings an open program's most recently active window

@@ -2,7 +2,7 @@
 type: adr
 status: accepted
 date: 2026-11-07
-decision: "ACCEPTED — ↑ AND ↓ ON THE WIDGET'S COMMAND LINE RECALL COMMANDS LIKE A SHELL'S HISTORY, AND A ROUTINE COMES BACK WITHOUT ITS VALUES. ↑ puts the most recent command back on the line, editable, and walks back; ↓ walks forward and, past the newest, puts back what was being typed before the first ↑ (with the Director proposal it was open on). Enter on a recalled line is an ordinary Enter: read, reviewed and run. A line the engine reads as a routine is kept as the routine's name (a repeat with its count), so its reading asks for the value again; any other typed line is kept as typed; a spoken line only when it named a routine. In memory only, 100 commands, the same command twice running kept once."
+decision: "ACCEPTED — ↑ AND ↓ ON THE WIDGET'S COMMAND LINE RECALL COMMANDS LIKE A SHELL'S HISTORY, AND A COMMAND COMES BACK AS IT RAN, VALUES AND ALL (amended the same day; it first came back without its values). ↑ puts the most recent command back on the line, editable, and walks back; ↓ walks forward and, past the newest, puts back what was being typed before the first ↑ (with the Director proposal it was open on). Enter on a recalled line is an ordinary Enter: read, reviewed and run. A routine is kept as its line as it ran, values and count included, so ↑ then Enter runs it again; Focus app as the program it went to; any other typed line as typed; a spoken line only when it named a routine. In memory only, 100 commands, the same command twice running kept once."
 supersedes: []
 affects:
   - interface
@@ -43,12 +43,18 @@ routine that takes values should come back as its name with its hints and ask fo
   kept as typed and replaced by the routine it ran as, if it ran as one.
 - **Where it lives.** This process only: 100 commands, never written down and never logged.
 
+## Amended 2026-11-07: commands come back with their values
+
+The owner, after using it: "same for all things that accept args, pressing up should recall the
+last command." So `recallOf` keeps the line as it ran, values and all ("cloud pull stone",
+"repeat open social five times"), and the step that replaced a typed line with the bare name of
+the routine it ran as is gone. What the microphone heard in passing is still not kept, and Focus
+app is kept as the program it went to rather than the words heard ([[ADR-327-built-in-desktop-skills]]).
+
 ## Not established
 
 - Not tried live.
-- A typed line that had no reading and did not run as a routine keeps what was typed, values
-  included if it had any: the engine said nothing about it either way.
 
 ## Enforced by
 
-- `plugins/overlay` `TestUpAndDownWalkTheCommandsLikeAShell`, `TestTheRecallKeepsEachCommandOnceAndNotForever`, `TestARecalledRoutineAsksForItsValueAgain`, `TestALineWithNoReadingIsKeptAsTheRoutineItRanAs`, `TestTheArrowKeysRecallOnTheCommandLine`.
+- `plugins/overlay` `TestUpAndDownWalkTheCommandsLikeAShell`, `TestTheRecallKeepsEachCommandOnceAndNotForever`, `TestARecalledRoutineComesBackWithItsValues`, `TestALineWithNoReadingIsKeptAsTyped`, `TestTheArrowKeysRecallOnTheCommandLine`.
