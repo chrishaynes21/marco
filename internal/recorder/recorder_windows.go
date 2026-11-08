@@ -930,7 +930,7 @@ func keyboardProc(nCode int, wParam, lParam uintptr) uintptr {
 			up := wParam == wmKeyUp || wParam == wmSysKeyUp
 			if down || up {
 				vk := uint16(kb.vkCode)
-				name := vkToName(vk)
+				name := numpadEnter(vkToName(vk), vk, kb.flags)
 				// The anchor key is a recorder-only modifier: a TAP arms an anchor (the
 				// next click is captured), so it's never recorded and is swallowed so the
 				// app never sees it. Skip this when the anchor key is also the stop key —

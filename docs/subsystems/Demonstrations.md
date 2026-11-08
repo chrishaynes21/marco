@@ -226,6 +226,10 @@ that control, though a saved play still cannot say it (`cannot_say_pointer`, fol
   ctrl+shift+forward demonstrated nothing: its modifiers had no click to hold across. `back` and
   `forward` are recorded, saved and pressed now, from one list (`macroir.MouseButtons`), and a drag
   naming a button nothing can press refuses as a click already did
+- [[ADR-335-the-keys-games-bind-are-recorded-apart]] — and the keys the recorder could only call
+  `?` or confuse with another: F13-F24, the numpad (its digits were the top row's, its Enter was
+  Enter), the lock keys, Pause, Print Screen and the menu key, each with its own name in all three
+  key tables
 - [[ADR-261-typed-text-is-a-sequence-of-submissions]] — and the input that can go in PART WAY,
   which no other one can. `do OS's Type with "hello"` is five events and any of them can be
   refused, so a failure leaves a field holding `he` and a next step written for `hello`. Typing

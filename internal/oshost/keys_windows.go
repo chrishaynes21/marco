@@ -2,7 +2,10 @@
 
 package oshost
 
-import "strings"
+import (
+	"strconv"
+	"strings"
+)
 
 // Virtual key constants (subset needed for macro keys).
 const (
@@ -41,6 +44,17 @@ const (
 	vkOEM7      = 0xDE // '"
 	vkRControl  = 0xA3
 	vkRAlt      = 0xA5
+	vkNumpad0   = 0x60
+	vkMultiply  = 0x6A
+	vkAdd       = 0x6B
+	vkSubtract  = 0x6D
+	vkDecimal   = 0x6E
+	vkDivide    = 0x6F
+	vkNumLock   = 0x90
+	vkScroll    = 0x91
+	vkPause     = 0x13
+	vkSnapshot  = 0x2C
+	vkApps      = 0x5D
 )
 
 var extendedKeys = map[uint16]bool{
@@ -48,6 +62,9 @@ var extendedKeys = map[uint16]bool{
 	vkPrior: true, vkNext: true,
 	vkLeft: true, vkUp: true, vkRight: true, vkDown: true,
 	vkRControl: true, vkRAlt: true, vkLWin: true, vkRWin: true,
+	// The numpad's divide, Num Lock, Print Screen and the menu key are extended keys too: sent
+	// without the flag, a game reading scan codes sees the main-block key that shares the code.
+	vkDivide: true, vkNumLock: true, vkSnapshot: true, vkApps: true,
 }
 
 var keyMap = map[string]uint16{
@@ -69,6 +86,10 @@ var keyMap = map[string]uint16{
 	"-": vkOEMMinus, "=": vkOEMPlus,
 	"[": vkOEM4, "]": vkOEM6, "\\": vkOEM5,
 	";": vkOEM1, "'": vkOEM7, ",": vkOEMComma, ".": vkOEMPeriod, "/": vkOEM2,
+	// THE REST OF A FULL KEYBOARD (ADR-335). numenter is VK_RETURN sent extended: see extendedNames.
+	"numstar": vkMultiply, "numplus": vkAdd, "numminus": vkSubtract, "numdot": vkDecimal,
+	"numslash": vkDivide, "numenter": vkReturn, "numlock": vkNumLock, "scrolllock": vkScroll,
+	"pause": vkPause, "printscreen": vkSnapshot, "menu": vkApps,
 }
 
 func init() {
@@ -77,18 +98,18 @@ func init() {
 	}
 	for i := 0; i <= 9; i++ {
 		keyMap[string(rune('0'+i))] = uint16(0x30 + i)
+		keyMap["num"+string(rune('0'+i))] = uint16(vkNumpad0 + i)
 	}
-	for i := range 12 {
+	for i := range 24 {
 		keyMap[fmtF(i+1)] = uint16(vkF1 + i)
 	}
 }
 
-func fmtF(n int) string {
-	if n < 10 {
-		return "f" + string(rune('0'+n))
-	}
-	return "f1" + string(rune('0'+n-10))
-}
+func fmtF(n int) string { return "f" + strconv.Itoa(n) }
+
+// extendedNames are keys whose virtual key is shared with another key and told apart only by
+// the extended flag: numpad Enter is VK_RETURN, extended.
+var extendedNames = map[string]bool{"numenter": true}
 
 // resolveKey returns the VK code, scan code, and extended flag for a key name.
 func resolveKey(name string) (vk uint16, scan uint16, extended bool) {
@@ -108,6 +129,6 @@ func resolveKey(name string) (vk uint16, scan uint16, extended bool) {
 		}
 	}
 	scan = mapVirtualKey(vk)
-	extended = extendedKeys[vk]
+	extended = extendedKeys[vk] || extendedNames[lower]
 	return vk, scan, extended
 }

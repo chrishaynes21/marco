@@ -1,6 +1,9 @@
 package macroir
 
-import "strings"
+import (
+	"strconv"
+	"strings"
+)
 
 // THE KEYS MARCO CAN PRESS, BY NAME.
 //
@@ -27,6 +30,12 @@ var keyNames = map[string]bool{
 	"`":        true, "~": true, "backtick": true,
 	"-": true, "=": true, "[": true, "]": true, "\\": true,
 	";": true, "'": true, ",": true, ".": true, "/": true,
+	// THE REST OF A FULL KEYBOARD, which games bind (ADR-335): the numpad apart from the top row,
+	// its operators spelt out because `+` joins a chord, and the lock, pause, print-screen and
+	// menu keys. F13-F24 are in init.
+	"numstar": true, "numplus": true, "numminus": true, "numdot": true, "numslash": true,
+	"numenter": true, "numlock": true, "scrolllock": true, "pause": true, "printscreen": true,
+	"menu": true,
 }
 
 func init() {
@@ -35,18 +44,14 @@ func init() {
 	}
 	for c := '0'; c <= '9'; c++ {
 		keyNames[string(c)] = true
+		keyNames["num"+string(c)] = true
 	}
-	for n := 1; n <= 12; n++ {
+	for n := 1; n <= 24; n++ {
 		keyNames[fName(n)] = true
 	}
 }
 
-func fName(n int) string {
-	if n < 10 {
-		return "f" + string(rune('0'+n))
-	}
-	return "f1" + string(rune('0'+n-10))
-}
+func fName(n int) string { return "f" + strconv.Itoa(n) }
 
 // KeyNames is every key name Marco can press, for a guard to compare a table against.
 func KeyNames() []string {

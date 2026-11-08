@@ -55,3 +55,34 @@ func TestTheSideButtonsAreRecordedByName(t *testing.T) {
 		}
 	}
 }
+
+// AND THROUGH THE KEY HOOK: numpad Enter, which only the extended flag tells apart, arrives in the
+// recording as numenter and the main Enter as enter.
+//
+// The hook not asking numpadEnter must fail this.
+func TestTheKeyHookTellsNumpadEnterApart(t *testing.T) {
+	aRecordingOfTheChosenWindow(t)
+	wasActive := recActive.Load()
+	t.Cleanup(func() { recActive.Store(wasActive) })
+	recActive.Store(true)
+	recMu.Lock()
+	recBuf, recPub = nil, make(chan RecordedEvent, 16)
+	recMu.Unlock()
+	aDesktopWhere(t, chosenWindow, chosenProcess, true)
+
+	for _, flags := range []uint32{llkhfExtended, 0} {
+		kb := kbdllHookStruct{vkCode: 0x0D, flags: flags}
+		keyboardProc(0, wmKeyDown, uintptr(unsafe.Pointer(&kb)))
+	}
+	recMu.Lock()
+	var got []string
+	for _, ev := range recBuf {
+		if ev.Kind == EvKey {
+			got = append(got, ev.KeyName)
+		}
+	}
+	recMu.Unlock()
+	if len(got) != 2 || got[0] != "numenter" || got[1] != "enter" {
+		t.Errorf("the hook recorded %v, want [numenter enter]", got)
+	}
+}
