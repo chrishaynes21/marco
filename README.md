@@ -6,7 +6,8 @@ Open Marco and you get **Studio**: a window where you press Record, go and do th
 thing with your own mouse and keyboard, come back and press Stop. Studio shows you
 what it made of it — a small program in plain sentences you can read — and nothing
 is saved until you have looked at it and pressed Save. Then it is a routine you can
-play whenever you like.
+play whenever you like. Your routines are listed by the application they are for: press an
+application to fold its routines away, show one application alone, or Expand all and Collapse all.
 
 ```
 Record  →  do the thing  →  Stop  →  read what it made  →  Save  →  Play

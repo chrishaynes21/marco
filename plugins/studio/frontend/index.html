@@ -247,6 +247,16 @@
     Empty, it is not a line at all. */
  .rowsays{flex:1 0 100%;text-align:left}
  .rowsays:empty{display:none}
+ /* THE ROUTINES ARE GROUPED BY THE APPLICATION THEY ARE FOR (ADR-332). A group's head is
+    a sibling of its rows, not their parent, so a row is still a child of the list. */
+ .apphead{display:flex;align-items:center;padding:16px 4px 7px;
+        border-bottom:1px solid var(--line)}
+ .apphead:first-child{padding-top:6px}
+ .apphead .appname{font:600 13.5px var(--sans);letter-spacing:.3px;color:var(--ink)}
+ .apphead .disclose:hover .appname{color:var(--spot)}
+ .apphead .appcount{margin-left:9px;font-size:12px}
+ #routineGroupBar{margin:4px 0 2px}
+ #routineGroupBar label{font-size:12.5px}
 
  /* NARROW ── and it is the whole window, not just the row.
     The rail is 214px and `main` pads by up to 56px a side, so at 460 the column a
@@ -1385,6 +1395,15 @@
          an old one can be sitting next to this window unread. Nothing is lost and nothing
          is moved; the honest failure of changing the rule is silence, so it says its name. -->
     <div class="banner hide" style="margin-top:8px" id="libElsewhere"></div>
+    <!-- WHICH APPLICATION'S ROUTINES ARE SHOWN, AND ALL OF THEM SHUT OR OPEN AT ONCE.
+         Only once there are two applications to choose between (paintRoutineGroups). -->
+    <div class="row hide" id="routineGroupBar">
+      <label class="muted" for="routineAppShow">Show</label>
+      <select id="routineAppShow" onchange="showRoutineApp(this.value)"></select>
+      <span class="grow"></span>
+      <button type="button" id="routineExpandAll" onclick="setAllRoutineGroups(true)">Expand all</button>
+      <button type="button" id="routineCollapseAll" onclick="setAllRoutineGroups(false)">Collapse all</button>
+    </div>
     <div id="routineList" style="margin-top:4px"></div>
     <div class="muted hide" id="routineNone">No routines yet. Press Record to make one.</div>
     <!-- WHERE THE PANEL WAITS WHILE NO ROUTINE IS OPEN.
@@ -4072,6 +4091,111 @@
  // routines -- so it is also what anything outside this window uses to find exactly one.
  function routineKey(id){ return id.replace(/[^a-z0-9]+/gi, '-') }
 
+ // ROUTINES IN GROUPS, BY THE APPLICATION THEY ARE FOR (ADR-332).
+ //
+ // A group is every routine with one `app`; the ones that switch nothing are their own group,
+ // last. A group can be shut, and the list can show one group alone. Shut groups are kept in
+ // this window's browser storage, a per-viewer convenience: without it every group starts open.
+ // Neither is a redraw -- the rows stay where they are and are only hidden, so an open routine
+ // in a shut group keeps whatever somebody had typed into it.
+ const ANYWHERE_GROUP = 'Any application'
+ const GROUPS_SHUT_KEY = 'studio.routineGroupsShut'
+ let routineGroupsShut = new Set((() => {
+   try {
+     const v = JSON.parse(localStorage.getItem(GROUPS_SHUT_KEY) || '[]')
+     return Array.isArray(v) ? v.filter(x => typeof x === 'string') : []
+   } catch (e) { return [] }
+ })())
+ let routineAppShown = null // null is every application; otherwise one group's key
+ let revealedRoutine = ''
+ function keepRoutineGroupsShut(){
+   try { localStorage.setItem(GROUPS_SHUT_KEY, JSON.stringify([...routineGroupsShut])) } catch (e) {}
+ }
+ function routineGroupOf(r){ return r.app || '' }
+ function routineGroups(){
+   const by = new Map()
+   routines.forEach(r => {
+     const g = routineGroupOf(r)
+     if (!by.has(g)) { by.set(g, []) }
+     by.get(g).push(r)
+   })
+   return [...by.keys()].sort((a, b) =>
+     ((a === '') - (b === '')) ||
+     a.toLowerCase().localeCompare(b.toLowerCase()) || (a < b ? -1 : a > b ? 1 : 0)
+   ).map(g => ({key: g, label: g || ANYWHERE_GROUP, routines: by.get(g)}))
+ }
+ function routineGroupId(g){ return g ? routineKey('app-' + g) : 'anywhere' }
+ function routineGroupHead(g){
+   const head = document.createElement('div')
+   const id = routineGroupId(g.key)
+   head.className = 'apphead'
+   head.id = 'routineGroup-' + id
+   head.dataset.group = g.key
+   const n = g.routines.length
+   head.innerHTML = '<button class="disclose" type="button" id="routineGroupBtn-' + id + '"' +
+     ' aria-expanded="true">' +
+     '<span class="chev" aria-hidden="true">&#9654;</span>' +
+     '<span class="grow"><span class="appname">' + esc(g.label) + '</span>' +
+     '<span class="muted appcount">' + n + (n === 1 ? ' routine' : ' routines') + '</span>' +
+     '</span></button>'
+   head.querySelector('button').onclick = () => toggleRoutineGroup(g.key)
+   return head
+ }
+ function toggleRoutineGroup(g){
+   if (routineGroupsShut.has(g)) { routineGroupsShut.delete(g) } else { routineGroupsShut.add(g) }
+   keepRoutineGroupsShut()
+   paintRoutineGroups()
+ }
+ function setAllRoutineGroups(open){
+   routineGroupsShut = new Set(open ? [] : routineGroups().map(g => g.key))
+   keepRoutineGroupsShut()
+   paintRoutineGroups()
+ }
+ function showRoutineApp(v){
+   routineAppShown = v === '' ? null : v.slice(2)
+   paintRoutineGroups()
+ }
+ // WHAT IS SHOWN, from the two choices above, without drawing anything again.
+ function paintRoutineGroups(){
+   const groups = routineGroups()
+   if (routineAppShown !== null && !groups.some(g => g.key === routineAppShown)) {
+     routineAppShown = null
+   }
+   // THE BAR ONLY WHEN THERE IS A CHOICE: one application's routines are one group.
+   showing($('routineGroupBar'), groups.length > 1)
+   const sel = $('routineAppShow')
+   const sig = groups.map(g => g.key).join('\u0000')
+   if (sel.dataset.sig !== sig) {
+     sel.dataset.sig = sig
+     sel.innerHTML = ''
+     const all = document.createElement('option')
+     all.value = ''
+     all.textContent = 'All applications'
+     sel.appendChild(all)
+     groups.forEach(g => {
+       const o = document.createElement('option')
+       o.value = 'g:' + g.key
+       o.textContent = g.label
+       sel.appendChild(o)
+     })
+   }
+   sel.value = routineAppShown === null ? '' : 'g:' + routineAppShown
+   const shown = groups.filter(g => routineAppShown === null || g.key === routineAppShown)
+   $('routineExpandAll').disabled = !shown.some(g => routineGroupsShut.has(g.key))
+   $('routineCollapseAll').disabled = shown.every(g => routineGroupsShut.has(g.key))
+   document.querySelectorAll('#routineList > [data-group]').forEach(el => {
+     const g = el.dataset.group
+     const inView = routineAppShown === null || g === routineAppShown
+     if (el.classList.contains('apphead')) {
+       showing(el, inView)
+       el.querySelector('button').setAttribute('aria-expanded',
+         routineGroupsShut.has(g) ? 'false' : 'true')
+     } else {
+       showing(el, inView && !routineGroupsShut.has(g))
+     }
+   })
+ }
+
  function drawRoutines(){
    const list = $('routineList')
    // THE PANEL IS CARRIED OUT BEFORE THE LIST IS EMPTIED.
@@ -4083,9 +4207,12 @@
    $('routinePark').appendChild($('routineChosen'))
    list.innerHTML = ''
    showing($('routineNone'), routines.length === 0)
-   routines.forEach(r => {
+   routineGroups().forEach(g => {
+   list.appendChild(routineGroupHead(g))
+   g.routines.forEach(r => {
      const card = document.createElement('div')
      card.className = 'card pick' + (r.id === chosenRoutine ? ' on' : '')
+     card.dataset.group = g.key
      // A CARD YOU PRESS IS A CONTROL, and it was not one.
      //
      // It was a bare div with an onclick: no name, no role, no way to reach it with a
@@ -4173,6 +4300,19 @@
        says.textContent = r.cant || shortWhy(r.why)
      }
    })
+   })
+   // A ROUTINE THAT HAS JUST BEEN OPENED IS SHOWN, whatever its group was left as: one
+   // chosen by a save or a request would otherwise open out of sight.
+   if (chosenRoutine && chosenRoutine !== revealedRoutine) {
+     const r = routines.find(x => x.id === chosenRoutine)
+     if (r) {
+       routineGroupsShut.delete(routineGroupOf(r))
+       if (routineAppShown !== null && routineAppShown !== routineGroupOf(r)) { routineAppShown = null }
+       keepRoutineGroupsShut()
+     }
+   }
+   revealedRoutine = chosenRoutine
+   paintRoutineGroups()
    // AND THE PANEL GOES BACK INTO WHICHEVER ROW IS OPEN.
    if (chosenRoutine) {
      const here = $('routineHere-' + routineKey(chosenRoutine))

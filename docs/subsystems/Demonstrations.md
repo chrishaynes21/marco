@@ -1081,6 +1081,12 @@ in the stylesheet, the narrow rules for the step editor sat ABOVE the rules they
 query is not more specific than anything, so they fired and did nothing. See
 [[ADR-290-a-routine-opens-where-it-is]].
 
+**And then the list was grouped by application.** One head per application, with the routines that
+switch nothing last, each shut or opened by pressing it; a bar offers one application alone, Expand
+all and Collapse all. They only hide rows, never redraw them, so the carried panel and what is typed
+into it stay put, and a routine that gets opened is always shown. The heads are siblings of the rows,
+so a row is still a child of the list. See [[ADR-332-routines-grouped-by-application]].
+
 ## Known gaps
 
 See the *Known gaps* section of [[director-demonstrations]].

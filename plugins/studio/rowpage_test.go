@@ -153,7 +153,7 @@ func TestARoutineOpensWhereItIsAndPlayStaysOnItsRow(t *testing.T) {
 let r = {}
 setTimeout(() => {
   r.rows = document.querySelectorAll('#routineList > .card.pick').length
-  r.discl = document.querySelectorAll('button.disclose').length
+  r.discl = document.querySelectorAll('#routineList > .card.pick button.disclose').length
   r.plays = document.querySelectorAll('#routineList .go.big').length
   r.shut = aria(K1) === 'false' && aria(K2) === 'false' ? 1 : 0
   r.parked = where() === 'routinePark' ? 1 : 0
