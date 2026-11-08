@@ -91,8 +91,9 @@ func viewArg(args []string) string {
 	return ""
 }
 
-// alphaViews is the rail when nothing is turned on: the one journey, what it did, and help.
-var alphaViews = []string{"routines", "history", "help"}
+// alphaViews is the rail when nothing is turned on: the one journey, what it did, help, and the
+// widget's settings.
+var alphaViews = []string{"routines", "history", "help", "widget"}
 
 // featuresFromEnv reads the two flags, once.
 //
@@ -113,7 +114,7 @@ func featuresFromEnv() Features {
 	if f.Scenes {
 		f.Views = append(f.Views, "scenes")
 	}
-	f.Views = append(f.Views, "history", "help")
+	f.Views = append(f.Views, "history", "help", "widget") // widget: its settings, under Open widget
 	return f
 }
 

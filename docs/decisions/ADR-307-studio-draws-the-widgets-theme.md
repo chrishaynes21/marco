@@ -65,7 +65,7 @@ The mapping was rendered before it was built, and the owner's rulings are in
 - **Live reload.** The widget reads `overlay.json` once, at launch, and applies at once only a
   change made in its own panel. A theme changed in the control centre or in the file reaches an
   open Studio within ten seconds and reaches the widget only when it restarts. This does not make
-  both surfaces update live.
+  both surfaces update live. *Superseded by [[ADR-331-widget-settings-in-studio]]: the widget now follows the file.*
 - **Semantic colours among themselves.** In gruvbox-dark and solarized-dark, the palette's own
   ok or refusal colour is within 30° of hue of the warning amber (gruvbox: ok 23°, refusal 25°;
   solarized: ok 29°). The palette values are the widget's, and the rulings keep both them and the

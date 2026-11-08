@@ -709,6 +709,40 @@
  .tabpanel > .card:first-child, .tabpanel > div:first-child{margin-top:0}
  .tabnote{margin:0 0 8px}
 
+ /* ── THE WIDGET'S SETTINGS ── one row per setting: what it is on the left, the control on the
+    right, and what became of a change under it. The theme is a grid of the widget's own
+    palettes, each drawn in its ground, accent and text, because a theme is chosen by eye. */
+ .wsrow{display:grid;grid-template-columns:minmax(12em,1fr) auto;gap:2px 18px;align-items:center;
+        padding:11px 0;border-top:1px solid var(--line)}
+ .wsrow:first-child{border-top:0;padding-top:2px}
+ .wsrow:last-child{padding-bottom:2px}
+ .wsrow label{display:block;color:var(--ink);font-weight:500}
+ .wsrow .wshint{display:block;font-size:12.5px;color:var(--dim);margin-top:2px;max-width:46em}
+ .wsrow .ctl{justify-self:end;display:flex;align-items:center;gap:8px}
+ .wsrow .ctl input[type=number]{width:7em}
+ .wsrow .ctl input[type=text]{width:18em;max-width:100%}
+ .wsrow .wssays{grid-column:1 / -1;font-size:12.5px}
+ .wsrow .wssays:empty{display:none}
+ .wsrow .wssays.ok{color:var(--ok)}
+ .wsrow .wssays.no{color:var(--no)}
+ .wsrow.wide{grid-template-columns:1fr}
+ .wsrow.wide .ctl{justify-self:stretch}
+ .swatches{display:grid;grid-template-columns:repeat(auto-fill,minmax(10.5em,1fr));gap:8px;
+        width:100%;margin-top:8px}
+ button.swatch{display:flex;align-items:center;gap:10px;justify-content:flex-start;
+        background:var(--sink);color:var(--ink);border:1px solid var(--line);font-weight:400;
+        padding:7px 10px;text-align:left}
+ button.swatch:hover:not(:disabled){border-color:var(--spot-dim)}
+ button.swatch.on{border-color:var(--spot);box-shadow:inset 0 0 0 1px var(--spot);font-weight:600}
+ .swatch .chips{display:flex;flex:0 0 auto;border-radius:3px;overflow:hidden;
+        box-shadow:0 0 0 1px var(--line)}
+ .swatch .chips i{display:block;width:11px;height:20px}
+ #wsPath{font-size:12px;margin-top:18px}
+ @media (max-width:760px){
+   .wsrow{grid-template-columns:1fr}
+   .wsrow .ctl{justify-self:start}
+ }
+
  .hide{display:none!important}
 </style>
 
@@ -742,6 +776,7 @@
   <div id="widgetbox">
     <div class="navgroup">Widget</div>
     <button class="railbtn" id="widgetBtn" onclick="openWidget()">Open widget</button>
+    <button class="railbtn" id="rail-widget" onclick="show('widget')">Widget settings</button>
     <div id="widgetSays"></div>
   </div>
   <!-- STOP, WHEREVER THEY ARE. A run can be stopped from any of the three places, because
@@ -2196,6 +2231,20 @@
   </details>
 </section>
 
+<!-- ─────────────────────── THE WIDGET'S SETTINGS ─────────────────────── -->
+<!-- THE SAME SETTINGS THE WIDGET'S OWN PANEL CHANGES, drawn from the backend's list of them
+     (widgetsettings.go, internal/widgetconfig Fields) and saved one at a time as they change,
+     through the one check every surface's save goes through. A running widget takes a change
+     within about a second; the theme is this window's too, so it redraws at once. -->
+<section id="view-widget" class="hide">
+  <h1>Widget settings</h1>
+  <p class="sub">The widget's own settings, the same ones its panel changes (leader, then
+    <b>config</b>). Each one is saved as you change it, and a running widget picks it up
+    within a second.</p>
+  <div id="wsGroups"></div>
+  <div class="muted mach" id="wsPath"></div>
+</section>
+
 <!-- ─────────────────────────── HELP ─────────────────────────── -->
 <!-- ONE PLACE, AND EVERY WORD OF IT FROM THE BACKEND.
      Not because a page cannot hold sentences, but because two of these name a key that is
@@ -2294,7 +2343,7 @@
  //
  // The value here is what the alpha offers, so the rail is right in the frame before the
  // first answer lands and stays right if that answer never does. See help.go.
- let offered = ['routines', 'history', 'help']
+ let offered = ['routines', 'history', 'help', 'widget']
  const offers = v => offered.indexOf(v) >= 0
  // AND EVERY VIEW THIS PAGE HOLDS, WHICH IS NOT THE SAME LIST.
  //
@@ -2309,7 +2358,7 @@
  // its temporal dead zone at that moment, so reading it throws a ReferenceError that
  // takes the whole bootstrap with it - silently, because a `-H windowsgui` binary has no
  // console. Measured: the rail painted the markup's defaults and nothing else ran.
- const EVERY_VIEW = ['routines', 'acts', 'scenes', 'history', 'help']
+ const EVERY_VIEW = ['routines', 'acts', 'scenes', 'history', 'help', 'widget']
  // THE ACTS THIS PAGE IS SHOWING, kept so that pressing Play can say which version of an Act
  // was on screen when it was pressed. See play().
  let listed = []
@@ -2460,6 +2509,7 @@
    showing($('freshAsk'), false)
    paintViews()
    if (which === 'history') { loadHistory() }
+   if (which === 'widget') { loadWidgetSettings() }
  }
  function paintViews(){
    for (const v of EVERY_VIEW) {
@@ -3663,9 +3713,8 @@
  // widget's `theme` setting names, `default` included, with each token made readable on the
  // surfaces it sits on by internal/widgetconfig. Asked at start-up (the first pollReady) and on
  // this slow poll, so a theme chosen in the widget or the control centre reaches an open window
- // within ten seconds. The widget reads its settings once at launch, so a theme changed here
- // or in the control centre reaches the widget only when it is restarted; nothing here claims
- // otherwise. If the answer never comes, the page keeps the tokens in its stylesheet.
+ // within ten seconds; one saved in the Widget settings pane is applied at once. A running widget
+ // follows the file too (ADR-331). If the answer never comes, the page keeps the tokens in its stylesheet.
  let shownTheme = ''
  function pollTheme(){
    acts.Theme().then(applyTheme).catch(() => {})
@@ -3685,6 +3734,177 @@
    root.dataset.palette = t.theme
    root.style.colorScheme = t.light ? 'light' : 'dark'
  }
+
+ // ── THE WIDGET'S SETTINGS ─────────────────────────────────────────────────
+ //
+ // Drawn from what the backend offers (WidgetSettings: the fields, their choices, and the
+ // values the widget runs with) and saved ONE SETTING AT A TIME as it changes, so a save
+ // writes only what somebody touched. A refusal is said under the setting and the control goes
+ // back to what is saved. The theme is Studio's as well, so a saved theme is applied here at
+ // once rather than on the slow poll.
+ let wsForm = null
+ function loadWidgetSettings(){
+   if (!acts || !acts.WidgetSettings) { return }
+   acts.WidgetSettings().then(drawWidgetSettings).catch(() => {
+     $('wsGroups').textContent = "The widget's settings could not be read."
+   })
+ }
+ function drawWidgetSettings(form){
+   wsForm = form || {fields: [], values: {}}
+   wsForm.values = wsForm.values || {}
+   const box = $('wsGroups')
+   box.innerHTML = ''
+   let group = null, card = null
+   for (const f of wsForm.fields || []) {
+     if (f.group !== group) {
+       group = f.group
+       const h = document.createElement('h2')
+       h.textContent = group
+       box.appendChild(h)
+       card = document.createElement('div')
+       card.className = 'card'
+       box.appendChild(card)
+     }
+     card.appendChild(widgetSettingRow(f, wsForm.values[f.key]))
+   }
+   $('wsPath').textContent = wsForm.path ? 'Saved in ' + wsForm.path : ''
+ }
+ function widgetSettingRow(f, v){
+   const row = document.createElement('div')
+   row.className = 'wsrow'
+   row.dataset.key = f.key
+   const left = document.createElement('div')
+   const name = document.createElement('label')
+   name.textContent = f.label
+   name.htmlFor = 'ws-' + f.key
+   left.appendChild(name)
+   const hint = [f.hint || '',
+     f.atLaunch ? 'The widget reads this when it starts, so it applies the next time the widget opens.' : '']
+     .filter(Boolean).join(' ')
+   if (hint) {
+     const h = document.createElement('div')
+     h.className = 'wshint'
+     h.textContent = hint
+     left.appendChild(h)
+   }
+   row.appendChild(left)
+   const ctl = document.createElement('div')
+   ctl.className = 'ctl'
+   row.appendChild(ctl)
+   const says = document.createElement('div')
+   says.className = 'wssays'
+   const save = value => saveWidgetSetting(f, value, says, row)
+   if (f.key === 'theme') {
+     row.classList.add('wide')
+     const grid = document.createElement('div')
+     grid.className = 'swatches'
+     grid.id = 'ws-theme'
+     grid.setAttribute('role', 'radiogroup')
+     for (const c of f.choices || []) {
+       const b = document.createElement('button')
+       b.type = 'button'
+       b.className = 'swatch' + (c.value === v ? ' on' : '')
+       b.dataset.value = c.value
+       b.setAttribute('role', 'radio')
+       b.setAttribute('aria-checked', String(c.value === v))
+       const chips = document.createElement('span')
+       chips.className = 'chips'
+       for (const col of c.swatch || []) {
+         const i = document.createElement('i')
+         i.style.background = col
+         chips.appendChild(i)
+       }
+       b.appendChild(chips)
+       b.appendChild(document.createTextNode(c.label))
+       b.onclick = () => save(c.value)
+       grid.appendChild(b)
+     }
+     ctl.appendChild(grid)
+   } else if (f.kind === 'choice') {
+     const sel = document.createElement('select')
+     sel.id = 'ws-' + f.key
+     // THE SAVED VALUE IS ALWAYS A CHOICE, even one the list does not offer: otherwise the
+     // first option shows as chosen and nobody chose it.
+     const choices = (f.choices || []).slice()
+     if (v !== undefined && !choices.some(c => c.value === v)) { choices.unshift({value: v, label: String(v)}) }
+     for (const c of choices) {
+       const o = document.createElement('option')
+       o.value = c.value
+       o.textContent = c.label
+       if (c.value === v) { o.selected = true }
+       sel.appendChild(o)
+     }
+     sel.onchange = () => save(sel.value)
+     ctl.appendChild(sel)
+   } else if (f.kind === 'toggle') {
+     const box = document.createElement('input')
+     box.type = 'checkbox'
+     box.id = 'ws-' + f.key
+     box.checked = !!v
+     box.onchange = () => save(box.checked)
+     ctl.appendChild(box)
+   } else if (f.kind === 'number') {
+     const n = document.createElement('input')
+     n.type = 'number'
+     n.id = 'ws-' + f.key
+     if (f.min !== undefined) { n.min = f.min }
+     if (f.max !== undefined) { n.max = f.max }
+     if (f.step) { n.step = f.step }
+     n.value = v !== undefined ? v : ''
+     n.onchange = () => {
+       const x = parseFloat(n.value)
+       if (isNaN(x)) { n.value = wsForm.values[f.key]; return }
+       save(x)
+     }
+     ctl.appendChild(n)
+   } else {
+     const t = document.createElement('input')
+     t.type = 'text'
+     t.id = 'ws-' + f.key
+     t.value = v !== undefined ? v : ''
+     t.onchange = () => save(t.value)
+     ctl.appendChild(t)
+   }
+   row.appendChild(says)
+   return row
+ }
+ function saveWidgetSetting(f, value, says, row){
+   if (value === wsForm.values[f.key]) { return }
+   says.className = 'wssays'
+   says.textContent = ''
+   acts.SaveWidgetSettings({[f.key]: value}).then(r => {
+     if (r && r.saved && r.saved.indexOf(f.key) >= 0) {
+       wsForm.values[f.key] = value
+       says.className = 'wssays ok'
+       says.textContent = 'Saved.'
+       setTimeout(() => { if (says.textContent === 'Saved.') { says.textContent = '' } }, 2500)
+       if (f.key === 'theme') {
+         for (const b of row.querySelectorAll('.swatch')) {
+           const on = b.dataset.value === value
+           b.classList.toggle('on', on)
+           b.setAttribute('aria-checked', String(on))
+         }
+         pollTheme()
+       }
+       return
+     }
+     says.className = 'wssays no'
+     says.textContent = (r && r.says) || 'Not saved.'
+     widgetSettingShows(f)
+   }).catch(() => {
+     says.className = 'wssays no'
+     says.textContent = 'Not saved: Studio could not reach the settings.'
+     widgetSettingShows(f)
+   })
+ }
+ // widgetSettingShows puts a control back to the saved value after a save that did not happen.
+ function widgetSettingShows(f){
+   const v = wsForm.values[f.key]
+   const c = $('ws-' + f.key)
+   if (!c || f.key === 'theme') { return }
+   if (f.kind === 'toggle') { c.checked = !!v } else { c.value = v !== undefined ? v : '' }
+ }
+
 
  function drawReady(r){
    const problems = r.problems || []

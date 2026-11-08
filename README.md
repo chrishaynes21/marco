@@ -514,7 +514,10 @@ typed, and a read-back on screen.
 The widget's settings file (`overlay.json`) is shared by the widget's settings panel, the control
 centre's Config view and Studio. Each shows the settings the widget runs with (including a leader
 set in `MARCO_OVERLAY_LEADER`), and a save writes only what was changed there: every other setting
-in the file, including ones this version does not know, is kept.
+in the file, including ones this version does not know, is kept. Studio has a **Widget settings** pane in its rail, under Open widget: each setting is saved as you
+change it, and a value the widget would not use (a leader it does not know, a corner, a width out of
+range) is refused with the reason and not written. A running widget picks up a change saved anywhere
+within about a second; the activation phrase applies the next time the widget opens.
 
 In the widget's **command line** (`` `m ``), a routine that types text takes its value right after its
 name. `cloud pull stone`, `cloud pull with stone` and `cloud pull resource:stone` are the same
@@ -669,8 +672,8 @@ plugs in over the host boundary:
     routine's arguments (Tab to step between slots), and answers prompts in the HUD.
     `` `m config `` opens an in-HUD editor (theme, opacity, monitor/corner, width,
     mini mode, the CPU/RAM widget, and a live **screen-coords tooltip** — handy when
-    a demonstration crosses monitors). Studio draws with the same theme; a theme
-    changed outside this editor reaches the widget when it restarts. Its behaviour lives
+    a demonstration crosses monitors). Studio draws with the same theme, and a running
+    widget picks up a setting saved in Studio or the control centre within about a second. Its behaviour lives
     in Marco ([`plugins/overlay/overlay.marco`](plugins/overlay/overlay.marco)); it fulfils a
     clean `Overlay` act and pushes input events back over a bidirectional bridge.
   - [`plugins/web-ui`](plugins/web-ui) — a reference local web control panel.

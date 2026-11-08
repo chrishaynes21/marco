@@ -25,9 +25,9 @@ var winH atomic.Int32
 // from here used to drop the control centre's `wake` (F5).
 type Config = widgetconfig.Settings
 
-var corners = []string{"top-right", "top-left", "bottom-right", "bottom-left", "top-center"}
+var corners = widgetconfig.Corners
 var themeNames = widgetconfig.PaletteNames()
-var leaderNames = []string{"`", "/", "capslock", "tab", "f8"}
+var leaderNames = widgetconfig.Leaders
 
 var (
 	cfgMu sync.Mutex

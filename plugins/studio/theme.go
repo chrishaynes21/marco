@@ -8,10 +8,9 @@ package main
 // is set to. The page asks at start-up and again on its slow readiness poll, so a theme changed
 // in the widget's panel or the control centre reaches an open Studio within that poll.
 //
-// THE TWO SURFACES DO NOT BOTH UPDATE LIVE. The widget reads overlay.json once, at launch
-// (plugins/overlay loadConfig), and applies at once only a change made in its own panel. A theme
-// changed in the control centre or in the file reaches Studio on its next poll and the widget
-// only when it is restarted. This does not add live reload to the widget.
+// BOTH SURFACES FOLLOW THE FILE: a running widget takes a changed setting within about a second
+// (plugins/overlay reload.go, ADR-331), and Studio redraws at once with a theme saved in its own
+// Widget settings pane (widgetsettings.go).
 
 import "github.com/chaynes-simpleclouds/marco/internal/widgetconfig"
 

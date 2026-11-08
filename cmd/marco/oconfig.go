@@ -2,12 +2,10 @@ package main
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
-	"sort"
 	"strings"
 
 	"github.com/chaynes-simpleclouds/marco/internal/widgetconfig"
@@ -49,7 +47,8 @@ type errNotSaved struct{ err error }
 
 func (e errNotSaved) Error() string { return e.err.Error() }
 
-// saveSentSettings writes the settings in body over the current ones, and returns their keys.
+// saveSentSettings writes the settings in body over the current ones, and returns their keys,
+// through the one check every surface's save goes through (widgetconfig.Save).
 //
 // Writing every setting must fail TestTheControlCentreSavesOnlyWhatWasSent.
 func saveSentSettings(body io.Reader) ([]string, error) {
@@ -57,27 +56,11 @@ func saveSentSettings(body io.Reader) ([]string, error) {
 	if _, err := buf.ReadFrom(body); err != nil {
 		return nil, err
 	}
-	var sent map[string]json.RawMessage
-	if err := json.Unmarshal(buf.Bytes(), &sent); err != nil {
-		return nil, fmt.Errorf("the settings sent could not be read: %v", err)
-	}
-	keys := make([]string, 0, len(sent))
-	for k := range sent {
-		if !widgetconfig.Known(k) {
-			return nil, fmt.Errorf("%q is not a widget setting", k)
-		}
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	s := widgetconfig.Load()
-	if err := json.Unmarshal(buf.Bytes(), &s); err != nil {
-		return nil, fmt.Errorf("the settings sent could not be read: %v", err)
-	}
-	s.Wake = strings.TrimSpace(s.Wake)
-	if err := widgetconfig.Write(s, keys...); err != nil {
+	keys, err := widgetconfig.Save(buf.Bytes())
+	if err != nil && !errors.Is(err, widgetconfig.ErrRefused) {
 		return nil, errNotSaved{err}
 	}
-	return keys, nil
+	return keys, err
 }
 
 // runWake prints the configured voice activation phrase (overlay.json "wake", default "marco").

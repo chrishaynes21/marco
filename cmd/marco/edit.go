@@ -3141,7 +3141,7 @@ async function saveConfigView(){
   for(const k of Object.keys(out)){ if(out[k]===OCFG_SHOWN[k]) delete out[k]; }
   if(!Object.keys(out).length){ banner('Nothing changed, so nothing was saved', false); return; }
   const resp=await fetch('/api/oconfig',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(out)});
-  if(resp.ok){ banner('✓ Saved '+Object.keys(out).join(', ')+' — relaunch the overlay to apply', false); loadConfigView(); }
+  if(resp.ok){ banner('✓ Saved '+Object.keys(out).join(', ')+' — a running widget picks it up within a second (the activation phrase when it next opens)', false); loadConfigView(); }
   else banner('✗ Not saved: '+(await resp.text()).trim(), true);
 }
 // ---- edit view ----

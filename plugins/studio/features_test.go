@@ -17,7 +17,7 @@ import (
 	"testing"
 )
 
-// THE RAIL IS THE ONE JOURNEY, WHAT IT DID, AND HELP.
+// THE RAIL IS THE ONE JOURNEY, WHAT IT DID, HELP, AND THE WIDGET'S SETTINGS.
 //
 // NOTHING IS SET, which is the state that matters: a flag whose ABSENCE turned a surface on
 // would be a surface nobody chose. Acts and Scenes keep every capability they had — this is about
@@ -33,7 +33,7 @@ func TestTheAlphaRailOffersOneJourney(t *testing.T) {
 	if f.Acts || f.Scenes {
 		t.Fatalf("a window with nothing set offers acts=%v scenes=%v", f.Acts, f.Scenes)
 	}
-	if got := strings.Join(f.Views, " "); got != "routines history help" {
+	if got := strings.Join(f.Views, " "); got != "routines history help widget" {
 		t.Fatalf("the rail is %q, and the alpha journey is Routines", got)
 	}
 }
@@ -57,7 +57,7 @@ func TestAFlagPutsAWithheldViewBackInTheRail(t *testing.T) {
 			// both on gives back exactly the window that shipped, rather than
 			// a rearranged one.
 			if got := strings.Join(f.Views, " "); got !=
-				"routines acts scenes history help" {
+				"routines acts scenes history help widget" {
 				t.Fatalf("the rail is %q", got)
 			}
 		})

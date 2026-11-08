@@ -100,7 +100,7 @@ func TestTheControlCentreShowsTheRealLeader(t *testing.T) {
 // and a file that cannot be read (which is left exactly as it was).
 func TestTheControlCentreRefusesWhatItCannotSave(t *testing.T) {
 	p := widgetSettingsFile(t, `{"wake":"marco"}`)
-	for _, body := range []string{`{"nonsense":1}`, `{"width":"wide"}`, `not json`} {
+	for _, body := range []string{`{"nonsense":1}`, `{"width":"wide"}`, `not json`, `{"corner":"middle"}`, `{"leader":"f13"}`} {
 		if w := postSettings(t, body); w.Code != http.StatusBadRequest {
 			t.Errorf("POST %s = %d: %s", body, w.Code, w.Body.String())
 		}

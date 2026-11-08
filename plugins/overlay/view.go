@@ -161,6 +161,9 @@ func (g *view) Update() error {
 		g.positioned = true
 		applyWindow() // place on the configured monitor/corner at the configured size
 	}
+	if g.tick%followEvery == 0 {
+		followSettings() // a setting saved in Studio or the control centre (reload.go)
+	}
 
 	// Clear the last-command echo + log tail after a minute idle, so the HUD
 	// returns to a clean clock/ready state.
