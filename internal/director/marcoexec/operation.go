@@ -19,9 +19,9 @@ package marcoexec
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
-	"github.com/chaynes-simpleclouds/marco/internal/macroir"
 	"github.com/chaynes-simpleclouds/marco/pkg/directorapi"
 )
 
@@ -121,7 +121,7 @@ type Operation struct {
 	At   Point `json:"at,omitempty"`
 	From Point `json:"from,omitempty"`
 	To   Point `json:"to,omitempty"`
-	// Button is one of macroir.MouseButtons. Empty means left.
+	// Button is one of MouseButtons. Empty means left.
 	Button string `json:"button,omitempty"`
 	// Count is how many clicks. 0 or 1 is a single click.
 	Count int `json:"count,omitempty"`
@@ -392,7 +392,7 @@ func (o Operation) Validate() error {
 			return fmt.Errorf("marcoexec: launch needs something to launch")
 		}
 	case KindClick, KindDrag:
-		if b := o.Button; b != "" && !macroir.IsMouseButton(b) {
+		if b := o.Button; b != "" && !slices.Contains(mouseButtons, b) {
 			return fmt.Errorf("marcoexec: %q is not a mouse button Marco knows", b)
 		}
 	case KindMoveWindow:
@@ -479,3 +479,11 @@ func (o Operation) controlName() string {
 	}
 	return o.Element
 }
+
+// mouseButtons is every button a click or a drag can name. Director may not import the engine's
+// step package (TestDirectorImportsNoPlatformCode), so this is a copy of macroir.MouseButtons, and
+// macroir's TestDirectorKnowsTheButtonsTheHostPresses holds the two equal.
+var mouseButtons = []string{"left", "right", "middle", "back", "forward"}
+
+// MouseButtons is every button an operation can name.
+func MouseButtons() []string { return slices.Clone(mouseButtons) }
