@@ -278,7 +278,7 @@ func typedLineFrom(h *model, line string, spoken bool) bool {
 		}()
 		return true
 	}
-	if !r.Runnable || !shown {
+	if !r.Runnable || !(shown || typedInFull(h, r, spoken)) {
 		// NOTHING RUNS: the line stays open on what was typed, with what it needs or with
 		// the read-back it now has, and the next Enter is the one that runs it.
 		h.setReading(line, r)
@@ -303,6 +303,25 @@ func typedLineFrom(h *model, line string, spoken bool) bool {
 	h.setStatus("running: " + label)
 	go func() { _ = spawnIntakeChild(h, label, true, args...) }()
 	return true
+}
+
+// typedInFull says the line is the person's own, typed, with every value in it theirs: `cloud
+// pull stone` read as cloud pull with `stone`. That runs on the first Enter, like a routine's
+// exact name, because a read-back of what somebody has just typed only gives back their own
+// words, and having to press Enter twice for them was the owner's complaint.
+//
+// The read-back stays for a value nobody typed: one Director proposed (the review is the point),
+// and one the microphone heard, which can be a word away from what was said. ADR-333.
+//
+// Making a typed line wait for its read-back must fail TestATypedLineRunsOnTheFirstEnter; letting a
+// spoken or proposed one through must fail TestAValueNobodyTypedIsReadBackFirst.
+//
+// A proposal is the only way a value on this line comes from anybody else: the engine reads a
+// value as proposed (Parts[].Said) only when the proposal is passed with the line. And a REPEAT
+// (`repeat open social five times`) is still read back, because its count is the engine's reading
+// of words, and a wrong one runs a routine several times over (TestARepeatRunsOnlyFromItsReadBackWithItsCount).
+func typedInFull(h *model, r lineReading, spoken bool) bool {
+	return !spoken && h.lineProposal() == nil && r.Times == 0
 }
 
 // reopenEditHook puts the controller back into command-line mode. Set by the Windows controller;

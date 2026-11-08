@@ -65,5 +65,5 @@ space.
 
 - `internal/outcome` `TestTheWireLineIsOneSharedLiteral`.
 - `cmd/marco` `TestTheRanLineNamesTheValuesAndNoSecret`, `TestAnAnswerReachesTheQuestionAndNothingElseDoes`, `TestABridgeFailureStillAnnouncesTheResolvedRoute`, `TestASaveBetweenTheConfirmationAndTheReadRunsNothing`.
-- `plugins/overlay` `TestTheHistoryShowsWhatRanWithItsValues`, `TestAProposedRoutineIsReviewedAndItsValueIsNotLogged`, `TestNothingWithAValueRunsUnread`.
+- `plugins/overlay` `TestTheHistoryShowsWhatRanWithItsValues`, `TestAProposedRoutineIsReviewedAndItsValueIsNotLogged`, `TestATypedLineRunsOnTheFirstEnter`.
 - `plugins/studio` `TestTheRanLineIsNotTheReason`.

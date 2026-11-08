@@ -55,7 +55,7 @@ throughout.
 - **What Enter runs is the read-back's identity and version** (`lineRunArgs`): `--play`, `--app`,
   `--focus`, `--expect=<source_at>` and one `--arg` per value. The intake's explicit-identity arm
   never reads the words again, and the door refuses a routine saved since. That is `Expect`, the
-  same binding Studio's confirmation uses. **Enter runs only a read-back that has been on screen,
+  same binding Studio's confirmation uses. **(Superseded for a typed line by [[ADR-333-a-typed-line-runs-on-the-first-enter]]: it runs on the first Enter. What follows still holds for a spoken line, a proposed value and a repeat.)** **Enter runs only a read-back that has been on screen,
   for exactly that line, for at least 300 ms** (`readDwell`). A first Enter that arrives before
   that shows the read-back, says *Enter runs it*, and runs nothing.
 - **A missing value** (*Resource needed · cloud pull ‹resource›*) runs nothing. The command line
@@ -93,8 +93,8 @@ throughout.
   `TestALineThatNamesNothingIsLeftToTheIntake`, `TestTheBareFormIsARoutineThatTakesAValue`,
   `TestAProposalIsReviewedNotSupplied`, `TestARoutineSavedAfterTheReadBackIsRefused`,
   `TestTheLineIsReadAfterItsFlags`, `TestAProposalForAFocusRoutineIsNotReadOnItsNamesake`.
-- `plugins/overlay`: `TestAReadBackRunsAsItsIdentityAndVersion`, `TestNothingWithAValueRunsUnread`,
-  `TestAReadBackThatJustArrivedHasNotBeenRead`, `TestOtherLinesGoToTheIntakeAsBefore`,
+- `plugins/overlay`: `TestAReadBackRunsAsItsIdentityAndVersion`, `TestATypedLineRunsOnTheFirstEnter` (ADR-333),
+  `TestAValueNobodyTypedIsReadBackFirst` (ADR-333), `TestOtherLinesGoToTheIntakeAsBefore`,
   `TestAProposedValueIsReviewedBeforeItRuns`, `TestAReviewIsOnlyOfTheNamedRoutine`,
   `TestARoutineWithNoValuesIsStillOffered`, `TestTheLineIsAskedOfTheEngine`,
   `TestAReadingIsShownOnlyForItsLine`, `TestALateReadingDoesNotReplaceTheCurrentOne`,

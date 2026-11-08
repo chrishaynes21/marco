@@ -526,8 +526,10 @@ request. A routine that takes several values needs them named (`greet name:sam m
 8`). A line that is exactly a routine's name is that routine, so `cloud pull stone` runs a routine
 called *cloud pull stone* if there is one. While you type, the value still needed shows muted
 after the line (`cloud pull ‹resource›`). Once the line can run, a read-back shows under it:
-*Cloud pull · resource: stone*. Enter runs exactly what the read-back shows. If the read-back has
-not appeared yet, the first Enter shows it and the next one runs it. With a value missing, nothing
+*Cloud pull · resource: stone*. Enter runs a line you typed straight away, even before the read-back
+has appeared. A value you did not type is shown first: one the microphone heard, or one Director
+proposed, runs on the Enter after its read-back is on screen, and so does a repeat (`repeat open
+social five times`). With a value missing, nothing
 runs and the line stays open for you to type it. When Director finds the routine you meant and
 proposes a value from what you said, the command line opens on it with the value filled in. You
 can edit it, and it runs only when you press Enter.

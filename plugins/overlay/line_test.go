@@ -92,11 +92,45 @@ func TestAReadBackRunsAsItsIdentityAndVersion(t *testing.T) {
 	}
 }
 
-// Nothing with a value runs unread: Enter before the read-back is on screen shows it and runs
-// nothing, and the next Enter runs it. A line with a value missing runs nothing and stays open.
+// A VALUE NOBODY TYPED IS READ BACK FIRST: a line carrying what Director proposed runs nothing on
+// an Enter that comes before its read-back was on screen, and the next Enter runs it. (A spoken
+// one is voice_test.go's "a value, said".)
 //
-// Running a line whose read-back was not on screen must fail this.
-func TestNothingWithAValueRunsUnread(t *testing.T) {
+// Letting a proposed value through on the first Enter must fail this.
+func TestAValueNobodyTypedIsReadBackFirst(t *testing.T) {
+	r := aCloudPull("cloud pull resource: stone", "stone")
+	r.Parts[0].Said = "(read out of what you said)"
+	engineReads(t, map[string]lineReading{r.Line: r})
+	runs := runsRecorded(t)
+	h := newModel()
+	h.setProposal(&lineProposal{app: "game-b", slug: "cloud-pull",
+		values: map[string]string{"resource": "stone"}, at: "v1"})
+
+	typedEnter(h, r.Line) // fast: the review was not on screen
+	if got := runs(); len(got) != 0 {
+		t.Fatalf("a proposed value ran before its read-back was seen: %q", got)
+	}
+	s := h.snapshot()
+	if !s.editing || s.input != " "+r.Line || !s.hasReading || s.status != "Enter runs it" {
+		t.Fatalf("after the first Enter: editing %v, input %q, reading %v, status %q",
+			s.editing, s.input, s.hasReading, s.status)
+	}
+	time.Sleep(readDwell + 50*time.Millisecond)
+	h.takeInput()
+	h.setEditing(false)
+	typedEnter(h, r.Line)
+	if got := runs(); len(got) != 1 || !strings.Contains(got[0], "--arg=resource=stone") {
+		t.Errorf("the Enter on the read-back ran %q", got)
+	}
+}
+
+// A LINE TYPED IN FULL RUNS ON THE FIRST ENTER: `cloud pull stone`, typed fast, runs cloud pull
+// with `stone`, as its identity and version, with no read-back to confirm first. A line with a
+// value missing still runs nothing and stays open. ADR-333 replaced ADR-301's "nothing with a
+// value runs unread" for a typed line.
+//
+// Making a typed line wait for its read-back must fail this.
+func TestATypedLineRunsOnTheFirstEnter(t *testing.T) {
 	r := aCloudPull("cloud pull stone", "stone")
 	missing := lineReading{Line: "cloud pull", Kind: "routine", Slug: "cloud-pull", App: "game-b",
 		Needs: true, Pending: "‹resource›", Says: "Resource needed · cloud pull ‹resource›"}
@@ -105,23 +139,12 @@ func TestNothingWithAValueRunsUnread(t *testing.T) {
 	h := newModel()
 
 	typedEnter(h, r.Line) // typed fast: nothing was on screen
-	if got := runs(); len(got) != 0 {
-		t.Fatalf("a line nobody had seen read back ran: %q", got)
+	want := "do --source=typed --play=cloud-pull --app=game-b --expect=v1 --arg=resource=stone"
+	if got := runs(); len(got) != 1 || got[0] != want {
+		t.Fatalf("the first Enter on a typed line ran %q, want %q", got, want)
 	}
-	s := h.snapshot()
-	if !s.editing || s.input != " "+r.Line || !s.hasReading || s.status != "Enter runs it" {
-		t.Fatalf("after the first Enter: editing %v, input %q, reading %v, status %q",
-			s.editing, s.input, s.hasReading, s.status)
-	}
-	if rs := readingRuns(s); len(rs) == 0 || rs[0].s != "Cloud pull" {
-		t.Errorf("the read-back drawn is %+v", rs)
-	}
-	time.Sleep(readDwell + 50*time.Millisecond)
-	h.takeInput()
-	h.setEditing(false)
-	typedEnter(h, r.Line)
-	if got := runs(); len(got) != 1 || !strings.Contains(got[0], "--arg=resource=stone") {
-		t.Errorf("the second Enter ran %q", got)
+	if s := h.snapshot(); s.editing || s.status == "Enter runs it" {
+		t.Errorf("a typed line that ran is still open asking for another Enter: %q", s.status)
 	}
 
 	typedEnter(h, missing.Line)
@@ -281,23 +304,6 @@ func TestAReadingIsShownOnlyForItsLine(t *testing.T) {
 	h.setInput("cloud pull stones")
 	if h.snapshot().hasReading {
 		t.Error("the reading stayed under a line it was not for")
-	}
-}
-
-// A read-back that landed a moment ago has not been read: Enter then shows it and runs nothing.
-func TestAReadBackThatJustArrivedHasNotBeenRead(t *testing.T) {
-	r := aCloudPull("cloud pull stone", "stone")
-	engineReads(t, map[string]lineReading{r.Line: r})
-	runs := runsRecorded(t)
-	h := newModel()
-	h.setEditing(true)
-	h.setInput(r.Line)
-	refreshReading(h, r.Line) // the poller's reading, landing now
-	h.takeInput()
-	h.setEditing(false)
-	typedEnter(h, r.Line)
-	if got := runs(); len(got) != 0 {
-		t.Errorf("a read-back on screen for no time at all was run: %q", got)
 	}
 }
 

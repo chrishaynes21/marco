@@ -249,8 +249,8 @@ func spokenFinals(t *testing.T) []string {
 
 // THE THREE SPOKEN REQUESTS, through the one intake, from the fixture: an exact name runs as
 // words, a paraphrase is offered the routine Director named, and a line with a value — said, or
-// proposed by Director from a paraphrase — opens the same review a typed one gets, and runs
-// nothing until Enter.
+// proposed by Director from a paraphrase — opens the same read-back a typed one draws, and runs
+// nothing until Enter on it (a typed one runs on the first Enter, ADR-333).
 //
 // Giving voice its own parser, or sending a spoken line with a value straight to the intake, must
 // fail this.
