@@ -296,9 +296,9 @@ func addedClick(steps []macroir.Step, ed StepEdit, where string) (macroir.Step, 
 	if btn == "" {
 		btn = "left"
 	}
-	if btn != "left" && btn != "right" && btn != "middle" {
-		return macroir.Step{}, "", fmt.Errorf("%q is not a mouse button — left, right or "+
-			"middle", ed.Button)
+	if !macroir.IsMouseButton(btn) {
+		return macroir.Step{}, "", fmt.Errorf("%q is not a mouse button — %s", ed.Button,
+			macroir.MouseButtonList())
 	}
 	if ed.Screen {
 		if !ScreenClicksAllowed(steps) {

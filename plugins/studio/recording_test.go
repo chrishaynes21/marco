@@ -1104,7 +1104,7 @@ func recorded(t *testing.T, lose func(*recorder.RecordedEvent)) *Acts {
 // with the window terms intact, which is what makes it the guarded contract rather than a legacy
 // press that happens to name a button.
 func TestARightOrMiddlePressIsSavedAndTheReviewSaysWhichButton(t *testing.T) {
-	for _, button := range []string{"right", "middle"} {
+	for _, button := range []string{"right", "middle", "back", "forward"} {
 		t.Run(button, func(t *testing.T) {
 			t.Setenv("MARCO_CV", "off")
 			t.Setenv("MARCO_ROUTES", t.TempDir())

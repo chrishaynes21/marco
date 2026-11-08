@@ -70,7 +70,7 @@ type RecordedEvent struct {
 	VK      uint16    // virtual key code (EvKey)
 	KeyName string    // human key name, lowercased (EvKey); app name (EvAppSwitch)
 	Down    bool      // press vs release (EvKey / EvClick)
-	Button  string    // "left" | "right" | "middle" (EvClick)
+	Button  string    // one of macroir.MouseButtons (EvClick)
 	X, Y    int       // screen coordinates (EvClick / EvMove)
 	T       time.Time // capture time
 	// Image, on an EvClick down, is a PNG of the distinctive region the user

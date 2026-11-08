@@ -335,10 +335,10 @@
     A fixed column for the verb rather than `auto`, because each row is its own grid
     and `auto` would size every one of them to its own content - so the values would
     start in a different place on every line and the thing a person is scanning for
-    would be the thing that moves. The longest verb this page knows is `Middle-click`.
+    would be the thing that moves. The longest verb this page knows is `Forward-click`.
     The other two `.steprows` lists on this page - the arguments and the phrases a
     routine answers to - are not steps and keep the three-column shape. */
- .steprows .sr.four{grid-template-columns:28px 7.5em 1fr auto}
+ .steprows .sr.four{grid-template-columns:28px 8.5em 1fr auto}
  .steprows .act{font:400 12px var(--mach);color:var(--dim);white-space:nowrap;
    text-transform:lowercase}
  .steprows .lbl{font:400 12px var(--mach);color:var(--dim)}
@@ -5430,7 +5430,7 @@
    button.id = 'routineStepNewButton-' + p.n
    button.className = 'newkind'
    button.setAttribute('aria-label', 'Which button the added click presses')
-   ;['left', 'right', 'middle'].forEach(v => {
+   ;['left', 'right', 'middle', 'back', 'forward'].forEach(v => {
      const o = document.createElement('option')
      o.value = v
      o.textContent = v
@@ -6563,6 +6563,8 @@
    ['left-click at ', 'Left-click'],
    ['right-click at ', 'Right-click'],
    ['middle-click at ', 'Middle-click'],
+   ['back-click at ', 'Back-click'],
+   ['forward-click at ', 'Forward-click'],
    ['bring ', 'Bring'],
    ['drag ', 'Drag'],
    ['move the pointer to ', 'Move'],

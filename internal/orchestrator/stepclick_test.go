@@ -173,3 +173,24 @@ func TestAScreenClickAddedToAnUncheckedRoutineIsWhatItDoes(t *testing.T) {
 		t.Error("the screen click was not performed at 11, 22")
 	}
 }
+
+// AND A SIDE BUTTON CAN BE CHOSEN for an added click, as the recorder can now record one: every
+// button macroir.MouseButtons names is accepted here, the side buttons among them.
+//
+// Refusing back or forward here must fail this.
+func TestAnAddedClickCanUseEveryButtonMarcoPresses(t *testing.T) {
+	for _, b := range macroir.MouseButtons() {
+		out, _, why := editedFrom(checkedClickSteps(), StepEdit{Op: EditInsert, At: 1,
+			Kind: "click", Button: b, BasisAt: 1, X: 200, Y: 100})
+		if why != "" {
+			t.Errorf("an added %s click was refused: %s", b, why)
+			continue
+		}
+		if out[2].Button != b && !(b == "left" && out[2].Button == "") {
+			t.Errorf("an added %s click came out as the %q button", b, out[2].Button)
+		}
+	}
+	if len(macroir.MouseButtons()) != 5 {
+		t.Errorf("Marco presses %v; the side buttons are missing", macroir.MouseButtons())
+	}
+}

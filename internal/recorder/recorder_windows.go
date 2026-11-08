@@ -1001,6 +1001,14 @@ func mouseProc(nCode int, wParam, lParam uintptr) uintptr {
 				recordClickDown("middle", x, y)
 			case wmMButtonUp:
 				recordClickUp("middle", x, y)
+			case wmXButtonDown:
+				if b := sideButton(ms.mouseData); b != "" {
+					recordClickDown(b, x, y)
+				}
+			case wmXButtonUp:
+				if b := sideButton(ms.mouseData); b != "" {
+					recordClickUp(b, x, y)
+				}
 			}
 		}
 	}
@@ -1508,4 +1516,20 @@ func (r *winRecorder) attach(c captured) bool {
 		}
 	}
 	return true
+}
+
+// sideButton names the side button a WM_XBUTTON message is about, from the high word of its
+// mouseData: XBUTTON1 is back and XBUTTON2 is forward, the names macroir.MouseButtons uses. A
+// value Windows does not document is "", and the press is not recorded rather than recorded as
+// some other button.
+//
+// Not reading these must fail TestTheSideButtonsAreRecordedByName.
+func sideButton(mouseData uint32) string {
+	switch mouseData >> 16 {
+	case 1:
+		return "back"
+	case 2:
+		return "forward"
+	}
+	return ""
 }

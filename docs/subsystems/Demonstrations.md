@@ -221,6 +221,11 @@ that control, though a saved play still cannot say it (`cannot_say_pointer`, fol
   the window takes time of its own and whatever is last before the press is what has to be read
   there. A press that measured nothing is unchanged, Director's own lowering is unchanged, and no
   saved routine is regenerated
+- [[ADR-334-the-side-buttons-are-recorded-and-pressed]] — and the two buttons none of this could
+  see. The mouse hook read left, right and middle, so a side button was never recorded, and a
+  ctrl+shift+forward demonstrated nothing: its modifiers had no click to hold across. `back` and
+  `forward` are recorded, saved and pressed now, from one list (`macroir.MouseButtons`), and a drag
+  naming a button nothing can press refuses as a click already did
 - [[ADR-261-typed-text-is-a-sequence-of-submissions]] — and the input that can go in PART WAY,
   which no other one can. `do OS's Type with "hello"` is five events and any of them can be
   refused, so a failure leaves a field holding `he` and a next step written for `hello`. Typing

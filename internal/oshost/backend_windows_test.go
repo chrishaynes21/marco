@@ -54,7 +54,7 @@ func TestSendInputAccepted(t *testing.T) {
 // [MOUSEINPUT]: https://learn.microsoft.com/en-us/windows/win32/api/winuser/ns-winuser-mouseinput
 func TestThePointersButtonEventsCarryTheirOwnMovement(t *testing.T) {
 	const absDesk = _MOUSEEVENTF_ABSOLUTE | _MOUSEEVENTF_VIRTUALDESK
-	down, up := mouseButtonFlags("left")
+	down, up, _ := mouseButtonFlags("left")
 
 	var batches [][]inputT
 	was := sendInputs

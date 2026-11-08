@@ -1267,6 +1267,13 @@ func (h *Host) doDrag(c runtime.HostCall) (string, runtime.Value, error) {
 	if btn == "" {
 		btn = "left"
 	}
+	// A BUTTON NOTHING CAN PRESS IS REFUSED, as a click's is (pressButton): the backend would have
+	// dragged it as left.
+	btn = strings.ToLower(btn)
+	if !macroir.IsMouseButton(btn) {
+		return fail(fmt.Sprintf("this drag asks for the %q button and a drag can use %s, so it "+
+			"cannot be performed as it is written", btn, macroir.MouseButtonList()))
+	}
 	// NOTHING IS DRAGGED BY A RUN THAT HAS ALREADY STOPPED. Here as well as inside the
 	// gesture, and for the reason `doKeyDown` gives: here it holds for EVERY backend,
 	// including the ones a test can drive, so "a stopped run presses nothing" is a claim
@@ -1916,14 +1923,11 @@ func pressButton(v runtime.Value) (button, why string) {
 		// Point ever saved carries no button, and every one of them is a left-click.
 		return "left", ""
 	}
-	switch lower := strings.ToLower(name); lower {
-	case "left", "right", "middle":
+	if lower := strings.ToLower(name); macroir.IsMouseButton(lower) {
 		return lower, ""
-	default:
-		return "", fmt.Sprintf("this press asks for the %q button and a press can use "+
-			"three — left, right and middle — so it cannot be performed as it is "+
-			"written", name)
 	}
+	return "", fmt.Sprintf("this press asks for the %q button and a press can use "+
+		"%s, so it cannot be performed as it is written", name, macroir.MouseButtonList())
 }
 
 // clickTarget reads a click's target pixel from its Point. The DEFAULT is the

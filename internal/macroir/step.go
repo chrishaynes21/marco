@@ -30,7 +30,7 @@ type Step struct {
 	Y      int      `json:"y,omitempty"`
 	X2     int      `json:"x2,omitempty"`
 	Y2     int      `json:"y2,omitempty"`
-	Button string   `json:"button,omitempty"` // "left" | "right" | "middle"
+	Button string   `json:"button,omitempty"` // one of MouseButtons; empty is left
 	Key    string   `json:"key,omitempty"`    // Marco key name, lowercased
 	Text   string   `json:"text,omitempty"`
 	Count  int      `json:"count,omitempty"` // key repeats / loop iterations

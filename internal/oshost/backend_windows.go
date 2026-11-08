@@ -218,8 +218,8 @@ func unicodeInput(unit uint16, flags uint32) inputT {
 }
 
 func (winBackend) click(ctx context.Context, button string) error {
-	down, up := mouseButtonFlags(button)
-	if !sendMouseInput(0, 0, 0, down) || !sendMouseInput(0, 0, 0, up) {
+	down, up, data := mouseButtonFlags(button)
+	if !sendMouseInput(0, 0, data, down) || !sendMouseInput(0, 0, data, up) {
 		return fmt.Errorf("SendInput rejected %s click", button)
 	}
 	return ctx.Err()
@@ -232,14 +232,14 @@ func (winBackend) click(ctx context.Context, button string) error {
 // SetCursorPos-then-click can race. Coordinates are normalised over the VIRTUAL desktop,
 // so it's correct on any monitor (including one with a negative origin).
 func (winBackend) clickAt(ctx context.Context, button string, x, y int) error {
-	down, up := mouseButtonFlags(button)
+	down, up, data := mouseButtonFlags(button)
 	vx, vy, vw, vh := virtualDesk()
 	nx, ny := normAbsolute(x, y, vx, vy, vw, vh)
 	const absDesk = _MOUSEEVENTF_ABSOLUTE | _MOUSEEVENTF_VIRTUALDESK
 	inps := []inputT{
 		mouseInputT(nx, ny, 0, _MOUSEEVENTF_MOVE|absDesk),
-		mouseInputT(nx, ny, 0, down|absDesk),
-		mouseInputT(nx, ny, 0, up|absDesk),
+		mouseInputT(nx, ny, data, down|absDesk),
+		mouseInputT(nx, ny, data, up|absDesk),
 	}
 	if !sendInputs(inps) {
 		return fmt.Errorf("SendInput rejected %s click at (%d,%d)", button, x, y)
@@ -279,11 +279,14 @@ func (winBackend) clickAt(ctx context.Context, button string, x, y int) error {
 type thePointer struct{}
 
 // pointerEventAt builds one mouse event at an absolute point on the virtual desktop.
-func pointerEventAt(x, y int, flags uint32) inputT {
+func pointerEventAt(x, y int, flags uint32) inputT { return pointerButtonAt(x, y, 0, flags) }
+
+// pointerButtonAt is pointerEventAt carrying mouseData, which a side button needs.
+func pointerButtonAt(x, y int, data, flags uint32) inputT {
 	vx, vy, vw, vh := virtualDesk()
 	nx, ny := normAbsolute(x, y, vx, vy, vw, vh)
 	const absDesk = _MOUSEEVENTF_ABSOLUTE | _MOUSEEVENTF_VIRTUALDESK
-	return mouseInputT(nx, ny, 0, flags|absDesk)
+	return mouseInputT(nx, ny, data, flags|absDesk)
 }
 
 func (thePointer) moveTo(x, y int) bool {
@@ -291,10 +294,10 @@ func (thePointer) moveTo(x, y int) bool {
 }
 
 func (thePointer) press(button string, x, y int) bool {
-	down, _ := mouseButtonFlags(button)
+	down, _, data := mouseButtonFlags(button)
 	return sendInputs([]inputT{
 		pointerEventAt(x, y, _MOUSEEVENTF_MOVE),
-		pointerEventAt(x, y, down),
+		pointerButtonAt(x, y, data, down),
 	})
 }
 
@@ -302,10 +305,10 @@ func (thePointer) press(button string, x, y int) bool {
 // cares most about: a stopped drag releases where the pointer got to, and a release that did not
 // carry its own movement would let go wherever the pointer had since been taken.
 func (thePointer) release(button string, x, y int) bool {
-	_, up := mouseButtonFlags(button)
+	_, up, data := mouseButtonFlags(button)
 	return sendInputs([]inputT{
 		pointerEventAt(x, y, _MOUSEEVENTF_MOVE),
-		pointerEventAt(x, y, up),
+		pointerButtonAt(x, y, data, up),
 	})
 }
 
@@ -420,6 +423,10 @@ const (
 	_MOUSEEVENTF_RIGHTUP     = 0x0010
 	_MOUSEEVENTF_MIDDLEDOWN  = 0x0020
 	_MOUSEEVENTF_MIDDLEUP    = 0x0040
+	_MOUSEEVENTF_XDOWN       = 0x0080
+	_MOUSEEVENTF_XUP         = 0x0100
+	_XBUTTON1                = 0x0001
+	_XBUTTON2                = 0x0002
 	_MOUSEEVENTF_VIRTUALDESK = 0x4000
 	_MOUSEEVENTF_ABSOLUTE    = 0x8000
 
@@ -539,14 +546,23 @@ var sentInputs = func(inps []inputT) int {
 	return int(n)
 }
 
-func mouseButtonFlags(button string) (down, up uint32) {
+// mouseButtonFlags is the SendInput flags for pressing and releasing button, and the mouseData
+// that goes with them: a side button is XDOWN/XUP with WHICH side button in mouseData (XBUTTON1 is
+// back, XBUTTON2 forward), where the other three need none.
+//
+// Pressing a side button as a left click must fail TestTheSideButtonsArePressedAsSideButtons.
+func mouseButtonFlags(button string) (down, up, data uint32) {
 	switch strings.ToLower(button) {
 	case "right":
-		return _MOUSEEVENTF_RIGHTDOWN, _MOUSEEVENTF_RIGHTUP
+		return _MOUSEEVENTF_RIGHTDOWN, _MOUSEEVENTF_RIGHTUP, 0
 	case "middle":
-		return _MOUSEEVENTF_MIDDLEDOWN, _MOUSEEVENTF_MIDDLEUP
+		return _MOUSEEVENTF_MIDDLEDOWN, _MOUSEEVENTF_MIDDLEUP, 0
+	case "back":
+		return _MOUSEEVENTF_XDOWN, _MOUSEEVENTF_XUP, _XBUTTON1
+	case "forward":
+		return _MOUSEEVENTF_XDOWN, _MOUSEEVENTF_XUP, _XBUTTON2
 	default:
-		return _MOUSEEVENTF_LEFTDOWN, _MOUSEEVENTF_LEFTUP
+		return _MOUSEEVENTF_LEFTDOWN, _MOUSEEVENTF_LEFTUP, 0
 	}
 }
 

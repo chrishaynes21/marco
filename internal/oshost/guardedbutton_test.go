@@ -69,13 +69,13 @@ func pressesWithButtons(buttons ...string) []recorder.RecordedEvent {
 			X: 1511, Y: 913, App: "studio", PID: 7001, T: when(3205)})
 }
 
-// A DEMONSTRATED RIGHT OR MIDDLE PRESS REACHES THE MACHINE AS THAT BUTTON, WHERE THE WINDOW IS.
+// A DEMONSTRATED RIGHT, MIDDLE OR SIDE-BUTTON PRESS REACHES THE MACHINE AS THAT BUTTON, WHERE THE WINDOW IS.
 //
 // Both halves in one claim, because either alone is satisfied by something wrong. The right
 // BUTTON at the recorded desktop coordinate is a press that ignored the window it was measured
 // in; the right PLACE with a left button is the press this slice exists to stop being.
 func TestADemonstratedNonLeftPressArrivesAsThatButtonWhereTheWindowIsNow(t *testing.T) {
-	for _, button := range []string{"right", "middle"} {
+	for _, button := range []string{"right", "middle", "back", "forward"} {
 		t.Run(button, func(t *testing.T) {
 			_, at := savedFrom(t, orchestrator.ScopeAppAnywhere,
 				pressesWithButtons(button))

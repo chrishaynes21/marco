@@ -36,6 +36,10 @@ const (
 	wmRButtonUp   = 0x0205
 	wmMButtonDown = 0x0207
 	wmMButtonUp   = 0x0208
+	// THE SIDE BUTTONS. Which one is the high word of mouseData: XBUTTON1 (1) is back, XBUTTON2
+	// (2) is forward. See sideButton.
+	wmXButtonDown = 0x020B
+	wmXButtonUp   = 0x020C
 
 	llkhfInjected = 0x00000010
 	llmhfInjected = 0x00000001

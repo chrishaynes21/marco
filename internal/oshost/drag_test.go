@@ -658,3 +658,28 @@ func TestAnOrdinaryDragReleasesOnce(t *testing.T) {
 		t.Errorf("an ordinary drag reported %v", said)
 	}
 }
+
+// A DRAG WITH A BUTTON NOTHING CAN PRESS IS REFUSED, AND NOT DRAGGED AS LEFT. The backend's
+// button table answers left for a name it does not know; a click was already refused for this
+// (pressButton) and a drag was not. A side button is a button a drag can hold.
+//
+// Dragging an unknown button as left must fail this.
+func TestADragWithAButtonNothingCanPressSendsNothing(t *testing.T) {
+	drag := func(button string) (string, *recBackend) {
+		rec := &recBackend{}
+		h := &Host{b: rec}
+		s := runtime.NewSet()
+		for k, v := range map[string]int{"FromX": 10, "FromY": 20, "ToX": 300, "ToY": 400} {
+			s.Put(k, runtime.Number(float64(v)))
+		}
+		s.Put("Button", runtime.Text(button))
+		st, _, _ := call(h, "Drag", runtime.SetVal(s))
+		return st, rec
+	}
+	if st, rec := drag("rigth"); st != "failed" || len(rec.drags) != 0 {
+		t.Errorf("a drag with a button nothing can press answered %q and sent %v", st, rec.drags)
+	}
+	if st, rec := drag("Forward"); st != "ok" || len(rec.drags) != 1 {
+		t.Errorf("a drag holding the forward button answered %q and sent %v", st, rec.drags)
+	}
+}

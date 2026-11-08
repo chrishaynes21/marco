@@ -19,8 +19,10 @@ package marcoexec
 
 import (
 	"fmt"
-	"github.com/chaynes-simpleclouds/marco/pkg/directorapi"
 	"strings"
+
+	"github.com/chaynes-simpleclouds/marco/internal/macroir"
+	"github.com/chaynes-simpleclouds/marco/pkg/directorapi"
 )
 
 // Kind names a semantic desktop effect. One per thing the Director can do, not one
@@ -119,7 +121,7 @@ type Operation struct {
 	At   Point `json:"at,omitempty"`
 	From Point `json:"from,omitempty"`
 	To   Point `json:"to,omitempty"`
-	// Button is "left", "right" or "middle". Empty means left.
+	// Button is one of macroir.MouseButtons. Empty means left.
 	Button string `json:"button,omitempty"`
 	// Count is how many clicks. 0 or 1 is a single click.
 	Count int `json:"count,omitempty"`
@@ -390,7 +392,7 @@ func (o Operation) Validate() error {
 			return fmt.Errorf("marcoexec: launch needs something to launch")
 		}
 	case KindClick, KindDrag:
-		if b := o.Button; b != "" && b != "left" && b != "right" && b != "middle" {
+		if b := o.Button; b != "" && !macroir.IsMouseButton(b) {
 			return fmt.Errorf("marcoexec: %q is not a mouse button Marco knows", b)
 		}
 	case KindMoveWindow:

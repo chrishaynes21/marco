@@ -534,3 +534,23 @@ func TestAHeldModifierNeverEndsUpInAChord(t *testing.T) {
 		})
 	}
 }
+
+// CTRL+SHIFT+FORWARD, the gesture the owner recorded and got nothing from: both modifiers held
+// across a press of the forward side button, which comes out as the two holds around ONE click
+// that keeps its button. The recorder now reads the side buttons
+// (recorder.TestTheSideButtonsAreRecordedByName); this is the half that writes them down.
+//
+// A side button lost on the way to the step, or the holds not wrapping it, must fail this.
+func TestCtrlShiftForwardIsHeldAroundAForwardClick(t *testing.T) {
+	steps := simplified(t, aModifierAround([]recorder.RecordedEvent{
+		click("forward", true, 10, 20, 400), click("forward", false, 10, 20, 440)},
+		"ctrl", "shift"), DefaultOptions())
+	if got, want := shapeOf(steps), "keydown(ctrl) keydown(shift) click keyup(shift) keyup(ctrl)"; got != want {
+		t.Fatalf("ctrl+shift+forward came out as:\n  %s\nwant:\n  %s", got, want)
+	}
+	for _, s := range steps {
+		if s.Kind == macroir.StepClick && s.Button != "forward" {
+			t.Errorf("the click is the %q button, not forward", s.Button)
+		}
+	}
+}
