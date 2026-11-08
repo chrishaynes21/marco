@@ -680,7 +680,8 @@ plugs in over the host boundary:
     narrates by voice or typing, shows `name:` arg-name hints inline as you fill a
     routine's arguments (Tab to step between slots), and answers prompts in the HUD.
     `` `m config `` opens an in-HUD editor (theme, opacity, monitor/corner, width,
-    mini mode, the CPU/RAM widget, and a live **screen-coords tooltip** — handy when
+    mini mode, the header (clock, date and name, which can be hidden), the CPU/RAM
+    widget, and a live **screen-coords tooltip** — handy when
     a demonstration crosses monitors). Studio draws with the same theme, and a running
     widget picks up a setting saved in Studio or the control centre within about a second. Its behaviour lives
     in Marco ([`plugins/overlay/overlay.marco`](plugins/overlay/overlay.marco)); it fulfils a

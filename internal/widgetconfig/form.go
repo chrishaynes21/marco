@@ -86,6 +86,8 @@ func Fields() []Field {
 			Hint: "Studio draws with it too."},
 		{Key: "idle", Group: "Look", Label: "Opacity when idle", Kind: "number", Min: MinIdle, Max: MaxIdle, Step: 0.05},
 		{Key: "border", Group: "Look", Label: "Accent border", Kind: "toggle"},
+		{Key: "header", Group: "Look", Label: "Header", Kind: "toggle",
+			Hint: "The clock, the date and the name at the top. Mini mode has none."},
 		{Key: "mini", Group: "Look", Label: "Mini mode", Kind: "toggle"},
 		{Key: "monitor", Group: "Place", Label: "Monitor", Kind: "number", Min: 1, Step: 1,
 			Hint: "Counted from 1, as the widget's panel shows it."},

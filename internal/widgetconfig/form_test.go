@@ -99,3 +99,19 @@ func TestFollowKeepsWhatThePanelHasNotSaved(t *testing.T) {
 		t.Errorf("a second follow with nothing kept changed %v, want [width]", again)
 	}
 }
+
+// THE FORM OFFERS EVERY SETTING, except the two left out on purpose: height (the widget fits it
+// to what it shows) and font (which the widget does not read). A setting added to the file and
+// not here is one Studio's pane cannot change.
+func TestTheFormOffersEverySettingButHeightAndFont(t *testing.T) {
+	offered := map[string]bool{}
+	for _, f := range Fields() {
+		offered[f.Key] = true
+	}
+	var s Settings
+	for k := range s.fields() {
+		if !offered[k] && k != "height" && k != "font" {
+			t.Errorf("the form does not offer %q", k)
+		}
+	}
+}

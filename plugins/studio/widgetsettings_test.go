@@ -5,10 +5,13 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/chaynes-simpleclouds/marco/internal/widgetconfig"
 )
 
 func widgetSettingsAt(t *testing.T, contents string) string {
@@ -145,7 +148,7 @@ func TestTheWidgetSettingsPaneSavesAndRedraws(t *testing.T) {
 			t.Errorf("the pane reports %q, want it to contain %q", title, want)
 		}
 	}
-	if !strings.Contains(title, "rows=15") {
+	if !strings.Contains(title, fmt.Sprintf("rows=%d", len(widgetconfig.Fields()))) {
 		t.Errorf("the pane does not draw every setting: %q", title)
 	}
 }

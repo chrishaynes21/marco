@@ -52,11 +52,14 @@ type Settings struct {
 	Font     string  `json:"font"`     // path to a .ttf, or "" for the built-in
 	MaxLines int     `json:"maxLines"` // log lines shown
 	Border   bool    `json:"border"`
-	Mini     bool    `json:"mini"`
-	Metrics  bool    `json:"metrics"`
-	Coords   bool    `json:"coords"`
-	Voice    bool    `json:"voice"` // act on spoken commands
-	Wake     string  `json:"wake"`  // the voice activation phrase, read at launch as $MARCO_VOICE_WAKE
+	// Header shows the crown at the top of the full widget: the clock, the date and "Marco". On by
+	// default; off, the widget starts at its status line. Mini mode has no header either way.
+	Header  bool   `json:"header"`
+	Mini    bool   `json:"mini"`
+	Metrics bool   `json:"metrics"`
+	Coords  bool   `json:"coords"`
+	Voice   bool   `json:"voice"` // act on spoken commands
+	Wake    string `json:"wake"`  // the voice activation phrase, read at launch as $MARCO_VOICE_WAKE
 	// Search is where "search the web for …" searches: google | bing | duckduckgo | brave |
 	// startpage, or an https address with {query} in it; "" is google (internal/skills). Which
 	// BROWSER opens it is Windows' default, a separate setting that is not Marco's.
@@ -69,7 +72,7 @@ type Settings struct {
 // Defaults are the widget's own defaults, and the control centre's activation phrase.
 func Defaults() Settings {
 	return Settings{Theme: "default", Idle: 0.72, Corner: "top-right", Width: 340, Height: 270,
-		Leader: DefaultLeader, MaxLines: 5, Voice: true, Wake: "marco"}
+		Leader: DefaultLeader, MaxLines: 5, Voice: true, Wake: "marco", Header: true}
 }
 
 // fields is each key of the file, with where its value lives in s.
@@ -77,7 +80,7 @@ func (s *Settings) fields() map[string]any {
 	return map[string]any{
 		"theme": &s.Theme, "idle": &s.Idle, "monitor": &s.Monitor, "corner": &s.Corner,
 		"width": &s.Width, "height": &s.Height, "leader": &s.Leader, "font": &s.Font,
-		"maxLines": &s.MaxLines, "border": &s.Border, "mini": &s.Mini, "metrics": &s.Metrics,
+		"maxLines": &s.MaxLines, "border": &s.Border, "header": &s.Header, "mini": &s.Mini, "metrics": &s.Metrics,
 		"coords": &s.Coords, "voice": &s.Voice, "wake": &s.Wake, "search": &s.Search, "confirmSearch": &s.ConfirmSearch,
 	}
 }

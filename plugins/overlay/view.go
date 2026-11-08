@@ -228,14 +228,22 @@ func layoutHeight(s snapshot) int {
 			y += 15 // coords tooltip line
 		}
 	} else {
-		y = 20 + 18 + 15 + 16 // title crown
+		header := cfgSnapshot().Header
+		y = crownTop(header)
+		if header {
+			y += 18 + 15 + 16 // title crown
+		}
 		if cfgMetrics() {
 			y += 15 // cpu/ram widget line
 		}
 		if cfgCoords() && s.curHasPos {
 			y += 15 // coords tooltip line
 		}
-		y += 12                        // separator
+		if y > crownTop(header) || header {
+			y += 12 // separator
+		} else {
+			y = bareTop // nothing above the hint line, so no separator either
+		}
 		y += descHeight(s, innerW)     // description / hint line (wraps if long)
 		y += 18                        // state line
 		y += 12                        // separator
@@ -315,15 +323,18 @@ func (g *view) Draw(screen *ebiten.Image) {
 			y += 15
 		}
 	} else {
-		// --- Title crown: clock / date / name, centred. ---
-		now := time.Now()
-		y = 20
-		centerText(screen, now.Format("3:04 PM"), cx, y, faceClock, th.name)
-		y += 18
-		centerText(screen, now.Format("Monday, Jan 2"), cx, y, faceSmall, lerp(th.bg, th.idle, 0.55))
-		y += 15
-		centerText(screen, "Marco", cx, y, faceSmall, lerp(th.bg, th.idle, 0.38))
-		y += 16
+		// --- Title crown: clock / date / name, centred — the header, which the `header`
+		// setting hides (crownTop). ---
+		y = crownTop(c.Header)
+		if c.Header {
+			now := time.Now()
+			centerText(screen, now.Format("3:04 PM"), cx, y, faceClock, th.name)
+			y += 18
+			centerText(screen, now.Format("Monday, Jan 2"), cx, y, faceSmall, lerp(th.bg, th.idle, 0.55))
+			y += 15
+			centerText(screen, "Marco", cx, y, faceSmall, lerp(th.bg, th.idle, 0.38))
+			y += 16
+		}
 
 		// --- Optional system widget: CPU / RAM. ---
 		if c.Metrics {
@@ -337,8 +348,14 @@ func (g *view) Draw(screen *ebiten.Image) {
 			y += 15
 		}
 
-		sep(screen, pad, y, innerW)
-		y += 12
+		// THE RULE UNDER THE CROWN ONLY WHEN THERE IS SOMETHING ABOVE IT: with the header off
+		// and nothing else up there, the widget opens on its hint line.
+		if y > crownTop(c.Header) || c.Header {
+			sep(screen, pad, y, innerW)
+			y += 12
+		} else {
+			y = bareTop
+		}
 
 		// --- Description / idle hint line. Wraps to the panel width so a long learn
 		// prompt (e.g. `Save this as "…"? [y]/[n]/[s]`) is shown in full, not cut off. ---
@@ -1011,3 +1028,18 @@ func wrapText(s string, face *text.GoTextFace, maxWidth float64) []string {
 	}
 	return lines
 }
+
+// crownTop is where the top of the full widget starts: the clock's line with the header on, and
+// the first small line (CPU and memory, or the cursor) with it off. bareTop is where the hint line
+// starts when the header is off and nothing else is above it.
+//
+// Draw and layoutHeight both ask, so the window fits what is drawn. Hiding the header and not
+// shrinking the window must fail TestHidingTheHeaderShrinksTheWidget.
+func crownTop(header bool) float64 {
+	if header {
+		return 20
+	}
+	return 14
+}
+
+const bareTop = 12

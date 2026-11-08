@@ -3104,6 +3104,7 @@ const OCFG=[
  {k:'maxLines', label:'Max log lines', type:'number'},
  {k:'monitor', label:'Monitor', type:'number'},
  {k:'border', label:'Accent border', type:'bool'},
+ {k:'header', label:'Header (clock, date, name)', type:'bool'},
  {k:'mini', label:'Mini mode', type:'bool'},
  {k:'metrics', label:'CPU / RAM widget', type:'bool'},
  {k:'coords', label:'Cursor coords', type:'bool'},

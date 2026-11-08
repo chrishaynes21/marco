@@ -74,7 +74,7 @@ func saveConfig() error {
 
 // panelKeys is the settings file's key for each row of the settings panel, in configLines' order.
 var panelKeys = [configFieldCount]string{"leader", "theme", "idle", "monitor", "corner", "width",
-	"maxLines", "border", "mini", "metrics", "coords", "voice"}
+	"maxLines", "border", "mini", "metrics", "coords", "voice", "header"}
 
 func cfgSnapshot() Config { cfgMu.Lock(); defer cfgMu.Unlock(); return cfg }
 func cfgWidth() int       { cfgMu.Lock(); defer cfgMu.Unlock(); return cfg.Width }
@@ -127,7 +127,7 @@ func applyWindow() { monitorRequested.Store(true) }
 
 // configFieldCount is the number of editable rows. Height is omitted — the panel
 // auto-fits its content.
-const configFieldCount = 12
+const configFieldCount = 13
 
 // configLines renders each setting as "label  value" for the editor view.
 func configLines() []string {
@@ -145,6 +145,7 @@ func configLines() []string {
 		"metrics   " + onOff(c.Metrics),
 		"coords    " + onOff(c.Coords),
 		"voice     " + voiceShort(c.Voice),
+		"header    " + onOff(c.Header),
 	}
 }
 
@@ -180,6 +181,8 @@ func configChange(sel, delta int) {
 		cfg.Coords = !cfg.Coords
 	case 11:
 		cfg.Voice = !cfg.Voice
+	case 12:
+		cfg.Header = !cfg.Header
 	}
 	cfgMu.Unlock()
 
