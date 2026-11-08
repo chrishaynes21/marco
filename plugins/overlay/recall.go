@@ -9,16 +9,16 @@ package main
 //
 // # What is kept
 //
-// A line naming a ROUTINE is kept as the routine's name, never with its values: "cloud pull stone"
-// comes back as "cloud pull", whose reading then asks for the value afresh (‹resource›), so a
-// recalled run never carries what somebody said last time. A repeat comes back with its count
-// ("repeat open social 5 times"), which is part of the request and not a value. Any other typed line
-// (the widget's own words, a request for Director) is kept as typed; a spoken one is kept only when
+// A command is kept AS IT RAN, values and all: "cloud pull stone" comes back as "cloud pull stone"
+// and "repeat open social five times" with its count, so ↑ then Enter runs the same thing again
+// (the owner reversed the first rule, which kept a routine's name and asked for its value afresh).
+// Focus app comes back as the program it went to ("focus ChatGPT"), never what was heard, and a
+// search with its query. Any other typed line (the widget's own words, a request for Director) is
+// kept as typed; a spoken one is kept only when
 // it named a routine, so what the microphone heard in passing is not walked through. Kept in this
 // process only, never written anywhere and never logged.
 
 import (
-	"strconv"
 	"strings"
 )
 
@@ -59,10 +59,12 @@ func (h *model) rememberAsRoutine(said, routine string) {
 	h.mu.Unlock()
 }
 
-// recallOf is what a line is kept as, from the engine's reading of it: a routine's name (and a
-// repeat's count) and nothing it was given, or the line as typed when it names no routine.
+// recallOf is what a line is kept as, from the engine's reading of it: the command AS IT RAN, values
+// and all, so ↑ and Enter run it again (the owner: "same for all things that accept args, pressing
+// up should recall the last command"). A routine is its line as typed, "cloud pull stone" or
+// "repeat open social five times"; Focus app is the program it went to, never what was heard.
 //
-// Keeping a routine's values must fail TestARecalledRoutineAsksForItsValueAgain.
+// Keeping a routine by its name only must fail TestARecalledRoutineComesBackWithItsValues.
 func recallOf(line string, r lineReading) string {
 	if r.Kind == "skill" && r.Slug == focusSkill {
 		// FOCUS APP IS KEPT WITH THE PROGRAM IT BROUGHT FORWARD, "focus ChatGPT", so ↑ goes
@@ -82,13 +84,7 @@ func recallOf(line string, r lineReading) string {
 	if r.Kind == "skill" && strings.TrimSpace(r.Name) != "" {
 		return r.Name // "Search the web" with nothing yet, whose reading asks for the query
 	}
-	if r.Kind != "routine" || strings.TrimSpace(r.Name) == "" {
-		return line
-	}
-	if r.Times > 0 {
-		return "repeat " + r.Name + " " + strconv.Itoa(r.Times) + " times"
-	}
-	return r.Name
+	return strings.TrimSpace(line)
 }
 
 // recallOlder is ↑: the command before the one on the line, or the newest when the walk begins.

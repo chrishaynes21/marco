@@ -61,11 +61,6 @@ func dispatchIntake(h *model, phrase string, source invoke.Source) {
 	mlogI("overlay: intake", "source", string(source), "phrase", heard(phrase), "args", argsShown(args))
 	go func() {
 		r := spawnIntakeChild(h, phrase, track, args...)
-		// AND A LINE KEPT FOR ↑ AS TYPED IS KEPT AS THE ROUTINE IT RAN AS, without its values
-		// (recall.go): it had no reading before it ran.
-		if r.route != "" {
-			h.rememberAsRoutine(phrase, r.route)
-		}
 		// THE INTAKE ASKED DIRECTOR'S RESOLVER FIRST, and it named a saved routine: nothing ran, and the
 		// routine is reviewed (ADR-322). Asking again would be the same question twice.
 		if r.proposed != nil {

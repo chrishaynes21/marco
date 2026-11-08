@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 // ↑ STARTS AT THE NEWEST AND WALKS BACK, ↓ WALKS FORWARD AND THEN PUTS BACK THE LINE AS IT WAS.
@@ -70,11 +71,11 @@ func TestTheRecallKeepsEachCommandOnceAndNotForever(t *testing.T) {
 	}
 }
 
-// A ROUTINE IS RECALLED BY ITS NAME, AND ITS VALUE IS ASKED FOR AGAIN: what somebody said last
-// time is never kept, typed or spoken.
+// A ROUTINE IS RECALLED AS IT RAN, values and all, typed or spoken, so ↑ then Enter runs it again;
+// what the microphone heard in passing is still not kept.
 //
-// Keeping the line as it was typed must fail this.
-func TestARecalledRoutineAsksForItsValueAgain(t *testing.T) {
+// Keeping a routine by its name only must fail this.
+func TestARecalledRoutineComesBackWithItsValues(t *testing.T) {
 	r := aCloudPull("cloud pull stone", "stone")
 	repeat := aSocialRepeat("repeat open social five times")
 	spokenRoutine := aCloudPull("cloud pull wood", "wood")
@@ -98,21 +99,21 @@ func TestARecalledRoutineAsksForItsValueAgain(t *testing.T) {
 	_ = runs()
 
 	// The spoken routine is cloud pull again, kept by its name; the spoken mumble is not kept.
-	want := []string{"cloud pull", "repeat open social 5 times", "make the coffee", "cloud pull", "help", "learn"}
+	want := []string{"cloud pull stone", "repeat open social five times", "make the coffee", "cloud pull wood", "help", "learn"}
 	got := h.recalled()
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("kept %q, want %q", got, want)
 	}
 	for _, c := range got {
-		if strings.Contains(c, "stone") || strings.Contains(c, "wood") || strings.Contains(c, "mumble") {
-			t.Errorf("a value or a passing transcript was kept: %q", c)
+		if strings.Contains(c, "mumble") {
+			t.Errorf("a passing transcript was kept: %q", c)
 		}
 	}
 
-	// AND ON THE LINE IT IS THE NAME, whose reading then asks for the value.
+	// AND ON THE LINE IT IS THE COMMAND AS IT RAN.
 	h.setEditing(true)
 	h.setInput("")
-	for h.snapshot().input != " cloud pull" {
+	for h.snapshot().input != " cloud pull stone" {
 		before := h.snapshot().input
 		h.recallOlder()
 		if h.snapshot().input == before {
@@ -121,12 +122,20 @@ func TestARecalledRoutineAsksForItsValueAgain(t *testing.T) {
 	}
 }
 
-// A LINE THAT HAD NO READING IS KEPT AS TYPED UNTIL IT RUNS AS A ROUTINE, and then as the routine.
-func TestALineWithNoReadingIsKeptAsTheRoutineItRanAs(t *testing.T) {
+// A LINE THAT HAD NO READING IS KEPT AS TYPED, and stays so once it has run as a routine: the
+// values are part of the command. Putting the routine's bare name in its place must fail this.
+func TestALineWithNoReadingIsKeptAsTyped(t *testing.T) {
+	engineReads(t, map[string]lineReading{})
+	done := make(chan struct{}, 1)
+	t.Cleanup(stubIntakeChild(t, func(*model, string, bool, ...string) childRun {
+		defer func() { done <- struct{}{} }()
+		return childRun{result: "performed", route: "cloud pull"}
+	}))
 	h := newModel()
-	h.remember("cloud pull stone")
-	h.rememberAsRoutine("cloud pull stone", "cloud pull")
-	if got := h.recalled(); !reflect.DeepEqual(got, []string{"cloud pull"}) {
+	typedEnter(h, "cloud pull stone")
+	<-done
+	time.Sleep(50 * time.Millisecond)
+	if got := h.recalled(); !reflect.DeepEqual(got, []string{"cloud pull stone"}) {
 		t.Errorf("kept %q", got)
 	}
 }
