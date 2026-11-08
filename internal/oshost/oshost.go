@@ -40,6 +40,9 @@ type backend interface {
 	typeText(ctx context.Context, text string, kind textKind) (typingProgress, error)
 	click(ctx context.Context, button string) error
 	clickAt(ctx context.Context, button string, x, y int) error
+	// scrollAt turns the wheel notches times in dir ("up", "down", "left", "right") with the
+	// pointer at x,y. See doScroll.
+	scrollAt(ctx context.Context, dir string, notches, x, y int) error
 	drag(ctx context.Context, button string, x1, y1, x2, y2 int, host dragHost) error
 	move(ctx context.Context, x, y int) error
 	color(ctx context.Context, x, y int) (uint32, error)
@@ -210,7 +213,7 @@ func (h *Host) CursorSnapshot() func() {
 // stops them.
 var sendsInput = map[string]bool{
 	"key": true, "keydown": true, "keyup": true, "navigate": true, "type": true,
-	"click": true, "move": true, "drag": true, "repeat": true, "spam": true,
+	"click": true, "move": true, "drag": true, "scroll": true, "repeat": true, "spam": true,
 	"secret": true,
 
 	"sleep": false, "clipboardget": false, "clipboardset": false, "color": false,
@@ -269,6 +272,8 @@ func (h *Host) Invoke(c runtime.HostCall) (string, runtime.Value, error) {
 		return h.doType(c)
 	case "click":
 		return h.doClick(c)
+	case "scroll":
+		return h.doScroll(c)
 	case "move":
 		// RESOLVED THE SAME WAY A CLICK IS, guard included. A Move is aiming,
 		// and a route that aims is a route about to press: a guard here is what
@@ -2827,4 +2832,49 @@ func WindowForTest(t testing.TB, hwnd uintptr, pid uint32, program string, front
 	}
 	imageOf = func(uint32) string { return program }
 	raiseWindow = func(uintptr) error { return raise }
+}
+
+// doScroll turns the wheel at a Point: its Scroll is which way ("up", "down", "left", "right")
+// and Notches how many. It is a press in every way that matters here (ADR-336): the place is
+// resolved and checked against the window the turn was recorded in exactly as a click's is
+// (clickTarget), because what scrolls is whatever is under the pointer; the stop is read before
+// the check and again before the wheel turns; and a turn the machine would not take is kept in
+// the account.
+//
+// Turning the wheel at the recorded coordinate instead of the live window, or a way it was not
+// recorded, must fail TestADemonstratedScrollTurnsWhereTheWindowIsNow.
+func (h *Host) doScroll(c runtime.HostCall) (string, runtime.Value, error) {
+	set := c.Input.AsSet()
+	if set == nil {
+		why := "scroll needs a Point with X, Y, Scroll and Notches"
+		h.didNotDo(why)
+		return fail(why)
+	}
+	dir := strings.ToLower(strings.TrimSpace(textOf(set, "Scroll")))
+	if !macroir.IsWheelDirection(dir) {
+		why := fmt.Sprintf("this scroll asks to turn the wheel %q and it turns up, down, left "+
+			"or right, so it cannot be performed as it is written", dir)
+		h.didNotDo(why)
+		return fail(why)
+	}
+	notches := max(setInt(set, "Notches"), 1)
+	if err := c.Ctx.Err(); err != nil {
+		return fail(err.Error())
+	}
+	x, y, present, why := h.clickTarget(c.Input)
+	if why != "" {
+		mlog.Info("scroll: refused", "why", why)
+		return fail(why)
+	}
+	if !present {
+		why := "scroll needs a Point with X and Y"
+		h.didNotDo(why)
+		return fail(why)
+	}
+	if err := c.Ctx.Err(); err != nil {
+		return fail(err.Error())
+	}
+	mlog.Debug("scroll: at point", "x", x, "y", y, "dir", dir, "notches", notches)
+	return h.delivered(fmt.Sprintf("a scroll %s of %d at %d,%d", dir, notches, x, y),
+		h.b.scrollAt(c.Ctx, dir, notches, x, y))
 }

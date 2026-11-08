@@ -1144,6 +1144,8 @@ func humanizeAction(line string) string {
 		return "Click"
 	case strings.HasPrefix(s, "OS's Move"):
 		return "Move cursor"
+	case strings.HasPrefix(s, "OS's Scroll"):
+		return "Scroll"
 	case strings.HasPrefix(s, "OS's Type with "):
 		return "Type " + strings.TrimPrefix(s, "OS's Type with ")
 	case strings.HasPrefix(s, "OS's Key with "):

@@ -100,7 +100,7 @@ func PointIn(steps []macroir.Step, at int) MovablePoint {
 	}
 	s := steps[at]
 	switch s.Kind {
-	case macroir.StepClick, macroir.StepMove:
+	case macroir.StepClick, macroir.StepMove, macroir.StepScroll:
 	case macroir.StepDrag:
 		// A GESTURE WITH TWO ENDS, and one box for one pair would be a control
 		// that edits half of it.
@@ -265,7 +265,7 @@ func ClickBases(steps []macroir.Step) []ClickBasis {
 	seen := map[string]bool{}
 	for i, s := range steps {
 		switch s.Kind {
-		case macroir.StepClick, macroir.StepDrag, macroir.StepMove:
+		case macroir.StepClick, macroir.StepDrag, macroir.StepMove, macroir.StepScroll:
 		default:
 			continue
 		}

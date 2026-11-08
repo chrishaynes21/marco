@@ -964,6 +964,19 @@ func oneStep(s macroir.Step) string {
 			where = fmt.Sprintf("%d, %d in the window", s.RelX, s.RelY)
 		}
 		return fmt.Sprintf("move the pointer to %s%s", where, inWindow(s))
+	case macroir.StepScroll:
+		// WHICH WAY, HOW FAR AND WHERE, in the basis it is checked in, as a click says: what
+		// scrolls is what is under the pointer (ADR-336).
+		where := fmt.Sprintf("%d, %d", s.X, s.Y)
+		if s.WinRel {
+			where = fmt.Sprintf("%d, %d in the window", s.RelX, s.RelY)
+		}
+		n := max(s.Count, 1)
+		unit := "notches"
+		if n == 1 {
+			unit = "notch"
+		}
+		return fmt.Sprintf("scroll %s %d %s at %s%s", s.Wheel, n, unit, where, inWindow(s))
 	case macroir.StepDrag:
 		// IN THE BASIS IT IS CHECKED IN, as a click says, because a drag inside a window
 		// survives the window moving and one on the desktop does not.
@@ -1101,7 +1114,8 @@ func inWindow(s macroir.Step) string {
 // a drag the one gesture whose missing measurements are invisible at review — refused at Save
 // with a sentence, after the person had read a page that said nothing was wrong.
 func notMeasured(s macroir.Step) []string {
-	if s.RelTo == "" || (s.Kind != macroir.StepClick && s.Kind != macroir.StepDrag) {
+	if s.RelTo == "" || (s.Kind != macroir.StepClick && s.Kind != macroir.StepDrag &&
+		s.Kind != macroir.StepScroll) {
 		return nil
 	}
 	var out []string
@@ -1111,6 +1125,8 @@ func notMeasured(s macroir.Step) []string {
 		// sentence about something the person did not do.
 		if s.Kind == macroir.StepDrag {
 			out = append(out, "where in the window the drag began and ended")
+		} else if s.Kind == macroir.StepScroll {
+			out = append(out, "where in the window the wheel turned")
 		} else {
 			out = append(out, "where in the window the press went")
 		}

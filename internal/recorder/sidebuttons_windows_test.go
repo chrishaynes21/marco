@@ -86,3 +86,49 @@ func TestTheKeyHookTellsNumpadEnterApart(t *testing.T) {
 		t.Errorf("the hook recorded %v, want [numenter enter]", got)
 	}
 }
+
+// THE WHEEL IS RECORDED WHERE IT TURNED: a turn down, a turn up, and a horizontal tilt, each with
+// its delta and the point the pointer was at, through the mouse hook itself.
+//
+// Not reading WM_MOUSEWHEEL or WM_MOUSEHWHEEL, or losing the sign, must fail this.
+func TestTheWheelIsRecordedWhereItTurned(t *testing.T) {
+	aRecordingOfTheChosenWindow(t)
+	wasActive := recActive.Load()
+	t.Cleanup(func() { recActive.Store(wasActive) })
+	recActive.Store(true)
+	recMu.Lock()
+	recBuf, recPub = nil, make(chan RecordedEvent, 16)
+	recMu.Unlock()
+	aDesktopWhere(t, chosenWindow, chosenProcess, true)
+
+	turn := func(msg uintptr, delta int16) {
+		ms := msllHookStruct{pt: point{x: 500, y: 300}, mouseData: uint32(uint16(delta)) << 16}
+		mouseProc(0, msg, uintptr(unsafe.Pointer(&ms)))
+	}
+	turn(wmMouseWheel, -120)
+	turn(wmMouseWheel, 240)
+	turn(wmMouseHWheel, 120)
+	turn(wmMouseWheel, 0) // not a turn
+
+	recMu.Lock()
+	var got []RecordedEvent
+	for _, ev := range recBuf {
+		if ev.Kind == EvScroll {
+			got = append(got, ev)
+		}
+	}
+	recMu.Unlock()
+	if len(got) != 3 {
+		t.Fatalf("the hook recorded %d turns of the wheel, want 3", len(got))
+	}
+	for i, want := range []struct {
+		delta int
+		horiz bool
+	}{{-120, false}, {240, false}, {120, true}} {
+		if got[i].Delta != want.delta || got[i].Horizontal != want.horiz ||
+			got[i].X != 500 || got[i].Y != 300 {
+			t.Errorf("turn %d recorded as %+v, want delta %d horizontal %v at 500,300",
+				i, got[i], want.delta, want.horiz)
+		}
+	}
+}

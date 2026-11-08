@@ -20,6 +20,9 @@ const (
 	StepLoop     StepKind = "loop"     // Count, Steps (nested body)
 	StepActivate StepKind = "activate" // Text = app to focus/launch (a recorded app switch)
 	StepFind     StepKind = "find"     // Image (reserved for Phase 6 image recognition)
+	// StepScroll turns the wheel at X,Y (window-relative like a click when measured): Wheel is the
+	// direction, "up" | "down" | "left" | "right", and Count is how many notches.
+	StepScroll StepKind = "scroll"
 )
 
 // Step is one instruction in a macro. Fields are interpreted per Kind; unused
@@ -31,6 +34,7 @@ type Step struct {
 	X2     int      `json:"x2,omitempty"`
 	Y2     int      `json:"y2,omitempty"`
 	Button string   `json:"button,omitempty"` // one of MouseButtons; empty is left
+	Wheel  string   `json:"wheel,omitempty"`  // StepScroll: "up" | "down" | "left" | "right"
 	Key    string   `json:"key,omitempty"`    // Marco key name, lowercased
 	Text   string   `json:"text,omitempty"`
 	Count  int      `json:"count,omitempty"` // key repeats / loop iterations

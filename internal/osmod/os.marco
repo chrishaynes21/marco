@@ -12,6 +12,7 @@ this exports Navigate. // one navigation MEANING: "up"|"down"|"left"|"right"|"co
 this exports Click.     // click; input may be a Point to move-then-click
 this exports Move.      // move the cursor to a Point
 this exports Drag.      // press at (FromX,FromY), glide to (ToX,ToY), release — a real drag
+this exports Scroll.    // turn the wheel at a Point: Scroll "up"|"down"|"left"|"right", Notches
 this exports Sleep.     // sleep N milliseconds (a number)
 this exports Color.     // read the pixel at a Point; result is a hex text
 this exports Focus.     // ok if the active window matches the given text
@@ -52,7 +53,9 @@ this exports WindowState.   // maximise / minimise / restore a window: a WindowS
 the Point is a set.
 this's X is a number.
 this's Y is a number.
-this's Button is a text.    // "left" | "right" | "middle" (default left)
+this's Button is a text.    // "left" | "right" | "middle" | "back" | "forward" (default left)
+this's Scroll is a text.    // which way Scroll turns the wheel here: "up" | "down" | "left" | "right"
+this's Notches is a number. // how many notches it turns it
 this's RelX is a number.    // the same place, measured inside the window
 this's RelY is a number.
 this's RelTo is a text.     // which rectangle RelX,RelY are measured from: "window"
@@ -74,7 +77,7 @@ this's FromX is a number.
 this's FromY is a number.
 this's ToX is a number.
 this's ToY is a number.
-this's Button is a text.   // "left" | "right" | "middle" (default left)
+this's Button is a text.   // "left" | "right" | "middle" | "back" | "forward" (default left)
 this's FromRelX is a number. // where it started, measured inside the window
 this's FromRelY is a number.
 this's ToRelX is a number.   // where it ended, in the same window

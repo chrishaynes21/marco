@@ -147,6 +147,9 @@ func (b *testBackend) drag(_ context.Context, _ string, x1, y1, x2, y2 int, _ dr
 func (b *testBackend) move(_ context.Context, x, y int) error {
 	return b.note(func(d *TestDesktop) { d.pressed([2]int{x, y}) })
 }
+func (b *testBackend) scrollAt(_ context.Context, _ string, _, x, y int) error {
+	return b.note(func(d *TestDesktop) { d.pressed([2]int{x, y}) })
+}
 
 // pressed records a point and lets the test change the desktop after it. Under the lock.
 func (d *TestDesktop) pressed(p [2]int) {

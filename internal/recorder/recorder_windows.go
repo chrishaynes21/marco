@@ -1009,6 +1009,8 @@ func mouseProc(nCode int, wParam, lParam uintptr) uintptr {
 				if b := sideButton(ms.mouseData); b != "" {
 					recordClickUp(b, x, y)
 				}
+			case wmMouseWheel, wmMouseHWheel:
+				recordScroll(x, y, int(int16(ms.mouseData>>16)), wParam == wmMouseHWheel)
 			}
 		}
 	}
@@ -1532,4 +1534,21 @@ func sideButton(mouseData uint32) string {
 		return "forward"
 	}
 	return ""
+}
+
+// recordScroll records a turn of the wheel where the pointer is, measured the way a press is
+// (newClick: the window under it, its offset into that window and the window's terms), since
+// the window under the pointer is the one that scrolls. No picture is taken: nothing anchors a
+// scroll. A zero delta is not a turn and is not recorded.
+//
+// Not reading the wheel must fail TestTheWheelIsRecordedWhereItTurned.
+func recordScroll(x, y, delta int, horizontal bool) {
+	if delta == 0 {
+		return
+	}
+	w := attributionNow()
+	ev := newClick("", true, x, y, w)
+	ev.Kind, ev.Button, ev.Down = EvScroll, "", false
+	ev.Delta, ev.Horizontal = delta, horizontal
+	observe(ev, w.admits())
 }

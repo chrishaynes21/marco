@@ -41,3 +41,17 @@ func MouseButtonList() string {
 	}
 	return out
 }
+
+// WheelDirections are the four ways the wheel turns, as StepScroll.Wheel and a Point's Scroll
+// spell them: up and down on the wheel, left and right on a tilting one.
+var wheelDirections = []string{"up", "down", "left", "right"}
+
+// IsWheelDirection says whether name is one of them.
+func IsWheelDirection(name string) bool {
+	for _, d := range wheelDirections {
+		if d == name {
+			return true
+		}
+	}
+	return false
+}

@@ -61,6 +61,7 @@ type recBackend struct {
 	keyUps   []string
 	typed    []string
 	clicks   []string
+	scrolls  []string // "down 3 at 10,20"
 	moves    [][2]int
 	drags    [][4]int
 	exe      string
@@ -703,4 +704,15 @@ func TestUnknownAction(t *testing.T) {
 	if st, _, _ := call(h, "Frobnicate", runtime.Absent()); st != "failed" {
 		t.Fatalf("unknown action status = %q", st)
 	}
+}
+
+func (r *recBackend) scrollAt(_ context.Context, dir string, notches, x, y int) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if err := r.sending(); err != nil {
+		return err
+	}
+	r.scrolls = append(r.scrolls, fmt.Sprintf("%s %d at %d,%d", dir, notches, x, y))
+	r.calls = append(r.calls, "scroll "+dir)
+	return nil
 }

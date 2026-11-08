@@ -16,6 +16,12 @@ Record  →  do the thing  →  Stop  →  read what it made  →  Save  →  Pl
 That is the alpha, and it is the half of Marco that works on anything: menus,
 games, a dialog nothing can recognise. It replays what you showed it.
 
+A recording takes in every mouse button, including the back and forward side
+buttons, the scroll wheel (a run of notches is one `scroll down 3` step), and the
+whole keyboard: the numpad's keys are kept apart from the top row's, and F13-F24
+are named, so what a game binds to them plays back as those keys. Left and right
+Shift, Ctrl and Alt are still recorded as one key each.
+
 ### Two things that are easy to assume, and are not true
 
 **Recording does not watch everything.** Studio records the one window you choose

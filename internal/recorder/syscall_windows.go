@@ -40,6 +40,9 @@ const (
 	// (2) is forward. See sideButton.
 	wmXButtonDown = 0x020B
 	wmXButtonUp   = 0x020C
+	// THE WHEEL, vertical and horizontal: how far is the signed high word of mouseData.
+	wmMouseWheel  = 0x020A
+	wmMouseHWheel = 0x020E
 
 	llkhfExtended = 0x00000001
 	llkhfInjected = 0x00000010

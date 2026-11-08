@@ -214,6 +214,14 @@ func lower(events []recorder.RecordedEvent, opt Options) ([]timedStep, string) {
 	var downRect inRect
 	sawMove := false
 	argN := 0
+	// scrollRun is the scroll step being added to, while notches keep coming: its index in out,
+	// how far the wheel has turned in it, and when the last notch came.
+	var scrollRun struct {
+		at    int
+		units int
+		last  time.Time
+	}
+	scrollRun.at = -1
 	argKey := strings.ToLower(strings.TrimSpace(opt.ArgKey))
 	// Which key-presses are HOLDS (≥ holdThreshold or spanning an action) → emitted as
 	// explicit KeyDown/KeyUp instead of a tap, so a held key persists across the clicks
@@ -236,6 +244,29 @@ func lower(events []recorder.RecordedEvent, opt Options) ([]timedStep, string) {
 					sawMove = true
 				}
 			}
+		case recorder.EvScroll:
+			// A RUN OF NOTCHES IS ONE STEP: the same way, at the same place, each within
+			// scrollGap of the last and with nothing else in between, is `scroll down 3`
+			// rather than three steps and two waits. Measured like a click, because the
+			// window under the pointer is the one that scrolls. See ADR-336.
+			dir := wheelDirection(ev.Delta, ev.Horizontal)
+			if n := len(out); scrollRun.at == n-1 && n > 0 && out[n-1].step.Wheel == dir &&
+				abs(ev.X-out[n-1].step.X) <= opt.DragThresholdPx &&
+				abs(ev.Y-out[n-1].step.Y) <= opt.DragThresholdPx &&
+				ev.T.Sub(scrollRun.last) <= scrollGap {
+				scrollRun.units += abs(ev.Delta)
+				scrollRun.last = ev.T
+				out[n-1].step.Count = notches(scrollRun.units)
+				continue
+			}
+			out = append(out, timedStep{
+				step: pressedIn{relTo: ev.RelTo, w: ev.WinW, h: ev.WinH, dpi: ev.Dpi,
+					process: ev.Process}.onto(macroir.Step{Kind: macroir.StepScroll,
+					X: ev.X, Y: ev.Y, Wheel: dir, Count: notches(abs(ev.Delta)),
+					RelX: ev.RelX, RelY: ev.RelY, WinRel: ev.WinRel}),
+				t: ev.T,
+			})
+			scrollRun.at, scrollRun.units, scrollRun.last = len(out)-1, abs(ev.Delta), ev.T
 		case recorder.EvClick:
 			if ev.Down {
 				downActive = true
@@ -478,7 +509,7 @@ func markHolds(events []recorder.RecordedEvent, argKey string) (down, up map[int
 		for k := i + 1; k < j && !held; k++ {
 			e := events[k]
 			ekn := strings.ToLower(e.KeyName)
-			if (e.Kind == recorder.EvClick && e.Down) ||
+			if (e.Kind == recorder.EvClick && e.Down) || e.Kind == recorder.EvScroll ||
 				(e.Kind == recorder.EvKey && e.Down && !isModifier(ekn) && !isArg(ekn)) {
 				held = true
 			}
@@ -1061,7 +1092,7 @@ func releaseOf(events []recorder.RecordedEvent, i int, name string) int {
 // has modified nothing.
 func spansAPointerAction(events []recorder.RecordedEvent, from, to int) bool {
 	for k := from + 1; k < to; k++ {
-		if events[k].Kind == recorder.EvClick && !events[k].Down {
+		if (events[k].Kind == recorder.EvClick && !events[k].Down) || events[k].Kind == recorder.EvScroll {
 			return true
 		}
 	}
@@ -1191,4 +1222,31 @@ func insideAClick(events []recorder.RecordedEvent, k int) bool {
 		}
 	}
 	return false
+}
+
+// scrollGap is how far apart two notches of one turn of the wheel can be. A person spinning the
+// wheel sends a notch every few tens of milliseconds; a pause longer than this is a second turn,
+// and keeps the wait between them.
+const scrollGap = 400 * time.Millisecond
+
+// wheelDirection is the way a turn went, as StepScroll.Wheel spells it.
+func wheelDirection(delta int, horizontal bool) string {
+	switch {
+	case horizontal && delta > 0:
+		return "right"
+	case horizontal:
+		return "left"
+	case delta > 0:
+		return "up"
+	}
+	return "down"
+}
+
+// notches is how many notches a turn of units WHEEL_DELTA-units is, at least one: a fine-grained
+// wheel reports fractions of a notch, and a turn somebody made is never nothing.
+func notches(units int) int {
+	if n := (units + 60) / 120; n > 0 {
+		return n
+	}
+	return 1
 }

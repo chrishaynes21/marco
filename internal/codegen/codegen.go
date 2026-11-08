@@ -373,7 +373,13 @@ func (p *points) addRel(x, y int, in macroir.Step) string {
 // measurement: nothing about it is compared with the desktop before pressing, and the contract
 // reader's list of terms a guarded press must state is unchanged by it. Same place `Drag` has
 // carried its button since it existed.
+//
+// AND A SCROLL'S TURN, which goes in the same place for the same reason: which way and how many
+// notches are what the operation does at the place, not a measurement of the window (ADR-336).
 func buttonTerm(s macroir.Step) string {
+	if s.Kind == macroir.StepScroll {
+		return fmt.Sprintf(", Scroll %q, Notches %d", s.Wheel, max(s.Count, 1))
+	}
 	if s.Button == "" || s.Button == "left" {
 		return ""
 	}
@@ -500,6 +506,8 @@ func emit(steps []macroir.Step, g *gen, depth int) (string, error) {
 		case macroir.StepMove:
 			name := g.pts.add(s.X, s.Y)
 			fmt.Fprintf(&b, "%sdo OS's Move with %s.\n", pad, name)
+		case macroir.StepScroll:
+			fmt.Fprintf(&b, "%sdo OS's Scroll with %s.\n", pad, g.pts.scrollPoint(s))
 		case macroir.StepWait:
 			fmt.Fprintf(&b, "%sdo OS's Sleep with %d.\n", pad, s.Ms)
 		case macroir.StepKey:
@@ -920,7 +928,7 @@ func guardedStep(s macroir.Step) bool {
 		return false
 	}
 	return s.Kind == macroir.StepClick || s.Kind == macroir.StepMove ||
-		s.Kind == macroir.StepDrag
+		s.Kind == macroir.StepDrag || s.Kind == macroir.StepScroll
 }
 
 // cannotPropagate names what a step is, when its failure cannot be made to stop a guarded
@@ -1057,6 +1065,11 @@ func (g *gen) propagating(s macroir.Step) (guard, follow string, ok bool) {
 		return "", "", false
 	case s.Kind == macroir.StepMove:
 		return "OS's Move with " + g.pts.clickPoint(s), "", true
+	case s.Kind == macroir.StepScroll:
+		// A TURN OF THE WHEEL IS ONE SENTENCE, checked against its window like a press: what
+		// scrolls is whatever is under the pointer, so a window that moved or changed would
+		// scroll something else.
+		return "OS's Scroll with " + g.pts.scrollPoint(s), "", true
 	case s.Kind == macroir.StepDrag:
 		// A DRAG IS ONE SENTENCE, which is the whole reason it can be here and the
 		// reason an anchored press cannot.
@@ -1269,4 +1282,18 @@ func shift(text string, depth int) string {
 		b.WriteString(line)
 	}
 	return b.String()
+}
+
+// scrollPoint declares the Point a scroll turns the wheel at: window-relative and measured when
+// the recording measured it, like a click's, and otherwise a plain point. Either way it carries
+// the turn (buttonTerm).
+func (p *points) scrollPoint(s macroir.Step) string {
+	if aboutAPlaceInAWindow(s) {
+		return p.addRel(s.X, s.Y, s)
+	}
+	p.n++
+	name := fmt.Sprintf("p%d", p.n)
+	p.decls = append(p.decls, fmt.Sprintf("the %s is a Point with X %d, Y %d%s.", name, s.X, s.Y,
+		buttonTerm(s)))
+	return name
 }

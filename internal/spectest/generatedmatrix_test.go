@@ -134,6 +134,15 @@ func routeShapes(t *testing.T) []routeShape {
 			{Kind: macroir.StepClick, X: 5, Y: 5},
 			{Kind: macroir.StepWait, Ms: 250},
 		}},
+		{why: "scroll", name: "next weapon", app: "arkascended", steps: []macroir.Step{
+			{Kind: macroir.StepScroll, X: 400, Y: 300, Wheel: "down", Count: 3},
+			{Kind: macroir.StepClick, X: 400, Y: 300, Button: "forward"},
+		}},
+		{why: "scroll-in-a-window", name: "zoom the map", app: "arkascended", steps: []macroir.Step{
+			{Kind: macroir.StepScroll, X: 842, Y: 274, Wheel: "up", Count: 1, WinRel: true,
+				RelX: 722, RelY: 210, RelTo: "window", WinW: 1920, WinH: 1080, Dpi: 144,
+				Process: "arkascended.exe"},
+		}},
 		{why: "drag", name: "drag the slider", app: "arkascended", steps: []macroir.Step{
 			{Kind: macroir.StepDrag, X: 100, Y: 100, X2: 400, Y2: 100,
 				Button: "left", Steps: []macroir.Step{

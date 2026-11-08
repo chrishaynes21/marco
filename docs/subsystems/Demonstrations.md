@@ -230,6 +230,10 @@ that control, though a saved play still cannot say it (`cannot_say_pointer`, fol
   `?` or confuse with another: F13-F24, the numpad (its digits were the top row's, its Enter was
   Enter), the lock keys, Pause, Print Screen and the menu key, each with its own name in all three
   key tables
+- [[ADR-336-the-wheel-is-recorded-and-turned]] — and the wheel, which the recorder never read.
+  A run of notches is one `scroll down 3` step on a Point carrying the turn beside the place,
+  checked against the window like a press and a link in the chain like one, because what scrolls
+  is whatever is under the pointer
 - [[ADR-261-typed-text-is-a-sequence-of-submissions]] — and the input that can go in PART WAY,
   which no other one can. `do OS's Type with "hello"` is five events and any of them can be
   refused, so a failure leaves a field holding `he` and a next step written for `hello`. Typing

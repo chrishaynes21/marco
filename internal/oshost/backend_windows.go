@@ -425,6 +425,9 @@ const (
 	_MOUSEEVENTF_MIDDLEUP    = 0x0040
 	_MOUSEEVENTF_XDOWN       = 0x0080
 	_MOUSEEVENTF_XUP         = 0x0100
+	_MOUSEEVENTF_WHEEL       = 0x0800
+	_MOUSEEVENTF_HWHEEL      = 0x1000
+	_WHEEL_DELTA             = 120
 	_XBUTTON1                = 0x0001
 	_XBUTTON2                = 0x0002
 	_MOUSEEVENTF_VIRTUALDESK = 0x4000
@@ -570,4 +573,46 @@ func mapVirtualKey(vk uint16) uint16 {
 	const mapvkVKToVSC = 0
 	ret, _, _ := procMapVirtualKeyW.Call(uintptr(vk), mapvkVKToVSC)
 	return uint16(ret)
+}
+
+// scrollGapBetweenNotches is the pause between two notches of one scroll: a person turning a wheel
+// sends one every few tens of milliseconds, and a game that reads one notch per frame would take
+// several sent at once as one.
+var scrollGapBetweenNotches = 15 * time.Millisecond
+
+// scrollAt moves the pointer to x,y and turns the wheel notches times in dir, one WHEEL_DELTA a
+// notch: up and right are positive, down and left negative, and left and right are the
+// horizontal wheel. The move and the first notch go in ONE SendInput call, as a click's move and
+// press do, so nothing moves the pointer between the aim and the turn.
+//
+// Turning the wrong way, or on the wrong wheel, must fail TestTheWheelTurnsTheWayItWasRecorded.
+func (winBackend) scrollAt(ctx context.Context, dir string, notches, x, y int) error {
+	flags, sign := uint32(_MOUSEEVENTF_WHEEL), int32(1)
+	switch dir {
+	case "up":
+	case "down":
+		sign = -1
+	case "right":
+		flags = _MOUSEEVENTF_HWHEEL
+	case "left":
+		flags, sign = _MOUSEEVENTF_HWHEEL, -1
+	default:
+		return fmt.Errorf("the wheel does not turn %q", dir)
+	}
+	data := uint32(sign * _WHEEL_DELTA)
+	for i := range max(notches, 1) {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		inps := []inputT{pointerButtonAt(x, y, data, flags)}
+		if i == 0 {
+			inps = append([]inputT{pointerEventAt(x, y, _MOUSEEVENTF_MOVE)}, inps...)
+		} else {
+			time.Sleep(scrollGapBetweenNotches)
+		}
+		if !sendInputs(inps) {
+			return fmt.Errorf("SendInput rejected notch %d of a scroll %s at (%d,%d)", i+1, dir, x, y)
+		}
+	}
+	return ctx.Err()
 }

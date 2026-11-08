@@ -53,6 +53,12 @@ const (
 	// recording — go back to the window with the Stop button in it — refuse every recording
 	// it ended. Appended rather than inserted so no other kind's number moves.
 	EvHeldAcross
+	// EvScroll is one notch-run of the wheel, read from one WM_MOUSEWHEEL or WM_MOUSEHWHEEL: Delta is
+	// how far (WHEEL_DELTA, 120, is one notch; positive is up, or right when Horizontal), at X,Y,
+	// which is where the pointer was and so which window took it. Measured like a click's press
+	// (RelX, RelY, RelTo and the window terms), because where a wheel turns decides what scrolls.
+	// Appended after the markers so no other kind's number moves. See ADR-336.
+	EvScroll
 )
 
 // Marker reports whether k is capture state rather than something the person did.
@@ -67,12 +73,16 @@ func (k EventKind) Marker() bool {
 // RecordedEvent is one captured input event with a wall-clock timestamp.
 type RecordedEvent struct {
 	Kind    EventKind
-	VK      uint16    // virtual key code (EvKey)
-	KeyName string    // human key name, lowercased (EvKey); app name (EvAppSwitch)
-	Down    bool      // press vs release (EvKey / EvClick)
-	Button  string    // one of macroir.MouseButtons (EvClick)
-	X, Y    int       // screen coordinates (EvClick / EvMove)
-	T       time.Time // capture time
+	VK      uint16 // virtual key code (EvKey)
+	KeyName string // human key name, lowercased (EvKey); app name (EvAppSwitch)
+	Down    bool   // press vs release (EvKey / EvClick)
+	Button  string // one of macroir.MouseButtons (EvClick)
+	// Delta and Horizontal are the wheel's turn (EvScroll): Delta in WHEEL_DELTA units, positive up
+	// (or right, when Horizontal).
+	Delta      int
+	Horizontal bool
+	X, Y       int       // screen coordinates (EvClick / EvMove)
+	T          time.Time // capture time
 	// Image, on an EvClick down, is a PNG of the distinctive region the user
 	// clicked — captured live so codegen can match it on screen later (robust to
 	// the UI moving). Empty when the area wasn't distinctive or capture failed.

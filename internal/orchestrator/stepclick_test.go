@@ -194,3 +194,13 @@ func TestAnAddedClickCanUseEveryButtonMarcoPresses(t *testing.T) {
 		t.Errorf("Marco presses %v; the side buttons are missing", macroir.MouseButtons())
 	}
 }
+
+// A TURN OF THE WHEEL SENDS INPUT, so a recording of nothing but a scroll is worth saving.
+//
+// Leaving the scroll out of what counts must fail this.
+func TestAScrollIsAPressableStep(t *testing.T) {
+	d := &Draft{Steps: []macroir.Step{{Kind: macroir.StepScroll, X: 1, Y: 2, Wheel: "down", Count: 1}}}
+	if n := d.Pressable(); n != 1 {
+		t.Errorf("a draft that scrolls counts %d steps that send input, want 1", n)
+	}
+}

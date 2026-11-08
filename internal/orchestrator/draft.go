@@ -196,7 +196,7 @@ func (d *Draft) Pressable() int {
 	for _, s := range d.Steps {
 		switch s.Kind {
 		case macroir.StepClick, macroir.StepDrag, macroir.StepKey,
-			macroir.StepKeyDown, macroir.StepKeyUp, macroir.StepType:
+			macroir.StepKeyDown, macroir.StepKeyUp, macroir.StepType, macroir.StepScroll:
 			n++
 		}
 	}
