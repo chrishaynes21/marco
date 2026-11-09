@@ -33,7 +33,13 @@ the only way to say it.
 - A combo hold sharing a key with another open hold (hold Shift, then hold `shift+w`, then release
   `shift+w`) lets go of the Shift the first hold is still holding.
 
+## Mutation run
+
+Eight mutants of the host and the editor, all killed once
+`TestAnAddedPressWrittenWithSpacesIsTheCombo` was added for a key added through the editor rather
+than changed.
+
 ## Enforced by
 
 - `internal/oshost`: `TestAComboIsHeldKeyByKeyAndReleasedInReverse`, `TestAComboRefusedPartWayLetsGoOfWhatWentDown`, `TestAComboKeyThatWillNotComeUpIsLeftForTheSweep`.
-- `internal/orchestrator`: `TestAHoldCanBeChangedToACombo`, `TestAPressWrittenWithSpacesIsTheCombo`, `TestAKeyMarcoCannotPressIsRefusedAtReview`.
+- `internal/orchestrator`: `TestAHoldCanBeChangedToACombo`, `TestAPressWrittenWithSpacesIsTheCombo`, `TestAnAddedPressWrittenWithSpacesIsTheCombo`, `TestAKeyMarcoCannotPressIsRefusedAtReview`.
