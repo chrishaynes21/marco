@@ -86,9 +86,17 @@ func TestTheActionLoopShowsTheListAndPutsItAway(t *testing.T) {
 	waitFor("the key after it putting the list away", func(s snapshot) bool {
 		return s.leaderEcho == "CapsLock then e" && len(s.arm) == 0
 	})
-	mu.Lock()
-	got := fmt.Sprint(fed)
-	mu.Unlock()
+	// WAITED FOR, LIKE EVERYTHING ELSE HERE: the loop sets the echo and then emits the press, so
+	// reading the feed the instant the echo shows raced the emit and failed under load.
+	var got string
+	for deadline := time.Now().Add(10 * time.Second); time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
+		mu.Lock()
+		got = fmt.Sprint(fed)
+		mu.Unlock()
+		if strings.Contains(got, "Hotkeys Key e") {
+			break
+		}
+	}
 	if !strings.Contains(got, "Hotkeys Key e") {
 		t.Errorf("the key was not sent on as a press: %s", got)
 	}
