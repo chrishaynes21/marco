@@ -140,6 +140,7 @@ func TestLearnSimplifyOption(t *testing.T) {
 		{Kind: recorder.EvKey, KeyName: "h", Down: true, T: at(0)},
 		{Kind: recorder.EvKey, KeyName: "e", Down: true, T: at(140)},
 		{Kind: recorder.EvKey, KeyName: "l", Down: true, T: at(220)},
+		{Kind: recorder.EvKey, KeyName: "l", Down: false, T: at(260)}, // released: two l's, not one held
 		{Kind: recorder.EvKey, KeyName: "l", Down: true, T: at(310)},
 		{Kind: recorder.EvKey, KeyName: "o", Down: true, T: at(400)},
 		{Kind: recorder.EvKey, KeyName: "esc", Down: true, T: at(900)},
@@ -182,6 +183,7 @@ func TestLearnSimplifySaves(t *testing.T) {
 		{Kind: recorder.EvKey, KeyName: "h", Down: true, T: at(0)},
 		{Kind: recorder.EvKey, KeyName: "e", Down: true, T: at(140)},
 		{Kind: recorder.EvKey, KeyName: "l", Down: true, T: at(220)},
+		{Kind: recorder.EvKey, KeyName: "l", Down: false, T: at(260)}, // released: two l's, not one held
 		{Kind: recorder.EvKey, KeyName: "l", Down: true, T: at(310)},
 		{Kind: recorder.EvKey, KeyName: "o", Down: true, T: at(400)},
 		{Kind: recorder.EvKey, KeyName: "esc", Down: true, T: at(900)},
@@ -225,6 +227,7 @@ func TestSimplifyRoute(t *testing.T) {
 		{Kind: recorder.EvKey, KeyName: "h", Down: true, T: at(0)},
 		{Kind: recorder.EvKey, KeyName: "e", Down: true, T: at(140)},
 		{Kind: recorder.EvKey, KeyName: "l", Down: true, T: at(220)},
+		{Kind: recorder.EvKey, KeyName: "l", Down: false, T: at(260)}, // released: two l's, not one held
 		{Kind: recorder.EvKey, KeyName: "l", Down: true, T: at(310)},
 		{Kind: recorder.EvKey, KeyName: "o", Down: true, T: at(400)},
 		{Kind: recorder.EvKey, KeyName: "esc", Down: true, T: at(900)},

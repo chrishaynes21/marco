@@ -236,6 +236,8 @@ that control, though a saved play still cannot say it (`cannot_say_pointer`, fol
   never written down: Shift to sprint and Ctrl to slide are a tap, or a hold, of their own
 - [[ADR-340-a-hold-may-be-a-combo]] — and a hold the editor could only give one key: `shift+w` is
   held key by key and released in reverse
+- [[ADR-342-a-held-key-is-one-hold-not-its-repeats]] — and a key held for seconds, which was a
+  hundred holds of its own repeats: one hold now, and Simplify does not shorten it
 - [[ADR-336-the-wheel-is-recorded-and-turned]] — and the wheel, which the recorder never read.
   A run of notches is one `scroll down 3` step on a Point carrying the turn beside the place,
   checked against the window like a press and a link in the chain like one, because what scrolls

@@ -139,6 +139,7 @@ func DefaultOptions() Options {
 // understood of it, and nothing downstream may save them while the reason is set.
 func Simplify(events []recorder.RecordedEvent, opt Options) ([]macroir.Step, error) {
 	opt = opt.normalize()
+	events = dropKeyRepeats(events)
 	timed, gesture := lower(events, opt)
 	timed = foldActivates(timed)
 	steps := SimplifySteps(insertWaits(timed, opt), opt)
@@ -742,10 +743,21 @@ func capWaits(in []macroir.Step, max int) []macroir.Step {
 	if max < 0 {
 		return in
 	}
+	held := 0
 	out := make([]macroir.Step, len(in))
 	copy(out, in)
 	for i := range out {
-		if out[i].Kind == macroir.StepWait && out[i].Ms > max {
+		switch out[i].Kind {
+		case macroir.StepKeyDown:
+			held++
+		case macroir.StepKeyUp:
+			if held > 0 {
+				held--
+			}
+		}
+		// A WAIT WHILE A KEY IS HELD IS HOW LONG IT IS HELD, not a pause to shorten: J held five
+		// seconds to leave for orbit, clamped to 250ms, lets go before the game acts on it.
+		if out[i].Kind == macroir.StepWait && out[i].Ms > max && held == 0 {
 			out[i].Ms = max
 		}
 	}
@@ -1401,4 +1413,33 @@ func shiftedKeys(in []macroir.Step) []macroir.Step {
 		}
 	}
 	return in
+}
+
+// dropKeyRepeats takes out the KEY-REPEAT downs Windows sends about thirty times a second while a
+// key is held: a down of a key that is already down is not a press. Without this, J held for five
+// seconds was a hundred holds of J folded into loops, where what was shown is one: J down, five
+// seconds, J up. With them gone, the hold is timed from the first down to the release, as any
+// held key is (holdThreshold).
+//
+// A held key is then played as one hold, and an injected hold does not repeat by itself: a game
+// reads the key as down for the whole time, which is what a game wants, while a text box receives
+// one character where holding the key typed many. See ADR-342.
+func dropKeyRepeats(events []recorder.RecordedEvent) []recorder.RecordedEvent {
+	down := map[string]bool{}
+	out := make([]recorder.RecordedEvent, 0, len(events))
+	for _, ev := range events {
+		if ev.Kind == recorder.EvKey {
+			name := strings.ToLower(ev.KeyName)
+			if ev.Down {
+				if down[name] {
+					continue
+				}
+				down[name] = true
+			} else {
+				delete(down, name)
+			}
+		}
+		out = append(out, ev)
+	}
+	return out
 }

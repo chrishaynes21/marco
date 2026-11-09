@@ -375,11 +375,11 @@ func TestShiftedPlaceholderRecords(t *testing.T) {
 	// Typing {{pw}} = shift+[ shift+[ p w shift+] shift+] must record the braces.
 	evs := []recorder.RecordedEvent{
 		key("shift", true, 0),
-		key("[", true, 5), key("[", true, 10),
+		key("[", true, 5), key("[", false, 7), key("[", true, 10), key("[", false, 12),
 		key("shift", false, 15),
 		key("p", true, 20), key("w", true, 25),
 		key("shift", true, 30),
-		key("]", true, 35), key("]", true, 40),
+		key("]", true, 35), key("]", false, 37), key("]", true, 40), key("]", false, 42),
 		key("shift", false, 45),
 	}
 	got := simplified(t, evs, DefaultOptions())

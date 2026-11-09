@@ -109,3 +109,55 @@ func TestATapAfterAChordIsStillATap(t *testing.T) {
 		t.Fatalf("ctrl+s then a shift tap came out as %q", got)
 	}
 }
+
+// A KEY HELD FOR SECONDS IS ONE HOLD, however many repeats Windows sent while it was held: the
+// owner's "return to orbit", Tab and then J held about five seconds, which came out as a hundred
+// holds of J in loops. See ADR-342.
+func TestAKeyHeldForSecondsIsOneHoldNotItsRepeats(t *testing.T) {
+	ev := []recorder.RecordedEvent{key("tab", true, 1800), key("tab", false, 2020),
+		key("j", true, 4200)}
+	for ms := 4700; ms < 9600; ms += 31 {
+		ev = append(ev, key("j", true, ms))
+	}
+	ev = append(ev, key("j", false, 9650))
+	// THE WAITS AS A SAVE KEEPS THEM: every recorded gap, uncapped (orchestrator's options for a
+	// coordinate recording). The default cap of 50ms belongs to anchored recordings.
+	opt := DefaultOptions()
+	opt.MaxWaitMs = 24 * 60 * 60 * 1000
+	steps := simplified(t, ev, opt)
+	if got := shapeOf(steps); got != "key(tab) keydown(j) keyup(j)" {
+		t.Fatalf("Tab then J held came out as %q", got)
+	}
+	held := 0
+	for i, s := range steps {
+		if s.Kind == "keydown" {
+			for _, w := range steps[i+1:] {
+				if w.Kind == "wait" {
+					held += w.Ms
+				}
+			}
+		}
+	}
+	if held < 5000 || held > 5900 {
+		t.Errorf("J is held for %dms, want the 5.45s it was held", held)
+	}
+}
+
+// AND SIMPLIFY DOES NOT SHORTEN A HOLD: it clamps pauses to 250ms, and a wait while a key is held
+// is how long the key is held. The pauses either side of the hold are still clamped.
+func TestSimplifyClampsPausesButNotHowLongAKeyIsHeld(t *testing.T) {
+	ev := []recorder.RecordedEvent{key("tab", true, 1800), key("tab", false, 2020),
+		key("j", true, 4200), key("j", false, 9650), key("e", true, 12000), key("e", false, 12050)}
+	opt := DefaultOptions()
+	opt.MaxWaitMs = SimplifiedMaxWaitMs
+	steps := simplified(t, ev, opt)
+	var waits []int
+	for _, s := range steps {
+		if s.Kind == "wait" {
+			waits = append(waits, s.Ms)
+		}
+	}
+	if len(waits) != 3 || waits[0] != 250 || waits[1] < 5000 || waits[2] != 250 {
+		t.Fatalf("the waits are %v, want 250, the 5.45s hold, 250: %s", waits, shapeOf(steps))
+	}
+}

@@ -35,9 +35,8 @@ it. So this wasn't a recorder problem; the simplifier dropped them.
   one holds each key at its own press and releases it at its own release.
 - A key-repeat down of a key held AROUND the group (W held under a Shift tap) is not a key under
   it. Counting it as one would drop the tap.
-- A key held on its own with its repeats still comes out as many presses of that key folded into
-  loops. That copies what the keyboard did (a held key typed into a text box repeats, and an
-  injected hold does not) and was left alone here.
+- A key held on its own with its repeats came out as many presses of that key folded into loops.
+  Left alone here; fixed by [[ADR-342-a-held-key-is-one-hold-not-its-repeats]].
 - Five lone Shift taps played back are what Windows answers with the Sticky Keys prompt, as they
   would be pressed by hand.
 - A routine recorded before this keeps the steps it was saved with.
