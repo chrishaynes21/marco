@@ -93,7 +93,7 @@ func TestTheStepPanelSaysWhichStepTypesText(t *testing.T) {
 	a := aStudioLibrary(t, "say hello", typingWordsIntoNotepad())
 	rs := a.Routines()
 	if len(rs) != 1 {
-		t.Fatalf("the library holds %d routines", len(rs))
+		t.Fatalf("the library holds %d plays", len(rs))
 	}
 	e, row := theTypingRow(t, a, rs[0].ID)
 
@@ -143,7 +143,7 @@ func TestSupplyingAStepsTextMakesTheRoutineAskForIt(t *testing.T) {
 	// AFTER: the field beside Play, by name, and not a secret.
 	after := a.PlayNeeds(id)
 	if !after.Needs {
-		t.Fatalf("the edited routine needs nothing supplied: %+v", after)
+		t.Fatalf("the edited play needs nothing supplied: %+v", after)
 	}
 	if len(after.Fields) != 1 {
 		t.Fatalf("it offers %d field(s): %+v", len(after.Fields), after.Fields)
@@ -157,11 +157,11 @@ func TestSupplyingAStepsTextMakesTheRoutineAskForIt(t *testing.T) {
 	// AND PLAY REFUSES UNTIL IT IS GIVEN ONE, which is the contract that was already
 	// there — this feature's whole job is to get a routine INTO that state.
 	if got := a.ReviewPlay(id, nil, nil, ""); got.Token != "" {
-		t.Error("the edited routine may be run with no value given")
+		t.Error("the edited play may be run with no value given")
 	}
 	if got := a.ReviewPlay(id, map[string]string{"message": "goodbye"}, nil,
 		""); got.Token == "" {
-		t.Errorf("the edited routine refuses a value it asked for: %q", got.Why)
+		t.Errorf("the edited play refuses a value it asked for: %q", got.Why)
 	}
 }
 
@@ -220,10 +220,10 @@ func TestTheEditedRoutineTypesTheValueRatherThanReadingACredential(t *testing.T)
 		t.Fatalf("the review refused: %s", p.Why)
 	}
 	if !strings.Contains(p.Now, `do OS's Type with "{{message}}"`) {
-		t.Errorf("the routine it would write does not type the value:\n%s", p.Now)
+		t.Errorf("the play it would write does not type the value:\n%s", p.Now)
 	}
 	if strings.Contains(p.Now, "OS's Secret") {
-		t.Errorf("the routine it would write reads the credential store:\n%s", p.Now)
+		t.Errorf("the play it would write reads the credential store:\n%s", p.Now)
 	}
 	// AND THE TEXT IT REPLACED IS GONE FROM IT, which is the point of the edit.
 	if strings.Contains(p.Now, `with "hello"`) {
@@ -377,7 +377,7 @@ func TestARebuildOfAnEditedRoutineNeverReadsACredential(t *testing.T) {
 	// AND NOTHING WAS REPLACED BY LOOKING, so the edited routine still asks for text.
 	if after := a.PlayNeeds(id); !after.Needs || len(after.Fields) != 1 ||
 		after.Fields[0].Name != "message" {
-		t.Errorf("reviewing a rebuild changed the saved routine: %+v", after)
+		t.Errorf("reviewing a rebuild changed the saved play: %+v", after)
 	}
 }
 
@@ -434,7 +434,7 @@ func TestTodaysRulesKeepsTheSuppliedValueAndSimplifyingGivesBackTheText(t *testi
 	}
 	if after := a.PlayNeeds(id); !after.Needs || len(after.Fields) != 1 ||
 		after.Fields[0].Name != "message" {
-		t.Errorf("the rebuilt routine no longer asks for the value: %+v", after)
+		t.Errorf("the rebuilt play no longer asks for the value: %+v", after)
 	}
 
 	// ── SIMPLIFY-TYPING: THE DEMONSTRATION COMES BACK ──
@@ -485,6 +485,6 @@ func TestTheWindowRefusesANameThePlaceholderCannotHave(t *testing.T) {
 	}
 	// AND NOTHING WAS WRITTEN BY ANY OF THEM.
 	if after := a.PlayNeeds(id); after.Needs {
-		t.Errorf("a refused name left the routine asking for something: %+v", after.Fields)
+		t.Errorf("a refused name left the play asking for something: %+v", after.Fields)
 	}
 }

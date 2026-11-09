@@ -315,10 +315,10 @@ func TestThePageSaysWhichGenerationWroteEachRoutine(t *testing.T) {
 		key  string
 		what string
 	}{
-		{"current", "a routine this build wrote is not said to be current"},
-		{"unstated", "a routine that states nothing is not said to state nothing"},
-		{"unknown", "a routine from a later build is not said to be unrecognised"},
-		{"norec", "a routine with no demonstration does not say so"},
+		{"current", "a play this build wrote is not said to be current"},
+		{"unstated", "a play that states nothing is not said to state nothing"},
+		{"unknown", "a play from a later build is not said to be unrecognised"},
+		{"norec", "a play with no demonstration does not say so"},
 	} {
 		if n(c.key) != 1 {
 			t.Errorf("%s: %q", c.what, title)
@@ -327,11 +327,11 @@ func TestThePageSaysWhichGenerationWroteEachRoutine(t *testing.T) {
 	// AND THE DECLARED VALUE IS SHOWN FOR THE ONE THIS BUILD CANNOT EXPLAIN, which is
 	// the only fact about it that identifies the routine to whoever can.
 	if n("unknowndeclared") != 1 {
-		t.Errorf("the unrecognised routine's own stated generation is not on the "+
+		t.Errorf("the unrecognised play's own stated generation is not on the "+
 			"page: %q", title)
 	}
 	if n("undef") != 0 {
-		t.Errorf("a routine's generation rendered as `undefined`: %q", title)
+		t.Errorf("a play's generation rendered as `undefined`: %q", title)
 	}
 }
 
@@ -344,20 +344,20 @@ func TestThePageSaysWhichGenerationWroteEachRoutine(t *testing.T) {
 func TestThePageOffersARebuiltVersionOnlyWhereThereIsOneToOffer(t *testing.T) {
 	title, n := aRenderedGenerationPage(t)
 	if n("unstatedlive") != 1 {
-		t.Errorf("the routine this flow exists for cannot be reviewed: %q", title)
+		t.Errorf("the play this flow exists for cannot be reviewed: %q", title)
 	}
 	// A CURRENT ROUTINE MAY STILL BE COMPARED. It rebuilds to itself, which the review
 	// then says — withholding the comparison would be withholding an answer.
 	if n("currentlive") != 1 {
-		t.Errorf("a routine of the current generation cannot be compared with its "+
+		t.Errorf("a play of the current generation cannot be compared with its "+
 			"own recording: %q", title)
 	}
 	if n("unknownlive") != 0 {
-		t.Errorf("a routine whose generation this build cannot explain is offered a "+
+		t.Errorf("a play whose generation this build cannot explain is offered a "+
 			"rebuilt version anyway: %q", title)
 	}
 	if n("noreclive") != 0 {
-		t.Errorf("a routine with no stored demonstration is offered a rebuilt "+
+		t.Errorf("a play with no stored demonstration is offered a rebuilt "+
 			"version, which is an offer that fails after somebody takes it: %q",
 			title)
 	}
@@ -481,10 +481,10 @@ func TestThePageOffersBothRebuildChoicesAndSaysWhichMadeTheReview(t *testing.T) 
 	// Two buttons each with their own condition is two chances to offer what the
 	// backend declines.
 	if n("foldlive") != 1 {
-		t.Errorf("the routine this flow exists for cannot be simplified: %q", title)
+		t.Errorf("the play this flow exists for cannot be simplified: %q", title)
 	}
 	if n("foldoff") != 0 {
-		t.Errorf("a routine whose generation this build cannot explain is offered a "+
+		t.Errorf("a play whose generation this build cannot explain is offered a "+
 			"simplified rebuild anyway: %q", title)
 	}
 }
@@ -573,11 +573,11 @@ setTimeout(() => {
 	}
 
 	title := renderForCounters(t, browser, harness(
-		"Press F9 where the routine should ask for a value instead of typing "+
+		"Press F9 where the play should ask for a value instead of typing "+
 			"what you typed. Call it “name with item” and the value "+
 			"is called item."))
 	if n(title, "shown") != 1 {
-		t.Fatalf("nothing on the record card says a routine can ask for a value: %q", title)
+		t.Fatalf("nothing on the record card says a play can ask for a value: %q", title)
 	}
 	for _, c := range []struct{ key, what string }{
 		{"key", "which key marks a value"},

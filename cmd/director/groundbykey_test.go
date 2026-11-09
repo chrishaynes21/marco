@@ -62,7 +62,7 @@ func aDeskOverSyntheticKeys(t *testing.T, out io.Writer) (*hotkeyGranter, func(u
 // aScreenToName is an artifact with two saved screens, so the ranking has something to rank and
 // the candidate offered is a choice rather than the only thing there is.
 func aScreenToName() workflowstore.Artifact {
-	a := aNamedDemonstration("the routine")
+	a := aNamedDemonstration("the play")
 	a.Screens = []workflowstore.Screen{
 		{Label: "screen_a", Arrangement: observe.VisualArrangement{
 			Cells: map[string]int{"0,0": 4, "1,1": 2}, Total: 6}},

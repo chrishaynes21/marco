@@ -108,7 +108,7 @@ func TestAReviewWithNothingToAskForSaysToSimplifyFirst(t *testing.T) {
 			'Simplify first — it folds a typed run into one step — and then ' +
 			'you can ask for it.'}`)
 	if n("box") != 1 {
-		t.Fatalf("the card says nothing, which reads as a routine that cannot ask "+
+		t.Fatalf("the card says nothing, which reads as a play that cannot ask "+
 			"for a value: %q", title)
 	}
 	if n("simplifyfirst") != 1 {

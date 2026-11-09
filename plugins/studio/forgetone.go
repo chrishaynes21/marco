@@ -67,7 +67,7 @@ func (a *Acts) ReviewForgetRoutine(id string) ForgetReview {
 	}
 	chosen, ok := a.routineWithID(id)
 	if !ok {
-		return ForgetReview{ID: id, Why: fmt.Sprintf("there is no routine %q in this library "+
+		return ForgetReview{ID: id, Why: fmt.Sprintf("there is no play %q in this library "+
 			"(%s) — press Refresh and choose it again", id, a.routesDir)}
 	}
 	rt := chosen.route()
@@ -95,7 +95,7 @@ func (a *Acts) ReviewForgetRoutine(id string) ForgetReview {
 	if len(p.Phrases) > 0 {
 		out.Parts = append(out.Parts, "what else it answers to: "+strings.Join(quoteAll(p.Phrases), ", "))
 	}
-	out.Parts = append(out.Parts, "the routine itself ("+rt.ID()+")")
+	out.Parts = append(out.Parts, "the play itself ("+rt.ID()+")")
 	return out
 }
 
@@ -149,7 +149,7 @@ func (a *Acts) partsLeft(p orchestrator.ForgetPlan) []ForgetPart {
 		out = append(out, ForgetPart{What: "the shortcut " + widgetconfig.Pressed(leader, b.Key) +
 			" " + placeWords(b.App), Gone: !still})
 	}
-	out = append(out, ForgetPart{What: "the routine itself", Gone: !reg.Has(p.Route)})
+	out = append(out, ForgetPart{What: "the play itself", Gone: !reg.Has(p.Route)})
 	if p.Provenance {
 		_, originErr := os.Stat(reg.OriginPath(p.Route))
 		out = append(out, ForgetPart{What: "its provenance record", Gone: os.IsNotExist(originErr)})

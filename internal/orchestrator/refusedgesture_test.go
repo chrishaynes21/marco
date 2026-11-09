@@ -79,7 +79,7 @@ func TestADraftWhoseGestureCannotBeWrittenDownIsRefused(t *testing.T) {
 
 	_, err := d.Save(dr, ScopeAppAnywhere, "arkascended")
 	if err == nil {
-		t.Fatal("Save wrote a routine for a gesture that cannot be written down " +
+		t.Fatal("Save wrote a play for a gesture that cannot be written down " +
 			"faithfully — so the library now holds a plain click where a " +
 			"Ctrl+click was demonstrated, and nothing about the file looks wrong")
 	}
@@ -90,7 +90,7 @@ func TestADraftWhoseGestureCannotBeWrittenDownIsRefused(t *testing.T) {
 	// outcome than no refusal at all, because the sentence would say the opposite of
 	// what the library holds.
 	if left := d.Reg.List(); len(left) != 0 {
-		t.Errorf("the library holds %d routine(s) after a refused save: %v",
+		t.Errorf("the library holds %d play(s) after a refused save: %v",
 			len(left), left)
 	}
 }
@@ -119,7 +119,7 @@ func TestAnOrdinaryCtrlClickStillSaves(t *testing.T) {
 	// AND IT SAVED AS THE GESTURE, which is what the whole correction is about.
 	for _, want := range []string{`do OS's KeyDown with "ctrl"`, `do OS's KeyUp with "ctrl"`} {
 		if !strings.Contains(src, want) {
-			t.Errorf("the saved routine has no %s in it:\n%s", want, src)
+			t.Errorf("the saved play has no %s in it:\n%s", want, src)
 		}
 	}
 }

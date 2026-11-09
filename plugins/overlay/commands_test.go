@@ -227,7 +227,7 @@ func TestTheListingIsGeneratedFromTheTable(t *testing.T) {
 	}
 	// With no engine to ask, the listing still has to say something useful rather than
 	// showing a person an empty space where their plays are not.
-	if !strings.Contains(got, "no routines yet") {
+	if !strings.Contains(got, "no plays yet") {
 		t.Errorf("the empty state does not tell a new person what to do:\n%s", got)
 	}
 }

@@ -49,7 +49,7 @@ func (h *Host) ReadInFront() InFront {
 func (h *Host) BindInFront(w InFront) error {
 	if w.HWnd == 0 || w.PID == 0 || w.Program == "" {
 		return fmt.Errorf("Marco could not tell which window is in front, so there is no " +
-			"window to check this routine's presses against — nothing was performed")
+			"window to check this play's presses against — nothing was performed")
 	}
 	f := windowFacts(w.HWnd)
 	switch {

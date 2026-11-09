@@ -40,7 +40,7 @@ func TestTheWindowSaysHowToMakeAValueSomethingYouSupply(t *testing.T) {
 			"default installation is told there is no key", got.ArgKey)
 	}
 	if got.ArgSays == "" {
-		t.Fatal("nothing on the record card says a routine can ask for a value, " +
+		t.Fatal("nothing on the record card says a play can ask for a value, " +
 			"which is how a working capability gets reported as missing")
 	}
 	for _, want := range []string{"F9", "ask for a value", "with item"} {

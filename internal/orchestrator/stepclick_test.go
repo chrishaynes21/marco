@@ -56,11 +56,11 @@ func TestAWindowClickIsRefusedWhereItsBasisDoesNotHoldIt(t *testing.T) {
 		{"outside the window", checkedClickSteps(), StepEdit{Op: EditInsert, At: 1,
 			Kind: "click", BasisAt: 1, X: 1280, Y: 10}, "outside it"},
 		{"a basis that is not a measured press", checkedClickSteps(), StepEdit{Op: EditInsert,
-			At: 1, Kind: "click", BasisAt: 0, X: 10, Y: 10}, "not a press this routine was measured"},
+			At: 1, Kind: "click", BasisAt: 0, X: 10, Y: 10}, "not a press this play was measured"},
 		{"no measured window at all", typingSteps(), StepEdit{Op: EditInsert, At: 1,
-			Kind: "click", BasisAt: 1, X: 10, Y: 10}, "no press in this routine was measured"},
+			Kind: "click", BasisAt: 1, X: 10, Y: 10}, "no press in this play was measured"},
 		{"only a press found by its words", anchoredOnly, StepEdit{Op: EditInsert, At: 1,
-			Kind: "click", BasisAt: 1, X: 10, Y: 10}, "no press in this routine was measured"},
+			Kind: "click", BasisAt: 1, X: 10, Y: 10}, "no press in this play was measured"},
 		{"not a mouse button", checkedClickSteps(), StepEdit{Op: EditInsert, At: 1,
 			Kind: "click", Button: "fourth", BasisAt: 1, X: 10, Y: 10}, "not a mouse button"},
 	} {
@@ -81,7 +81,7 @@ func TestAScreenClickIsAddedOnlyToARoutineThatChecksNothing(t *testing.T) {
 	out, says, why := editedFrom(typingSteps(), StepEdit{Op: EditInsert, At: 1, Kind: "click",
 		Screen: true, X: 30, Y: 40})
 	if why != "" {
-		t.Fatalf("a screen click in a routine that checks nothing was refused: %s", why)
+		t.Fatalf("a screen click in a play that checks nothing was refused: %s", why)
 	}
 	if c := out[2]; c.Kind != macroir.StepClick || c.WinRel || c.RelTo != "" || c.X != 30 ||
 		c.Button != "left" {
@@ -93,7 +93,7 @@ func TestAScreenClickIsAddedOnlyToARoutineThatChecksNothing(t *testing.T) {
 	_, _, why = editedFrom(checkedClickSteps(), StepEdit{Op: EditInsert, At: 1, Kind: "click",
 		Screen: true, X: 30, Y: 40})
 	if !strings.Contains(why, "checks each press against its window") {
-		t.Errorf("a screen click in a checked routine was accepted, or refused saying %q", why)
+		t.Errorf("a screen click in a checked play was accepted, or refused saying %q", why)
 	}
 }
 
@@ -110,7 +110,7 @@ func TestTheBasesAreTheDistinctWindowsTheRoutineWasMeasuredIn(t *testing.T) {
 		t.Errorf("the bases are %+v", bases)
 	}
 	if len(ClickBases(typingSteps())) != 0 {
-		t.Error("a routine with no measured press offers a basis")
+		t.Error("a play with no measured press offers a basis")
 	}
 }
 
@@ -130,7 +130,7 @@ func TestAClickAddedInsideAWindowIsWhatTheRoutineDoes(t *testing.T) {
 		X: 15, Y: 25})
 	calls := whatItAsked(t, d, rt, 0)
 	if len(calls) != before+1 {
-		t.Errorf("the routine made %d calls, %d before and one added", len(calls), before)
+		t.Errorf("the play made %d calls, %d before and one added", len(calls), before)
 	}
 	added := ""
 	for _, c := range calls {
@@ -139,7 +139,7 @@ func TestAClickAddedInsideAWindowIsWhatTheRoutineDoes(t *testing.T) {
 		}
 	}
 	if added == "" || !strings.Contains(added, "arkascended") {
-		t.Errorf("no click was performed at 15, 25 checked against the routine's window: %v",
+		t.Errorf("no click was performed at 15, 25 checked against the play's window: %v",
 			calls)
 	}
 	if after, _ := d.Reg.LoadRecording(rt); !bytes.Equal(after, demo) {

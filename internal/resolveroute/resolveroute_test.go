@@ -118,7 +118,7 @@ func TestEveryOfferedLabelIsDistinguishable(t *testing.T) {
 	}
 	labels, byLabel := labelled(Eligible(all, at("arkascended")))
 	if len(labels) != len(all) {
-		t.Fatalf("%d of %d routines were offered: %v", len(labels), len(all), labels)
+		t.Fatalf("%d of %d plays were offered: %v", len(labels), len(all), labels)
 	}
 	seen := map[string]string{}
 	for _, l := range labels {
@@ -131,7 +131,7 @@ func TestEveryOfferedLabelIsDistinguishable(t *testing.T) {
 	for _, l := range labels {
 		c, ok := byLabel[l]
 		if !ok {
-			t.Errorf("label %q maps to no routine", l)
+			t.Errorf("label %q maps to no play", l)
 			continue
 		}
 		if ids[c.ID] {
@@ -140,7 +140,7 @@ func TestEveryOfferedLabelIsDistinguishable(t *testing.T) {
 		ids[c.ID] = true
 	}
 	if len(ids) != len(all) {
-		t.Errorf("%d routines are reachable, want %d", len(ids), len(all))
+		t.Errorf("%d plays are reachable, want %d", len(ids), len(all))
 	}
 	label := func(id string) string {
 		for l, c := range byLabel {
@@ -152,7 +152,7 @@ func TestEveryOfferedLabelIsDistinguishable(t *testing.T) {
 	}
 	// A ROUTINE KEEPS ITS OWN NAME, whatever order the listing is in.
 	if got := label("global/settings-in-arkascended"); got != "settings-in-arkascended" {
-		t.Errorf("the routine actually named settings-in-arkascended is offered as %q", got)
+		t.Errorf("the play actually named settings-in-arkascended is offered as %q", got)
 	}
 	// AND A DERIVED LABEL SAYS WHERE ITS ROUTINE WORKS, exactly, with no counter when the
 	// scoped form was free.
@@ -180,7 +180,7 @@ func TestADerivedLabelTheMatcherCannotTellApartIsEscalated(t *testing.T) {
 	}
 	labels, byLabel := labelled(Eligible(all, at("ark")))
 	if len(labels) != len(all) {
-		t.Fatalf("%d of %d routines were offered: %v", len(labels), len(all), labels)
+		t.Fatalf("%d of %d plays were offered: %v", len(labels), len(all), labels)
 	}
 	seen := map[string]string{}
 	for _, l := range labels {
@@ -190,7 +190,7 @@ func TestADerivedLabelTheMatcherCannotTellApartIsEscalated(t *testing.T) {
 		seen[nlu.Key(l)] = l
 	}
 	if byLabel["settings-ark"].ID != "global/settings-ark" {
-		t.Errorf("the routine actually named settings-ark is offered as %+v",
+		t.Errorf("the play actually named settings-ark is offered as %+v",
 			byLabel["settings-ark"])
 	}
 	for _, l := range labels {
@@ -338,7 +338,7 @@ func TestAnUnofferedAnswerSelectsNothing(t *testing.T) {
 		Intent: dispatch.IntentRun, Route: "a-routine-nobody-has", Reply: "Sure."}})
 	said := r.Resolve(context.Background(), "do the thing", cs, at("arkascended"))
 	if said.ID != "" || said.Kind == dispatch.IntentRun {
-		t.Errorf("a routine was selected from an answer nobody offered: %+v", said)
+		t.Errorf("a play was selected from an answer nobody offered: %+v", said)
 	}
 }
 
@@ -351,9 +351,9 @@ func TestASharedNameIsAQuestionAndNotASelection(t *testing.T) {
 	r := Resolver{Reg: routes.Registry{Dir: t.TempDir()}, Advisor: &recordingAdvisor{}}
 	said := r.Resolve(context.Background(), "settings", cs, at("arkascended"))
 	if said.ID != "" || said.Kind != dispatch.IntentClarify {
-		t.Errorf("a request for a name two routines answer to produced %+v", said)
+		t.Errorf("a request for a name two plays answer to produced %+v", said)
 	}
-	for _, says := range []string{"is the name of 2 routines", "already in front",
+	for _, says := range []string{"is the name of 2 plays", "already in front",
 		"brings arkascended forward"} {
 		if !strings.Contains(said.Reply, says) {
 			t.Errorf("the question does not say %q: %s", says, said.Reply)

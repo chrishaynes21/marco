@@ -76,7 +76,7 @@ func runReacquire(args []string) int {
 
 	if strings.TrimSpace(name) == "" {
 		fmt.Fprintln(os.Stderr,
-			`director: say which routine, e.g. director reacquire "enter free play"`)
+			`director: say which play, e.g. director reacquire "enter free play"`)
 		return 2
 	}
 	if *app == "" && *title == "" {

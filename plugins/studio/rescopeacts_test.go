@@ -39,7 +39,7 @@ func aMovableRoutineInStudio(t *testing.T) (*Acts, Routine) {
 	a := aStudioLibrary(t, "type my address", typingIntoNotepad())
 	rs := a.Routines()
 	if len(rs) != 1 {
-		t.Fatalf("the library holds %d routines, want the one saved", len(rs))
+		t.Fatalf("the library holds %d plays, want the one saved", len(rs))
 	}
 	return a, rs[0]
 }
@@ -106,11 +106,11 @@ func TestEveryScopeIsAnsweredForAChosenRoutine(t *testing.T) {
 
 	cs := a.ScopeChoices(r.ID, "")
 	if len(cs) != 3 {
-		t.Fatalf("%d choices offered for a routine, want all three: %+v", len(cs), cs)
+		t.Fatalf("%d choices offered for a play, want all three: %+v", len(cs), cs)
 	}
 	now := choiceFor(t, cs, string(orchestrator.ScopeAppAnywhere))
 	if !now.Current {
-		t.Errorf("the scope the routine already has is not marked as the one it "+
+		t.Errorf("the scope the play already has is not marked as the one it "+
 			"has: %+v", now)
 	}
 	if now.Available {
@@ -124,7 +124,7 @@ func TestEveryScopeIsAnsweredForAChosenRoutine(t *testing.T) {
 		string(orchestrator.ScopeEverywhere)} {
 		c := choiceFor(t, cs, scope)
 		if !c.Available {
-			t.Errorf("%s is not available to a routine that checks no window: %q",
+			t.Errorf("%s is not available to a play that checks no window: %q",
 				scope, c.Why)
 		}
 		if c.Where == "" || c.Asked == "" {
@@ -150,17 +150,17 @@ func TestAGuardedRoutineIsRefusedTheScopesThatBringNoWindow(t *testing.T) {
 	a := aStudioLibrary(t, "ark graphics", clickingInNotepad())
 	rs := a.Routines()
 	if len(rs) != 1 {
-		t.Fatalf("the library holds %d routines", len(rs))
+		t.Fatalf("the library holds %d plays", len(rs))
 	}
 
 	cs := a.ScopeChoices(rs[0].ID, "")
 	if c := choiceFor(t, cs, string(orchestrator.ScopeApp)); !c.Available {
-		t.Errorf("Only in is not offered to a guarded routine: %q", c.Why)
+		t.Errorf("Only in is not offered to a guarded play: %q", c.Why)
 	}
 	for _, scope := range []string{string(orchestrator.ScopeEverywhere)} {
 		c := choiceFor(t, cs, scope)
 		if c.Available {
-			t.Errorf("%s is offered to a routine whose every press would then "+
+			t.Errorf("%s is offered to a play whose every press would then "+
 				"refuse", scope)
 		}
 		if !strings.Contains(c.Why, "checks the window it was made in") {
@@ -196,7 +196,7 @@ func TestARoutineWithNoDemonstrationIsOfferedNoMove(t *testing.T) {
 			continue
 		}
 		if c.Available {
-			t.Errorf("%s is offered for a routine with nothing to render from",
+			t.Errorf("%s is offered for a play with nothing to render from",
 				c.Scope)
 		}
 		if !strings.Contains(c.Why, "demonstration") {
@@ -243,13 +243,13 @@ func TestAPreparedMoveShowsBothEndsAndWritesNothing(t *testing.T) {
 	// NOTHING ON DISK HAS CHANGED, which is the claim the other three rest on.
 	after, err := os.ReadFile(r.Path)
 	if err != nil {
-		t.Fatalf("the routine is no longer where it was after a review: %v", err)
+		t.Fatalf("the play is no longer where it was after a review: %v", err)
 	}
 	if string(after) != string(before) {
-		t.Error("preparing a move rewrote the routine it was about")
+		t.Error("preparing a move rewrote the play it was about")
 	}
 	if len(a.Routines()) != 1 {
-		t.Error("preparing a move wrote a second routine")
+		t.Error("preparing a move wrote a second play")
 	}
 }
 
@@ -285,10 +285,10 @@ func TestAReviewedMoveLandsAtTheNewIdentityAndSaysSo(t *testing.T) {
 	// failure this reports as `Copied`, and it is not what happened here.
 	rs := a.Routines()
 	if len(rs) != 1 {
-		t.Fatalf("the library holds %d routines after a move: %+v", len(rs), rs)
+		t.Fatalf("the library holds %d plays after a move: %+v", len(rs), rs)
 	}
 	if rs[0].ID != v.To {
-		t.Errorf("the routine is at %q after a move to %q", rs[0].ID, v.To)
+		t.Errorf("the play is at %q after a move to %q", rs[0].ID, v.To)
 	}
 	// AND THE PREPARATION IS SPENT, so a second press is not a second move.
 	//
@@ -345,7 +345,7 @@ func TestAMoveOntoAnOccupiedIdentityNeedsItsOwnYes(t *testing.T) {
 	// the registry because what is being arranged is the collision, not a second save.
 	chosen, _ := a.routineWithID(r.ID)
 	inTheWay := routes.Route{App: chosen.App, Slug: chosen.Slug}
-	if err := a.reg().Create(inTheWay, "// somebody else's routine\nuse os.\n"); err != nil {
+	if err := a.reg().Create(inTheWay, "// somebody else's play\nuse os.\n"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -368,7 +368,7 @@ func TestAMoveOntoAnOccupiedIdentityNeedsItsOwnYes(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !strings.Contains(string(kept), "somebody else") {
-		t.Fatalf("the routine at the destination was written over: %q", kept)
+		t.Fatalf("the play at the destination was written over: %q", kept)
 	}
 	// AND WITH IT, THE ONE THAT WAS SHOWN IS THE ONE REPLACED.
 	done := a.MoveRoutine(v.Token, true)
@@ -383,7 +383,7 @@ func TestAMoveOntoAnOccupiedIdentityNeedsItsOwnYes(t *testing.T) {
 		t.Fatal(err)
 	}
 	if strings.Contains(string(now), "somebody else") {
-		t.Error("the agreed move left the routine it agreed to replace")
+		t.Error("the agreed move left the play it agreed to replace")
 	}
 }
 
@@ -411,14 +411,14 @@ func TestAYesToReplaceDoesNotCoverARoutineSavedSince(t *testing.T) {
 
 	done := a.MoveRoutine(v.Token, true)
 	if done.Why == "" {
-		t.Fatalf("a yes to replace one routine replaced a different one: %+v", done)
+		t.Fatalf("a yes to replace one play replaced a different one: %+v", done)
 	}
 	now, err := os.ReadFile(a.reg().Path(inTheWay))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(string(now), "saved since") {
-		t.Errorf("the newer routine at the destination was written over: %q", now)
+		t.Errorf("the newer play at the destination was written over: %q", now)
 	}
 }
 
@@ -440,17 +440,17 @@ func TestAMoveOfARoutineSavedAgainSinceTheReviewIsRefused(t *testing.T) {
 
 	done := a.MoveRoutine(v.Token, false)
 	if done.Why == "" {
-		t.Fatalf("a move went ahead on a review of a routine that has changed: %+v",
+		t.Fatalf("a move went ahead on a review of a play that has changed: %+v",
 			done)
 	}
 	src, err := os.ReadFile(a.reg().Path(chosen.route()))
 	if err != nil {
-		t.Fatalf("the hand-edited routine is gone: %v", err)
+		t.Fatalf("the hand-edited play is gone: %v", err)
 	}
 	if !strings.Contains(string(src), "edited by hand since") {
 		t.Error("the hand edit was moved away from under them")
 	}
 	if len(a.Routines()) != 1 {
-		t.Error("a refused move wrote a second routine")
+		t.Error("a refused move wrote a second play")
 	}
 }

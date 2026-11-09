@@ -5,12 +5,12 @@
 Open Marco and you get **Studio**: a window where you press Record, go and do the
 thing with your own mouse and keyboard, come back and press Stop. Studio shows you
 what it made of it — a small program in plain sentences you can read — and nothing
-is saved until you have looked at it and pressed Save. Then it is a routine you can
-play whenever you like. Your routines are listed by the application they are for: press an
-application to fold its routines away, show one application alone, or Expand all and Collapse all.
+is saved until you have looked at it and pressed Save. Then it is a play you can
+run whenever you like. Your plays are listed by the application they are for: press an
+application to fold its plays away, show one application alone, or Expand all and Collapse all.
 
 ```
-Record  →  do the thing  →  Stop  →  read what it made  →  Save  →  Play
+Record  →  do the thing  →  Stop  →  read what it made  →  Save  →  Run
 ```
 
 That is the alpha, and it is the half of Marco that works on anything: menus,
@@ -26,24 +26,24 @@ Shift, Ctrl and Alt are still recorded as one key each.
 
 **Recording does not watch everything.** Studio records the one window you choose
 before you press Record. While you are anywhere else the recording pauses, and
-nothing you do there becomes part of the routine; Studio's own window is never
-recorded. The time you spend away is taken out of the routine too. If you really
+nothing you do there becomes part of the play; Studio's own window is never
+recorded. The time you spend away is taken out of the play too. If you really
 want the whole desktop, `marco learn "<name>" --whole-desktop` asks for it, and says
 so before it starts.
 
-**`performed` does not mean Marco checked.** A routine presses what you showed it
-and does not look at the screen afterwards. So `performed` on a routine means every
+**`performed` does not mean Marco checked.** A play presses what you showed it
+and does not look at the screen afterwards. So `performed` on a play means every
 action was *submitted to the machine and none was refused* — the keystrokes went
 out, the presses went where the window said they should. It does not mean the
 application received them, or did what you wanted with them. Nothing inside Marco
-can know that about a coordinate routine, and it says `performed` rather than
+can know that about a coordinate play, and it says `performed` rather than
 pretending otherwise.
 
 What it *does* promise is worth having. A press measured against the window it was
 demonstrated in is checked against that window before it happens: if the window
 moved, the press follows it; if the window is a different size or is gone, the
-routine **refuses rather than pressing somewhere else**, and stops — so nothing
-after a press that did not happen runs. A routine that typed half a password into a
+play **refuses rather than pressing somewhere else**, and stops — so nothing
+after a press that did not happen runs. A play that typed half a password into a
 form tells you so.
 
 ### There is a second way in, and it is a different promise
@@ -121,7 +121,7 @@ director correct "ark graphics" --drop last --because "that click was accidental
 identify, which are kept and named rather than counted. `correct` takes a step out of what Marco
 will **do**, with your reason, and leaves the record of what you **did** untouched. Clicking
 something that isn't a button and pressing a key that does nothing are ordinary parts of teaching
-somebody a routine, and neither one costs you the demonstration.
+somebody a play, and neither one costs you the demonstration.
 
 ### And you can name something to ask for it later
 
@@ -160,7 +160,7 @@ powershell -ExecutionPolicy Bypass -File .\pack.ps1   # build the bundle
 .\dist\Marco.exe                                      # install it and open Studio
 ```
 
-Your routines live in `%LOCALAPPDATA%\Marco\routes` and are never touched by an
+Your plays live in `%LOCALAPPDATA%\Marco\routes` and are never touched by an
 upgrade. If Studio is open when you install a new version it says so and asks you
 to close it, rather than closing a window that may have a recording in it.
 
@@ -196,7 +196,7 @@ marco director status            # what Marco can see, and how much it can read
 ```
 
 Only when you want the *same* thing by the *same* name every time is there
-anything to set up. Show Marco a **routine** once, then run it by name:
+anything to set up. Show Marco a **play** once, then run it by name:
 
 ```sh
 marco learn "open inventory"     # record clicks/keys; press F12 to finish
@@ -220,15 +220,15 @@ out by Marco's model from the programs that are open. **"Search
 the web for ark black pearl locations"** opens the results in your default browser. The search
 provider is the `search` setting in the control centre's Config view (google, bing, duckduckgo,
 brave, startpage, or an `https://…{query}` address). Both run when you press Enter; turn on **Confirm searches
-before they run** there if you want a search read back first. A routine you saved with the same words wins,
+before they run** there if you want a search read back first. A play you saved with the same words wins,
 and Director can map other phrasings ("switch me back to Discord") to them for you to confirm.
 
-A **routine** is one durable behaviour: a small, readable Marco program on disk with
+A **play** is one durable behaviour: a small, readable Marco program on disk with
 a record of where it came from. It's the noun the product uses everywhere — the
 `marco routes` command, the `routes/` directory and `$MARCO_ROUTES` keep their
 old names, and nothing you already type stops working.
 
-Press the **stop key** at any time to abort a running routine — **F12** by default, so
+Press the **stop key** at any time to abort a running play — **F12** by default, so
 Esc stays free to record as an ordinary key (`$MARCO_STOP_KEY` changes it). From
 anywhere else, including another window, `marco stop` does the same thing.
 
@@ -241,13 +241,13 @@ happens:
 > **If Marco already knows exactly what you mean, it does the thing it knows.
 > Otherwise the Director works out what you mean from what's on screen.**
 
-So a routine called *"open inventory"* runs when you type it, when you say it, when
-you press the key you bound to it and when you click Run — the same routine, every
+So a play called *"open inventory"* runs when you type it, when you say it, when
+you press the key you bound to it and when you click Run — the same play, every
 time. And *"turn the bluetooth off"*, which you never taught, goes to the
 Director whichever way you asked. Speaking is not a different vocabulary from
 typing; it's a different microphone.
 
-Matching against your saved routines is **exact** and offline: case, punctuation,
+Matching against your saved plays is **exact** and offline: case, punctuation,
 quotes and extra spaces are folded, and nothing else. A near miss is a miss, and
 a miss is a question about the screen — which is the Director's job, because it
 can look, and it can ask you.
@@ -268,7 +268,7 @@ Every command tells you what became of it, in one of seven words:
 | **failed** | it was tried and it went wrong |
 
 *"Refused" and "failed" are different on purpose, and neither is "performed".* A
-routine that finished every step but did not get you where you asked is not a success.
+play that finished every step but did not get you where you asked is not a success.
 
 *"Unverified" is the one worth knowing about.* Some controls will not tell Marco
 the truth about themselves, so now and then Marco does a thing and cannot prove
@@ -298,11 +298,11 @@ export ANTHROPIC_API_KEY=sk-...
 
 The resolver is an **external plugin** (a separate Go module), so **Marco itself
 has zero dependencies**. It is consulted only by that prompt, never on the way to
-running a routine, and the tool works fully without it.
+running a play, and the tool works fully without it.
 
-### Where a routine works (scope)
+### Where a play works (scope)
 
-When you save a routine you choose one of three scopes:
+When you save a play you choose one of three scopes:
 
 - **Only here (context)** — works *only* while the app you taught it in is in front,
   and never switches windows. This is what lets the *same phrase* mean different
@@ -315,15 +315,15 @@ When you save a routine you choose one of three scopes:
 - **Anywhere** — works in place with no window switch, for app-agnostic actions
   (type some text, Ctrl+A then Delete).
 
-Resolution prefers the foreground app's context routine, then a global one.
-`marco plays` and `marco routes` both show each routine's scope, and a
+Resolution prefers the foreground app's context play, then a global one.
+`marco plays` and `marco routes` both show each play's scope, and a
 focus-scoped row says which app it brings forward.
 
 ### Saved, then askable — `marco plays` and `marco register`
 
-Saving a routine and making it *askable* are two different things, and Marco keeps
-them apart on purpose: a saved routine is a file you can read and edit, and until
-it is **registered** nothing can ask for it by name. Learning a routine does both
+Saving a play and making it *askable* are two different things, and Marco keeps
+them apart on purpose: a saved play is a file you can read and edit, and until
+it is **registered** nothing can ask for it by name. Learning a play does both
 for you. Registration can also legitimately be refused — a name already taken is
 the usual cause — and then you're left with a real file that nothing mentions.
 
@@ -334,7 +334,7 @@ marco plays        # everything you have, in two groups: askable, and saved-not-
 marco routes       # only the routines you can ask for (what a UI plugin may offer)
 ```
 
-`marco plays` prints each routine's kind (**Authored**, **Recorded**, **Learned**),
+`marco plays` prints each play's kind (**Authored**, **Recorded**, **Learned**),
 its standing, and where it answers from:
 
 ```
@@ -360,7 +360,7 @@ already scripted against it keeps working.
 ### Passwords never get recorded
 
 While Marco is learning, type a **placeholder** `{{name}}` where a secret goes.
-The recorder only ever sees the placeholder; the routine file stores only the *name*.
+The recorder only ever sees the placeholder; the play file stores only the *name*.
 The real value lives in your OS credential manager:
 
 ```sh
@@ -368,14 +368,14 @@ marco secret set fb-password     # Windows Credential Manager / Keychain / secre
 ```
 
 At run time `do OS's Secret with "fb-password"` types it. The password is never
-in the recording, never in the routine, never logged. (Or declare it as a
+in the recording, never in the play, never logged. (Or declare it as a
 secret-named argument — `with username, password` — and pass it once; see
 [Commands with arguments](#commands-with-arguments).)
 
 ### Clicks that follow the window
 
 Recorded clicks are **window-relative by default** — they're stored as an offset
-from the active window's top-left, so a routine keeps working when you move the
+from the active window's top-left, so a play keeps working when you move the
 window or run it on another monitor or machine, without any monitor/DPI math.
 
 For a target that isn't there yet (a menu, a loading screen) or that **moves**
@@ -425,7 +425,7 @@ do OS's Find with menu...
 Text is a **plugin** (OCR needs a dependency; the engine stays zero-dep). `setup.cmd
 -OCR` builds it **and installs the `tesseract` engine** it uses (via winget), then
 wires it up. Without it, a text anchor falls back to its recorded coordinate. See
-`plugins/ocr/README.md`. (Routines learned before this keep working; learn one again
+`plugins/ocr/README.md`. (Plays learned before this keep working; learn one again
 to pick up the newer signals and the button-cropped template.)
 
 Anchor a click **per click** by **tapping the anchor key, then clicking** that
@@ -460,7 +460,7 @@ reverse.
 
 ### Commands with arguments
 
-A routine can take **named arguments**. Declare them with `with` in the name Marco
+A play can take **named arguments**. Declare them with `with` in the name Marco
 learns, and a value goes wherever you tap the **arg key (F9)** during the demo
 (no typing `{{…}}` into the app). Pass values two ways — by name, or positionally
 with the same `with` word, where each value fills the declared arg in order:
@@ -479,7 +479,7 @@ shows the arg name as a colored hint in front of each value
 command stays `say hello with chris`; press **Tab** to step to the next arg slot.
 
 An argument named like a secret (**password**, `pin`, `token`, …) is special: it's
-resolved from the credential store, **never written into the routine**, and
+resolved from the credential store, **never written into the play**, and
 **remembered** — pass it once, then omit it next time:
 
 ```sh
@@ -503,17 +503,17 @@ marco bind e "say hello with chris then delete all then say hi"   # one key, thr
 
 `bind <key> <command>` ties a leader shortcut (`` `e ``) to a routine — or a `then`-chain —
 listened for in the foreground app, or `--everywhere`, or `--in=<app>`. The same key can run a
-different routine in each app, and an app's own key hides a global one there. A shortcut names
-the routine it was given, so a rename keeps it and a later routine with the old name never
-inherits it; forgetting a routine removes its shortcuts. Taking a key that is in use asks first
+different play in each app, and an app's own key hides a global one there. A shortcut names
+the play it was given, so a rename keeps it and a later play with the old name never
+inherits it; forgetting a play removes its shortcuts. Taking a key that is in use asks first
 (Enter means no). `marco bindings [--here]` lists them, and `unbind <key>` removes one. A shortcut
-set up by an older Marco named its routine only by words: it is kept, does not run, and
-`marco bind --reassign <key>` shows which routine it would run and asks. Shortcuts are held off
+set up by an older Marco named its play only by words: it is kept, does not run, and
+`marco bind --reassign <key>` shows which play it would run and asks. Shortcuts are held off
 while a recording is in progress.
 
 In the **widget**, pressing the leader lists what each key does with the application in front
 (the same answer as `marco bindings --here`), and says when a key will not run as listed: set up by
-name, its routine gone, or a key the widget cannot send. A key with nothing on it says
+name, its play gone, or a key the widget cannot send. A key with nothing on it says
 ``nothing on `x in <app>``. Every press ends in the status line and the history with how it went, and the leader
 still stops a run. The leader is shown as configured (`CapsLock then e`, not `` `e ``). The list and
 the key are for the application that was in front when the leader was pressed: if another one has
@@ -535,15 +535,15 @@ within about a second; the activation phrase applies the next time the widget op
 
 In the widget's **command line** (`` `m ``), a routine that types text takes its value right after its
 name. `cloud pull stone`, `cloud pull with stone` and `cloud pull resource:stone` are the same
-request. A routine that takes several values needs them named (`greet name:sam message:see you at
-8`). A line that is exactly a routine's name is that routine, so `cloud pull stone` runs a routine
+request. A play that takes several values needs them named (`greet name:sam message:see you at
+8`). A line that is exactly a routine's name is that routine, so `cloud pull stone` runs a play
 called *cloud pull stone* if there is one. While you type, the value still needed shows muted
 after the line (`cloud pull ‹resource›`). Once the line can run, a read-back shows under it:
 *Cloud pull · resource: stone*. Enter runs a line you typed straight away, even before the read-back
 has appeared. A value you did not type is shown first: one the microphone heard, or one Director
 proposed, runs on the Enter after its read-back is on screen, and so does a repeat (`repeat open
 social five times`). With a value missing, nothing
-runs and the line stays open for you to type it. When Director finds the routine you meant and
+runs and the line stays open for you to type it. When Director finds the play you meant and
 proposes a value from what you said, the command line opens on it with the value filled in. You
 can edit it, and it runs only when you press Enter.
 
@@ -553,16 +553,16 @@ settings. If a widget is already running, it says so and does not start a second
 start one whose pieces are missing or were built from different sources, and it names each piece.
 If the widget does not stay up, it says what to run from a terminal to see why.
 
-In **Studio**, each routine has a **Shortcut** tab with the same rules: it shows the leader, the
-keys that run the routine (also shown as chips on its row), and lets you Set, Change or Remove one,
-listened for in the routine's own application, everywhere, or in an application you name. A key
+In **Studio**, each play has a **Shortcut** tab with the same rules: it shows the leader, the
+keys that run the play (also shown as chips on its row), and lets you Set, Change or Remove one,
+listened for in the play's own application, everywhere, or in an application you name. A key
 already in use is shown with what it runs, and only **Replace** takes it. A shortcut set up by name
-is shown with exactly what it would run and **Reassign** makes it run that. Replacing a routine
+is shown with exactly what it would run and **Reassign** makes it run that. Replacing a play
 keeps its shortcuts, and the Replace card says so.
 
 ### Learn by talking
 
-Instead of demonstrating, you can **narrate** a routine — typed or spoken — and each
+Instead of demonstrating, you can **narrate** a play — typed or spoken — and each
 phrase becomes a step:
 
 ```sh
@@ -585,7 +585,7 @@ navigation (`down`, `down arrow`, `tab`, `escape`, `select`), plus `undo` / `don
 
 ## How it works
 
-A routine is a small **Marco program** on the `OS` act — the stable, cross-platform
+A play is a small **Marco program** on the `OS` act — the stable, cross-platform
 automation API:
 
 ```marco
@@ -659,8 +659,8 @@ missing, another app in front, nothing answering). `marco last` says the same in
 record holds how many words you said, never the words, and no value you supplied; the widget's
 log does the same.
 
-Natural-language routine matching is **offline and key-free by default** (a
-deterministic matcher maps what you say to your routine names). For loose phrasing
+Natural-language play matching is **offline and key-free by default** (a
+deterministic matcher maps what you say to your play names). For loose phrasing
 ("fire up the pirate game") add the cloud Claude resolver: `setup.cmd -Resolver
 -ApiKey sk-...` (stores `ANTHROPIC_API_KEY` in your user env and points the
 launcher at it; it's only consulted when the local matcher is unsure).
@@ -685,7 +685,7 @@ plugs in over the host boundary:
     (transparent, click-through, always-on-top). A leader key (`` ` ``) opens a
     command line (`` `m <command>``); it learns in-place (record → F12 → save),
     narrates by voice or typing, shows `name:` arg-name hints inline as you fill a
-    routine's arguments (Tab to step between slots), and answers prompts in the HUD.
+    play's arguments (Tab to step between slots), and answers prompts in the HUD.
     `` `m config `` opens an in-HUD editor (theme, opacity, monitor/corner, width,
     mini mode, the header (clock, date and name, which can be hidden), the CPU/RAM
     widget, and a live **screen-coords tooltip** — handy when
@@ -740,10 +740,10 @@ marco test <file.marco>                 run test blocks
 marco contracts <file.marco>            print inferred action contracts
 ```
 
-Routines live in `routes` inside the Marco store — `%APPDATA%\marco\routes` on Windows, and the
+Plays live in `routes` inside the Marco store — `%APPDATA%\marco\routes` on Windows, and the
 directory keeps its old name (override with `$MARCO_ROUTES`). ONE library, found the same way by
 every part of Marco from any directory: the default used to be the bare word `routes`, relative to wherever each
-program was started, so a routine saved by a window opened in one folder was invisible to a
+program was started, so a play saved by a window opened in one folder was invisible to a
 command run in another. See [[ADR-252-a-library-is-a-place-and-a-routine-is-played-where-it-was-made]].
 
 **One compatibility alias.** Acquisition used to be spelled `teach`, and the old
@@ -756,8 +756,8 @@ yet.
 `marco do` also takes three flags that exist for the surfaces rather than for you:
 `--source=<typed|spoken|hotkey|control-centre|cli|web>` records how a request
 arrived (it is written to the trace and **never** used to decide anything), and
-`--play=<slug>` with `--app=` / `--focus` names a routine directly, so a clicked
-button or a bound hotkey performs the routine it already identified instead of
+`--play=<slug>` with `--app=` / `--focus` names a play directly, so a clicked
+button or a bound hotkey performs the play it already identified instead of
 handing its name back to be looked up a second time. You can use them, but the
 product does not need you to.
 
@@ -765,7 +765,7 @@ product does not need you to.
 
 | Variable | Effect |
 |---|---|
-| `MARCO_ROUTES` | where routines live (default `$MARCO_HOME/routes` — the directory keeps its old name; a relative value is resolved once, against the working directory) |
+| `MARCO_ROUTES` | where plays live (default `$MARCO_HOME/routes` — the directory keeps its old name; a relative value is resolved once, against the working directory) |
 | `MARCO_HOME` | where the Director keeps its action graph and semantic memory (default `%APPDATA%\marco`) |
 | `MARCO_MEMORY` | the semantic-memory file itself (default `$MARCO_HOME/semantic-memory.json`); `marco` and `director` share one store and both honour this |
 | `MARCO_STOP_KEY` | key that ends a recording / aborts a run (default `f12`) |
@@ -779,9 +779,9 @@ product does not need you to.
 | `MARCO_FIND_CONFIDENCE` / `MARCO_FIND_TOLERANCE` / `MARCO_FIND_THRESHOLD` | anchor confidence / colour-tolerance / image-match thresholds |
 | `MARCO_ANCHOR_CACHE` | `0` disables the last-known-location cache that follows a drifting target |
 | `MARCO_KEY_HOLD_MS` | linger between a tap's key-down and key-up so fast apps register it (default 25) |
-| `MARCO_RESOLVER` | path to a resolver plugin for loosely-phrased commands, offered as a confirmation by `marco assistant` (never consulted on the way to running a routine) |
-| `MARCO_TRACE_INTAKE` | `1` prints one `[intake] …` line per command saying how the request was routed: its source, the decision, the routine or phrase, and which rule fired. Off by default; it keeps no store and writes no file |
-| `MARCO_OCR` | path to the OCR text-resolver plugin (`plugins/ocr/ocr.exe`); fulfils a routine's text anchor |
+| `MARCO_RESOLVER` | path to a resolver plugin for loosely-phrased commands, offered as a confirmation by `marco assistant` (never consulted on the way to running a play) |
+| `MARCO_TRACE_INTAKE` | `1` prints one `[intake] …` line per command saying how the request was routed: its source, the decision, the play or phrase, and which rule fired. Off by default; it keeps no store and writes no file |
+| `MARCO_OCR` | path to the OCR text-resolver plugin (`plugins/ocr/ocr.exe`); fulfils a play's text anchor |
 | `MARCO_TESSERACT` | path to the `tesseract` binary if it isn't on `PATH` (used by the OCR plugin) |
 | `MARCO_BIN` | engine binary the overlay shells out to |
 | `MARCO_OVERLAY_IDLE` | overlay idle opacity (0–1) |

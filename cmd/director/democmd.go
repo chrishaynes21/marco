@@ -645,7 +645,7 @@ func howToRun(a workflowstore.Artifact) []string {
 	}
 	if len(a.VisualTargets()) == 0 {
 		return []string{
-			"This routine carries neither a verb nor visual control evidence, so",
+			"This play carries neither a verb nor visual control evidence, so",
 			"there is nothing to run and nothing to look for.",
 		}
 	}
@@ -656,8 +656,8 @@ func howToRun(a workflowstore.Artifact) []string {
 		// dropped it along with the false claim, and dropped something real: an
 		// unscoped routine cannot be RUN and can still be MEASURED.
 		return []string{
-			"THIS ROUTINE CANNOT BE RUN AS SAVED: it is UNSCOPED. It was saved before",
-			"routines recorded which application they belong to, so it is readable and",
+			"THIS PLAY CANNOT BE RUN AS SAVED: it is UNSCOPED. It was saved before",
+			"plays recorded which application they belong to, so it is readable and",
 			"valid for no application — an application identity has to come from a",
 			"window that was observed, and nothing here can invent one.",
 			"",

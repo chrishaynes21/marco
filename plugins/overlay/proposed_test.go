@@ -24,7 +24,7 @@ func TestAProposedRoutineIsReviewedAndItsValueIsNotLogged(t *testing.T) {
 	engineReads(t, map[string]lineReading{proposed.Line: proposed})
 	was := askWhichRoutine
 	askWhichRoutine = func(string) (resolved, string) {
-		t.Error("Director was asked again after the intake had already proposed a routine")
+		t.Error("Director was asked again after the intake had already proposed a play")
 		return resolved{}, "asked twice"
 	}
 	t.Cleanup(func() { askWhichRoutine = was; promptAsk.Store(false); takePendingRoutine(); takePendingLearn() })
@@ -41,7 +41,7 @@ func TestAProposedRoutineIsReviewedAndItsValueIsNotLogged(t *testing.T) {
 		`{"answer":{"kind":"run","id":"game-b/context/cloud-pull","app":"game-b","slug":"cloud-pull",`+
 		`"name":"cloud pull","source":"advisor","values":[{"name":"resource","value":"zq7stone9f3k"}],`+
 		`"sourceAt":"v1"}}`+"\n"+
-		"Marco has a saved routine that may be what you meant: cloud pull. Nothing has run.\n"+
+		"Marco has a saved play that may be what you meant: cloud pull. Nothing has run.\n"+
 		outcome.ResultPrefix+string(outcome.Clarify)+"\n")
 	restore := stubIntakeChild(t, func(h *model, name string, track bool, args ...string) childRun {
 		return runRecordTracked(h, name, track, append([]string{"-test.run=TestOverlayEchoHelper"}, args...)...)
@@ -66,7 +66,7 @@ func TestAProposedRoutineIsReviewedAndItsValueIsNotLogged(t *testing.T) {
 	}
 	// WHAT IT BECAME, NOT WHAT WAS HEARD: the history row and the HUD's own lines name the routine.
 	if n := len(s.history); n == 0 || s.history[n-1].cmd != "cloud pull" {
-		t.Errorf("the history row does not name the proposed routine: %+v", s.history)
+		t.Errorf("the history row does not name the proposed play: %+v", s.history)
 	}
 	for _, l := range s.logs {
 		if strings.Contains(l, "cloud paul") {
@@ -111,6 +111,6 @@ func TestTheHistoryShowsWhatRanWithItsValues(t *testing.T) {
 		t.Errorf("the value reached the console log:\n%s", logged.String())
 	}
 	if !strings.Contains(logged.String(), "cloud pull") {
-		t.Errorf("the console log does not name the routine:\n%s", logged.String())
+		t.Errorf("the console log does not name the play:\n%s", logged.String())
 	}
 }

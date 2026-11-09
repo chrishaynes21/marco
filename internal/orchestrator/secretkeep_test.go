@@ -57,13 +57,13 @@ func TestARoutineThatReadsACredentialCanBeEditedAndKeepsIt(t *testing.T) {
 	// credential, which is the point: it must not move one.
 	e, err := d.PrepareEdit(rt, []StepEdit{{Op: EditWait, At: 2, To: 800}})
 	if err != nil {
-		t.Fatalf("a routine that reads a credential cannot be edited: %v", err)
+		t.Fatalf("a play that reads a credential cannot be edited: %v", err)
 	}
 	if e.Refused != "" {
 		t.Fatalf("the edit was refused: %s", e.Refused)
 	}
 	if !strings.Contains(e.Now, theCredential) {
-		t.Fatalf("the edited version does not read the credential the routine reads "+
+		t.Fatalf("the edited version does not read the credential the play reads "+
 			"now:\n%s", e.Now)
 	}
 	if !strings.Contains(e.Now, "800") {
@@ -77,11 +77,11 @@ func TestARoutineThatReadsACredentialCanBeEditedAndKeepsIt(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !strings.Contains(string(after), theCredential) {
-		t.Fatalf("the saved routine reads a different credential:\n%s", after)
+		t.Fatalf("the saved play reads a different credential:\n%s", after)
 	}
 	// AND IT CAN BE EDITED AGAIN, which is the same check one round later.
 	if _, err := d.PrepareEdit(rt, []StepEdit{{Op: EditWait, At: 2, To: 900}}); err != nil {
-		t.Fatalf("the edited routine cannot be edited again: %v", err)
+		t.Fatalf("the edited play cannot be edited again: %v", err)
 	}
 }
 
@@ -145,7 +145,7 @@ func TestACredentialTheSourceDoesNotReadIsNotDeclared(t *testing.T) {
 		if a == "password" {
 			t.Fatal("a credential this source does not read under either shape was " +
 				"declared, which is this code deciding which password a " +
-				"routine should use")
+				"play should use")
 		}
 	}
 }
@@ -172,6 +172,6 @@ func TestTheRefusalNamesBothCredentials(t *testing.T) {
 		t.Errorf("an unchanged credential was refused: %q", why)
 	}
 	if why := secretsKept(`do OS's Type with "x".`, `do OS's Type with "y".`, "x"); why != "" {
-		t.Errorf("a routine with no credential was refused: %q", why)
+		t.Errorf("a play with no credential was refused: %q", why)
 	}
 }

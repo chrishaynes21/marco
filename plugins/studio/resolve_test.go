@@ -34,7 +34,7 @@ func TestAMissingDirectorIsToldFromAnUnreachableOne(t *testing.T) {
 	}
 	// AND IT SAYS WHAT STILL WORKS, because that is the part somebody needs: the cards
 	// and Play never asked Director anything.
-	if !strings.Contains(said, "cards and Play still work") {
+	if !strings.Contains(said, "cards and Run still work") {
 		t.Errorf("the answer does not say what is unaffected: %q", said)
 	}
 

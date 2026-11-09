@@ -71,7 +71,7 @@ func TestARequestsOwnWordsAreProposedForTheArgument(t *testing.T) {
 	said := r.Resolve(context.Background(), request, cs, at("arkascended"))
 
 	if said.Kind != dispatch.IntentRun || said.ID != "arkascended/focus/ark-graphics" {
-		t.Fatalf("the routine was not selected: %+v", said)
+		t.Fatalf("the play was not selected: %+v", said)
 	}
 	if len(said.Values) != 1 {
 		t.Fatalf("the proposals are %+v", said.Values)
@@ -149,7 +149,7 @@ func TestASecretIsNeverAskedAboutAndNeverProposed(t *testing.T) {
 	said := r.Resolve(context.Background(), request, cs, at("arkascended"))
 
 	if said.Kind != dispatch.IntentRun {
-		t.Fatalf("the routine was not selected: %+v", said)
+		t.Fatalf("the play was not selected: %+v", said)
 	}
 	// NOTHING WAS ASKED AT ALL, which is the claim: a routine whose only argument is a
 	// secret produces no question, so there is no answer to have to refuse.
@@ -242,10 +242,10 @@ func TestNothingIsAskedWhenThereIsNothingToAskAbout(t *testing.T) {
 	r, cs := takingText(t, e)
 	if said := r.Resolve(context.Background(), request, cs,
 		at("arkascended")); len(said.Values) != 0 || said.SourceAt != "" {
-		t.Errorf("a routine that takes nothing was given %+v", said.Values)
+		t.Errorf("a play that takes nothing was given %+v", said.Values)
 	}
 	if e.asked != 0 {
-		t.Errorf("a routine that takes nothing was asked about: %v", e.names)
+		t.Errorf("a play that takes nothing was asked about: %v", e.names)
 	}
 
 	// A RESOLVER THAT ANSWERED NOTHING — absent, route-only, timed out, refused: one
@@ -377,10 +377,10 @@ func TestProposalsDoNotMakeAnIneligibleRoutineAnswer(t *testing.T) {
 	said := r.Resolve(context.Background(), request, cs, at("arkascended"))
 
 	if said.ID != "" || len(said.Values) != 0 {
-		t.Errorf("an unrunnable routine answered with %+v", said)
+		t.Errorf("an unrunnable play answered with %+v", said)
 	}
 	if e.asked != 0 {
-		t.Errorf("an unrunnable routine was asked about: %v", e.names)
+		t.Errorf("an unrunnable play was asked about: %v", e.names)
 	}
 }
 
@@ -397,6 +397,6 @@ func TestTheValueQuestionNamesTheRoutine(t *testing.T) {
 		Extract: e.extract}
 	r.Resolve(context.Background(), request, []Candidate{c}, at("arkascended"))
 	if e.asked != 1 || e.routine != c.Name {
-		t.Errorf("the value question was asked %d time(s) about the routine %q, want %q", e.asked, e.routine, c.Name)
+		t.Errorf("the value question was asked %d time(s) about the play %q, want %q", e.asked, e.routine, c.Name)
 	}
 }

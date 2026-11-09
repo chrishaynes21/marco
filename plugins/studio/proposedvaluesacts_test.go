@@ -25,10 +25,10 @@ func revisionOf(t *testing.T, a *Acts, r Routine) string {
 	d := orchestrator.Deps{Reg: a.reg(), Out: &strings.Builder{}}
 	i, err := d.PrepareInvocation(r.route(), nil)
 	if err != nil {
-		t.Fatalf("reading the routine: %v", err)
+		t.Fatalf("reading the play: %v", err)
 	}
 	if i.SourceAt == "" {
-		t.Fatal("the contract reports no revision for a routine on disk")
+		t.Fatal("the contract reports no revision for a play on disk")
 	}
 	return i.SourceAt
 }

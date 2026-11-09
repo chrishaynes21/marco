@@ -53,7 +53,7 @@ func TestTheRecordSaysUnstatedWhenTheRoutineDoesNotSay(t *testing.T) {
 	_, _, ref := aRunOf(t, d, rt)
 	m, raw := recordAt(t, ref.ID)
 	if m["mode"] != modeUnstated {
-		t.Errorf("a routine whose source states no mode recorded its mode as %v:\n%s",
+		t.Errorf("a play whose source states no mode recorded its mode as %v:\n%s",
 			m["mode"], raw)
 	}
 }
@@ -76,7 +76,7 @@ func TestTheRecordInFlightAlreadySaysHowItWasRecorded(t *testing.T) {
 			"proves nothing about what was in it")
 	}
 	if got := host.inFlight["mode"]; got != string(orchestrator.Coordinates) {
-		t.Errorf("while the routine was running its record said mode %v, not %q",
+		t.Errorf("while the play was running its record said mode %v, not %q",
 			got, orchestrator.Coordinates)
 	}
 	// AND THE FINISHED RECORD AGREES. Two readings of one file would be two answers,
@@ -142,7 +142,7 @@ func TestTheRecordOfARepairedRoutineSaysWhatItWasRecordedAs(t *testing.T) {
 	}
 	saving := orchestrator.Deps{Reg: reg, Out: &strings.Builder{},
 		Mode: orchestrator.Coordinates}
-	dr := saving.DraftOf("a routine", events, anAbsentApplication, "a demonstration",
+	dr := saving.DraftOf("a play", events, anAbsentApplication, "a demonstration",
 		orchestrator.Coordinates)
 	// THE CURRENT-FOREGROUND SCOPE is what leaves its guarded presses with no window to be
 	// checked against, which is the state a repair is about. Since S9 an Only-in routine binds
@@ -154,7 +154,7 @@ func TestTheRecordOfARepairedRoutineSaysWhatItWasRecordedAs(t *testing.T) {
 	repair := orchestrator.Deps{Reg: reg, Out: &strings.Builder{}}
 	listed := repair.Unrunnable()
 	if len(listed) != 1 {
-		t.Fatalf("%d routines cannot press anything, want the one just saved: %+v",
+		t.Fatalf("%d plays cannot press anything, want the one just saved: %+v",
 			len(listed), listed)
 	}
 	rt, err := repair.Resave(listed[0])
@@ -167,8 +167,8 @@ func TestTheRecordOfARepairedRoutineSaysWhatItWasRecordedAs(t *testing.T) {
 	_, _, ref := aRunOf(t, d, rt)
 	m, raw := recordAt(t, ref.ID)
 	if m["mode"] != string(orchestrator.Coordinates) {
-		t.Errorf("the record of a run of a REPAIRED routine says mode %v, and the "+
-			"routine was recorded as %q — the repair took the statement out of "+
+		t.Errorf("the record of a run of a REPAIRED play says mode %v, and the "+
+			"play was recorded as %q — the repair took the statement out of "+
 			"the source this is read from:\n%s", m["mode"],
 			orchestrator.Coordinates, raw)
 	}

@@ -47,9 +47,9 @@ import (
 func scenarios() []scenario {
 	return []scenario{
 		{
-			name:  "play/seeded routine presses the application",
+			name:  "play/seeded play presses the application",
 			layer: layerDesktop,
-			about: "a seeded routine played from Studio's own window, asserted " +
+			about: "a seeded play played from Studio's own window, asserted " +
 				"against what the fixture received",
 			run: playASeededRoutine,
 		},
@@ -233,9 +233,9 @@ func scenarios() []scenario {
 		// the generation line — byte-identical to what the generator had written
 		// before the harness took that line out.
 		{
-			name:  "generation/a reviewed rebuild replaces the routine",
+			name:  "generation/a reviewed rebuild replaces the play",
 			layer: layerDesktop,
-			about: "a routine stating no generation is reviewed against a " +
+			about: "a play stating no generation is reviewed against a " +
 				"version rebuilt from its own recording, cancelled with " +
 				"nothing written, then replaced on purpose",
 			run: aReviewedRebuildReplacesTheRoutine,
@@ -251,7 +251,7 @@ func scenarios() []scenario {
 		{
 			name:  "generation/a simplified rebuild is reviewed, replaced and performed",
 			layer: layerDesktop,
-			about: "the other choice on the review surface: a routine whose " +
+			about: "the other choice on the review surface: a play whose " +
 				"typing has a pause in it is simplified, cancelled with " +
 				"nothing written, replaced on purpose, and then performed",
 			run: aSimplifiedRoutineIsReviewedReplacedAndPlayed,
@@ -284,7 +284,7 @@ func scenarios() []scenario {
 			run: readinessNoticesAMissingSibling,
 		},
 		{
-			name:  "window/a routine saved while open appears",
+			name:  "window/a play saved while open appears",
 			layer: layerDesktop,
 			about: "the library is read rather than remembered",
 			run:   aRoutineSavedWhileStudioIsOpenAppears,
@@ -444,7 +444,7 @@ func onTheWrongControl(got fixtureEvent, want string) string {
 	if got.Control == want {
 		return ""
 	}
-	return fmt.Sprintf("the press landed on %q and the routine was recorded against "+
+	return fmt.Sprintf("the press landed on %q and the play was recorded against "+
 		"%q — so it arrived, in the right window, at the wrong place", got.Control, want)
 }
 
@@ -476,7 +476,7 @@ func notExactlyOne(presses []fixtureEvent) string {
 	for _, p := range presses {
 		where = append(where, p.String())
 	}
-	return fmt.Sprintf("the routine presses once and the application received %d "+
+	return fmt.Sprintf("the play presses once and the application received %d "+
 		"press(es): %s", len(presses), strings.Join(where, "; "))
 }
 
@@ -501,16 +501,16 @@ func marcoSaidSomethingElse(rec runRecord, seed seededRoutine) string {
 		return fmt.Sprintf("the application received the press and acted on it, and "+
 			"Marco recorded the run as %q (%s)", rec.Outcome, rec.Because)
 	case rec.Routine != seed.route.Slug:
-		return fmt.Sprintf("the run record is about %q and the routine played was %q",
+		return fmt.Sprintf("the run record is about %q and the play played was %q",
 			rec.Routine, seed.route.Slug)
 	case rec.Application != seed.route.App:
-		return fmt.Sprintf("the run record names application %q and the routine is "+
+		return fmt.Sprintf("the run record names application %q and the play is "+
 			"saved for %q", rec.Application, seed.route.App)
 	case rec.Contract != seed.contract:
-		return fmt.Sprintf("the routine was saved as %s and the run record says it "+
+		return fmt.Sprintf("the play was saved as %s and the run record says it "+
 			"was performed as %s", seed.contract, rec.Contract)
 	case rec.Mode != "coordinates":
-		return fmt.Sprintf("the routine states that it was recorded as coordinates "+
+		return fmt.Sprintf("the play states that it was recorded as coordinates "+
 			"and the run record says %q", rec.Mode)
 	case rec.Build == "":
 		return "the run record does not say which marco performed it, which is the " +
@@ -541,10 +541,10 @@ func theWindowSaysSomethingElse(shown snapshot, seed seededRoutine) string {
 			strings.Join(shown.ids(), " "))
 	case !shown.says(seed.name):
 		return fmt.Sprintf("the window reports a run and does not name %q, so somebody "+
-			"reading it cannot tell which routine it is about", seed.name)
+			"reading it cannot tell which play it is about", seed.name)
 	case !shown.says("checked that the application did what you wanted"):
-		return "the window says the routine performed and does not say that nothing " +
-			"checked the application's own outcome. A routine presses what it was " +
+		return "the window says the play performed and does not say that nothing " +
+			"checked the application's own outcome. A play presses what it was " +
 			"shown and reads nothing afterwards, and a window that left that out " +
 			"would be claiming the one thing this path cannot see"
 	}

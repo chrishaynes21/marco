@@ -24,7 +24,7 @@ func aRoutineWithAMeasuredPress(t *testing.T) (*Acts, Routine) {
 	a := aStudioLibrary(t, "press the thing", clickingInNotepad())
 	rs := a.Routines()
 	if len(rs) != 1 {
-		t.Fatalf("the library holds %d routines", len(rs))
+		t.Fatalf("the library holds %d plays", len(rs))
 	}
 	for _, want := range []string{"RelTo", "WinW 1280", "Dpi 96", "notepad.exe"} {
 		if !strings.Contains(rs[0].Source, want) {
@@ -40,7 +40,7 @@ func TestAMeasuredPressCanBeMovedAndKeepsWhatItIsCheckedAgainst(t *testing.T) {
 	a, r := aRoutineWithAMeasuredPress(t)
 	e := a.StepEditing(r.ID)
 	if e.Why != "" {
-		t.Fatalf("the routine cannot be edited: %s", e.Why)
+		t.Fatalf("the play cannot be edited: %s", e.Why)
 	}
 	at := -1
 	for _, row := range e.Rows {
@@ -121,13 +121,13 @@ func TestAMeasuredPressCanBeMovedAndKeepsWhatItIsCheckedAgainst(t *testing.T) {
 	for _, want := range []string{"RelX 200", "RelY 150", "X 480", "Y 360",
 		`RelTo "window"`, "WinW 1280", "WinH 800", "Dpi 96", `Process "notepad.exe"`} {
 		if !strings.Contains(after, want) {
-			t.Errorf("the saved routine lost %q, so a press that was checked "+
+			t.Errorf("the saved play lost %q, so a press that was checked "+
 				"against its window is not any more:\n%s", want, after)
 		}
 	}
 	// AND IT CAN BE EDITED AGAIN, which is what the step account being rewritten buys.
 	if again := a.StepEditing(a.Routines()[0].ID); again.Why != "" {
-		t.Errorf("the moved routine cannot be edited again: %s", again.Why)
+		t.Errorf("the moved play cannot be edited again: %s", again.Why)
 	}
 }
 
@@ -173,7 +173,7 @@ func TestAPressThatCannotBeMovedSaysSoOnItsRow(t *testing.T) {
 	}
 	// AND NOTHING WAS WRITTEN BY EITHER.
 	if !strings.Contains(a.Routines()[0].Source, "RelX 120") {
-		t.Error("a refused move changed the routine")
+		t.Error("a refused move changed the play")
 	}
 }
 
@@ -206,6 +206,6 @@ func TestAMoveCountedAgainstAListThatHasMovedIsRefused(t *testing.T) {
 		t.Fatal("a move was applied against a list that had moved under it")
 	}
 	if !strings.Contains(a.Routines()[0].Source, "RelX 200") {
-		t.Error("the refused move changed the routine")
+		t.Error("the refused move changed the play")
 	}
 }

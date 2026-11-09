@@ -211,7 +211,7 @@ func ParseID(id string) (Route, error) {
 	case len(parts) == 3 && parts[0] != "" && parts[2] != "" && parts[1] == FocusDir:
 		return Route{App: parts[0], Focus: true, Slug: parts[2]}, nil
 	}
-	return Route{}, fmt.Errorf("%q is not a routine identity (global/<name>, "+
+	return Route{}, fmt.Errorf("%q is not a play identity (global/<name>, "+
 		"<app>/context/<name> or <app>/focus/<name>)", id)
 }
 

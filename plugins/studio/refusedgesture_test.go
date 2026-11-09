@@ -56,7 +56,7 @@ func TestAReviewSaysWhyAGestureCannotBeKept(t *testing.T) {
 	got := a.Recording()
 	if !got.Failed {
 		t.Error("the window offers a recording whose gesture cannot be written down " +
-			"for review and for Save, so the person is invited to keep a routine " +
+			"for review and for Save, so the person is invited to keep a play " +
 			"that performs something else")
 	}
 	for _, want := range []string{"ctrl", "never released"} {
@@ -73,7 +73,7 @@ func TestAReviewSaysWhyAGestureCannotBeKept(t *testing.T) {
 	}
 	// AND SAVE STILL REFUSES, which is the half that does not depend on anybody reading.
 	if why := a.SaveDraft("app-anywhere", ""); why == "" {
-		t.Error("SaveDraft wrote a routine for a gesture that cannot be written down")
+		t.Error("SaveDraft wrote a play for a gesture that cannot be written down")
 	}
 }
 

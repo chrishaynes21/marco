@@ -138,7 +138,7 @@ func TestOnlyDirectorsLearnDecisionBecomesALearnOffer(t *testing.T) {
 	clarify := func() resolved {
 		var r resolved
 		r.Answer.Kind = "clarify"
-		r.Answer.Reply = `"settings" is the name of 2 routines`
+		r.Answer.Reply = `"settings" is the name of 2 plays`
 		return r
 	}
 	chat := func() resolved {
@@ -171,15 +171,15 @@ func TestOnlyDirectorsLearnDecisionBecomesALearnOffer(t *testing.T) {
 		want  string
 		learn bool
 	}{
-		{"a clarification", clarify, "", "name of 2 routines", false},
+		{"a clarification", clarify, "", "name of 2 plays", false},
 		{"a chat reply", chat, "", "shown me", false},
 		{"a run with nothing to run", runWithNothing, "", "Opening it", false},
 		{"a Director that is not running", unavailable, "", "not running", false},
 		{"a library mismatch", mismatch, "", "library at A", false},
 		{"a timeout", func() resolved { return resolved{} },
-			"the Director did not answer which routine that is within 6s", "within 6s", false},
+			"the Director did not answer which play that is within 6s", "within 6s", false},
 		{"nothing readable", func() resolved { return resolved{} },
-			"what answered which routine that is could not be read", "could not be read", false},
+			"what answered which play that is could not be read", "could not be read", false},
 		// AND THE ONE THAT IS. Without this the rule above is satisfied by a widget
 		// that has stopped offering to learn anything at all.
 		{"Director saying it is something to record", func() resolved {
@@ -238,7 +238,7 @@ func TestTheAskIsBoundedAndSaysSo(t *testing.T) {
 	was := askWhichRoutine
 	askWhichRoutine = func(string) (resolved, string) {
 		// What the real one answers when its context ends.
-		return resolved{}, "the Director did not answer which routine that is within 6s"
+		return resolved{}, "the Director did not answer which play that is within 6s"
 	}
 	t.Cleanup(func() { askWhichRoutine = was })
 

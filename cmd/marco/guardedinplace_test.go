@@ -228,9 +228,9 @@ func TestALegacyOnlyInRoutineIsAdmittedAsBefore(t *testing.T) {
 	desk := &oshost.TestDesktop{} // nothing in front that could be bound
 	code, said := runOnlyIn(t, d, desk, rt, "", "notepad")
 	if code != 0 || !strings.Contains(said, "hi") {
-		t.Errorf("a legacy Only-in routine with notepad in front: %d\n%s", code, said)
+		t.Errorf("a legacy Only-in play with notepad in front: %d\n%s", code, said)
 	}
 	if code, said := runOnlyIn(t, d, desk, rt, "", "chrome"); code != outcome.Refused.Exit() {
-		t.Errorf("a legacy Only-in routine with chrome in front: %d\n%s", code, said)
+		t.Errorf("a legacy Only-in play with chrome in front: %d\n%s", code, said)
 	}
 }

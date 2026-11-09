@@ -100,7 +100,7 @@ func (d Deps) WhyNotShortcut(a Assignment) string {
 	case key == "":
 		return "say which key"
 	case len(a.Steps) == 0:
-		return "say which routine the shortcut runs"
+		return "say which play the shortcut runs"
 	case strings.EqualFold(key, strings.TrimSpace(a.Leader)) && a.Leader != "":
 		return fmt.Sprintf("`%s is the leader key itself", key)
 	}
@@ -109,7 +109,7 @@ func (d Deps) WhyNotShortcut(a Assignment) string {
 	}
 	for _, rt := range a.Steps {
 		if !d.Reg.Has(rt) {
-			return fmt.Sprintf("there is no routine %s", rt.ID())
+			return fmt.Sprintf("there is no play %s", rt.ID())
 		}
 		if why := wider(rt, a.ListenIn); why != "" {
 			return why
@@ -178,7 +178,7 @@ func (d Deps) AssignShortcut(a Assignment) (routes.Binding, error) {
 		cmd = strings.Join(names, " then ")
 	}
 	if n := len(routes.SplitChain(cmd)); n != len(ids) {
-		return routes.Binding{}, fmt.Errorf("not bound: %q has %d steps and %d routines "+
+		return routes.Binding{}, fmt.Errorf("not bound: %q has %d steps and %d plays "+
 			"were named", cmd, n, len(ids))
 	}
 	nb := routes.Binding{App: a.ListenIn, Key: key, Cmd: cmd, Routes: ids}
@@ -425,7 +425,7 @@ func (d Deps) forget(rt routes.Route, shown string) (Forgotten, error) {
 	}
 	defer hold.Release()
 	if !d.Reg.Has(rt) {
-		return out, fmt.Errorf("there is no routine %s to forget", rt.ID())
+		return out, fmt.Errorf("there is no play %s to forget", rt.ID())
 	}
 	if shown != "" && d.planOf(rt).Token != shown {
 		return out, fmt.Errorf("%s has changed since you looked at what forgetting it would "+
@@ -438,17 +438,17 @@ func (d Deps) forget(rt routes.Route, shown string) (Forgotten, error) {
 	if err != nil {
 		return out, fmt.Errorf("%s was not forgotten: its shortcuts could not be removed "+
 			"first (%v), and forgetting it without them would leave them for the next "+
-			"routine saved under its name", rt.ID(), err)
+			"play saved under its name", rt.ID(), err)
 	}
 	out.Shortcuts = gone
 	if err := d.Reg.DeleteOrigin(rt); err != nil {
 		return out, fmt.Errorf("%s was not forgotten: %d shortcut(s) were removed, and its "+
-			"provenance could not be (%v), so the routine is still there", rt.ID(),
+			"provenance could not be (%v), so the play is still there", rt.ID(),
 			len(gone), err)
 	}
 	if err := d.Reg.Delete(rt); err != nil {
 		return out, fmt.Errorf("%s was not forgotten: %d shortcut(s) and its provenance "+
-			"were removed, and the routine itself could not be (%v)", rt.ID(), len(gone), err)
+			"were removed, and the play itself could not be (%v)", rt.ID(), len(gone), err)
 	}
 	out.Removed = true
 	return out, nil
@@ -488,14 +488,14 @@ func (d Deps) ShortcutPressed(app, key string) Pressed {
 	p := Pressed{Found: true, Binding: b}
 	if b.Legacy() {
 		p.Refused = fmt.Sprintf("`%s %s was set up by name (%q) before shortcuts named a "+
-			"routine, so it does not run until it is reassigned — `marco bind --reassign "+
-			"%s` shows which routine it would run and asks", b.Key, listenedFor(b.App),
+			"play, so it does not run until it is reassigned — `marco bind --reassign "+
+			"%s` shows which play it would run and asks", b.Key, listenedFor(b.App),
 			b.Command(), b.Key)
 		return p
 	}
 	texts := routes.SplitChain(b.Command())
 	if len(texts) != len(b.Routes) {
-		p.Refused = fmt.Sprintf("`%s %s names %d routines for %d steps, so it is not run",
+		p.Refused = fmt.Sprintf("`%s %s names %d plays for %d steps, so it is not run",
 			b.Key, listenedFor(b.App), len(b.Routes), len(texts))
 		return p
 	}
@@ -683,9 +683,9 @@ func (d Deps) RenameInPlace(from, to routes.Route) error {
 	defer release()
 	switch {
 	case !d.Reg.Has(from):
-		return fmt.Errorf("there is no routine %s", from.ID())
+		return fmt.Errorf("there is no play %s", from.ID())
 	case d.Reg.Has(to):
-		return fmt.Errorf("a routine %s already exists", to.ID())
+		return fmt.Errorf("a play %s already exists", to.ID())
 	}
 	fault := func(step string) error {
 		if d.RenameFault != nil {
@@ -704,7 +704,7 @@ func (d Deps) RenameInPlace(from, to routes.Route) error {
 	if err == nil {
 		err = d.Reg.Create(to, src)
 		if errors.Is(err, fs.ErrExist) {
-			return fmt.Errorf("%s was not renamed: a routine %s appeared while it was being "+
+			return fmt.Errorf("%s was not renamed: a play %s appeared while it was being "+
 				"renamed", from.ID(), to.ID())
 		}
 	}
@@ -782,7 +782,7 @@ type ForgetPlan struct {
 // PlanForget reads what forgetting rt would remove. It writes nothing.
 func (d Deps) PlanForget(rt routes.Route) (ForgetPlan, error) {
 	if !d.Reg.Has(rt) {
-		return ForgetPlan{Route: rt}, fmt.Errorf("there is no routine %s to forget", rt.ID())
+		return ForgetPlan{Route: rt}, fmt.Errorf("there is no play %s to forget", rt.ID())
 	}
 	return d.planOf(rt), nil
 }

@@ -26,7 +26,7 @@ func routineRoute(t *testing.T, a *Acts, id string) routes.Route {
 	t.Helper()
 	r, ok := a.routineWithID(id)
 	if !ok {
-		t.Fatalf("the window does not hold a routine at %q", id)
+		t.Fatalf("the window does not hold a play at %q", id)
 	}
 	return r.route()
 }
@@ -40,13 +40,13 @@ func TestARoutineWithNoPhrasesIsOfferedTheControlAndNoComplaint(t *testing.T) {
 	a, r := anEditableRoutineInStudio(t)
 	got := a.RoutineAnswers(r.ID)
 	if got.Why != "" {
-		t.Errorf("an ordinary routine is explained: %q", got.Why)
+		t.Errorf("an ordinary play is explained: %q", got.Why)
 	}
 	if len(got.Phrases) != 0 {
 		t.Errorf("it answers to %q", got.Phrases)
 	}
 	if !got.Askable {
-		t.Error("a phrase cannot be added to an ordinary routine")
+		t.Error("a phrase cannot be added to an ordinary play")
 	}
 	if got.Name == "" || got.ID != r.ID {
 		t.Errorf("the panel is about %q at %q", got.Name, got.ID)
@@ -122,7 +122,7 @@ func TestACollidingPhraseIsRefusedWithTheBackendsOwnSentence(t *testing.T) {
 	rt := routineRoute(t, a, r.ID)
 	got := a.AddRoutineAnswer(r.ID, rt.Slug)
 	if !got.Failed && len(got.Phrases) != 0 {
-		t.Fatalf("a routine was taught to answer to its own name: %+v", got)
+		t.Fatalf("a play was taught to answer to its own name: %+v", got)
 	}
 	// ITS OWN NAME IS SAID RATHER THAN REFUSED — nobody did anything wrong — and
 	// either way nothing is stored.
@@ -170,7 +170,7 @@ func TestAPhraseIsRemovedFromTheCardByNamingIt(t *testing.T) {
 		t.Errorf("it answers to %q", got.Phrases)
 	}
 	if len(a.reg().AnsweringTo("second way")) != 0 {
-		t.Error("the removed phrase still answers for the routine")
+		t.Error("the removed phrase still answers for the play")
 	}
 	if len(a.reg().AnsweringTo("third way")) != 1 {
 		t.Error("removing one phrase took another with it")
@@ -208,9 +208,9 @@ func TestPhrasesForARoutineThatIsNotThereSayWhy(t *testing.T) {
 	a, _ := anEditableRoutineInStudio(t)
 	got := a.RoutineAnswers("trackmania/focus/not-here")
 	if got.Askable {
-		t.Error("a routine that is not in the library was offered a phrase")
+		t.Error("a play that is not in the library was offered a phrase")
 	}
-	if !strings.Contains(got.Why, "no routine") {
+	if !strings.Contains(got.Why, "no play") {
 		t.Errorf("the reason is %q", got.Why)
 	}
 }

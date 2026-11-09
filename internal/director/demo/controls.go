@@ -172,7 +172,7 @@ func (s *Store) forgetOtherControls(a workflowstore.Artifact) error {
 // controlsFor is the directory every revision of a routine's control evidence lives under.
 func (s *Store) controlsFor(routine string) (string, error) {
 	if strings.TrimSpace(routine) == "" {
-		return "", fmt.Errorf("control evidence with no routine to belong to has " +
+		return "", fmt.Errorf("control evidence with no play to belong to has " +
 			"nowhere to go")
 	}
 	return filepath.Join(s.dir, controlDir, safeName(routine)), nil

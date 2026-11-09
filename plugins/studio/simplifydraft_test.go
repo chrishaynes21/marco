@@ -180,20 +180,20 @@ func TestSimplifyingADraftThatTakesTextKeepsItTyped(t *testing.T) {
 	}
 	rs := a.Routines()
 	if len(rs) != 1 {
-		t.Fatalf("the library holds %d routines", len(rs))
+		t.Fatalf("the library holds %d plays", len(rs))
 	}
 	// TYPED, NEVER READ FROM THE CREDENTIAL STORE.
 	if !strings.Contains(rs[0].Source, `do OS's Type with "{{message}}"`) {
-		t.Errorf("the simplified routine does not type the supplied value:\n%s",
+		t.Errorf("the simplified play does not type the supplied value:\n%s",
 			rs[0].Source)
 	}
 	if strings.Contains(rs[0].Source, "OS's Secret") {
-		t.Errorf("the simplified routine reads the credential store:\n%s", rs[0].Source)
+		t.Errorf("the simplified play reads the credential store:\n%s", rs[0].Source)
 	}
 	// AND IT STILL ASKS FOR IT.
 	if needs := a.PlayNeeds(rs[0].ID); !needs.Needs || len(needs.Fields) != 1 ||
 		needs.Fields[0].Name != "message" {
-		t.Errorf("the simplified routine asks for %+v", needs.Fields)
+		t.Errorf("the simplified play asks for %+v", needs.Fields)
 	}
 }
 
@@ -415,7 +415,7 @@ func TestSaveWritesTheVersionOnScreen(t *testing.T) {
 	a := aRecordingUnderReview(t, "say hello", slowTypingIntoNotepad())
 	before := a.Routines()
 	if len(before) != 0 {
-		t.Fatalf("the fixture starts with %d routines", len(before))
+		t.Fatalf("the fixture starts with %d plays", len(before))
 	}
 	if why := a.SimplifyDraft(); why != "" {
 		t.Fatalf("simplifying refused: %s", why)
@@ -431,14 +431,14 @@ func TestSaveWritesTheVersionOnScreen(t *testing.T) {
 	}
 	rs := a.Routines()
 	if len(rs) != 1 {
-		t.Fatalf("the library holds %d routines", len(rs))
+		t.Fatalf("the library holds %d plays", len(rs))
 	}
 	// AND THE SAVED SOURCE IS THAT ONE.
 	if !strings.Contains(rs[0].Source, `do OS's Type with "hello"`) {
-		t.Errorf("the saved routine does not type the folded run:\n%s", rs[0].Source)
+		t.Errorf("the saved play does not type the folded run:\n%s", rs[0].Source)
 	}
 	if strings.Contains(rs[0].Source, `do OS's Type with "h".`) {
-		t.Errorf("the saved routine is the version that was rejected:\n%s", rs[0].Source)
+		t.Errorf("the saved play is the version that was rejected:\n%s", rs[0].Source)
 	}
 }
 
@@ -477,12 +477,12 @@ func TestASimplifiedSaveCanBeStepEditedAndSavedAgain(t *testing.T) {
 	// reported rather than thrown away, so a test that only asked whether Save returned
 	// a refusal would pass on exactly the thing that used to be wrong.
 	if r := a.Recording(); r.Partial != "" {
-		t.Fatalf("the routine was saved without its steps beside it: %s", r.Partial)
+		t.Fatalf("the play was saved without its steps beside it: %s", r.Partial)
 	}
 	id := a.Routines()[0].ID
 	e := a.StepEditing(id)
 	if e.Why != "" {
-		t.Fatalf("a routine saved from a simplified draft cannot be edited: %s", e.Why)
+		t.Fatalf("a play saved from a simplified draft cannot be edited: %s", e.Why)
 	}
 	// AND THE LIST IS THE SIMPLIFIED ONE, not a rebuild of the demonstration. The whole
 	// of what the account is for: with none beside it, the panel would be listing the
@@ -526,13 +526,13 @@ func TestASimplifiedSaveCanBeStepEditedAndSavedAgain(t *testing.T) {
 	// the step that typed `hello` now asks for it.
 	rt := a.Routines()[0]
 	if !strings.Contains(rt.Source, "message") {
-		t.Errorf("the saved routine does not take the supplied text:\n%s", rt.Source)
+		t.Errorf("the saved play does not take the supplied text:\n%s", rt.Source)
 	}
 	// AND IT CAN BE EDITED AGAIN. A save that wrote the source and not the account
 	// leaves a routine that runs and refuses the next edit, which is a state somebody
 	// reaches by doing nothing unusual twice.
 	if again := a.StepEditing(id); again.Why != "" {
-		t.Errorf("the edited routine cannot be edited again: %s", again.Why)
+		t.Errorf("the edited play cannot be edited again: %s", again.Why)
 	}
 }
 
@@ -560,7 +560,7 @@ func TestAPlainSaveIsEditedFromItsDemonstration(t *testing.T) {
 	// because "it can be edited" is true of both answers and only one of them is this.
 	if _, state := (routes.Registry{Dir: routesDirOf(t, b)}).Steps(
 		routes.Route{Slug: rt.Slug, App: rt.App}); state != routes.StepsNone {
-		t.Errorf("a plain save left a step account beside the routine (%s), so the "+
+		t.Errorf("a plain save left a step account beside the play (%s), so the "+
 			"basis a simplified draft needs is being written for every save",
 			state)
 	}

@@ -118,7 +118,7 @@ func TestTheClickThatStoppedTheRecordingIsNotInTheMacro(t *testing.T) {
 	// AND THE PRESS OF STOP IS NOT.
 	for _, gone := range []string{"1511", "913"} {
 		if strings.Contains(src, gone) {
-			t.Errorf("the saved routine contains %s — the click that pressed "+
+			t.Errorf("the saved play contains %s — the click that pressed "+
 				"Stop became a step, so every replay presses it again:\n%s",
 				gone, src)
 		}
@@ -129,7 +129,7 @@ func TestTheClickThatStoppedTheRecordingIsNotInTheMacro(t *testing.T) {
 	// Activate, and a replay that raised Marco would be wrong even if it then
 	// clicked nothing.
 	if strings.Contains(strings.ToLower(src), "studio") {
-		t.Errorf("the saved routine names Marco's own window, so a replay would "+
+		t.Errorf("the saved play names Marco's own window, so a replay would "+
 			"raise it:\n%s", src)
 	}
 }
@@ -180,12 +180,12 @@ func TestAVisitToMarcoInTheMiddleIsNotCutAway(t *testing.T) {
 
 	for _, want := range []string{"842", "274", "496", "283"} {
 		if !strings.Contains(src, want) {
-			t.Errorf("the saved routine is missing %s: the tail strip ate part "+
+			t.Errorf("the saved play is missing %s: the tail strip ate part "+
 				"of the demonstration:\n%s", want, src)
 		}
 	}
 	if strings.Contains(src, "1511") {
-		t.Errorf("the press of Stop is still in the routine:\n%s", src)
+		t.Errorf("the press of Stop is still in the play:\n%s", src)
 	}
 }
 
@@ -265,12 +265,12 @@ func TestAButtonStoppedRecordingIsFiledUnderTheAppItWasMadeIn(t *testing.T) {
 	}
 	if _, err := os.Stat(reg.Path(routes.Route{App: "studio", Focus: true, // the shared default (R2)
 		Slug: "ark-graphics"})); err == nil {
-		t.Fatal("the routine was filed under Marco's own window, so it is only " +
+		t.Fatal("the play was filed under Marco's own window, so it is only " +
 			"offered while Marco is in front")
 	}
 	if _, err := os.Stat(reg.Path(routes.Route{App: "arkascended", Focus: true, // the shared default (R2)
 		Slug: "ark-graphics"})); err != nil {
-		t.Fatalf("the routine is not filed under the app it was demonstrated "+
+		t.Fatalf("the play is not filed under the app it was demonstrated "+
 			"in: %v (said: %s)", err, out.String())
 	}
 }
@@ -340,7 +340,7 @@ func TestAStopInsideTheSampleIntervalIsStillCut(t *testing.T) {
 	raw, err := os.ReadFile(reg.Path(routes.Route{App: "arkascended", Focus: true, // the shared default (R2)
 		Slug: "ark-graphics"}))
 	if err != nil {
-		t.Fatalf("the routine is not filed under the app it was demonstrated "+
+		t.Fatalf("the play is not filed under the app it was demonstrated "+
 			"in: %v (said: %s)", err, out.String())
 	}
 	src := string(raw)
@@ -349,7 +349,7 @@ func TestAStopInsideTheSampleIntervalIsStillCut(t *testing.T) {
 		t.Fatalf("the demonstrated click is missing:\n%s", src)
 	}
 	if strings.Contains(src, "1511") || strings.Contains(src, "913") {
-		t.Errorf("the click that pressed Stop is in the routine. The poller never "+
+		t.Errorf("the click that pressed Stop is in the play. The poller never "+
 			"sampled Marco, so the switch is absent and the click's app tag "+
 			"names the game — every rule that reads the poller keeps it:\n%s",
 			src)
@@ -496,7 +496,7 @@ func TestAMoveBetweenTwoOperatorClicksIsCutWithThem(t *testing.T) {
 	// button, and the one that focused the window on the way to it.
 	for _, gone := range []string{"1511", "1200"} {
 		if strings.Contains(src, gone) {
-			t.Errorf("the routine contains %s, one of the clicks that ended the "+
+			t.Errorf("the play contains %s, one of the clicks that ended the "+
 				"recording:\n%s", gone, src)
 		}
 	}
@@ -541,7 +541,7 @@ func TestAnUnattributedReleaseDoesNotHideThePressBehindIt(t *testing.T) {
 	raw, err := os.ReadFile(reg.Path(routes.Route{App: "arkascended", Focus: true, // the shared default (R2)
 		Slug: "ark-graphics"}))
 	if err != nil {
-		t.Fatalf("the routine is not filed under the app it was demonstrated "+
+		t.Fatalf("the play is not filed under the app it was demonstrated "+
 			"in: %v (said: %s)", err, out.String())
 	}
 	src := string(raw)
@@ -550,7 +550,7 @@ func TestAnUnattributedReleaseDoesNotHideThePressBehindIt(t *testing.T) {
 	}
 	if strings.Contains(src, "1511") {
 		t.Errorf("an unattributed release stopped the walk, so the Stop press "+
-			"stayed in the routine:\n%s", src)
+			"stayed in the play:\n%s", src)
 	}
 }
 
@@ -617,7 +617,7 @@ func TestAStaleNameDoesNotDeleteAClickTheEventPlacesInTheGame(t *testing.T) {
 	raw, err := os.ReadFile(reg.Path(routes.Route{App: "arkascended", Focus: true, // the shared default (R2)
 		Slug: "ark-graphics"}))
 	if err != nil {
-		t.Fatalf("the routine is not filed under the app it was demonstrated "+
+		t.Fatalf("the play is not filed under the app it was demonstrated "+
 			"in: %v (said: %s)", err, out.String())
 	}
 	src := string(raw)

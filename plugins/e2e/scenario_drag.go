@@ -237,7 +237,7 @@ func aDragIntoAResizedWindowIsRefused(w *world) result {
 			fmt.Sprintf("Marco recorded %s", rec))
 	}
 	return pass(started,
-		fmt.Sprintf("the window went %dx%d → %dx%d and the routine stopped as %q, "+
+		fmt.Sprintf("the window went %dx%d → %dx%d and the play stopped as %q, "+
 			"sending nothing at all — not even a press it then regretted",
 			was.W, was.H, to.W, to.H, rec.Outcome),
 		fmt.Sprintf("it said: %s", rec.Because))

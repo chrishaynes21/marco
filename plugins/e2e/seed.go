@@ -125,7 +125,7 @@ func seedButtonPresses(f *fixtureRun, art *artifacts, name string, gap time.Dura
 		s.buttons = append(s.buttons, p.button)
 	}
 	if len(with) == 0 {
-		return s, fmt.Errorf("a seeded routine has to press something")
+		return s, fmt.Errorf("a seeded play has to press something")
 	}
 	if err := s.measure(f); err != nil {
 		return s, err
@@ -182,7 +182,7 @@ func (s *seededRoutine) buttonsReachedTheFile() error {
 		}
 		if !strings.Contains(s.source, fmt.Sprintf("Button %q", button)) {
 			return fmt.Errorf("the seeded demonstration of a %s press did not "+
-				"come out as one: the saved routine states no %s button, so "+
+				"come out as one: the saved play states no %s button, so "+
 				"it would be performed as a left press:\n%s", button, button,
 				s.source)
 		}
@@ -262,7 +262,7 @@ func (s *seededRoutine) save(art *artifacts, events []recorder.RecordedEvent) er
 	}
 	rt, err := d.Save(dr, orchestrator.ScopeAppAnywhere, s.app)
 	if err != nil {
-		return fmt.Errorf("the production save refused the seeded routine: %w", err)
+		return fmt.Errorf("the production save refused the seeded play: %w", err)
 	}
 	s.route = rt
 	s.path = d.Reg.Path(rt)
@@ -277,7 +277,7 @@ func (s *seededRoutine) save(art *artifacts, events []recorder.RecordedEvent) er
 	art.step("seeded %q as %s/%s (%s), pressing %v at %v in a window of %s",
 		s.name, rt.App, rt.Slug, s.contract, s.controls, s.at, s.window)
 	if s.contract != string(orchestrator.Guarded) {
-		return fmt.Errorf("the seeded routine came out %s rather than guarded, so "+
+		return fmt.Errorf("the seeded play came out %s rather than guarded, so "+
 			"it would not check the window it was recorded in", s.contract)
 	}
 	return nil
@@ -360,7 +360,7 @@ func seedChord(f *fixtureRun, art *artifacts, name, control string,
 	want := fmt.Sprintf("do OS's Key with %q", s.chord)
 	if !strings.Contains(s.source, want) {
 		return s, fmt.Errorf("the seeded demonstration of %s did not produce a chord: "+
-			"the saved routine has no %s in it:\n%s", s.chord, want, s.source)
+			"the saved play has no %s in it:\n%s", s.chord, want, s.source)
 	}
 	return s, nil
 }
@@ -453,15 +453,15 @@ func seedHold(f *fixtureRun, art *artifacts, name, key string, gap time.Duration
 	switch {
 	case di < 0 || ui < 0:
 		return s, fmt.Errorf("the seeded demonstration of a held %q did not produce a "+
-			"hold: the saved routine needs both %s and %s and has %s:\n%s",
+			"hold: the saved play needs both %s and %s and has %s:\n%s",
 			key, down, up, haveOf(s.source, down, up), s.source)
 	case ui < di:
-		return s, fmt.Errorf("the seeded routine releases %q before it holds it, so it "+
+		return s, fmt.Errorf("the seeded play releases %q before it holds it, so it "+
 			"is a tap in two steps rather than a hold:\n%s", key, s.source)
 	}
 	// AND THE PRESS HAS TO BE INSIDE IT, which is the whole claim.
 	if mid := strings.Index(s.source[di:ui], "do OS's Click"); mid < 0 {
-		return s, fmt.Errorf("the seeded routine holds %q and presses nothing while it "+
+		return s, fmt.Errorf("the seeded play holds %q and presses nothing while it "+
 			"is down, so there is no press for the hold to modify:\n%s", key, s.source)
 	}
 	return s, nil
@@ -568,14 +568,14 @@ func seedModifierClick(f *fixtureRun, art *artifacts, name, mod, button string,
 	switch {
 	case di < 0 || ui < 0:
 		return s, fmt.Errorf("the seeded demonstration of a %s-held press did not come "+
-			"out as a hold: the saved routine needs both %s and %s and has %s:\n%s",
+			"out as a hold: the saved play needs both %s and %s and has %s:\n%s",
 			mod, down, up, haveOf(s.source, down, up), s.source)
 	case ui < di:
-		return s, fmt.Errorf("the seeded routine releases %s before it holds it:\n%s",
+		return s, fmt.Errorf("the seeded play releases %s before it holds it:\n%s",
 			mod, s.source)
 	}
 	if mid := strings.Index(s.source[di:ui], "do OS's Click"); mid < 0 {
-		return s, fmt.Errorf("the seeded routine holds %s and presses nothing while it "+
+		return s, fmt.Errorf("the seeded play holds %s and presses nothing while it "+
 			"is down, so there is no press for the modifier to modify:\n%s",
 			mod, s.source)
 	}
@@ -794,7 +794,7 @@ func (s *seededRoutine) typingReachedTheFile(text string) error {
 		return nil
 	}
 	return fmt.Errorf("the seeded demonstration of typing %q did not come out as one "+
-		"Type step (no %s in it), so the routine performs keystrokes rather than "+
+		"Type step (no %s in it), so the play performs keystrokes rather than "+
 		"text:\n%s", text, want, s.source)
 }
 
@@ -819,7 +819,7 @@ func (s *seededRoutine) typingRunsReachedTheFile(runs []string) error {
 	if whole := strings.Join(runs, ""); strings.Contains(s.source,
 		fmt.Sprintf("do OS's Type with %q", whole)) {
 		return fmt.Errorf("the seeded demonstration folded its pause away at seeding "+
-			"time, so both rebuilds would produce the same routine:\n%s", s.source)
+			"time, so both rebuilds would produce the same play:\n%s", s.source)
 	}
 	return nil
 }

@@ -33,7 +33,7 @@ func TestAPressDoesNotRunWhatWasPublishedAfterItResolved(t *testing.T) {
 
 	said := press(t, d, "discord", "s")
 	if strings.Contains(said, "[result] performed") {
-		t.Fatalf("the press ran a routine published after it resolved its shortcut:\n%s", said)
+		t.Fatalf("the press ran a play published after it resolved its shortcut:\n%s", said)
 	}
 	if !strings.Contains(said, "changed between the shortcut being pressed and the run") {
 		t.Errorf("the refusal does not say what happened:\n%s", said)

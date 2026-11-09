@@ -139,15 +139,15 @@ func AdmitInPlace(rt routes.Route, at InPlace) string {
 		if sameApplication(at.HandedTo, rt.App) {
 			return ""
 		}
-		return fmt.Sprintf("this routine is %q, and the window it was given belongs to %s — "+
+		return fmt.Sprintf("this play is %q, and the window it was given belongs to %s — "+
 			"nothing was performed", want, at.HandedTo)
 	}
 	switch {
 	case strings.TrimSpace(at.Foreground) == "":
-		return fmt.Sprintf("this routine is %q, and Marco could not tell which application "+
+		return fmt.Sprintf("this play is %q, and Marco could not tell which application "+
 			"is in front — nothing was performed", want)
 	case !sameApplication(at.Foreground, rt.App):
-		return fmt.Sprintf("this routine is %q, and %s is in front — nothing was performed. "+
+		return fmt.Sprintf("this play is %q, and %s is in front — nothing was performed. "+
 			"Bring %s forward and ask again, or change where it works to %q", want,
 			at.Foreground, rt.App, ScopeLabel(ScopeAppAnywhere, rt.App))
 	}

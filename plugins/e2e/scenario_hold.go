@@ -111,7 +111,7 @@ func aHoldIsHeldAcrossThePress(w *world) result {
 	if err != nil {
 		st.fail()
 		return fail(started, fmt.Sprintf("Marco wrote no finished run record for the "+
-			"hold routine: %v. The application received %s", err, f.arrivedSoFar(seq)))
+			"hold play: %v. The application received %s", err, f.arrivedSoFar(seq)))
 	}
 	w.art.step("Marco recorded %s", rec)
 	w.art.copyIn("run-record.json", rec.file)
@@ -214,7 +214,7 @@ func aStoppedRunLetsGoOfTheKey(w *world) result {
 		// 100ms — reproduced on 2026-10-27 and now reported in words.
 		st.fail()
 		return fail(started, fmt.Sprintf("Studio's Stop could not be pressed while the "+
-			"routine was holding %q, so what the stop would have done with the "+
+			"play was holding %q, so what the stop would have done with the "+
 			"hold is not established: %v", theHeldKey.name, err))
 	}
 	rec, err := waitForRecord(60*time.Second, st.store, recordsBefore)
@@ -284,14 +284,14 @@ func aHoldStage(w *world, key string, gap time.Duration) (*stage, error) {
 func theTwoPressesDidNotLand(presses []fixtureEvent, seed seededRoutine) string {
 	switch {
 	case len(presses) == 0:
-		return "the routine's first press never arrived, so the keyboard was never put " +
+		return "the play's first press never arrived, so the keyboard was never put " +
 			"in the application and a key held afterwards went somewhere else"
 	case len(presses) < 2:
 		return fmt.Sprintf("only the first press arrived (%s). The press inside the "+
 			"hold is the one this scenario is about, so there is nothing to read",
 			presses[0].Control)
 	case presses[0].Control != seed.controls[0]:
-		return fmt.Sprintf("the routine's first press landed on %q rather than %q, so "+
+		return fmt.Sprintf("the play's first press landed on %q rather than %q, so "+
 			"the hold that followed went to whatever that focused", presses[0].Control,
 			seed.controls[0])
 	case presses[1].Control != seed.controls[1]:
@@ -348,9 +348,9 @@ func thePressWasNotMadeInsideTheHold(presses []fixtureEvent) string {
 			had = "nothing"
 		}
 		return fmt.Sprintf("the application read the keyboard as %q when the press "+
-			"inside the hold arrived, and the routine holds %q — so the key events "+
+			"inside the hold arrived, and the play holds %q — so the key events "+
 			"were sent and the system did not apply them, which delivers a plain "+
-			"press rather than the gesture in the routine", had, theHeldKey.name)
+			"press rather than the gesture in the play", had, theHeldKey.name)
 	}
 	return ""
 }
@@ -480,7 +480,7 @@ func aCtrlHeldClickArrivesWithCtrlHeld(w *world) result {
 	if err != nil {
 		st.fail()
 		return fail(started, fmt.Sprintf("Marco wrote no finished run record for the "+
-			"modifier-click routine: %v. The application received %s", err,
+			"modifier-click play: %v. The application received %s", err,
 			f.arrivedSoFar(seq)))
 	}
 	w.art.step("Marco recorded %s", rec)
@@ -544,7 +544,7 @@ func theModifierDidNotArrive(keys, presses []fixtureEvent) string {
 	switch {
 	case down < 0:
 		return fmt.Sprintf("the application received no press of %s at all (%s), so "+
-			"the routine performed a plain press where a %s-held one was "+
+			"the play performed a plain press where a %s-held one was "+
 			"demonstrated", theHeldModifier.name, keysAre(keys),
 			theHeldModifier.name)
 	case len(presses) > 1 && down > presses[1].Seq:
@@ -572,9 +572,9 @@ func thePressWasNotModified(presses []fixtureEvent) string {
 			had = "nothing"
 		}
 		return fmt.Sprintf("the application read the keyboard as %q when the press "+
-			"inside the hold arrived, and the routine holds %s — so the modifier "+
+			"inside the hold arrived, and the play holds %s — so the modifier "+
 			"events were sent and the system did not apply them, which delivers a "+
-			"plain press rather than the gesture in the routine", had,
+			"plain press rather than the gesture in the play", had,
 			theHeldModifier.name)
 	}
 	return ""

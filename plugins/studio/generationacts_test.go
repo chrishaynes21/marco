@@ -33,7 +33,7 @@ func aSavedRoutineInStudio(t *testing.T) (*Acts, Routine) {
 	}
 	rs := a.Routines()
 	if len(rs) != 1 {
-		t.Fatalf("the library holds %d routines after one save", len(rs))
+		t.Fatalf("the library holds %d plays after one save", len(rs))
 	}
 	return a, rs[0]
 }
@@ -46,7 +46,7 @@ func TestTheListingSaysWhichGenerationWroteARoutine(t *testing.T) {
 	_, r := aSavedRoutineInStudio(t)
 
 	if r.Generation != string(orchestrator.GenerationCurrent) {
-		t.Errorf("a routine Studio just saved is listed as generation %q", r.Generation)
+		t.Errorf("a play Studio just saved is listed as generation %q", r.Generation)
 	}
 	if r.Declared == "" {
 		t.Error("the listing does not carry what the file itself declares")
@@ -55,7 +55,7 @@ func TestTheListingSaysWhichGenerationWroteARoutine(t *testing.T) {
 		t.Errorf("the sentence is %q", r.Wrote)
 	}
 	if !r.Rebuildable || !r.Offer {
-		t.Errorf("a routine with its demonstration beside it is not offerable "+
+		t.Errorf("a play with its demonstration beside it is not offerable "+
 			"(rebuildable=%v offer=%v)", r.Rebuildable, r.Offer)
 	}
 	// AND THE CONTRACT IS A SEPARATE FACT, which is the whole point of the stamp being
@@ -70,7 +70,7 @@ func TestARoutineWithNoDemonstrationIsListedAsNotOfferable(t *testing.T) {
 	a, r := aSavedRoutineInStudio(t)
 	rt, ok := a.routineWithID(r.ID)
 	if !ok {
-		t.Fatal("the routine Studio just saved cannot be found by its own identity")
+		t.Fatal("the play Studio just saved cannot be found by its own identity")
 	}
 	route := rt.route()
 	if err := os.Remove(a.reg().RecordingPath(route)); err != nil {
@@ -78,7 +78,7 @@ func TestARoutineWithNoDemonstrationIsListedAsNotOfferable(t *testing.T) {
 	}
 	again := a.Routines()[0]
 	if again.Rebuildable || again.Offer {
-		t.Errorf("a routine with no demonstration is offered a rebuilt version "+
+		t.Errorf("a play with no demonstration is offered a rebuilt version "+
 			"(rebuildable=%v offer=%v)", again.Rebuildable, again.Offer)
 	}
 	// AND THE SENTENCE SAYS WHY THE BUTTON IS OFF. A current routine with no
@@ -91,7 +91,7 @@ func TestARoutineWithNoDemonstrationIsListedAsNotOfferable(t *testing.T) {
 	// AND REVIEWING IT IS REFUSED RATHER THAN FAILING LATER.
 	v := a.ReviewRebuilt(r.ID, string(orchestrator.RebuildCurrent))
 	if v.Why == "" {
-		t.Fatalf("a routine with no demonstration was reviewed anyway: %+v", v)
+		t.Fatalf("a play with no demonstration was reviewed anyway: %+v", v)
 	}
 	if v.Now != "" {
 		t.Error("a refused review carries a rebuilt source")
@@ -115,7 +115,7 @@ func TestARoutineFromALaterBuildIsNotOfferedAReviewAndIsUntouched(t *testing.T) 
 	ahead := strings.Replace(string(raw), "// Generation: "+r.Declared+".",
 		"// Generation: 97.", 1)
 	if ahead == string(raw) {
-		t.Fatalf("the routine does not state its generation where this expects:\n%s",
+		t.Fatalf("the play does not state its generation where this expects:\n%s",
 			raw)
 	}
 	if err := os.WriteFile(path, []byte(ahead), 0o644); err != nil {
@@ -123,20 +123,20 @@ func TestARoutineFromALaterBuildIsNotOfferedAReviewAndIsUntouched(t *testing.T) 
 	}
 	later := a.Routines()[0]
 	if later.Generation != string(orchestrator.GenerationUnknown) {
-		t.Errorf("a routine stating generation 97 is listed as %q", later.Generation)
+		t.Errorf("a play stating generation 97 is listed as %q", later.Generation)
 	}
 	if later.Declared != "97" {
 		t.Errorf("the listing declares %q and the file says 97 — which is the only "+
-			"fact in it that identifies the routine", later.Declared)
+			"fact in it that identifies the play", later.Declared)
 	}
 	if later.Offer {
-		t.Error("a routine whose generation this build cannot explain is offered a " +
+		t.Error("a play whose generation this build cannot explain is offered a " +
 			"rebuilt version")
 	}
 	// AND IT IS STILL A ROUTINE. Nothing is refused over a comment: a build that would
 	// not list or run a forward-dated file would make every one of them unusable.
 	if !later.Runnable {
-		t.Errorf("a routine from a later build is listed as unable to run: %q",
+		t.Errorf("a play from a later build is listed as unable to run: %q",
 			later.Why)
 	}
 	// AND REVIEWING IT IS DECLINED WITH THE CARD'S OWN SENTENCE, so the greyed button
@@ -150,7 +150,7 @@ func TestARoutineFromALaterBuildIsNotOfferedAReviewAndIsUntouched(t *testing.T) 
 		t.Errorf("a declined review carries a version to replace with: %+v", v)
 	}
 	if now, _ := os.ReadFile(path); string(now) != ahead {
-		t.Errorf("the routine was rewritten by being looked at:\n%s", now)
+		t.Errorf("the play was rewritten by being looked at:\n%s", now)
 	}
 }
 
@@ -171,13 +171,13 @@ func TestNothingIsReplacedWithoutAReviewInHand(t *testing.T) {
 	// routine's own identity is the obvious wrong thing to send, so it is the one sent.
 	why := a.ReplaceWithRebuilt(r.ID)
 	if why == "" {
-		t.Fatal("a routine was replaced without anybody reviewing a version of it")
+		t.Fatal("a play was replaced without anybody reviewing a version of it")
 	}
 	if !strings.Contains(why, "review it again") {
 		t.Errorf("the refusal is %q and does not say what to do", why)
 	}
 	if now, _ := os.ReadFile(a.reg().Path(route)); string(now) != string(was) {
-		t.Error("the refused replacement wrote to the routine anyway")
+		t.Error("the refused replacement wrote to the play anyway")
 	}
 	// AND WITH ONE IN HAND IT GOES THROUGH, or the rule above is satisfied by a method
 	// that refuses everything. The routine is current, so the replacement is its own
@@ -200,7 +200,7 @@ func TestNothingIsReplacedWithoutAReviewInHand(t *testing.T) {
 	// AND THE REVIEW IS SPENT. A second press of a button whose version has already
 	// been written is not a second replacement.
 	if why := a.ReplaceWithRebuilt(v.Token); why == "" {
-		t.Error("the same review replaced the routine twice")
+		t.Error("the same review replaced the play twice")
 	}
 }
 
@@ -246,7 +246,7 @@ func TestAReviewIsOfTheRoutineThatWasAskedAbout(t *testing.T) {
 	// AND THE SOURCE IN IT IS THAT ROUTINE'S. The names are in the generated source,
 	// so a review of the wrong routine shows the wrong actor.
 	if !strings.Contains(v.Was, "CThing") {
-		t.Errorf("the review shows a source that is not the chosen routine's:\n%s",
+		t.Errorf("the review shows a source that is not the chosen play's:\n%s",
 			v.Was)
 	}
 	if why := a.ReplaceWithRebuilt(v.Token); why != "" {
@@ -260,7 +260,7 @@ func TestAReviewIsOfTheRoutineThatWasAskedAbout(t *testing.T) {
 			t.Fatalf("%q is no longer where it was: %v", other.Name, err)
 		}
 		if string(raw) != other.Source {
-			t.Errorf("%q was rewritten by a review of another routine", other.Name)
+			t.Errorf("%q was rewritten by a review of another play", other.Name)
 		}
 	}
 }
@@ -290,7 +290,7 @@ func TestAReviewOfTwoSameNamedRoutinesIsOfTheOneAddressed(t *testing.T) {
 		}
 	}
 	if first.ID == "" {
-		t.Fatal("the first routine is not in the listing, so this is not the case " +
+		t.Fatal("the first play is not in the listing, so this is not the case " +
 			"it says it is")
 	}
 	// AND A NAME IS NOT AN ADDRESS. Asked for by the name both of them answer to, the
@@ -302,7 +302,7 @@ func TestAReviewOfTwoSameNamedRoutinesIsOfTheOneAddressed(t *testing.T) {
 		v := a.ReviewRebuilt(loose, string(orchestrator.RebuildCurrent))
 		if v.Why == "" {
 			t.Errorf("a review asked for by %q answered with %q rather than "+
-				"refusing an address that names two routines", loose, v.ID)
+				"refusing an address that names two plays", loose, v.ID)
 		}
 		if why := a.ReplaceWithRebuilt(loose); why == "" {
 			t.Errorf("a replacement asked for by %q went through", loose)
@@ -321,7 +321,7 @@ func TestAReviewOfTwoSameNamedRoutinesIsOfTheOneAddressed(t *testing.T) {
 	// AND THE OTHER ROUTINE OF THAT NAME IS UNTOUCHED, read off its own file.
 	raw, err := os.ReadFile(a.reg().Path(first.route()))
 	if err != nil {
-		t.Fatalf("the first routine is no longer where it was: %v", err)
+		t.Fatalf("the first play is no longer where it was: %v", err)
 	}
 	if string(raw) != first.Source {
 		t.Errorf("replacing %s rewrote %s, which shares its name:\n%s", second,
@@ -366,7 +366,7 @@ func TestTwoReviewsOfOneRoutineAreTwoReviews(t *testing.T) {
 			"replacement is of")
 	}
 	if first.Token == second.Token {
-		t.Fatalf("two reviews of one routine built from different sources share the "+
+		t.Fatalf("two reviews of one play built from different sources share the "+
 			"token %q", first.Token)
 	}
 	if first.Was == second.Was {
@@ -379,15 +379,15 @@ func TestTwoReviewsOfOneRoutineAreTwoReviews(t *testing.T) {
 	// then refused, because the routine it was built from is not the routine on disk.
 	why := a.ReplaceWithRebuilt(first.Token)
 	if why == "" {
-		t.Fatal("the earlier review was written over a routine that had changed " +
+		t.Fatal("the earlier review was written over a play that had changed " +
 			"since it was built")
 	}
 	if !strings.Contains(why, "saved again") {
-		t.Errorf("the refusal is %q, which is not about the routine having moved on "+
+		t.Errorf("the refusal is %q, which is not about the play having moved on "+
 			"— so the token resolved to some other review", why)
 	}
 	if raw, _ := os.ReadFile(a.reg().Path(route)); string(raw) != edited {
-		t.Errorf("the refused replacement disturbed the routine:\n%s", raw)
+		t.Errorf("the refused replacement disturbed the play:\n%s", raw)
 	}
 	// AND THE REVIEW THE PERSON WOULD SEE IF THEY LOOKED AGAIN GOES THROUGH, writing
 	// its own source and not the other one's.
@@ -419,7 +419,7 @@ func TestTwoReviewsOfOneRoutineAreTwoReviews(t *testing.T) {
 	third := a.ReviewRebuilt(r.ID, string(orchestrator.RebuildCurrent))
 	fourth := a.ReviewRebuilt(r.ID, string(orchestrator.RebuildCurrent))
 	if third.Token != fourth.Token {
-		t.Fatalf("two reviews of an unchanged routine have different tokens (%q, %q), "+
+		t.Fatalf("two reviews of an unchanged play have different tokens (%q, %q), "+
 			"so this cannot establish that cancelling one keeps the other",
 			third.Token, fourth.Token)
 	}
@@ -451,7 +451,7 @@ func statingNoGenerationInStudio(t *testing.T, a *Acts, rt routes.Route) {
 		kept = append(kept, line)
 	}
 	if took == 0 {
-		t.Fatal("the saved routine states no generation already, so a rebuild would " +
+		t.Fatal("the saved play states no generation already, so a rebuild would " +
 			"differ in nothing")
 	}
 	if err := os.WriteFile(a.reg().Path(rt), []byte(strings.Join(kept, "\n")),
@@ -482,7 +482,7 @@ func TestTwoRoutinesWithTheSameContentsAreTwoReviews(t *testing.T) {
 	}
 	rec, ok := a.reg().LoadRecording(saved.route())
 	if !ok {
-		t.Fatal("the saved routine has no demonstration beside it")
+		t.Fatal("the saved play has no demonstration beside it")
 	}
 	// THE SAME BYTES AND THE SAME DEMONSTRATION, IN-APP FOR TWO APPLICATIONS. Two files,
 	// identical in every respect but which directory they are in — which is exactly the
@@ -510,16 +510,16 @@ func TestTwoRoutinesWithTheSameContentsAreTwoReviews(t *testing.T) {
 		t.Fatalf("a review refused: %q / %q", first.Why, second.Why)
 	}
 	if first.Token == "" || second.Token == "" {
-		t.Fatal("one of the two routines is not in the listing, so this establishes " +
+		t.Fatal("one of the two plays is not in the listing, so this establishes " +
 			"nothing")
 	}
 	if first.Token == second.Token {
-		t.Fatalf("two routines share the review token %q, so the window cannot tell "+
+		t.Fatalf("two plays share the review token %q, so the window cannot tell "+
 			"which file a replacement is for", first.Token)
 	}
 	// AND THE CASE IS REAL: the two show the same source and would write the same bytes.
 	if first.Was != second.Was || first.Now != second.Now {
-		t.Error("the two routines differ in what they show or what they would write, " +
+		t.Error("the two plays differ in what they show or what they would write, " +
 			"so a token from the content alone would already have separated them")
 	}
 	otherWas, err := os.ReadFile(a.reg().Path(discord))
@@ -530,11 +530,11 @@ func TestTwoRoutinesWithTheSameContentsAreTwoReviews(t *testing.T) {
 		t.Fatalf("replacing the first refused: %s", why)
 	}
 	if raw, _ := os.ReadFile(a.reg().Path(ark)); string(raw) != first.Now {
-		t.Errorf("the replaced routine does not hold the version that was reviewed:"+
+		t.Errorf("the replaced play does not hold the version that was reviewed:"+
 			"\n%s", raw)
 	}
 	if raw, _ := os.ReadFile(a.reg().Path(discord)); string(raw) != string(otherWas) {
-		t.Errorf("replacing one routine rewrote the other:\n%s", raw)
+		t.Errorf("replacing one play rewrote the other:\n%s", raw)
 	}
 }
 
@@ -743,12 +743,12 @@ func TestASecondLibraryIsNamedOnceAndNothingIsMoved(t *testing.T) {
 
 	l := a.Library()
 	if l.Elsewhere == "" || l.Says == "" {
-		t.Fatalf("a second library holding a routine is not named: %+v", l)
+		t.Fatalf("a second library holding a play is not named: %+v", l)
 	}
 	// WHAT IT HAS TO CARRY: that the routines are there, where, that nothing moved,
 	// and the one setting that would use them. A notice naming two libraries without
 	// saying how to choose would leave somebody stuck.
-	for _, says := range []string{"1 routine", "Nothing has been moved", "MARCO_ROUTES"} {
+	for _, says := range []string{"1 play", "Nothing has been moved", "MARCO_ROUTES"} {
 		if !strings.Contains(l.Says, says) {
 			t.Errorf("it says %q and does not mention %q", l.Says, says)
 		}
@@ -759,12 +759,12 @@ func TestASecondLibraryIsNamedOnceAndNothingIsMoved(t *testing.T) {
 		if strings.Contains(strings.ToLower(p.Says+" "+p.Do), "library") &&
 			strings.Contains(p.Says+p.Do, l.Elsewhere) {
 			t.Errorf("the other library is reported in the readiness panel as "+
-				"well as over the routine list: %+v", p)
+				"well as over the play list: %+v", p)
 		}
 	}
 	// AND THE OTHER LIBRARY IS STILL THERE, UNTOUCHED, which is the claim that matters.
 	if _, err := os.Stat(at); err != nil {
-		t.Errorf("the routine in the other library is gone: %v", err)
+		t.Errorf("the play in the other library is gone: %v", err)
 	}
 	// AND WHEN THE LIBRARY IN USE IS THAT ONE, THERE IS NOTHING TO SAY. Without this
 	// the notice fires at everybody who has one library in the ordinary place.

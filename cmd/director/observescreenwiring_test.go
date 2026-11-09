@@ -503,7 +503,7 @@ func TestASavedPixelDemonstrationCarriesNoCoordinates(t *testing.T) {
 			"clicked something Marco could not segment has no account of it")
 	}
 	if !strings.Contains(s, "store.SaveSequence(a)") {
-		t.Error("the demonstrating command no longer saves the routine itself")
+		t.Error("the demonstrating command no longer saves the play itself")
 	}
 }
 
@@ -552,7 +552,7 @@ func TestTheRawRecordAndTheExecutableArtifactAreSeparate(t *testing.T) {
 	// AND A FAILURE TO KEEP THE RECORD IS NOT A FAILURE TO KEEP THE ROUTINE. A person
 	// who demonstrated something and got working steps must not be told the
 	// demonstration failed because a companion file could not be written.
-	if !strings.Contains(s, "the routine is saved and the raw ") {
+	if !strings.Contains(s, "the play is saved and the raw ") {
 		t.Error("a failed evidence write is not reported as the separate thing it is")
 	}
 }

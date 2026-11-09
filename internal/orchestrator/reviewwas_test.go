@@ -92,7 +92,7 @@ func TestAnEditReviewIsBoundToTheSourceItShowed(t *testing.T) {
 			t.Fatal(err)
 		}
 		if err := d.SaveEdit(e); err == nil {
-			t.Fatal("an edit was saved over a routine that had changed")
+			t.Fatal("an edit was saved over a play that had changed")
 		} else if !strings.Contains(err.Error(), "saved again") {
 			t.Errorf("the refusal is not about the file on disk: %v", err)
 		}
@@ -143,7 +143,7 @@ func TestARebuildReviewIsBoundToTheSourceItShowed(t *testing.T) {
 			t.Fatal(err)
 		}
 		if err := d.Replace(p); err == nil {
-			t.Fatal("a rebuild was written over a routine that had changed")
+			t.Fatal("a rebuild was written over a play that had changed")
 		} else if !strings.Contains(err.Error(), "saved again") {
 			t.Errorf("the refusal is not about the file on disk: %v", err)
 		}
@@ -171,7 +171,7 @@ func TestAMoveReviewIsBoundToTheSourceItShowed(t *testing.T) {
 			t.Errorf("something was written:\n%s\nbecame\n%s", before, got)
 		}
 		if _, err := os.ReadFile(d.Reg.Path(m.To)); err == nil {
-			t.Error("a routine was written at the destination")
+			t.Error("a play was written at the destination")
 		}
 	})
 	t.Run("nothing changed", func(t *testing.T) {
@@ -198,7 +198,7 @@ func TestAMoveReviewIsBoundToTheSourceItShowed(t *testing.T) {
 			t.Fatal(err)
 		}
 		if _, err := d.Rescope(m, m.ConsentToReplace()); err == nil {
-			t.Fatal("a move was performed over a routine that had changed")
+			t.Fatal("a move was performed over a play that had changed")
 		} else if !strings.Contains(err.Error(), "saved again") {
 			t.Errorf("the refusal is not about the file on disk: %v", err)
 		}

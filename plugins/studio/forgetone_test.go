@@ -58,14 +58,14 @@ func TestForgettingOneRoutineIsWhatWasShown(t *testing.T) {
 		t.Fatalf("the review: %+v", v)
 	}
 	joined := strings.Join(v.Parts, "\n")
-	for _, want := range []string{"the shortcut `c in notepad", "the routine itself (" + rt.ID() + ")",
+	for _, want := range []string{"the shortcut `c in notepad", "the play itself (" + rt.ID() + ")",
 		"the demonstration it was made from", "the steps as you edited them"} {
 		if !strings.Contains(joined, want) {
 			t.Errorf("the review does not name %q:\n%s", want, joined)
 		}
 	}
-	if !strings.HasPrefix(v.Parts[0], "the shortcut") || !strings.HasPrefix(v.Parts[len(v.Parts)-1], "the routine itself") {
-		t.Errorf("the parts are not in the order they go (shortcuts first, the routine last): %q", v.Parts)
+	if !strings.HasPrefix(v.Parts[0], "the shortcut") || !strings.HasPrefix(v.Parts[len(v.Parts)-1], "the play itself") {
+		t.Errorf("the parts are not in the order they go (shortcuts first, the play last): %q", v.Parts)
 	}
 	done := a.ForgetRoutine(v.Token)
 	if !done.Removed || done.Why != "" || !strings.HasPrefix(done.Says, `Forgot "cloud pull"`) {

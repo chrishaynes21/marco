@@ -120,7 +120,7 @@ func TestAGuardedRoutineThatWasRefusedFailsTheCommand(t *testing.T) {
 
 	err := performed(t, reg, rt)
 	if err == nil {
-		t.Fatal("the command reported success about a routine that pressed " +
+		t.Fatal("the command reported success about a play that pressed " +
 			"nothing: its application never came forward, so the chain " +
 			"stopped at the preparation")
 	}
@@ -129,7 +129,7 @@ func TestAGuardedRoutineThatWasRefusedFailsTheCommand(t *testing.T) {
 			err.Error())
 	}
 	if !strings.Contains(err.Error(), rt.Slug) {
-		t.Errorf("the command says %q and does not name the routine", err.Error())
+		t.Errorf("the command says %q and does not name the play", err.Error())
 	}
 }
 
@@ -143,7 +143,7 @@ func TestALegacyRoutineReportsWhatItAlwaysDid(t *testing.T) {
 	reg, rt := aSavedRoute(t, aLegacyRoutine)
 
 	if err := performed(t, reg, rt); err != nil {
-		t.Fatalf("a routine saved before any of this now fails where it used to "+
+		t.Fatalf("a play saved before any of this now fails where it used to "+
 			"carry on: %v", err)
 	}
 }
@@ -190,7 +190,7 @@ func TestALegacyRoutineWhosePressFailedReportsWhatItAlwaysDid(t *testing.T) {
 	d := orchestrator.Deps{Reg: reg, Out: &strings.Builder{},
 		Hosts: map[string]runtime.Host{"*": &aHostThatWillNotDeliver{}}}
 	if err := runRoute(context.Background(), d, take(d, rt, nil, nil, nil, "", "")); err != nil {
-		t.Fatalf("a routine saved before any of this now fails where it used to "+
+		t.Fatalf("a play saved before any of this now fails where it used to "+
 			"carry on: %v", err)
 	}
 }
@@ -377,13 +377,13 @@ func TestALegacyRoutineWhoseKeyFailedReportsWhatItAlwaysDid(t *testing.T) {
 	d := orchestrator.Deps{Reg: reg, Out: &strings.Builder{},
 		Hosts: map[string]runtime.Host{"*": machine}}
 	if err := runRoute(context.Background(), d, take(d, rt, nil, nil, nil, "", "")); err != nil {
-		t.Fatalf("a routine saved before any of this now fails where it used to "+
+		t.Fatalf("a play saved before any of this now fails where it used to "+
 			"carry on: %v", err)
 	}
 	// AND IT CARRIED ON, which is the behaviour being preserved rather than merely the
 	// absence of an error.
 	if machine.presses == 0 {
-		t.Error("the press after the keystroke was not attempted; a legacy routine " +
+		t.Error("the press after the keystroke was not attempted; a legacy play " +
 			"attempts its input and carries on")
 	}
 }

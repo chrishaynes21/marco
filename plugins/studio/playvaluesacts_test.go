@@ -37,7 +37,7 @@ func aRoutineThatNeedsText(t *testing.T) (*Acts, Routine) {
 	}
 	rs := a.Routines()
 	if len(rs) != 1 {
-		t.Fatalf("the library holds %d routines", len(rs))
+		t.Fatalf("the library holds %d plays", len(rs))
 	}
 	return a, rs[0]
 }
@@ -50,7 +50,7 @@ func TestThePlayRowSaysWhatTheRoutineNeeds(t *testing.T) {
 		t.Fatalf("the row is explained away: %q", got.Why)
 	}
 	if !got.Needs {
-		t.Fatal("a routine that types supplied text is reported as needing nothing")
+		t.Fatal("a play that types supplied text is reported as needing nothing")
 	}
 	if len(got.Fields) != 1 || got.Fields[0].Name != "message" ||
 		got.Fields[0].Secret {
@@ -68,7 +68,7 @@ func TestPlayRefusesARoutineThatNeedsTextAndSaysWhereToPutIt(t *testing.T) {
 	a, r := aRoutineThatNeedsText(t)
 	why := a.PlayRoutine(r.ID, "")
 	if why == "" {
-		t.Fatal("Play pressed a routine that types text nobody supplied")
+		t.Fatal("Play pressed a play that types text nobody supplied")
 	}
 	if !strings.Contains(why, "types text you supply") {
 		t.Errorf("the refusal does not say what to do: %q", why)
@@ -154,7 +154,7 @@ func TestARoutineSavedSinceTheConfirmationIsRefusedInStudio(t *testing.T) {
 	}
 	why := a.ConfirmPlay(got.Token, "")
 	if why == "" {
-		t.Fatal("a routine saved again since the confirmation ran anyway")
+		t.Fatal("a play saved again since the confirmation ran anyway")
 	}
 	if !strings.Contains(why, "saved again") {
 		t.Errorf("the refusal does not say what happened: %q", why)
@@ -200,7 +200,7 @@ func TestARoutineThatNeedsNothingIsOfferedNoFields(t *testing.T) {
 	a, r := anEditableRoutineInStudio(t)
 	got := a.PlayNeeds(r.ID)
 	if got.Needs {
-		t.Errorf("a routine with no arguments is reported as needing text: %+v", got)
+		t.Errorf("a play with no arguments is reported as needing text: %+v", got)
 	}
 	if len(got.Fields) != 0 {
 		t.Errorf("it is offered %+v", got.Fields)

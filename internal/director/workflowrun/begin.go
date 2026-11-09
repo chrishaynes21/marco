@@ -76,7 +76,7 @@ func (r *Runner) Begin(step int) error {
 		return fmt.Errorf("there is no run to begin an interaction in")
 	}
 	if step < 0 || step >= len(r.art.Steps) {
-		return fmt.Errorf("this routine has %d interaction(s); there is no interaction %d",
+		return fmt.Errorf("this play has %d interaction(s); there is no interaction %d",
 			len(r.art.Steps), step)
 	}
 	if r.Stopped() {

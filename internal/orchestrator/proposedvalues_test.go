@@ -36,7 +36,7 @@ func digestNow(t *testing.T, d Deps, rt routes.Route) string {
 	t.Helper()
 	i, err := d.PrepareInvocation(rt, nil)
 	if err != nil {
-		t.Fatalf("reading the routine: %v", err)
+		t.Fatalf("reading the play: %v", err)
 	}
 	return i.SourceAt
 }
@@ -129,7 +129,7 @@ func TestClearingAProposalIsACorrectionAndNotAnAbsence(t *testing.T) {
 		t.Errorf("a cleared proposal is reported as %q", got)
 	}
 	if !i.Runnable() {
-		t.Error("a routine told to type nothing cannot be run")
+		t.Error("a play told to type nothing cannot be run")
 	}
 	// AND IT IS SAID AS WHAT IT IS, with the correction named.
 	if len(i.Says) != 1 || !strings.Contains(i.Says[0], "nothing") ||
@@ -192,7 +192,7 @@ func TestAProposalForAnOlderRevisionIsRefused(t *testing.T) {
 		t.Fatal(err)
 	}
 	if now := digestNow(t, d, rt); now == was {
-		t.Fatal("the routine was not actually changed, so this proves nothing")
+		t.Fatal("the play was not actually changed, so this proves nothing")
 	}
 
 	i := proposing(t, d, rt, map[string]string{"message": "hello there"},
@@ -208,7 +208,7 @@ func TestAProposalForAnOlderRevisionIsRefused(t *testing.T) {
 		t.Errorf("the refusal repeats the value: %q", i.Why)
 	}
 	if !strings.Contains(i.Why, "write a note") {
-		t.Errorf("the refusal does not name the routine: %q", i.Why)
+		t.Errorf("the refusal does not name the play: %q", i.Why)
 	}
 	// AND THE SAME VALUES AGAINST THE REVISION AS IT NOW STANDS ARE FINE, so what was
 	// refused was the revision and not anything about the value.

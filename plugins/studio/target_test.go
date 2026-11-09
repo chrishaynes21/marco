@@ -75,7 +75,7 @@ func TestTwoWindowsOfOneProgramAreOfferedAndNeitherIsChosen(t *testing.T) {
 				w.Label, w.Says)
 		}
 		if !strings.Contains(w.Says, "checked against that window") {
-			t.Errorf("a guarded routine's row does not say its presses are "+
+			t.Errorf("a guarded play's row does not say its presses are "+
 				"checked: %q", w.Says)
 		}
 	}
@@ -85,7 +85,7 @@ func TestTwoWindowsOfOneProgramAreOfferedAndNeitherIsChosen(t *testing.T) {
 	a.lifting = func(uintptr, uint32) (bool, bool) { lifted++; return true, true }
 	why := a.PlayRoutine(r.ID, "")
 	if why == "" {
-		t.Fatal("a routine was played into one of two windows with nobody having " +
+		t.Fatal("a play was played into one of two windows with nobody having " +
 			"chosen which")
 	}
 	if !strings.Contains(why, "choose") {
@@ -109,7 +109,7 @@ func TestAWindowOfAnotherProgramIsNeitherOfferedNorAccepted(t *testing.T) {
 	discord := orchestrator.Pickable{HWnd: 0x3030, PID: 3030}.Term()
 	for _, w := range a.PlaybackTarget(r.ID).Windows {
 		if w.ID == discord {
-			t.Error("a routine recorded in one program is offered another " +
+			t.Error("a play recorded in one program is offered another " +
 				"program's window")
 		}
 	}
@@ -117,7 +117,7 @@ func TestAWindowOfAnotherProgramIsNeitherOfferedNorAccepted(t *testing.T) {
 	lifted := 0
 	a.lifting = func(uintptr, uint32) (bool, bool) { lifted++; return true, true }
 	if why := a.PlayRoutine(r.ID, discord); why == "" {
-		t.Fatal("a routine was played into a window of a program it is not about")
+		t.Fatal("a play was played into a window of a program it is not about")
 	}
 	if lifted != 0 {
 		t.Errorf("a window was brought forward for a refused Play (%d)", lifted)
@@ -146,7 +146,7 @@ func TestAWindowThatHasClosedSinceTheListWasDrawnIsRefused(t *testing.T) {
 	a.lifting = func(uintptr, uint32) (bool, bool) { lifted++; return true, true }
 	why := a.PlayRoutine(r.ID, chosen)
 	if why == "" {
-		t.Fatal("a routine was played into a window that is no longer open, which " +
+		t.Fatal("a play was played into a window that is no longer open, which " +
 			"with a reused handle is a press in somebody else's window")
 	}
 	if !strings.Contains(why, "no longer open") {
@@ -186,7 +186,7 @@ func TestNothingIsBroughtForwardForARunThatCannotStart(t *testing.T) {
 	withAMarcoBeside(t)
 	why := a.PlayRoutine(r.ID, into.Chosen)
 	if why == "" {
-		t.Fatal("a routine started while a run was already in flight")
+		t.Fatal("a play started while a run was already in flight")
 	}
 	if !strings.Contains(why, "one at a time") {
 		t.Errorf("the refusal reads: %s", why)

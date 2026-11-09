@@ -726,5 +726,5 @@ func learnedOf(name string, d *Demonstration, waited error) (said, next string, 
 	}
 	return fmt.Sprintf("Saved %s: %d press(es), %d of which Marco can perform and "+
 			"check.", quoted, presses, checks),
-		"Build an Act from it, and press Play on that.", false
+		"Build an Act from it, and press Run on that.", false
 }

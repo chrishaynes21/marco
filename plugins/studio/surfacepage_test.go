@@ -193,7 +193,7 @@ func TestTheRoutinesSurfaceIsProvedByAControlThatIsOnIt(t *testing.T) {
 	}
 	if n("arrivedask") != 1 {
 		t.Errorf("askBtn is not on screen after pressing rail-routines, so every "+
-			"scenario would report that the routines surface did not come up: %q",
+			"scenario would report that the plays surface did not come up: %q",
 			title)
 	}
 	// AND IT IS STILL THERE AFTER THE FORM IS REVEALED, which is what makes it a proof
@@ -209,7 +209,7 @@ func TestTheRoutinesSurfaceIsProvedByAControlThatIsOnIt(t *testing.T) {
 	}
 	// AND AFTER COMING BACK, which is what `leaveRun` waits for.
 	if n("backask") != 1 {
-		t.Errorf("askBtn is not on screen after returning to the routines surface, "+
+		t.Errorf("askBtn is not on screen after returning to the plays surface, "+
 			"so leaveRun would never see the window come back: %q", title)
 	}
 }
@@ -224,7 +224,7 @@ func TestTheRecordingFormIsRevealedRatherThanWaitedFor(t *testing.T) {
 	title, n := aRenderedSurfacePage(t)
 
 	if n("arrivedcap") != 0 {
-		t.Errorf("capBtn is on screen as soon as the routines surface comes up, so "+
+		t.Errorf("capBtn is on screen as soon as the plays surface comes up, so "+
 			"the recording form is no longer revealed and this test no longer "+
 			"describes the page: %q", title)
 	}

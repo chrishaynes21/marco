@@ -102,11 +102,11 @@ func TestLearningANameTwiceAsksBeforeItReplacesAnything(t *testing.T) {
 		t.Fatalf("the second learn: %v\n%s", err, declined.String())
 	}
 	if now := sourceAt(t, reg, rt); now != was {
-		t.Errorf("Enter replaced the routine that was already there:\n%s", now)
+		t.Errorf("Enter replaced the play that was already there:\n%s", now)
 	}
 	// AND IT NAMED THE EXACT ROUTE BEING REPLACED, which is what somebody is agreeing
 	// to: the application, the scope and the slug, not just a name.
-	for _, says := range []string{"already a routine saved there", "notepad/context/the-same-name",
+	for _, says := range []string{"already a play saved there", "notepad/context/the-same-name",
 		"[y]es / [N]o", "Left alone"} {
 		if !strings.Contains(declined.String(), says) {
 			t.Errorf("the question does not say %q:\n%s", says, declined.String())
@@ -121,14 +121,14 @@ func TestLearningANameTwiceAsksBeforeItReplacesAnything(t *testing.T) {
 	}
 	now := sourceAt(t, reg, rt)
 	if !strings.Contains(now, `"z"`) {
-		t.Errorf("an explicit yes did not replace the routine:\n%s", now)
+		t.Errorf("an explicit yes did not replace the play:\n%s", now)
 	}
 	if !strings.Contains(agreed.String(), "Replaced") {
 		t.Errorf("the save that replaced one does not say so:\n%s", agreed.String())
 	}
 	// AND STILL ONE ROUTINE, so this is a replacement and not a second file somewhere.
 	if got := reg.List(); len(got) != 1 {
-		t.Errorf("the library holds %+v, want the one routine", got)
+		t.Errorf("the library holds %+v, want the one play", got)
 	}
 }
 
@@ -157,10 +157,10 @@ func TestAutoLearnRefusesACollisionAndKeepsWhatIsThere(t *testing.T) {
 		t.Fatalf("the second auto-learn returned an error: %v\n%s", err, second.String())
 	}
 	if now := sourceAt(t, reg, rt); now != was {
-		t.Errorf("the unattended path replaced a routine with nobody having looked at "+
+		t.Errorf("the unattended path replaced a play with nobody having looked at "+
 			"it:\n%s", now)
 	}
-	for _, says := range []string{"Not saving", "already a routine saved there"} {
+	for _, says := range []string{"Not saving", "already a play saved there"} {
 		if !strings.Contains(second.String(), says) {
 			t.Errorf("the refusal does not say %q:\n%s", says, second.String())
 		}
@@ -203,7 +203,7 @@ func TestAReplacementRefusesWhenTheRoutineChangedWhileTheQuestionWasOpen(t *test
 	err := d.Learn("the same name")
 
 	if err == nil {
-		t.Fatalf("it replaced a routine that had gone while the question was open:\n%s",
+		t.Fatalf("it replaced a play that had gone while the question was open:\n%s",
 			out.String())
 	}
 	if !strings.Contains(err.Error(), "to replace any more") {
@@ -271,7 +271,7 @@ func TestAReplacementRefusesWhenTheContentsChangedUnderTheSameIdentity(t *testin
 
 	// SOMEBODY ELSE SAVES OVER IT WHILE THE QUESTION IS OPEN. Same place, same id, and a
 	// routine nobody in this flow has ever seen.
-	newer := "// somebody else's routine, saved while the question was on screen\n" +
+	newer := "// somebody else's play, saved while the question was on screen\n" +
 		mustRead(t, reg, rt)
 	var out bytes.Buffer
 	answers := &readerThatActs{
@@ -284,7 +284,7 @@ func TestAReplacementRefusesWhenTheContentsChangedUnderTheSameIdentity(t *testin
 	err := d.Learn("the same name")
 
 	if err == nil {
-		t.Fatalf("it replaced a routine that had been saved again while the question "+
+		t.Fatalf("it replaced a play that had been saved again while the question "+
 			"was open:\n%s", out.String())
 	}
 	if !strings.Contains(err.Error(), "saved again since you were shown it") {
@@ -292,7 +292,7 @@ func TestAReplacementRefusesWhenTheContentsChangedUnderTheSameIdentity(t *testin
 	}
 	// AND THE NEWER ROUTINE IS EXACTLY AS ITS OWN WRITER LEFT IT.
 	if now := mustRead(t, reg, rt); now != newer {
-		t.Errorf("the newer routine was written over:\n%s", now)
+		t.Errorf("the newer play was written over:\n%s", now)
 	}
 
 	// ── AND THE DEMONSTRATION IS HALF OF THE VERSION ──
@@ -320,7 +320,7 @@ func TestAReplacementRefusesWhenTheContentsChangedUnderTheSameIdentity(t *testin
 	d.In = answers
 	err = d.Learn("the same name")
 	if err == nil {
-		t.Fatalf("it replaced a routine whose demonstration had been written again "+
+		t.Fatalf("it replaced a play whose demonstration had been written again "+
 			"while the question was open:\n%s", recOut.String())
 	}
 	if !strings.Contains(err.Error(), "saved again since you were shown it") {
@@ -346,7 +346,7 @@ func TestAFreshSaveDoesNotOverwriteAConcurrentSave(t *testing.T) {
 	reg := routes.Registry{Dir: t.TempDir()}
 	rt := routes.Route{App: "notepad", Slug: "ordinary"}
 
-	theirs := "// somebody else's routine, created after the collision check\nuse os.\n"
+	theirs := "// somebody else's play, created after the collision check\nuse os.\n"
 	theirRec := []byte(`[{"kind":"theirs"}]`)
 	var out bytes.Buffer
 	answers := &readerThatActs{
@@ -372,7 +372,7 @@ func TestAFreshSaveDoesNotOverwriteAConcurrentSave(t *testing.T) {
 		t.Fatalf("learning: %v\n%s", err, out.String())
 	}
 	if now := mustRead(t, reg, rt); now != theirs {
-		t.Errorf("the routine created after the collision check was written over:\n%s",
+		t.Errorf("the play created after the collision check was written over:\n%s",
 			now)
 	}
 	if rec, ok := reg.LoadRecording(rt); !ok || string(rec) != string(theirRec) {
@@ -382,7 +382,7 @@ func TestAFreshSaveDoesNotOverwriteAConcurrentSave(t *testing.T) {
 	if strings.Contains(out.String(), "Learned") {
 		t.Errorf("it said it learned something and wrote nothing:\n%s", out.String())
 	}
-	if !strings.Contains(out.String(), "already a routine saved there") &&
+	if !strings.Contains(out.String(), "already a play saved there") &&
 		!strings.Contains(out.String(), "while this one was being kept") {
 		t.Errorf("nothing said why it was not saved:\n%s", out.String())
 	}
@@ -401,7 +401,7 @@ func TestAFreshSaveDoesNotOverwriteAConcurrentSave(t *testing.T) {
 // lose. With a create-or-truncate write some of those iterations lose them.
 func TestWhenTheGapIsRacedTheOtherWritersFileSurvives(t *testing.T) {
 	t.Setenv("MARCO_CV", "off")
-	const theirs = "// somebody else's routine\nuse os.\n"
+	const theirs = "// somebody else's play\nuse os.\n"
 	rt := routes.Route{App: "notepad", Slug: "ordinary"}
 
 	raced := 0
@@ -427,11 +427,11 @@ func TestWhenTheGapIsRacedTheOtherWritersFileSurvives(t *testing.T) {
 		}
 		raced++
 		if now := mustRead(t, reg, rt); now != theirs {
-			t.Fatalf("iteration %d: the other writer created the routine and it was "+
+			t.Fatalf("iteration %d: the other writer created the play and it was "+
 				"written over:\n%s", i, now)
 		}
 		if rec, ok := reg.LoadRecording(rt); ok {
-			t.Fatalf("iteration %d: a demonstration was written beside a routine "+
+			t.Fatalf("iteration %d: a demonstration was written beside a play "+
 				"this save did not write: %s", i, rec)
 		}
 	}
@@ -611,7 +611,7 @@ func TestHoldingOneRoutineDoesNotHoldItsNamesake(t *testing.T) {
 	// ── ONE OF THEM IS HELD ──
 	held, err := reg.Lock(inPlace, time.Second)
 	if err != nil {
-		t.Fatalf("holding the in-place routine: %v", err)
+		t.Fatalf("holding the in-place play: %v", err)
 	}
 	defer held.Release()
 
@@ -624,7 +624,7 @@ func TestHoldingOneRoutineDoesNotHoldItsNamesake(t *testing.T) {
 	dr := d.DraftOf("settings", aPlainDemonstration("z"), "notepad", "a test", Unstated)
 	at := d.Collision(dr, ScopeAppAnywhere, "notepad")
 	if !at.Exists || at.ID != RouteID(anywhere) {
-		t.Fatalf("the collision is %+v, want the anywhere-in-application routine", at)
+		t.Fatalf("the collision is %+v, want the anywhere-in-application play", at)
 	}
 	began := make(chan struct{})
 	done := make(chan error, 1)
@@ -642,13 +642,13 @@ func TestHoldingOneRoutineDoesNotHoldItsNamesake(t *testing.T) {
 				err)
 		}
 	case <-time.After(SaveWithin / 2):
-		t.Fatalf("saving %s waited for %s, which is a different routine",
+		t.Fatalf("saving %s waited for %s, which is a different play",
 			RouteID(anywhere), RouteID(inPlace))
 	}
 	// AND THE ONE THAT WAS HELD IS UNTOUCHED, which is the other half: the two routines
 	// are separate files and a save of one is not a save of the other.
 	if !strings.Contains(mustRead(t, reg, inPlace), `"a"`) {
-		t.Errorf("the held routine was written:\n%s", mustRead(t, reg, inPlace))
+		t.Errorf("the held play was written:\n%s", mustRead(t, reg, inPlace))
 	}
 }
 
@@ -688,7 +688,7 @@ func TestAPathThatIsNotARoutineIsNotReportedAsFree(t *testing.T) {
 		t.Errorf("the path was written over: %v %+v", err, st)
 	}
 	if rec, ok := reg.LoadRecording(rt); ok {
-		t.Errorf("a demonstration was written beside a routine that was not "+
+		t.Errorf("a demonstration was written beside a play that was not "+
 			"saved: %s", rec)
 	}
 	if strings.Contains(out.String(), "Learned") {
@@ -735,7 +735,7 @@ func TestNoSurfaceSavesARoutineThatRefusesEveryPress(t *testing.T) {
 			t.Fatalf("%s: %v\n%s", answers.say, err, out.String())
 		}
 		if got := d.Unrunnable(); len(got) != 0 {
-			t.Errorf("%s: saved a routine that refuses every press: %+v\n%s",
+			t.Errorf("%s: saved a play that refuses every press: %+v\n%s",
 				answers.say, got, out.String())
 		}
 		// AND IT WENT WHERE IT WAS ASKED, OR NOWHERE.
@@ -764,7 +764,7 @@ func TestNoSurfaceSavesARoutineThatRefusesEveryPress(t *testing.T) {
 		t.Fatalf("auto: %v\n%s", err, auto.String())
 	}
 	if got := d.Unrunnable(); len(got) != 0 {
-		t.Errorf("the unattended path saved a routine that refuses every press: %+v\n%s",
+		t.Errorf("the unattended path saved a play that refuses every press: %+v\n%s",
 			got, auto.String())
 	}
 	if !reg.Has(routes.Route{App: "arkascended", Focus: true, Slug: "ark-graphics"}) {
@@ -838,11 +838,11 @@ func TestTheTerminalStatesNoModeAndStillDoesNot(t *testing.T) {
 		// AND THE SAVED ROUTINE STATES NOTHING, which `ModeOf` reads back as unstated.
 		src := sourceAt(t, reg, routes.Route{App: "notepad", Focus: how.focus, Slug: "ordinary"})
 		if strings.Contains(src, modeStated) {
-			t.Errorf("%s: the saved routine states a mode it was never recorded "+
+			t.Errorf("%s: the saved play states a mode it was never recorded "+
 				"under:\n%s", how.say, src)
 		}
 		if got := ModeOf(src); got != Unstated {
-			t.Errorf("%s: the saved routine reads back as %q, want unstated",
+			t.Errorf("%s: the saved play reads back as %q, want unstated",
 				how.say, got)
 		}
 	}
@@ -975,7 +975,7 @@ func TestARebuildWaitsForASaveAndThenRefusesStaleConsent(t *testing.T) {
 	// ── AND THE REBUILD REVALIDATES AGAINST WHAT THE SAVE LEFT ──
 	errRebuild := <-doneRebuild
 	if errRebuild == nil {
-		t.Fatal("the rebuild replaced a routine that had been saved since the review " +
+		t.Fatal("the rebuild replaced a play that had been saved since the review " +
 			"was built")
 	}
 	if !strings.Contains(errRebuild.Error(), "saved again since the version you reviewed") {
@@ -995,7 +995,7 @@ func TestARebuildWaitsForASaveAndThenRefusesStaleConsent(t *testing.T) {
 		t.Fatalf("preparing again: %v", err)
 	}
 	if !fresh.Replaceable() {
-		t.Skipf("the routine as the save left it offers nothing to rebuild (refused: "+
+		t.Skipf("the play as the save left it offers nothing to rebuild (refused: "+
 			"%q), so the control cannot be made", fresh.Refused)
 	}
 	if err := d.Replace(fresh); err != nil {

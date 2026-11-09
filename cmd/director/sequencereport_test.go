@@ -32,16 +32,16 @@ func TestAPixelRoutineIsNotOfferedAsRunnable(t *testing.T) {
 		}},
 	}
 	if runnable(pixel) {
-		t.Error("a routine whose steps have no verb was offered as runnable")
+		t.Error("a play whose steps have no verb was offered as runnable")
 	}
 	// AND A ROUTINE WITH NO STEPS IS NOT RUNNABLE EITHER. Offering `execute` for one is
 	// the same confusing failure, reached by a shorter route.
 	if runnable(workflowstore.Artifact{Version: workflowstore.Version, Name: "empty"}) {
-		t.Error("a routine with no steps at all was offered as runnable")
+		t.Error("a play with no steps at all was offered as runnable")
 	}
 	shown := renderSequence(pixel)
 	if strings.Contains(shown, "director execute") {
-		t.Errorf("the detail view offers to execute a pixel routine:\n%s", shown)
+		t.Errorf("the detail view offers to execute a pixel play:\n%s", shown)
 	}
 	// IT CANNOT BE RUN, AND THE REASON CHANGED. This asserted "CANNOT BE RUN YET", which
 	// was about carrying no verb — true of every pixel routine when it was written, and
@@ -57,7 +57,7 @@ func TestAPixelRoutineIsNotOfferedAsRunnable(t *testing.T) {
 	}
 	// AND IT IS NOT SENT TO THE COMMAND THAT WOULD REFUSE IT.
 	if strings.Contains(shown, "perform-workflow") {
-		t.Errorf("an unscoped routine is offered to the execution path:\n%s", shown)
+		t.Errorf("an unscoped play is offered to the execution path:\n%s", shown)
 	}
 	if !strings.Contains(shown, "director reacquire") {
 		t.Errorf("the detail view does not say what CAN be done with it — measuring "+
@@ -83,10 +83,10 @@ func TestAPixelRoutineIsNotOfferedAsRunnable(t *testing.T) {
 		},
 	}
 	if !runnable(desktop) {
-		t.Error("a routine with a verb per step was refused as unrunnable")
+		t.Error("a play with a verb per step was refused as unrunnable")
 	}
 	if shown := renderSequence(desktop); strings.Contains(shown, "CANNOT BE RUN") {
-		t.Errorf("a desktop routine is reported as unrunnable:\n%s", shown)
+		t.Errorf("a desktop play is reported as unrunnable:\n%s", shown)
 	}
 }
 

@@ -154,7 +154,7 @@ func armLines(l armListing, why string) []string {
 		case "needs-reassigning":
 			row += "  · set up by name: reassign it to run it"
 		case "stale":
-			row += "  · its routine is gone: change or remove it"
+			row += "  · its play is gone: change or remove it"
 		default: // "wider", and any state added later: the engine's own sentence
 			row += "  · " + s.Says
 		}

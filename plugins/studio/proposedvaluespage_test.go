@@ -367,10 +367,10 @@ func TestAProposalDoesNotReachAnotherRoutinesFieldOfTheSameName(t *testing.T) {
 		t.Fatalf("the page threw: %q", title)
 	}
 	if n("elsewhereempty") != 1 {
-		t.Errorf("another routine's field was filled from this one's reading: %q", title)
+		t.Errorf("another play's field was filled from this one's reading: %q", title)
 	}
 	if n("elsewhereclause") != 1 {
-		t.Errorf("another routine's field claims a value was read out of the "+
+		t.Errorf("another play's field claims a value was read out of the "+
 			"request: %q", title)
 	}
 }

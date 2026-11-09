@@ -355,10 +355,10 @@ func TestThePageSendsValuesOnceAndConfirmsByToken(t *testing.T) {
 func TestThePlayFieldsBelongToTheRoutineTheyAreAbout(t *testing.T) {
 	title, n := aRenderedPlayValuesPage(t)
 	if n("otherfields") != 0 {
-		t.Errorf("a routine that needs nothing shows the fields: %q", title)
+		t.Errorf("a play that needs nothing shows the fields: %q", title)
 	}
 	if n("otherbox") != 0 {
-		t.Errorf("the other routine's card still holds the first one's box: %q", title)
+		t.Errorf("the other play's card still holds the first one's box: %q", title)
 	}
 	// AND THE TEXT WENT WITH THEM. Coming back finds an empty box and a dead Play,
 	// which is what "nothing is prefilled, here or ever" means in practice.
@@ -366,7 +366,7 @@ func TestThePlayFieldsBelongToTheRoutineTheyAreAbout(t *testing.T) {
 		t.Errorf("the box came back with text in it: %q", title)
 	}
 	if n("backdead") != 1 {
-		t.Errorf("Play is live on a routine whose text was dropped, so an empty box "+
+		t.Errorf("Play is live on a play whose text was dropped, so an empty box "+
 			"counts as given: %q", title)
 	}
 }

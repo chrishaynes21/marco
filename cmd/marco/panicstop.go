@@ -242,7 +242,7 @@ func take(d orchestrator.Deps, rt routes.Route, named map[string]string,
 	// this routine under its lock while the key still named it, and anything else at this
 	// identity now is not the routine the key was bound to.
 	if pinned != "" && routes.DigestOf(string(src)) != pinned {
-		mlog.Info("run: refused", "route", rt.Slug, "why", "not the routine the shortcut "+
+		mlog.Info("run: refused", "route", rt.Slug, "why", "not the play the shortcut "+
 			"was pressed for")
 		s.refused = fmt.Sprintf("%q changed between the shortcut being pressed and the "+
 			"run starting, so nothing has been run — press it again",
@@ -252,7 +252,7 @@ func take(d orchestrator.Deps, rt routes.Route, named map[string]string,
 		return s
 	}
 	if expect != "" && routes.DigestOf(string(src)) != expect {
-		mlog.Info("run: refused", "route", rt.Slug, "why", "the routine changed since "+
+		mlog.Info("run: refused", "route", rt.Slug, "why", "the play changed since "+
 			"it was confirmed")
 		s.refused = fmt.Sprintf("%q has been saved again since you confirmed what it "+
 			"would do, so nothing has been run — look at it again",

@@ -19,7 +19,7 @@ func TestAChangeMovesTheShortcutInOneWrite(t *testing.T) {
 		t.Error("the old key is still there after the change")
 	}
 	if b, ok := d.Reg.BindingAt("game", "f"); !ok || !runs(b, freeplay.ID()) {
-		t.Errorf("the new key does not run the routine: %+v", b)
+		t.Errorf("the new key does not run the play: %+v", b)
 	}
 }
 
@@ -83,7 +83,7 @@ func TestAChangeOntoATakenKeyNeedsConsent(t *testing.T) {
 		t.Fatal(err)
 	}
 	if b, _ := d.Reg.BindingAt("game", "f"); !runs(b, freeplay.ID()) {
-		t.Errorf("after consent `f should run the changed routine: %+v", b)
+		t.Errorf("after consent `f should run the changed play: %+v", b)
 	}
 }
 

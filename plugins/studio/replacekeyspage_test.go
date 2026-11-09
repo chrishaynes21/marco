@@ -55,7 +55,7 @@ func TestTheReplaceCardSaysItsShortcutsAreKept(t *testing.T) {
 func TestTheReplaceCardSaysNothingAboutShortcutsItDoesNotHave(t *testing.T) {
 	title := aReplaceCardWith(t, "")
 	if counter(t, title, "kept") != "0" || counter(t, title, "unknown") != "0" {
-		t.Fatalf("a routine with no shortcuts is said to keep some: %q", title)
+		t.Fatalf("a play with no shortcuts is said to keep some: %q", title)
 	}
 }
 

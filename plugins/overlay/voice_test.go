@@ -315,7 +315,7 @@ func TestASpokenLineWithAValueIsReviewedLikeATypedOne(t *testing.T) {
 			t.Errorf("a spoken paraphrase reached the intake as %q", got)
 		}
 		if !promptAsk.Load() {
-			t.Fatal("the routine Director named was not offered")
+			t.Fatal("the play Director named was not offered")
 		}
 		if o := takePendingRoutine(); o.slug != "open-social" {
 			t.Errorf("offered %+v", o)

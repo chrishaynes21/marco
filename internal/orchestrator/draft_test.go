@@ -255,17 +255,17 @@ func TestAnUnshieldedClickOnlyDemonstrationSurvivesAGlanceAtMarco(t *testing.T) 
 			}
 			raw, err := os.ReadFile(d.Reg.Path(rt))
 			if err != nil {
-				t.Fatalf("the routine is not on disk: %v", err)
+				t.Fatalf("the play is not on disk: %v", err)
 			}
 			src := string(raw)
 			for _, want := range []string{"842", "274", "496", "283"} {
 				if !strings.Contains(src, want) {
-					t.Errorf("the saved routine is missing %s:\n%s",
+					t.Errorf("the saved play is missing %s:\n%s",
 						want, src)
 				}
 			}
 			if strings.Contains(src, "1511") || strings.Contains(src, "studio") {
-				t.Errorf("Marco reached the saved routine:\n%s", src)
+				t.Errorf("Marco reached the saved play:\n%s", src)
 			}
 		})
 	}
@@ -316,23 +316,23 @@ func TestSavePersistsTheDraftUnderTheScopeItIsGiven(t *testing.T) {
 			}
 			raw, err := os.ReadFile(d.Reg.Path(rt))
 			if err != nil {
-				t.Fatalf("the routine is not on disk: %v", err)
+				t.Fatalf("the play is not on disk: %v", err)
 			}
 			src := string(raw)
 			for _, want := range []string{"842", "274", "496", "283"} {
 				if !strings.Contains(src, want) {
-					t.Errorf("the saved routine is missing %s:\n%s",
+					t.Errorf("the saved play is missing %s:\n%s",
 						want, src)
 				}
 			}
 			if strings.Contains(src, "1511") {
-				t.Errorf("the saved routine presses Stop:\n%s", src)
+				t.Errorf("the saved play presses Stop:\n%s", src)
 			}
 			// AND THE RAW DEMONSTRATION IS BESIDE IT, as review and
 			// re-simplification material and nothing else.
 			if !d.Reg.HasRecording(rt) {
 				t.Error("the raw demonstration was not kept beside the " +
-					"routine, so it cannot be reviewed or re-simplified")
+					"play, so it cannot be reviewed or re-simplified")
 			}
 		})
 	}
@@ -347,7 +347,7 @@ func TestSaveRefusesAnAppScopeWithNoApp(t *testing.T) {
 	dr.App = "" // nothing was observed
 
 	if _, err := d.Save(dr, ScopeApp, ""); err == nil {
-		t.Fatal("an app-scoped save with no application succeeded; the routine " +
+		t.Fatal("an app-scoped save with no application succeeded; the play " +
 			"would work somewhere the caller was not told about")
 	}
 	if _, err := d.Save(dr, ScopeEverywhere, ""); err != nil {

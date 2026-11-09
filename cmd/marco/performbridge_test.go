@@ -623,7 +623,7 @@ func TestABridgeFailureStillAnnouncesTheResolvedRoute(t *testing.T) {
 	// AND WHAT IT WAS RUN WITH, which the widget's history shows: a demonstrated routine is
 	// still named by what ran, not by the words that asked for it.
 	if !strings.Contains(said, outcome.RanPrefix+"mute volume\n") {
-		t.Errorf("a demonstrated routine did not say what it ran with:\n%s", said)
+		t.Errorf("a demonstrated play did not say what it ran with:\n%s", said)
 	}
 }
 

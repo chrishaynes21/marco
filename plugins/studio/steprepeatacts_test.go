@@ -43,7 +43,7 @@ func TestAGuardedRoutineOffersNoBlockAndSaysWhy(t *testing.T) {
 		}
 	}
 	if e.Blocks || !strings.Contains(e.BlocksSays, "checks each press") {
-		t.Errorf("a routine whose presses are checked offers blocks %v, saying %q",
+		t.Errorf("a play whose presses are checked offers blocks %v, saying %q",
 			e.Blocks, e.BlocksSays)
 	}
 }
@@ -53,7 +53,7 @@ func TestStepsAreRepeatedAsABlockThroughTheStepPanel(t *testing.T) {
 	a, r := anEditableRoutineInStudio(t)
 	e := a.StepEditing(r.ID)
 	if !e.Blocks || e.BlocksSays != "" {
-		t.Fatalf("a routine whose presses are not checked offers no block: %v %q",
+		t.Fatalf("a play whose presses are not checked offers no block: %v %q",
 			e.Blocks, e.BlocksSays)
 	}
 	from, to := rowWithKey(t, e, "a").At, rowWithKey(t, e, "b").At

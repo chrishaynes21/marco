@@ -242,12 +242,12 @@ func (a *Acts) shortcutsFor(id string) (Shortcuts, orchestrator.Deps, bool) {
 	out := Shortcuts{ID: id, Leader: leader, LeaderSays: leaderSays(leader),
 		Keys: []ShortcutKey{}, Legacy: []ShortcutKey{}, Places: []ShortcutPlace{}}
 	if id == "" {
-		out.Why = "choose a routine to see its shortcuts"
+		out.Why = "choose a play to see its shortcuts"
 		return out, d, false
 	}
 	chosen, found := a.routineWithID(id)
 	if !found {
-		out.Why = "that routine is not in the library any more"
+		out.Why = "that play is not in the library any more"
 		return out, d, false
 	}
 	out.Name = chosen.Name
@@ -348,7 +348,7 @@ func planFor(d orchestrator.Deps, b routes.Binding, rt routes.Route) ([]routes.R
 		}
 		other, ok := d.Reg.Resolve(b.App, base)
 		if !ok {
-			return nil, "", fmt.Sprintf("its step %q reaches no routine here, so it can "+
+			return nil, "", fmt.Sprintf("its step %q reaches no play here, so it can "+
 				"only be removed or set again", step)
 		}
 		steps, ids = append(steps, other), append(ids, other.ID())

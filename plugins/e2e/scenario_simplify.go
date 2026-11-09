@@ -134,7 +134,7 @@ func aSimplifiedRoutineIsReviewedReplacedAndPlayed(w *world) result {
 		st.fail()
 		return fail(started, why, fmt.Sprintf("the file now holds:\n%s", now))
 	}
-	w.art.step("the routine now types its text in one step")
+	w.art.step("the play now types its text in one step")
 
 	// ── AND IT STILL PERFORMS ──
 	before, seq, records := st.f.mustRead(), st.f.lastSeq(), countRecords(st.store)
@@ -150,7 +150,7 @@ func aSimplifiedRoutineIsReviewedReplacedAndPlayed(w *world) result {
 	if err != nil {
 		st.fail()
 		return fail(started, fmt.Sprintf("Marco wrote no finished run record for the "+
-			"simplified routine: %v. The application received %s", err,
+			"simplified play: %v. The application received %s", err,
 			st.f.arrivedSoFar(seq)))
 	}
 	w.art.step("Marco recorded %s", rec)
@@ -171,14 +171,14 @@ func aSimplifiedRoutineIsReviewedReplacedAndPlayed(w *world) result {
 	if why != "" {
 		st.fail()
 		return fail(started, why,
-			fmt.Sprintf("the field holds %q and the simplified routine typed %q",
+			fmt.Sprintf("the field holds %q and the simplified play typed %q",
 				after.Name, want),
 			fmt.Sprintf("Marco recorded %s", rec))
 	}
 	return pass(started,
 		"the review was up twice and cancelled once, and no file in the library "+
 			"changed until Replace was pressed",
-		"the replaced routine types its text in ONE step where the saved one typed "+
+		"the replaced play types its text in ONE step where the saved one typed "+
 			"it in two, and is otherwise what the generator writes",
 		fmt.Sprintf("and it still performs: the application's own Name field holds "+
 			"%q, with Save pressed after it", after.Name),
@@ -268,17 +268,17 @@ func theLibraryMoved(store string, before map[string]string, when string) string
 func theSimplifiedRoutineIsWrong(now, was string) string {
 	whole := fmt.Sprintf("do OS's Type with %q", strings.Join(theTypedRuns, ""))
 	if !strings.Contains(now, whole) {
-		return fmt.Sprintf("the replaced routine does not type its text in one step "+
+		return fmt.Sprintf("the replaced play does not type its text in one step "+
 			"(no %s in it), which is the whole of what this choice does", whole)
 	}
 	for _, run := range theTypedRuns {
 		part := fmt.Sprintf("do OS's Type with %q", run)
 		if strings.Contains(now, part) {
-			return fmt.Sprintf("the replaced routine still types %q as a step of its "+
+			return fmt.Sprintf("the replaced play still types %q as a step of its "+
 				"own, so the runs were not folded together", run)
 		}
 		if !strings.Contains(was, part) {
-			return fmt.Sprintf("the SAVED routine did not type %q as a step of its "+
+			return fmt.Sprintf("the SAVED play did not type %q as a step of its "+
 				"own, so the two rebuilds would have been the same and this "+
 				"establishes nothing", run)
 		}
@@ -287,7 +287,7 @@ func theSimplifiedRoutineIsWrong(now, was string) string {
 	// the press before the typing and the press after it are both measured, and a
 	// rebuild that lost that would be a routine that presses wherever the cursor is.
 	if !strings.Contains(now, `RelTo "window"`) {
-		return "the replaced routine states no window for its presses, so simplifying " +
+		return "the replaced play states no window for its presses, so simplifying " +
 			"the typing cost it the check it had"
 	}
 	return ""

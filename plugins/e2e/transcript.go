@@ -153,7 +153,7 @@ func said(body string) string {
 	rest := body[at+len(saidSection):]
 	// The next all-capitals heading ends the section; the ones after it are the routine or
 	// the Act as it stands, which are not what the child said.
-	for _, next := range []string{"\nTHE ROUTINE", "\nTHE ACT", "\nTHE RECORD"} {
+	for _, next := range []string{"\nTHE PLAY", "\nTHE ACT", "\nTHE RECORD"} {
 		if end := strings.Index(rest, next); end >= 0 {
 			rest = rest[:end]
 		}

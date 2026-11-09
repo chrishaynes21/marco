@@ -175,7 +175,7 @@ func (r Registry) Aliases(rt Route) (StoredAliases, AliasState) {
 // An empty list REMOVES the file rather than writing one that claims nothing.
 func (r Registry) SaveAliases(rt Route, phrases []string) error {
 	if rt.Slug == "" {
-		return fmt.Errorf("routes: a routine needs a name")
+		return fmt.Errorf("routes: a play needs a name")
 	}
 	kept := make([]string, 0, len(phrases))
 	for _, p := range phrases {

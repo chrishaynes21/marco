@@ -194,7 +194,7 @@ func TestAClickMadeADragIsACheckedDragThroughEverythingAfter(t *testing.T) {
 	editing(t, d, rt, StepEdit{Op: EditToDrag, At: at, X: p.X, Y: p.Y, X2: p.X + 40, Y2: p.Y})
 	drag := findCall(whatItAsked(t, d, rt, 0), "OS's Drag with")
 	if drag == "" || !strings.Contains(drag, "FromRelX") || !strings.Contains(drag, "arkascended") {
-		t.Errorf("the routine's drag is not checked against the click's window: %q", drag)
+		t.Errorf("the play's drag is not checked against the click's window: %q", drag)
 	}
 	// THE NEXT EDIT OFFERS ITS ENDS, IN THE WINDOW, AND MOVES THEM.
 	dr := DragIn(mustSteps(t, d, rt), at)
@@ -255,7 +255,7 @@ func firstStepOf(t *testing.T, d Deps, rt routes.Route, kind macroir.StepKind) i
 			return i
 		}
 	}
-	t.Fatalf("the routine has no %s step", kind)
+	t.Fatalf("the play has no %s step", kind)
 	return -1
 }
 

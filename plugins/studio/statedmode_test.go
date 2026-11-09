@@ -140,10 +140,10 @@ func TestASavedRoutineSaysHowItWasRecorded(t *testing.T) {
 		}
 	}
 	if found == nil {
-		t.Fatal("the routine that was just saved is not in the library")
+		t.Fatal("the play that was just saved is not in the library")
 	}
 	if found.Mode != string(orchestrator.Coordinates) {
-		t.Errorf("the saved routine's card says it was recorded as %q", found.Mode)
+		t.Errorf("the saved play's card says it was recorded as %q", found.Mode)
 	}
 	if found.Captures == "" {
 		t.Error("the card has no sentence for what was captured")
@@ -182,10 +182,10 @@ func TestARoutineThatSaysNothingAboutItsModeIsShownAsSayingNothing(t *testing.T)
 			continue
 		}
 		if r.Mode != "" || r.Captures != "" {
-			t.Errorf("a routine that states no mode is shown as %q / %q",
+			t.Errorf("a play that states no mode is shown as %q / %q",
 				r.Mode, r.Captures)
 		}
 		return
 	}
-	t.Fatal("the older routine is not listed at all, so this proves nothing")
+	t.Fatal("the older play is not listed at all, so this proves nothing")
 }

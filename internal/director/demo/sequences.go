@@ -324,7 +324,7 @@ const evidenceDir = "evidence"
 // not be told the demonstration failed because a companion file could not be written.
 func (s *Store) SaveEvidence(e workflowstore.Evidence) error {
 	if strings.TrimSpace(e.Name) == "" {
-		return fmt.Errorf("evidence with no routine to belong to cannot be stored")
+		return fmt.Errorf("evidence with no play to belong to cannot be stored")
 	}
 	if err := os.MkdirAll(filepath.Join(s.dir, evidenceDir), 0o755); err != nil {
 		return fmt.Errorf("demo: preparing %s: %w", evidenceDir, err)

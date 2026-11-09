@@ -260,7 +260,7 @@ func (s *studioRun) chooseRoutine(routeID, name string) error {
 		return true, "named"
 	})
 	if !ok {
-		return fmt.Errorf("Studio did not show %q as the chosen routine: %s", name, saw)
+		return fmt.Errorf("Studio did not show %q as the chosen play: %s", name, saw)
 	}
 	s.art.step("chose %q", name)
 	return nil
@@ -280,7 +280,7 @@ func (s *studioRun) front() error {
 	if !ok {
 		return fmt.Errorf("this run's Studio is not the window in front, and asking it "+
 			"to come forward did not work. It cannot hand the foreground to the "+
-			"application a routine is for, and nothing may be pressed while another "+
+			"application a play is for, and nothing may be pressed while another "+
 			"window could receive it (in front: %q)", titleOf(foregroundWindow()))
 	}
 	return nil

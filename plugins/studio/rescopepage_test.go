@@ -349,9 +349,9 @@ func TestThePageOffersEveryScopeAndSaysWhyOneIsUnavailable(t *testing.T) {
 			title)
 	}
 	for _, c := range []struct{ key, what string }{
-		{"nowpill", "the scope the routine already has is not marked as the one it has"},
+		{"nowpill", "the scope the play already has is not marked as the one it has"},
 		{"nobtnfornow", "the scope it already has is offered as a move"},
-		{"nobtnforbad", "a scope the routine's presses could not run under is offered"},
+		{"nobtnforbad", "a scope the play's presses could not run under is offered"},
 		{"btnforgood", "the one scope it could move to is not offered"},
 		{"whysaid", "the unavailable choice does not say why it is unavailable"},
 		{"bothfacts", "a choice does not say both where it works and where it can " +
@@ -375,7 +375,7 @@ func TestThePageShowsBothEndsOfAMoveBeforeAnythingIsWritten(t *testing.T) {
 	title, n := aRenderedRescopePage(t)
 
 	for _, c := range []struct{ key, what string }{
-		{"meansfrom", "the review does not name where the routine is now"},
+		{"meansfrom", "the review does not name where the play is now"},
 		{"meansto", "the review does not name where it would go"},
 		{"panes", "the review does not show both sources"},
 		{"consentfirst", "a move with nothing in the way asks for a second " +
@@ -413,7 +413,7 @@ func TestThePageWillNotMoveOntoAnOccupiedIdentityWithoutAgreement(t *testing.T) 
 		t.Errorf("the review does not say what is in the way: %q", title)
 	}
 	if n("consentshown") != 1 {
-		t.Errorf("the agreement does not name the routine it would replace: %q", title)
+		t.Errorf("the agreement does not name the play it would replace: %q", title)
 	}
 	if n("deadbeforetick") != 1 {
 		t.Errorf("the move could be pressed with nothing agreed to: %q", title)
@@ -486,7 +486,7 @@ func TestThePageRendersMovedCopiedAndResidueDistinctly(t *testing.T) {
 		t.Errorf("a copy with the original retained is called a move: %q", title)
 	}
 	if n("copiedbad") != 1 {
-		t.Errorf("two routines where one was expected is not rendered as something "+
+		t.Errorf("two plays where one was expected is not rendered as something "+
 			"to look at: %q", title)
 	}
 	if n("copiedleft") != 1 {
@@ -494,7 +494,7 @@ func TestThePageRendersMovedCopiedAndResidueDistinctly(t *testing.T) {
 	}
 	// AND THE ORDINARY MOVE IS NEITHER OF THOSE.
 	if n("movedsaid") != 1 {
-		t.Errorf("an ordinary move does not say where the routine went: %q", title)
+		t.Errorf("an ordinary move does not say where the play went: %q", title)
 	}
 	if n("movedbad") != 0 {
 		t.Errorf("an ordinary move is rendered as a problem: %q", title)
@@ -514,14 +514,14 @@ func TestThePageReadsTheMovedIdentityBackAndSelectsIt(t *testing.T) {
 	title, n := aRenderedRescopePage(t)
 
 	if n("selected") != 1 {
-		t.Errorf("after a move the panel does not show the routine at its new "+
+		t.Errorf("after a move the panel does not show the play at its new "+
 			"scope: %q", title)
 	}
 	// AND THE SENTENCE BELONGS TO ONE ROUTINE. Choosing another card puts it away
 	// rather than leaving an account of one move under another routine's name.
 	if n("copiedgone") != 1 {
 		t.Errorf("the account of one move is still on screen under another "+
-			"routine: %q", title)
+			"play: %q", title)
 	}
 }
 

@@ -106,7 +106,7 @@ setTimeout(() => {
 		t.Errorf("a row still carries a Set button: %q", title)
 	}
 	if n("marked") != 1 || n("reset") != 1 {
-		t.Errorf("a row that differs from the routine is not marked or cannot be put back: %q", title)
+		t.Errorf("a row that differs from the play is not marked or cannot be put back: %q", title)
 	}
 	if n("badnotsent") != 1 {
 		t.Errorf("an entry that is not a number was sent to be reviewed: %q", title)
@@ -127,6 +127,6 @@ setTimeout(() => {
 		t.Errorf("a review made before a later edit stayed on screen, or its token was kept: %q", title)
 	}
 	if n("leave") != 1 || n("keptleave") != 1 {
-		t.Errorf("leaving the routine did not count the typing as work, or lost it: %q", title)
+		t.Errorf("leaving the play did not count the typing as work, or lost it: %q", title)
 	}
 }

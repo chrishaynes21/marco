@@ -135,8 +135,8 @@ func unnoted(dec invoke.Decision, out Outcome, err error, routine bool) (stage, 
 	switch {
 	case out == OutcomeUnavailable && !routine:
 		return lastattempt.StageMatching,
-			"no saved routine answers to those words, and Director could not take them",
-			"say a routine's name as it is saved (plays lists what you can ask for here), " +
+			"no saved play answers to those words, and Director could not take them",
+			"say a play's name as it is saved (plays lists what you can ask for here), " +
 				"or learn it: learn <name>"
 	case !routine:
 		because = fmt.Sprintf("Director took the request, and it ended %s", out)

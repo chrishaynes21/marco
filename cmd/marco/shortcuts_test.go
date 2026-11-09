@@ -127,7 +127,7 @@ func TestReassignShowsTheRoutineAndAsks(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !strings.Contains(out.String(), "settings/focus/open-mouse-settings") {
-		t.Errorf("the question does not name the routine:\n%s", out.String())
+		t.Errorf("the question does not name the play:\n%s", out.String())
 	}
 	if b, _ := d.Reg.BindingAt("discord", "e"); !b.Legacy() {
 		t.Fatal("Enter reassigned it")
@@ -169,7 +169,7 @@ func TestForgettingARoutineRemovesItsShortcutsAtTheDoor(t *testing.T) {
 		t.Fatal(err)
 	}
 	if bs := d.Reg.Bindings(); len(bs) != 0 {
-		t.Errorf("forgetting the routine left its shortcuts: %+v", bs)
+		t.Errorf("forgetting the play left its shortcuts: %+v", bs)
 	}
 }
 

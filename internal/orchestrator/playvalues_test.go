@@ -48,7 +48,7 @@ func TestAnInvocationSaysWhatItWouldType(t *testing.T) {
 		t.Errorf("the confirmation says %q", i.Says)
 	}
 	if now, _ := os.ReadFile(d.Reg.Path(rt)); string(now) != string(was) {
-		t.Error("preparing an invocation wrote to the routine")
+		t.Error("preparing an invocation wrote to the play")
 	}
 }
 
@@ -112,7 +112,7 @@ func TestARoutineSavedSinceTheConfirmationRefuses(t *testing.T) {
 	}
 	why := d.ConfirmInvocation(i)
 	if why == "" {
-		t.Fatal("a routine saved again since the confirmation ran anyway")
+		t.Fatal("a play saved again since the confirmation ran anyway")
 	}
 	if !strings.Contains(why, "saved again") {
 		t.Errorf("the refusal does not say what happened: %q", why)
@@ -189,13 +189,13 @@ func TestARoutineThatNeedsNothingIsUnchanged(t *testing.T) {
 		t.Fatalf("PrepareInvocation: %v", err)
 	}
 	if i.Needs() {
-		t.Error("a routine with no arguments is reported as needing one")
+		t.Error("a play with no arguments is reported as needing one")
 	}
 	if !i.Runnable() {
 		t.Errorf("it cannot be run: %q", i.Why)
 	}
 	if len(i.Says) != 0 {
-		t.Errorf("there is a confirmation to read for a routine that needs nothing: %q",
+		t.Errorf("there is a confirmation to read for a play that needs nothing: %q",
 			i.Says)
 	}
 }
@@ -209,12 +209,12 @@ func TestARoutineThatNeedsNothingIsUnchanged(t *testing.T) {
 func TestAValueTheRoutineDoesNotTakeIsNotShownAsSomethingItWillType(t *testing.T) {
 	d, rt := aRoutineWithAValue(t)
 	i, err := d.PrepareInvocation(rt, map[string]string{
-		"message": "hello", "subject": "not a thing this routine types"})
+		"message": "hello", "subject": "not a thing this play types"})
 	if err != nil {
 		t.Fatalf("PrepareInvocation: %v", err)
 	}
 	if _, ok := i.Values["subject"]; ok {
-		t.Error("a value the routine does not take is carried as one it will type")
+		t.Error("a value the play does not take is carried as one it will type")
 	}
 	for _, said := range i.Says {
 		if strings.Contains(said, "not a thing") {
@@ -270,7 +270,7 @@ func TestAValidValueBesideAMisspeltOneRefuses(t *testing.T) {
 		t.Fatalf("PrepareInvocation: %v", err)
 	}
 	if i.Runnable() {
-		t.Fatal("a misspelt argument was dropped and the routine ran with the rest")
+		t.Fatal("a misspelt argument was dropped and the play ran with the rest")
 	}
 	if !strings.Contains(i.Why, `"mesage"`) {
 		t.Errorf("the refusal does not name the misspelt argument: %q", i.Why)

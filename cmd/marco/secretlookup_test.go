@@ -108,7 +108,7 @@ func TestAMissingSecretFailsTheCommandAndStopsTheRoutine(t *testing.T) {
 	said, out, ref := aRunOf(t, d, rt)
 
 	if out != OutcomeFailed {
-		t.Errorf("a routine that stopped at a secret nobody stored reported %q", out)
+		t.Errorf("a play that stopped at a secret nobody stored reported %q", out)
 	}
 	m, raw := recordAt(t, ref.ID)
 	because, _ := m["because"].(string)
@@ -128,8 +128,8 @@ func TestAMissingSecretFailsTheCommandAndStopsTheRoutine(t *testing.T) {
 		t.Errorf("the run asked the machine for %v input action(s), want 1 — the "+
 			"secret, and nothing after it:\n%s", m["input_actions"], raw)
 	}
-	if strings.Contains(said, "a routine: done") {
-		t.Errorf("the routine reported that it finished:\n%s", said)
+	if strings.Contains(said, "a play: done") {
+		t.Errorf("the play reported that it finished:\n%s", said)
 	}
 }
 
@@ -144,7 +144,7 @@ func TestAStoreThatWouldNotAnswerFailsTheCommand(t *testing.T) {
 	said, out, ref := aRunOf(t, d, rt)
 
 	if out != OutcomeFailed {
-		t.Errorf("a routine that stopped at a store that would not answer reported "+
+		t.Errorf("a play that stopped at a store that would not answer reported "+
 			"%q", out)
 	}
 	m, raw := recordAt(t, ref.ID)
@@ -160,8 +160,8 @@ func TestAStoreThatWouldNotAnswerFailsTheCommand(t *testing.T) {
 	if n, _ := m["input_actions"].(float64); n != 1 {
 		t.Errorf("the run asked for %v input action(s), want 1", m["input_actions"])
 	}
-	if strings.Contains(said, "a routine: done") {
-		t.Errorf("the routine reported that it finished:\n%s", said)
+	if strings.Contains(said, "a play: done") {
+		t.Errorf("the play reported that it finished:\n%s", said)
 	}
 }
 

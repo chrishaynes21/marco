@@ -534,7 +534,7 @@ func TestTheReviewAStopButtonOpensIsRenderedOnce(t *testing.T) {
 	// AND ALL THREE PLACES IT COULD WORK, so the question can actually be answered.
 	if got := n("scopes"); got != 3 {
 		t.Errorf("the review offers %d of 3 scope(s), so somebody cannot say "+
-			"where their routine should work: %q", got, title)
+			"where their play should work: %q", got, title)
 	}
 	// AND SAVE IS OFFERED, because this draft presses something.
 	if n("saveoff") != 0 {
@@ -710,11 +710,11 @@ func TestTheSavedRoutinesAreDrawnAndPlayIsOfferedForTheOneThatCanRun(t *testing.
 	// BOTH ROUTINES ARE THERE. A library that drew only the runnable ones would hide the
 	// one somebody needs to do something about.
 	if got := n("cards"); got != 2 {
-		t.Errorf("the library drew %d of 2 routine(s): %q", got, title)
+		t.Errorf("the library drew %d of 2 play(s): %q", got, title)
 	}
 	// AND CHOOSING ONE OPENS IT.
 	if n("chosen") != 1 {
-		t.Errorf("clicking a routine did not open it: %q", title)
+		t.Errorf("clicking a play did not open it: %q", title)
 	}
 	// ── AND IT IS THE ONE THEY CLICKED, which is the whole of this ──
 	//
@@ -725,29 +725,29 @@ func TestTheSavedRoutinesAreDrawnAndPlayIsOfferedForTheOneThatCanRun(t *testing.
 	// child a full identity was already right and was happening after the wrong routine
 	// had been chosen.
 	if n("secondshown") != 1 {
-		t.Errorf("clicking the second of two routines of one name showed the "+
+		t.Errorf("clicking the second of two plays of one name showed the "+
 			"other one's saved Marco: %q", title)
 	}
 	// AND PLAY IS NOT OFFERED FOR THE ONE THAT CANNOT PRESS ANYTHING, with ITS reason
 	// beside it. A live button here answers a press with a refusal, which is a window
 	// telling somebody off for pressing what it offered them.
 	if n("secondoff") != 1 {
-		t.Errorf("Play is offered for a routine where every press would refuse: %q",
+		t.Errorf("Play is offered for a play where every press would refuse: %q",
 			title)
 	}
 	if n("secondwhy") != 1 {
 		t.Errorf("nothing says why it cannot be played, or it says the other "+
-			"routine's reason: %q", title)
+			"play's reason: %q", title)
 	}
 	// AND PRESSING PLAY PERFORMS EXACTLY THE ONE ON SCREEN, by identity. `9` is the
 	// wrong routine, `0` is none at all.
 	if got := n("played"); got != 1 {
 		t.Errorf("Play performed %s: %q", map[int]string{
-			0: "nothing", 9: "a different routine from the one chosen",
+			0: "nothing", 9: "a different play from the one chosen",
 		}[got], title)
 	}
 	if n("shown") != 1 {
-		t.Errorf("choosing the first routine afterwards did not show its own "+
+		t.Errorf("choosing the first play afterwards did not show its own "+
 			"saved Marco: %q", title)
 	}
 	// AND THE LIBRARY SAYS WHERE IT IS, and names the one somebody's older routines are
@@ -757,7 +757,7 @@ func TestTheSavedRoutinesAreDrawnAndPlayIsOfferedForTheOneThatCanRun(t *testing.
 		t.Errorf("the window does not say which library it is reading: %q", title)
 	}
 	if n("elsewhere") != 1 {
-		t.Errorf("a library full of routines beside this window is passed over in "+
+		t.Errorf("a library full of plays beside this window is passed over in "+
 			"silence: %q", title)
 	}
 }
@@ -885,7 +885,7 @@ func TestOrdinarySaveNeverReplacesAndTheChoiceIsPressed(t *testing.T) {
 	}
 	// AND SAVE AS WAS NOT CALLED FOR THEM EITHER.
 	if got := field("as"); got != "none" {
-		t.Errorf("pressing Save renamed the routine to %q on its own: %q", got, title)
+		t.Errorf("pressing Save renamed the play to %q on its own: %q", got, title)
 	}
 	// THE CHOICE IS SHOWN, because a refusal nobody can act on is a dead end.
 	if field("taken") != "1" {
@@ -1013,19 +1013,19 @@ func TestARoutinesRowDoesNotClaimToHaveCheckedAnything(t *testing.T) {
 	}
 	// ── THE ROUTINE'S ROW ──
 	if n("routinezero") == 1 {
-		t.Errorf("a routine's row says `0 checked`, which is a claim that it "+
+		t.Errorf("a play's row says `0 checked`, which is a claim that it "+
 			"checked: %q", title)
 	}
 	if n("routinenochecks") != 1 {
-		t.Errorf("a routine's row does not say that nothing was checked "+
+		t.Errorf("a play's row does not say that nothing was checked "+
 			"afterwards: %q", title)
 	}
 	if n("routineasked") != 1 {
-		t.Errorf("a routine's row does not say how many input actions it asked "+
+		t.Errorf("a play's row does not say how many input actions it asked "+
 			"for: %q", title)
 	}
 	if n("routinepresses") == 1 {
-		t.Errorf("a routine's row counts `presses sent`, which is the supervised "+
+		t.Errorf("a play's row counts `presses sent`, which is the supervised "+
 			"record's measure and not this one's: %q", title)
 	}
 	// ── AND THE ACT'S, UNCHANGED ──
@@ -1034,7 +1034,7 @@ func TestARoutinesRowDoesNotClaimToHaveCheckedAnything(t *testing.T) {
 			title)
 	}
 	if n("actasked") == 1 {
-		t.Errorf("an Act's row was given a routine's wording: %q", title)
+		t.Errorf("an Act's row was given a play's wording: %q", title)
 	}
 }
 
@@ -1074,11 +1074,11 @@ func TestARowDoesNotSayInputWasDisabledWhenNothingSaidSo(t *testing.T) {
 	}
 	// ── A ROUTINE THAT PRESSED FOUR THINGS ──
 	if n("routinedisabled") == 1 {
-		t.Errorf("a routine's row says `input disabled` about a run that asked "+
+		t.Errorf("a play's row says `input disabled` about a run that asked "+
 			"for four input actions: %q", title)
 	}
 	if n("routinetag") != 1 {
-		t.Errorf("a routine's row says nothing about which kind of run it was, so "+
+		t.Errorf("a play's row says nothing about which kind of run it was, so "+
 			"its numbers read as an Act's with a field missing: %q", title)
 	}
 	// ── AN INTERRUPTED ROUTINE, WHICH MAY ALREADY HAVE SENT INPUT ──

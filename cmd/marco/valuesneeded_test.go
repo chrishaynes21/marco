@@ -128,7 +128,7 @@ func TestTheEngineStillSaysWhatThisExpects(t *testing.T) {
 			t.Fatalf("the invocation came back %q (%v)", out, err)
 		}
 	})
-	const want = `"write a note": this routine types text that has to be supplied, ` +
+	const want = `"write a note": this play types text that has to be supplied, ` +
 		`and no value was given for "message". This request needs text values ` +
 		`reviewed before running. Open it in Studio, or supply the value with the ` +
 		`request`
@@ -159,7 +159,7 @@ func TestOnlyAMissingValueIsSentToStudio(t *testing.T) {
 		{"a value with a line break in it",
 			map[string]string{"message": "first\nsecond"}, nil,
 			"more than one line"},
-		{"more values than the routine has places for", nil,
+		{"more values than the play has places for", nil,
 			[]string{"one", "two"}, "values were given"},
 	} {
 		d, host := aRoutineThatTypesAValue(t)
@@ -255,7 +255,7 @@ func TestARoutineThatTakesNothingRunsWithNothingSaidAboutReviewing(t *testing.T)
 		t.Error("it pressed nothing")
 	}
 	if sentToStudio(said) || strings.Contains(said, "reviewed") {
-		t.Errorf("a routine that takes nothing was told to review text: %q", said)
+		t.Errorf("a play that takes nothing was told to review text: %q", said)
 	}
 }
 

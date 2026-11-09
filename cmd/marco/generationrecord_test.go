@@ -42,11 +42,11 @@ func TestTheRecordSaysWhichGenerationWroteTheRoutine(t *testing.T) {
 	m, raw := recordAt(t, ref.ID)
 
 	if m["generation"] != now {
-		t.Errorf("the record says the routine states generation %v, and its source "+
+		t.Errorf("the record says the play states generation %v, and its source "+
 			"states %q:\n%s", m["generation"], now, raw)
 	}
 	if m["generation_reading"] != string(orchestrator.GenerationCurrent) {
-		t.Errorf("a routine stating this build's own generation is recorded as %v",
+		t.Errorf("a play stating this build's own generation is recorded as %v",
 			m["generation_reading"])
 	}
 }
@@ -62,11 +62,11 @@ func TestTheRecordSaysUnstatedWhenTheRoutineNamesNoGeneration(t *testing.T) {
 	m, raw := recordAt(t, ref.ID)
 
 	if m["generation_reading"] != string(orchestrator.GenerationUnstated) {
-		t.Errorf("a routine whose source states no generation recorded %v:\n%s",
+		t.Errorf("a play whose source states no generation recorded %v:\n%s",
 			m["generation_reading"], raw)
 	}
 	if _, there := m["generation"]; there {
-		t.Errorf("the record declares a generation of %v for a routine that states "+
+		t.Errorf("the record declares a generation of %v for a play that states "+
 			"none:\n%s", m["generation"], raw)
 	}
 }
@@ -84,16 +84,16 @@ func TestTheRecordDoesNotRelabelALaterGenerationAsItsOwn(t *testing.T) {
 	m, raw := recordAt(t, ref.ID)
 
 	if m["generation_reading"] == string(orchestrator.GenerationCurrent) {
-		t.Errorf("a routine from a later build is recorded as this build's own "+
+		t.Errorf("a play from a later build is recorded as this build's own "+
 			"generation:\n%s", raw)
 	}
 	if m["generation_reading"] != string(orchestrator.GenerationUnknown) {
-		t.Errorf("a routine stating generation %s is recorded as %v", ahead,
+		t.Errorf("a play stating generation %s is recorded as %v", ahead,
 			m["generation_reading"])
 	}
 	if m["generation"] != ahead {
 		t.Errorf("the file states generation %s and the record declares %v — which "+
-			"is the only fact in it that identifies the routine:\n%s", ahead,
+			"is the only fact in it that identifies the play:\n%s", ahead,
 			m["generation"], raw)
 	}
 	// AND IT RAN EXACTLY AS IT WOULD HAVE WITHOUT THE LINE.
@@ -107,16 +107,16 @@ func TestTheRecordDoesNotRelabelALaterGenerationAsItsOwn(t *testing.T) {
 	_, plainOut, plainRef := aRunOf(t, plainDeps, plainRt)
 	plain, _ := recordAt(t, plainRef.ID)
 	if m["outcome"] != plain["outcome"] {
-		t.Errorf("the routine stating generation %s ended %v and the same routine "+
+		t.Errorf("the play stating generation %s ended %v and the same play "+
 			"with no stamp ended %v, so the line changed what the run did",
 			ahead, m["outcome"], plain["outcome"])
 	}
 	if m["because"] != plain["because"] {
-		t.Errorf("the stamped routine stopped because %v and the unstamped one "+
+		t.Errorf("the stamped play stopped because %v and the unstamped one "+
 			"because %v", m["because"], plain["because"])
 	}
 	if m["input_actions"] != plain["input_actions"] {
-		t.Errorf("the stamped routine asked for %v input action(s) and the unstamped "+
+		t.Errorf("the stamped play asked for %v input action(s) and the unstamped "+
 			"one for %v", m["input_actions"], plain["input_actions"])
 	}
 	if plainOut != out {
@@ -131,7 +131,7 @@ func TestTheRecordKeepsAMalformedStampVerbatim(t *testing.T) {
 	m, raw := recordAt(t, ref.ID)
 
 	if m["generation"] != "two" {
-		t.Errorf("the record declares %v for a routine whose file says `two`:\n%s",
+		t.Errorf("the record declares %v for a play whose file says `two`:\n%s",
 			m["generation"], raw)
 	}
 	if m["generation_reading"] != string(orchestrator.GenerationUnknown) {
@@ -159,12 +159,12 @@ func TestTheRecordInFlightAlreadySaysWhichGenerationWroteIt(t *testing.T) {
 			"proves nothing about what was in it")
 	}
 	if got := host.inFlight["generation"]; got != now {
-		t.Errorf("while the routine was running its record declared generation %v, "+
+		t.Errorf("while the play was running its record declared generation %v, "+
 			"not %q", got, now)
 	}
 	if got := host.inFlight["generation_reading"]; got !=
 		string(orchestrator.GenerationCurrent) {
-		t.Errorf("while the routine was running its record read its generation as %v",
+		t.Errorf("while the play was running its record read its generation as %v",
 			got)
 	}
 }
@@ -182,7 +182,7 @@ func TestARoutineThatCouldNotBeReadStatesNoGenerationEitherWay(t *testing.T) {
 	}
 	_, out, ref := aRunOf(t, d, rt)
 	if out != OutcomeFailed {
-		t.Fatalf("a routine whose file is gone reported %q", out)
+		t.Fatalf("a play whose file is gone reported %q", out)
 	}
 	m, raw := recordAt(t, ref.ID)
 	if _, there := m["generation"]; there {

@@ -47,10 +47,10 @@ func TestAMoveCarriesThePhrasesTheRoutineAnswersTo(t *testing.T) {
 	}
 	answers, why := d.AliasesOf(got.To)
 	if why != "" {
-		t.Fatalf("the moved routine's phrases cannot be read: %s", why)
+		t.Fatalf("the moved play's phrases cannot be read: %s", why)
 	}
 	if strings.Join(answers, "|") != "write my address|fill the address in" {
-		t.Errorf("the moved routine answers to %q", answers)
+		t.Errorf("the moved play answers to %q", answers)
 	}
 	// BOUND TO WHERE IT NOW LIVES, which the state is the only check for: a file carried
 	// without its binding rewritten reads as belonging somewhere else and answers for
@@ -99,7 +99,7 @@ func TestAMoveClearsPhrasesSittingAtTheDestination(t *testing.T) {
 		t.Fatalf("the move failed: %v", err)
 	}
 	if answers, _ := d.AliasesOf(got.To); len(answers) != 0 {
-		t.Errorf("the moved routine inherited %q", answers)
+		t.Errorf("the moved play inherited %q", answers)
 	}
 	if len(d.Reg.AnsweringTo("somebody elses phrase")) != 0 {
 		t.Error("the leftover phrase still answers for something")
@@ -210,10 +210,10 @@ func TestAReplacingMoveClearsThePhrasesOfWhatItReplaces(t *testing.T) {
 		t.Fatalf("a consented move was refused: %v", err)
 	}
 	if answers, _ := d.AliasesOf(got.To); len(answers) != 0 {
-		t.Errorf("the arriving routine answers to %q, which somebody attached to the "+
-			"routine it replaced", answers)
+		t.Errorf("the arriving play answers to %q, which somebody attached to the "+
+			"play it replaced", answers)
 	}
 	if len(d.Reg.AnsweringTo("the one being replaced")) != 0 {
-		t.Error("the replaced routine's phrase still answers for something")
+		t.Error("the replaced play's phrase still answers for something")
 	}
 }

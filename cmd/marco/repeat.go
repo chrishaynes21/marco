@@ -195,7 +195,7 @@ func localProposal(d orchestrator.Deps, rt routes.Route, form string, named map[
 	positional []string) string {
 	a := resolveroute.Answer{Kind: dispatch.IntentRun, ID: rt.ID(), App: rt.App, Slug: rt.Slug,
 		Focus: rt.Focus, Name: plays.Pretty(rt.Slug), Source: "exact", Library: marcopaths.Routes(),
-		Resolver: "no resolver was asked: the words named the routine"}
+		Resolver: "no resolver was asked: the words named the play"}
 	if raw, err := os.ReadFile(d.Reg.Path(rt)); err == nil {
 		src := string(raw)
 		a.SourceAt = routes.DigestOf(src)
@@ -260,7 +260,7 @@ func proposeRepeat(d orchestrator.Deps, phrase, app string) (Outcome, bool) {
 			return OutcomeRefused, true
 		}
 		fmt.Printf("%s%s\n", outcome.ProposedPrefix, withTimes(line, times))
-		fmt.Printf("Marco has a saved routine that may be what you meant: %s, %s. Nothing has run; "+
+		fmt.Printf("Marco has a saved play that may be what you meant: %s, %s. Nothing has run; "+
 			"review it first.\n", name, timesWord(times))
 		return OutcomeClarify, true
 	}

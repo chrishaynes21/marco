@@ -36,6 +36,6 @@ func TestASkillTheResolverNamesIsAnsweredAsTheSkillsLine(t *testing.T) {
 		Route: "ark-graphics", Source: dispatch.SourceAdvisor}}
 	if a := r.Resolve(context.Background(), "graphics", []Candidate{routine, skill},
 		at("arkascended")); a.Builtin || a.Line != "" {
-		t.Errorf("a routine was answered as a skill: %+v", a)
+		t.Errorf("a play was answered as a skill: %+v", a)
 	}
 }

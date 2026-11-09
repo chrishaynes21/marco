@@ -313,7 +313,7 @@ func (a *Acts) Report(reference string) Reported {
 		return Reported{Error: err.Error()}
 	}
 	return Reported{Path: p, Holds: "the run's record, what it said as it ran, and " +
-		"the routine or Act as it stands now. Nothing has been sent anywhere — open it, add " +
+		"the play or Act as it stands now. Nothing has been sent anywhere — open it, add " +
 		"what you expected to happen, and send it yourself."}
 }
 
@@ -507,16 +507,16 @@ func (a *Acts) describeRoutine(b *strings.Builder, rec map[string]any) {
 		// GONE, OR SOMEWHERE ELSE. Worth saying: a run whose routine cannot be found
 		// is a different finding from one whose routine still reads oddly, and a
 		// report with the section silently missing looks like a report that forgot.
-		fmt.Fprintf(b, "\nTHE ROUTINE, AS IT STANDS NOW\n  %s is not in this "+
+		fmt.Fprintf(b, "\nTHE PLAY, AS IT STANDS NOW\n  %s is not in this "+
 			"library (%s) any more: %v\n", routeID(rt), a.routesDir, err)
 		return
 	}
 	src := string(raw)
-	b.WriteString("\nTHE ROUTINE, AS IT STANDS NOW\n")
+	b.WriteString("\nTHE PLAY, AS IT STANDS NOW\n")
 	if ran, now := text("source_digest"), routes.DigestOf(src); ran != "" && ran != now {
 		fmt.Fprintf(b, "  THIS IS NOT THE SOURCE THAT RAN. The run recorded source "+
 			"%s and the file now reads as %s, so it has been saved again since "+
-			"that attempt — read what follows as the routine as it is today, not "+
+			"that attempt — read what follows as the play as it is today, not "+
 			"as the one that failed.\n\n", ran, now)
 	}
 	fmt.Fprintf(b, "  %s (%s)\n", routeID(rt), a.reg().Path(rt))

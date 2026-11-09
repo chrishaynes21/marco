@@ -295,7 +295,7 @@ const editsKept = 16
 func (a *Acts) StepEditing(id string) StepEditing {
 	id = strings.TrimSpace(id)
 	if id == "" {
-		return StepEditing{Rows: []StepRow{}, Why: "choose a routine to edit"}
+		return StepEditing{Rows: []StepRow{}, Why: "choose a play to edit"}
 	}
 	a.mu.Lock()
 	recording := a.recordingLocked()
@@ -307,7 +307,7 @@ func (a *Acts) StepEditing(id string) StepEditing {
 	chosen, ok := a.routineWithID(id)
 	if !ok {
 		return StepEditing{ID: id, Rows: []StepRow{},
-			Why: fmt.Sprintf("there is no routine %q in this library (%s) — press "+
+			Why: fmt.Sprintf("there is no play %q in this library (%s) — press "+
 				"Refresh and choose it again", id, a.routesDir)}
 	}
 	d := orchestrator.Deps{Reg: a.reg(), Out: &strings.Builder{}}
@@ -339,14 +339,14 @@ func (a *Acts) StepEditing(id string) StepEditing {
 		clickSays = "No step here was measured inside a window, so a click can be added " +
 			"only at a point on the screen."
 	case len(bases) == 0:
-		clickSays = "A click cannot be added here: this routine checks each press against " +
+		clickSays = "A click cannot be added here: this play checks each press against " +
 			"its window, and none of its presses was measured fully enough to add one " +
 			"inside it."
 	}
 	blocks := orchestrator.BlocksRepeatable(e.Steps())
 	blocksSays := ""
 	if !blocks {
-		blocksSays = "This routine checks each press against its window, so steps cannot " +
+		blocksSays = "This play checks each press against its window, so steps cannot " +
 			"repeat as a block. A key press can still repeat by its count."
 	}
 	return StepEditing{ID: id, Name: e.Name, Basis: e.Basis, Rows: rows,
@@ -427,7 +427,7 @@ func (a *Acts) ReviewStepEdit(id, basis string, changes []StepChange) StepPrevie
 	basis = strings.TrimSpace(basis)
 	switch {
 	case id == "":
-		return StepPreview{Why: "choose a routine to edit"}
+		return StepPreview{Why: "choose a play to edit"}
 	case basis == "":
 		// NO LIST, NO OPERATIONS. A caller without a basis has not been shown the
 		// steps its positions refer to, and passing that through would reach the
@@ -446,7 +446,7 @@ func (a *Acts) ReviewStepEdit(id, basis string, changes []StepChange) StepPrevie
 	}
 	chosen, ok := a.routineWithID(id)
 	if !ok {
-		return StepPreview{ID: id, Why: fmt.Sprintf("there is no routine %q in this "+
+		return StepPreview{ID: id, Why: fmt.Sprintf("there is no play %q in this "+
 			"library (%s) — press Refresh and choose it again", id, a.routesDir)}
 	}
 	edits := make([]orchestrator.StepEdit, 0, len(changes))
@@ -530,7 +530,7 @@ func (a *Acts) SaveStepEdit(token string) StepEditDone {
 		// is the one that was on the screen.
 		return StepEditDone{Why: "the edit you are looking at is no longer the one " +
 			"this window holds — review it again and the comparison will be " +
-			"against the routine as it now stands"}
+			"against the play as it now stands"}
 	}
 	d := orchestrator.Deps{Reg: a.reg(), Out: &strings.Builder{}}
 	err := d.SaveEdit(e)

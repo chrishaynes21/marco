@@ -56,7 +56,7 @@ func TestAMisheardSpokenNameIsOfferedWithItsValue(t *testing.T) {
 	}
 	s := h.snapshot()
 	if !s.editing || s.input != " "+proposed.Line || !s.hasReading {
-		t.Fatalf("not open for review on the routine it meant: editing %v, input %q, reading %v, status %q",
+		t.Fatalf("not open for review on the play it meant: editing %v, input %q, reading %v, status %q",
 			s.editing, s.input, s.hasReading, s.status)
 	}
 	mu.Lock()
@@ -89,7 +89,7 @@ func TestADirectorFailureIsNeverOfferedForRecording(t *testing.T) {
 	select {
 	case <-asked:
 	case <-time.After(2 * time.Second):
-		t.Fatal("a Director failure did not ask which saved routine was meant")
+		t.Fatal("a Director failure did not ask which saved play was meant")
 	}
 	time.Sleep(50 * time.Millisecond)
 	if n := takePendingLearn(); n != "" || promptAsk.Load() {

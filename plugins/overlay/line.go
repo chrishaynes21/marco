@@ -246,7 +246,7 @@ func typedLineFrom(h *model, line string, spoken bool) bool {
 	//
 	// Running such a line must fail TestALineEditedAwayFromItsProposalRunsNothing.
 	if p := h.lineProposal(); p != nil && !sameRoute(r, p) {
-		why := "this line is not " + routeWords(p.app, p.slug, p.focus) + ", the routine Director " +
+		why := "this line is not " + routeWords(p.app, p.slug, p.focus) + ", the play Director " +
 			"proposed these values for, so nothing was run — Esc clears it"
 		h.setReading(line, lineReading{Line: line, Kind: "routine", Needs: true, Says: why})
 		reopenLine(h, line)
@@ -416,7 +416,7 @@ func reviewProposalTimes(h *model, name, app, slug string, focus bool, values ma
 // namesakeSays is why a proposal was not put on the command line.
 func namesakeSays(name string, r lineReading, p *lineProposal) string {
 	return "Director proposed values for " + routeWords(p.app, p.slug, p.focus) + ", and \"" + name +
-		"\" here is " + routeWords(r.App, r.Slug, r.Focus) + ", a different routine, so nothing was " +
+		"\" here is " + routeWords(r.App, r.Slug, r.Focus) + ", a different play, so nothing was " +
 		"put on the command line and nothing was run"
 }
 

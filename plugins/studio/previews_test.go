@@ -114,7 +114,7 @@ func TestADemonstrationWithNoPicturesShowsItsWordsInstead(t *testing.T) {
 		t.Errorf("a picture was served where none is kept: %q", src)
 	}
 	if src := a.Picture("nothing by this name", "screen_a"); src != "" {
-		t.Errorf("a picture was served for a routine nobody recorded: %q", src)
+		t.Errorf("a picture was served for a play nobody recorded: %q", src)
 	}
 }
 

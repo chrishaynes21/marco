@@ -243,7 +243,7 @@ type ValuesNeeded struct {
 }
 
 func (e *ValuesNeeded) Error() string {
-	return fmt.Sprintf("this routine types text that has to be supplied, and no value "+
+	return fmt.Sprintf("this play types text that has to be supplied, and no value "+
 		"was given for %s", joinArgs(e.Names))
 }
 
@@ -290,11 +290,11 @@ func CheckArgs(src string, named map[string]string, positional []string) error {
 	}
 	if len(unknown) > 0 {
 		sort.Strings(unknown)
-		return fmt.Errorf("this routine does not take %s, so there is nowhere for that "+
+		return fmt.Errorf("this play does not take %s, so there is nowhere for that "+
 			"text to go%s", joinArgs(unknown), takesWhat(args))
 	}
 	if len(positional) > len(args) {
-		return fmt.Errorf("%d values were given and this routine takes %d%s",
+		return fmt.Errorf("%d values were given and this play takes %d%s",
 			len(positional), len(args), takesWhat(args))
 	}
 	byPos := zipPositional(src, positional)
@@ -319,7 +319,7 @@ func CheckArgs(src string, named map[string]string, positional []string) error {
 		}
 		if ok && strings.ContainsAny(v, "\r\n") {
 			return fmt.Errorf("the value given for %q runs over more than one line, "+
-				"and a routine cannot type that yet", a.Name)
+				"and a play cannot type that yet", a.Name)
 		}
 	}
 	var missing []string
@@ -406,7 +406,7 @@ func CheckFlagged(src string, flagged []string) error {
 	}
 	sort.Strings(refused)
 	return fmt.Errorf("%s cannot be given here: it is read from the credential store, so "+
-		"set it once with `marco secret set` and this routine will find it",
+		"set it once with `marco secret set` and this play will find it",
 		joinArgs(refused))
 }
 

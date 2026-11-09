@@ -49,7 +49,7 @@ import (
 func (a *Acts) ReviewRename(id, name string) Move {
 	id = strings.TrimSpace(id)
 	if id == "" {
-		return Move{Why: "choose a routine to rename"}
+		return Move{Why: "choose a play to rename"}
 	}
 	a.mu.Lock()
 	recording := a.recordingLocked()
@@ -60,7 +60,7 @@ func (a *Acts) ReviewRename(id, name string) Move {
 	}
 	chosen, ok := a.routineWithID(id)
 	if !ok {
-		return Move{ID: id, Why: fmt.Sprintf("there is no routine %q in this library "+
+		return Move{ID: id, Why: fmt.Sprintf("there is no play %q in this library "+
 			"(%s) — press Refresh and choose it again", id, a.routesDir)}
 	}
 	d := orchestrator.Deps{Reg: a.reg(), Out: &strings.Builder{}}

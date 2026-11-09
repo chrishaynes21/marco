@@ -52,7 +52,7 @@ func reviewSkill(h *model, name, slug, line string, times int) disposition {
 // saidAs names what a line read as instead.
 func saidAs(r lineReading) string {
 	if r.Kind == "routine" {
-		return "the routine " + routeWords(r.App, r.Slug, r.Focus)
+		return "the play " + routeWords(r.App, r.Slug, r.Focus)
 	}
 	return "something else"
 }

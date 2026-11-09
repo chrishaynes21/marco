@@ -140,8 +140,8 @@ func TestTheRecorderWritesDownTheWindowItWasDemonstratedIn(t *testing.T) {
 	src := string(cmd)
 
 	if !strings.Contains(src, "a.DemonstratedIn(workflowstore.WindowGeometry{") {
-		t.Fatal("the recorder never writes down the window a routine was " +
-			"demonstrated in, so no routine it saves can ever be replayed " +
+		t.Fatal("the recorder never writes down the window a play was " +
+			"demonstrated in, so no play it saves can ever be replayed " +
 			"on a fixed layout and nothing would say why")
 	}
 	if !strings.Contains(src, "case res.resized:") {
@@ -160,7 +160,7 @@ func TestTheRecorderWritesDownTheWindowItWasDemonstratedIn(t *testing.T) {
 	if !strings.Contains(src,
 		"case res.window.Width > 0 && res.window.Height > 0:") {
 		t.Error("the window the session actually saw does not reach the write, " +
-			"so every routine is saved with no window recorded and every " +
+			"so every play is saved with no window recorded and every " +
 			"fixed-layout replay is refused as though the recording " +
 			"predated the field")
 	}
@@ -179,7 +179,7 @@ func TestTheRecorderWritesDownTheWindowItWasDemonstratedIn(t *testing.T) {
 		t.Fatal("the recorder no longer has both of these")
 	}
 	if writes > licence {
-		t.Error("the window a routine was demonstrated in is recorded inside the " +
+		t.Error("the window a play was demonstrated in is recorded inside the " +
 			"--previews licence; it is a size and not a picture, and a " +
 			"recording made without pictures still has to be replayable")
 	}

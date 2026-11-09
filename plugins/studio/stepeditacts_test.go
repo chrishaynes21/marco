@@ -66,7 +66,7 @@ func anEditableRoutineInStudio(t *testing.T) (*Acts, Routine) {
 	a := aStudioLibrary(t, "type two letters", pausedTypingIntoNotepad())
 	rs := a.Routines()
 	if len(rs) != 1 {
-		t.Fatalf("the library holds %d routines, want the one saved", len(rs))
+		t.Fatalf("the library holds %d plays, want the one saved", len(rs))
 	}
 	return a, rs[0]
 }
@@ -92,7 +92,7 @@ func TestTheStepPanelListsEveryStepWithWhatCanBeDoneToIt(t *testing.T) {
 	a, r := anEditableRoutineInStudio(t)
 	e := a.StepEditing(r.ID)
 	if e.Why != "" {
-		t.Fatalf("the panel refused a routine saved by the production path: %s", e.Why)
+		t.Fatalf("the panel refused a play saved by the production path: %s", e.Why)
 	}
 	if !e.Editable || len(e.Rows) == 0 {
 		t.Fatalf("nothing was offered: %+v", e)
@@ -132,7 +132,7 @@ func TestTheStepPanelSaysWhichRemovalsTakeTwoSteps(t *testing.T) {
 	a := aStudioLibrary(t, "hold shift", heldShiftIntoNotepad())
 	rs := a.Routines()
 	if len(rs) != 1 {
-		t.Fatalf("the library holds %d routines", len(rs))
+		t.Fatalf("the library holds %d plays", len(rs))
 	}
 	e := a.StepEditing(rs[0].ID)
 	if e.Why != "" {
@@ -327,7 +327,7 @@ func TestCancellingAStepEditWritesNothingAndCannotBeSavedAfterwards(t *testing.T
 		t.Errorf("a cancelled review was saved: %+v", done)
 	}
 	if sourceOnDisk(t, a, r) != before {
-		t.Error("the routine changed")
+		t.Error("the play changed")
 	}
 	if a.reg().HasSteps(r.route()) {
 		t.Error("a step list was written")
@@ -368,7 +368,7 @@ func TestAStepEditThatLandedWithoutItsStepListSaysSo(t *testing.T) {
 	case !done.Partial:
 		t.Fatalf("it was reported as an ordinary save: %+v", done)
 	case !done.Saved:
-		t.Error("it does not say the routine was saved, which it was")
+		t.Error("it does not say the play was saved, which it was")
 	}
 	if !strings.Contains(done.Says, "not written down beside it") {
 		t.Errorf("the outcome does not say what did not land: %q", done.Says)
@@ -379,7 +379,7 @@ func TestAStepEditThatLandedWithoutItsStepListSaysSo(t *testing.T) {
 	}
 	// AND THE NEXT EDIT REFUSES, which is what somebody has to be told about.
 	if next := a.StepEditing(r.ID); next.Why == "" {
-		t.Error("the panel offered an edit of a routine whose step list no longer " +
+		t.Error("the panel offered an edit of a play whose step list no longer " +
 			"describes it")
 	}
 }

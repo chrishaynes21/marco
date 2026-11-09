@@ -174,10 +174,10 @@ func TestTheSuppliedTextIsNotInAnyDurableRecord(t *testing.T) {
 		t.Fatal(err)
 	}
 	if strings.Contains(string(src), secretish) {
-		t.Error("the value was written into the routine")
+		t.Error("the value was written into the play")
 	}
 	if !strings.Contains(string(src), "{{message}}") {
-		t.Error("the placeholder was consumed, so the routine can only run once")
+		t.Error("the placeholder was consumed, so the play can only run once")
 	}
 	// AND NOTHING UNDER THE STORE HOLDS IT — run records, journals, anything the attempt
 	// wrote. Walked rather than named, because a record this test does not know about is
@@ -223,7 +223,7 @@ func TestARefusalNamesTheArgumentAndNotTheValue(t *testing.T) {
 		t.Fatalf("the refusal came back as an error: %v", err)
 	}
 	if out != OutcomeRefused {
-		t.Fatalf("a value for an argument the routine does not have came back %q", out)
+		t.Fatalf("a value for an argument the play does not have came back %q", out)
 	}
 	// IT WAS SAID AT ALL, which is the half that makes the next assertion mean
 	// something: a refusal nobody printed trivially does not repeat anything.
@@ -368,7 +368,7 @@ func TestAConfirmedVersionThatStillMatchesRuns(t *testing.T) {
 		t.Fatalf("the run failed: %v", err)
 	}
 	if out != OutcomePerformed {
-		t.Fatalf("a routine that had not changed came back %q", out)
+		t.Fatalf("a play that had not changed came back %q", out)
 	}
 	if got := typed(host); len(got) != 1 || got[0] != "hello there" {
 		t.Errorf("it typed %q", got)

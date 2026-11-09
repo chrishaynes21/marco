@@ -204,7 +204,7 @@ func (d Deps) PrepareRescope(rt routes.Route, want Scope, app string) (Rescoping
 		return Rescoping{}, fmt.Errorf("%s", why)
 	}
 	if rt.Slug == "" {
-		return Rescoping{}, fmt.Errorf("a move needs the routine it is about")
+		return Rescoping{}, fmt.Errorf("a move needs the play it is about")
 	}
 	// ── THE SCOPE IT ALREADY HAS IS NOT A MOVE ──
 	//
@@ -415,7 +415,7 @@ func (d Deps) prepareMove(rt routes.Route, want Scope, app, renaming string) (Re
 	m.toSourceAt, m.toRecordingAt = d.versionAt(to)
 	if m.toSourceAt != "" {
 		m.Taken = true
-		m.TakenSays = fmt.Sprintf("there is already a routine at %s. Moving %q there "+
+		m.TakenSays = fmt.Sprintf("there is already a play at %s. Moving %q there "+
 			"would replace it, which is a second thing to agree to", m.TakenID,
 			m.Name)
 	}
@@ -469,12 +469,12 @@ func rescopeTarget(rt routes.Route, want Scope, app string, dr *Draft) (routes.R
 func (d Deps) Rescope(m Rescoping, consent Consent) (Rescoped, error) {
 	switch {
 	case m.From.Slug == "" || m.To.Slug == "":
-		return Rescoped{}, fmt.Errorf("a move needs both the routine and where it " +
+		return Rescoped{}, fmt.Errorf("a move needs both the play and where it " +
 			"is going")
 	case m.library != "" && m.library != d.Reg.Dir:
 		return Rescoped{}, fmt.Errorf("%q was reviewed in the library at %s and this "+
-			"is %s, so nothing was written — a routine of that name here is a "+
-			"different routine", m.Name, m.library, d.Reg.Dir)
+			"is %s, so nothing was written — a play of that name here is a "+
+			"different play", m.Name, m.library, d.Reg.Dir)
 	case m.Token == "" || m.Token != m.sealed().Token:
 		return Rescoped{}, fmt.Errorf("the move offered for %q is not the one that "+
 			"was prepared, so nothing was written — review it again", m.Name)
@@ -524,7 +524,7 @@ func (d Deps) Rescope(m Rescoping, consent Consent) (Rescoped, error) {
 	case fromSrc != m.fromSourceAt:
 		return Rescoped{}, fmt.Errorf("%q has been saved again since the move you "+
 			"reviewed was prepared, so it is left as it is — review it again "+
-			"and the comparison will be against the routine as it now stands",
+			"and the comparison will be against the play as it now stands",
 			m.Name)
 	case fromRec != m.fromRecordingAt:
 		return Rescoped{}, fmt.Errorf("%q has been recorded again since the move you "+
@@ -552,7 +552,7 @@ func (d Deps) Rescope(m Rescoping, consent Consent) (Rescoped, error) {
 	toSrc, toRec := d.versionAt(m.To)
 	switch {
 	case toSrc == "" && m.Taken:
-		return Rescoped{}, fmt.Errorf("the routine at %s that you agreed to replace "+
+		return Rescoped{}, fmt.Errorf("the play at %s that you agreed to replace "+
 			"has gone since you were shown it, so nothing was written — move "+
 			"%q again and it will be saved there with nothing to replace",
 			m.TakenID, m.Name)
@@ -560,11 +560,11 @@ func (d Deps) Rescope(m Rescoping, consent Consent) (Rescoped, error) {
 		// A COLLISION THAT WAS THERE, OR ONE THAT APPEARED WHILE SOMEBODY READ. The
 		// same sentence either way, because the person's position is the same:
 		// something is at the destination and they have agreed to nothing about it.
-		return Rescoped{}, fmt.Errorf("%q was not moved: there is already a routine "+
+		return Rescoped{}, fmt.Errorf("%q was not moved: there is already a play "+
 			"at %s, and moving this one there would replace it", m.Name,
 			m.TakenID)
 	case toSrc != "" && consent.ID != m.TakenID:
-		return Rescoped{}, fmt.Errorf("this would not replace the routine you chose. "+
+		return Rescoped{}, fmt.Errorf("this would not replace the play you chose. "+
 			"You chose %q, and moving %q there would replace %q — choose once "+
 			"more", consent.ID, m.Name, m.TakenID)
 	case toSrc != "" && (consent.Source != toSrc || consent.Recording != toRec):
@@ -572,7 +572,7 @@ func (d Deps) Rescope(m Rescoping, consent Consent) (Rescoped, error) {
 		// identity does not change when the contents do, so "same route" is not the
 		// same question: another save landing there leaves a newer routine at the
 		// identity somebody agreed to overwrite.
-		return Rescoped{}, fmt.Errorf("the routine at %s has been saved again since "+
+		return Rescoped{}, fmt.Errorf("the play at %s has been saved again since "+
 			"you were shown it, so nothing was written — look at what is there "+
 			"now and choose once more", m.TakenID)
 	}
@@ -596,8 +596,8 @@ func (d Deps) Rescope(m Rescoping, consent Consent) (Rescoped, error) {
 	if toSrc != "" {
 		if _, err := d.dropShortcutsNaming(m.To); err != nil {
 			return Rescoped{}, fmt.Errorf("%q is left as it is: the shortcuts of the "+
-				"routine at %s could not be removed first (%v), so nothing was "+
-				"written — a move would have left them running the routine moved there",
+				"play at %s could not be removed first (%v), so nothing was "+
+				"written — a move would have left them running the play moved there",
 				m.Name, m.TakenID, err)
 		}
 	}
@@ -639,7 +639,7 @@ func (d Deps) Rescope(m Rescoping, consent Consent) (Rescoped, error) {
 	}
 	if err != nil {
 		if os.IsExist(err) {
-			return Rescoped{}, fmt.Errorf("%q is left as it is: a routine was saved "+
+			return Rescoped{}, fmt.Errorf("%q is left as it is: a play was saved "+
 				"at %s while this move was being written, so nothing has been "+
 				"written over it", m.Name, m.TakenID)
 		}
@@ -693,7 +693,7 @@ func (d Deps) Rescope(m Rescoping, consent Consent) (Rescoped, error) {
 	} else if err := d.Reg.DeleteAliases(m.To); err != nil {
 		return Rescoped{To: m.To, Says: copiedSays(m.Name, m.TakenID,
 			fmt.Sprintf("phrases already stored at %s could not be removed "+
-				"(%v), and this routine answers to none — so the original "+
+				"(%v), and this play answers to none — so the original "+
 				"has not been touched, because what is there would answer "+
 				"for it", m.TakenID, err))}, nil
 	}

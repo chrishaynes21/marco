@@ -84,7 +84,7 @@ func TestTheKeysUsedToLeaveAreNotInTheDemonstrationAndWhatPrecededThemIs(t *test
 	for _, s := range dr.Steps {
 		switch s.Kind {
 		case macroir.StepKey, macroir.StepKeyDown, macroir.StepKeyUp:
-			t.Errorf("the way out became a step the routine would press: %+v", s)
+			t.Errorf("the way out became a step the play would press: %+v", s)
 		}
 	}
 	// THE PRESSES THEY CAME TO MAKE ARE STILL THERE.

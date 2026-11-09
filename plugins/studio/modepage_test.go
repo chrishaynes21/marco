@@ -163,7 +163,7 @@ func TestThePageSaysWhatARecordingWillCapture(t *testing.T) {
 	}
 	if got := n("reviewtext"); got != 0 {
 		t.Errorf("the review repeats the record card's capture sentence, which is "+
-			"said beside Record and again on the saved routine's own card: %q",
+			"said beside Record and again on the saved play's own card: %q",
 			title)
 	}
 }
@@ -179,23 +179,23 @@ func TestThePageSaysWhatARecordingWillCapture(t *testing.T) {
 func TestARoutineThatStatesNoModeIsShownWithoutOne(t *testing.T) {
 	title, n := aRenderedModePage(t)
 	if got := n("cards"); got != 2 {
-		t.Fatalf("the library drew %d of 2 routines: %q", got, title)
+		t.Fatalf("the library drew %d of 2 plays: %q", got, title)
 	}
 	if n("statedsays") != 1 {
-		t.Errorf("the routine whose file states coordinates does not say so: %q", title)
+		t.Errorf("the play whose file states coordinates does not say so: %q", title)
 	}
 	if n("statedblank") == 1 {
-		t.Errorf("the stated routine's panel is empty, so the mode reached the page "+
+		t.Errorf("the stated play's panel is empty, so the mode reached the page "+
 			"and was never rendered: %q", title)
 	}
 	if n("silentblank") != 1 {
-		t.Errorf("a routine that states no mode has a sentence anyway: %q", title)
+		t.Errorf("a play that states no mode has a sentence anyway: %q", title)
 	}
 	if n("silentundefined") == 1 {
-		t.Errorf("a routine that states no mode is shown as `undefined`: %q", title)
+		t.Errorf("a play that states no mode is shown as `undefined`: %q", title)
 	}
 	if n("silentsays") == 1 {
-		t.Errorf("a routine that states no mode is described as recorded as "+
+		t.Errorf("a play that states no mode is described as recorded as "+
 			"something: %q", title)
 	}
 }

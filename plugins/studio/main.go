@@ -90,7 +90,7 @@ func main() {
 			"For a proof, never for use: an isolated store has none of your "+
 			"demonstrations in it")
 	view := flag.String("view", "",
-		"open on this view: routines, history or help. With Studio already open on the "+
+		"open on this view: plays, history or help. With Studio already open on the "+
 			"same library, that window comes forward on it instead and this launch exits")
 	flag.Parse()
 

@@ -318,7 +318,7 @@ func TestAnAddedPhraseClearsTheBoxAndSaysSo(t *testing.T) {
 func TestThePageSendsPhrasesAndNeverPositions(t *testing.T) {
 	title, n := aRenderedAnswersPage(t)
 	if n("addargs") != 1 {
-		t.Errorf("the add did not send exactly the routine and the phrase as "+
+		t.Errorf("the add did not send exactly the play and the phrase as "+
 			"typed: %q", title)
 	}
 	if n("dropargs") != 1 {
@@ -333,16 +333,16 @@ func TestThePageSendsPhrasesAndNeverPositions(t *testing.T) {
 func TestThePhrasePanelBelongsToTheRoutineItIsAbout(t *testing.T) {
 	title, n := aRenderedAnswersPage(t)
 	if n("asked") != 1 {
-		t.Errorf("choosing another routine did not ask what IT answers to: %q", title)
+		t.Errorf("choosing another play did not ask what IT answers to: %q", title)
 	}
 	if n("otherlist") != 0 || n("otherclean") != 1 {
-		t.Errorf("the other routine's panel shows %d of the first one's phrases: %q",
+		t.Errorf("the other play's panel shows %d of the first one's phrases: %q",
 			n("otherlist"), title)
 	}
 	// AND WHILE THE ANSWER IS STILL IN FLIGHT, which is the only window the guard
 	// exists for: the card has changed and the phrases this page holds have not.
 	if n("flightcount") != 0 || n("flightclean") != 1 {
-		t.Errorf("a routine's phrases were drawn under another routine's name while "+
+		t.Errorf("a play's phrases were drawn under another play's name while "+
 			"its own answer was still coming: %q", title)
 	}
 }

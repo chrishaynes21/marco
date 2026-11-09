@@ -71,12 +71,12 @@ func kept(t *testing.T, a *Acts, app, slug string) (src, demo []byte) {
 func unchanged(t *testing.T, what string, wasSrc, wasDemo, nowSrc, nowDemo []byte) {
 	t.Helper()
 	if !bytes.Equal(wasSrc, nowSrc) {
-		t.Errorf("%s: the saved routine's source changed\n--- was ---\n%s\n--- now ---\n%s",
+		t.Errorf("%s: the saved play's source changed\n--- was ---\n%s\n--- now ---\n%s",
 			what, wasSrc, nowSrc)
 	}
 	if !bytes.Equal(wasDemo, nowDemo) {
 		t.Errorf("%s: the demonstration beside it changed, which is the copy a "+
-			"routine is saved again from", what)
+			"play is saved again from", what)
 	}
 }
 
@@ -104,7 +104,7 @@ func TestSavingOverARoutineIsRefusedAndLeavesItAlone(t *testing.T) {
 		t.Fatal("the second recording was saved over the first without anybody " +
 			"being asked")
 	}
-	for _, say := range []string{"already a routine saved there", "ark graphics",
+	for _, say := range []string{"already a play saved there", "ark graphics",
 		"another name", "on purpose"} {
 		if !strings.Contains(why, say) {
 			t.Errorf("the refusal does not say %q:\n%s", say, why)
@@ -136,7 +136,7 @@ func TestSavingUnderAnotherNameKeepsBoth(t *testing.T) {
 	unchanged(t, "after a save under another name", wasSrc, wasDemo, nowSrc, nowDemo)
 	altSrc, _ := kept(t, second, "arkascended", "ark-graphics-two")
 	if bytes.Equal(altSrc, nowSrc) {
-		t.Error("the two routines are the same bytes, so this test cannot tell " +
+		t.Error("the two plays are the same bytes, so this test cannot tell " +
 			"them apart")
 	}
 
@@ -145,14 +145,14 @@ func TestSavingUnderAnotherNameKeepsBoth(t *testing.T) {
 	third := aRecordingCalled(t, "ark graphics three", 600, 600)
 	why := third.SaveDraftAs("ark graphics two", "app-anywhere", "arkascended")
 	if why == "" {
-		t.Fatal("Save as replaced a routine that was already under that name")
+		t.Fatal("Save as replaced a play that was already under that name")
 	}
-	if !strings.Contains(why, "already a routine saved there") {
+	if !strings.Contains(why, "already a play saved there") {
 		t.Errorf("the refusal does not say what is in the way:\n%s", why)
 	}
 	stillSrc, _ := kept(t, second, "arkascended", "ark-graphics-two")
 	if !bytes.Equal(altSrc, stillSrc) {
-		t.Error("Save as changed the routine it refused to replace")
+		t.Error("Save as changed the play it refused to replace")
 	}
 }
 
@@ -188,7 +188,7 @@ func TestReplacingChangesOnlyTheOneChosen(t *testing.T) {
 
 	gameNow, _ := kept(t, inGame, "arkascended", "settings")
 	if bytes.Equal(gameWas, gameNow) {
-		t.Error("the routine that was chosen for replacement did not change")
+		t.Error("the play that was chosen for replacement did not change")
 	}
 	nowSrc, nowDemo := kept(t, elsewhere, "discord", "settings")
 	unchanged(t, "the namesake in another application", otherSrc, otherDemo,
@@ -222,7 +222,7 @@ func TestAReplacementRefusesWhenTheRoutineChangedSinceTheCardWasDrawn(t *testing
 	// AND SOMEBODY ELSE SAVES OVER IT WHILE IT SITS THERE. Same place, same identity,
 	// contents nobody in this window has seen.
 	rt := routes.Route{App: "arkascended", Focus: true, Slug: "settings"}
-	newer := "// somebody else’s routine\n" + string(mustKeep(t, inGame, rt))
+	newer := "// somebody else’s play\n" + string(mustKeep(t, inGame, rt))
 	if err := inGame.reg().Replace(rt, newer); err != nil {
 		t.Fatal(err)
 	}
@@ -230,14 +230,14 @@ func TestAReplacementRefusesWhenTheRoutineChangedSinceTheCardWasDrawn(t *testing
 	why := again.ReplaceDraft(at.ID, at.Source, at.Recording, "app-anywhere",
 		"arkascended")
 	if why == "" {
-		t.Fatal("it replaced a routine that had been saved again since the card was " +
+		t.Fatal("it replaced a play that had been saved again since the card was " +
 			"drawn")
 	}
 	if !strings.Contains(why, "saved again since you were shown it") {
 		t.Errorf("the refusal does not say what changed:\n%s", why)
 	}
 	if now := string(mustKeep(t, inGame, rt)); now != newer {
-		t.Errorf("the newer routine was written over:\n%s", now)
+		t.Errorf("the newer play was written over:\n%s", now)
 	}
 }
 
@@ -276,7 +276,7 @@ func TestReplacingSomethingElseIsRefused(t *testing.T) {
 	why := again.ReplaceDraft("discord/focus/settings", at.Source, at.Recording,
 		"app-anywhere", "arkascended")
 	if why == "" {
-		t.Fatal("a replacement went ahead naming a routine it would not have replaced")
+		t.Fatal("a replacement went ahead naming a play it would not have replaced")
 	}
 	for _, say := range []string{"discord/focus/settings", "arkascended/focus/settings"} {
 		if !strings.Contains(why, say) {
@@ -285,10 +285,10 @@ func TestReplacingSomethingElseIsRefused(t *testing.T) {
 		}
 	}
 	gameNow, gameDemoNow := kept(t, inGame, "arkascended", "settings")
-	unchanged(t, "the routine the save would have written", gameWas, gameDemo,
+	unchanged(t, "the play the save would have written", gameWas, gameDemo,
 		gameNow, gameDemoNow)
 	otherNow, otherDemoNow := kept(t, elsewhere, "discord", "settings")
-	unchanged(t, "the routine that was named", otherWas, otherDemo, otherNow,
+	unchanged(t, "the play that was named", otherWas, otherDemo, otherNow,
 		otherDemoNow)
 
 	// ── AND ONE THAT HAS GONE SINCE IT WAS CHOSEN ──
@@ -299,10 +299,10 @@ func TestReplacingSomethingElseIsRefused(t *testing.T) {
 	gone := again.ReplaceDraft("arkascended/focus/settings", at.Source, at.Recording,
 		"app-anywhere", "arkascended")
 	if gone == "" {
-		t.Fatal("a replacement of a routine that is no longer there went ahead " +
+		t.Fatal("a replacement of a play that is no longer there went ahead " +
 			"as a replacement")
 	}
-	if !strings.Contains(gone, "no routine") {
+	if !strings.Contains(gone, "no play") {
 		t.Errorf("the refusal does not say it has gone:\n%s", gone)
 	}
 }
@@ -335,7 +335,7 @@ func TestTheOrchestratorStillOverwritesForEverybodyElse(t *testing.T) {
 	}
 	if _, err := d.Save(draft(500, 400), orchestrator.ScopeAppAnywhere,
 		"arkascended"); err != nil {
-		t.Fatalf("the orchestrator refused to save over a routine, which is the "+
+		t.Fatalf("the orchestrator refused to save over a play, which is the "+
 			"behaviour every other caller was written against: %v", err)
 	}
 	now, err := os.ReadFile(reg.Path(rt))
@@ -343,7 +343,7 @@ func TestTheOrchestratorStillOverwritesForEverybodyElse(t *testing.T) {
 		t.Fatal(err)
 	}
 	if bytes.Equal(was, now) {
-		t.Error("the orchestrator left the first routine in place; teaching a name " +
+		t.Error("the orchestrator left the first play in place; teaching a name " +
 			"again is how the overlay and the CLI correct one")
 	}
 }

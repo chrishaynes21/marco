@@ -1091,7 +1091,7 @@ func (d Deps) Resave(u Unrunnable) (routes.Route, error) {
 		// THE OLD ONE GOES, AND ONLY NOW. Two routines of the same name, one of
 		// which cannot press anything, is worse than the one that could not.
 		if err := d.Reg.Delete(u.Route); err != nil {
-			mlog.Error("resave: the old routine is still there", "route",
+			mlog.Error("resave: the old play is still there", "route",
 				u.Route.Slug, "err", err)
 		}
 	}
@@ -1641,10 +1641,10 @@ func (r Rebuild) Caution() string {
 	}
 	return "This takes the waiting out: each run of typing becomes one step, and " +
 		"every other pause is shortened to a quarter of a second. It is how a " +
-		"routine that took half a minute to demonstrate runs in seconds. Marco " +
+		"play that took half a minute to demonstrate runs in seconds. Marco " +
 		"cannot tell when a screen will catch up, so if this one presses before a " +
 		"menu has appeared, keep the version you have. Nothing else changes: which " +
-		"button each press used, which keys were held across what, and the routine " +
+		"button each press used, which keys were held across what, and the play " +
 		"stopping at the first action that did not happen."
 }
 

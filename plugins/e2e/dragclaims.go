@@ -26,7 +26,7 @@ func theGestureDidNotArrive(got []fixtureEvent) string {
 	}
 	if last := got[len(got)-1]; last.What != "left_up" {
 		return fmt.Sprintf("the last thing the application received was %q, so the "+
-			"button this routine pressed is still down as far as this window "+
+			"button this play pressed is still down as far as this window "+
 			"knows", last.What)
 	}
 	// AND EVERYTHING BETWEEN THEM IS MOVEMENT, which an assertion about the two ends

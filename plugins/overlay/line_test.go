@@ -261,7 +261,7 @@ func TestARoutineWithNoValuesIsStillOffered(t *testing.T) {
 	h := newModel()
 	offerWhatMarcoHas(h, "the settings please")
 	if !promptAsk.Load() || h.snapshot().editing {
-		t.Error("a routine with no values was not offered as before")
+		t.Error("a play with no values was not offered as before")
 	}
 }
 
@@ -330,10 +330,10 @@ func TestAReviewIsOnlyOfTheNamedRoutine(t *testing.T) {
 	h := newModel()
 	t.Cleanup(func() { promptAsk.Store(false); takePendingRoutine() })
 	if got := reviewProposal(h, "cloud pull", "game-b", "cloud-pull", false, map[string]string{"resource": "stone"}, "v1"); got != refusedReview {
-		t.Errorf("a review on a routine Director did not name came to %v", got)
+		t.Errorf("a review on a play Director did not name came to %v", got)
 	}
 	if h.lineProposal() != nil || h.snapshot().editing {
-		t.Error("the proposal was attached to another routine's line")
+		t.Error("the proposal was attached to another play's line")
 	}
 }
 
@@ -387,7 +387,7 @@ func TestALineEditedAwayFromItsProposalRunsNothing(t *testing.T) {
 	onScreen(h, context)
 	typedEnter(h, context.Line)
 	if got := runs(); len(got) != 0 {
-		t.Fatalf("a line naming another routine ran with the proposal on it: %q", got)
+		t.Fatalf("a line naming another play ran with the proposal on it: %q", got)
 	}
 	if s := h.snapshot(); !s.editing || !strings.Contains(s.status, "Esc clears it") {
 		t.Errorf("after Enter: editing %v, status %q", s.editing, s.status)
@@ -450,7 +450,7 @@ func TestASuppliedValueNeverReachesTheLog(t *testing.T) {
 		t.Errorf("the value is in the status after the run: %q", s.status)
 	}
 	if !strings.Contains(out, "Cloud pull") {
-		t.Errorf("the run was not logged under its routine's name:\n%s", out)
+		t.Errorf("the run was not logged under its play's name:\n%s", out)
 	}
 }
 

@@ -99,7 +99,7 @@ func TestAClickAddedInsideAWindowIsSentWithItsBasis(t *testing.T) {
 		t.Errorf("the kinds offered are %q", got["kinds"])
 	}
 	if got["bases"] != "1" {
-		t.Errorf("the bases offered are %q: a checked routine must not be offered a screen "+
+		t.Errorf("the bases offered are %q: a checked play must not be offered a screen "+
 			"point", got["bases"])
 	}
 	if got["asked"] != "To review: a right-click at 200, 100 in the window of step 2 is "+

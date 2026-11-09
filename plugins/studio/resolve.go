@@ -101,7 +101,7 @@ func (b *Backend) SuggestRoutine(request, target string) Suggestion {
 func whyNoDirector(home string, err error) string {
 	if _, ok := service.ReadEndpoint(home); !ok {
 		return "the Director is not running, so nothing can resolve this request — " +
-			"cards and Play still work"
+			"cards and Run still work"
 	}
 	return "the Director is running and this window could not reach it, so nothing can " +
 		"resolve this request: " + err.Error()
@@ -117,5 +117,5 @@ func whyRefused(err error) string {
 		}
 		return "the Director refused this request: " + refused.Error()
 	}
-	return "asking the Director which routine this is failed: " + err.Error()
+	return "asking the Director which play this is failed: " + err.Error()
 }

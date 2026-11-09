@@ -46,7 +46,7 @@ func runWhatIDid(args []string) int {
 	fs := flag.NewFlagSet("what-i-did", flag.ExitOnError)
 	_ = fs.Parse(rest)
 	if strings.TrimSpace(name) == "" {
-		fmt.Fprintln(os.Stderr, "director: say which routine, e.g.\n"+
+		fmt.Fprintln(os.Stderr, "director: say which play, e.g.\n"+
 			`  director what-i-did "ark graphics"`)
 		return 2
 	}
@@ -57,7 +57,7 @@ func runWhatIDid(args []string) int {
 	}
 	a, ok := store.Sequence(name)
 	if !ok {
-		fmt.Fprintf(os.Stderr, "director: no routine is saved as %q\n", name)
+		fmt.Fprintf(os.Stderr, "director: no play is saved as %q\n", name)
 		return 1
 	}
 	ev, ok := store.Evidence(a)

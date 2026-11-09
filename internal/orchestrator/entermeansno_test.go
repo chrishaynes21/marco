@@ -54,6 +54,6 @@ func TestEnterAtTheSimplifyQuestionLeavesTheRoutine(t *testing.T) {
 	}
 	after, _ := os.ReadFile(reg.Path(rt))
 	if string(after) != string(before) || !strings.Contains(out2.String(), "Left unchanged") {
-		t.Errorf("Enter at the simplify question changed the routine:\n%s", out2.String())
+		t.Errorf("Enter at the simplify question changed the play:\n%s", out2.String())
 	}
 }

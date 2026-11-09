@@ -137,7 +137,7 @@ func TestAnEditedRoutineStillAsksForTheCredentialItAlwaysAskedFor(t *testing.T) 
 
 	// ── BEFORE ──
 	if _, out, _ := aRunOf(t, d, rt); out != OutcomePerformed {
-		t.Fatalf("the routine reported %q before any edit was made, so this cannot "+
+		t.Fatalf("the play reported %q before any edit was made, so this cannot "+
 			"say what an edit changed", out)
 	}
 	if len(asked) != 1 || asked[0] != "sign-in-to-the-portal:password" {
@@ -148,7 +148,7 @@ func TestAnEditedRoutineStillAsksForTheCredentialItAlwaysAskedFor(t *testing.T) 
 	e, err := d.PrepareEdit(rt, []orchestrator.StepEdit{
 		{Op: orchestrator.EditWait, At: 1, To: 800}})
 	if err != nil {
-		t.Fatalf("a routine that reads a credential cannot be edited: %v", err)
+		t.Fatalf("a play that reads a credential cannot be edited: %v", err)
 	}
 	if e.Refused != "" {
 		t.Fatalf("the edit was refused: %s", e.Refused)
@@ -160,15 +160,15 @@ func TestAnEditedRoutineStillAsksForTheCredentialItAlwaysAskedFor(t *testing.T) 
 	// ── AFTER ──
 	asked = nil
 	if _, out, _ := aRunOf(t, d, rt); out != OutcomePerformed {
-		t.Errorf("the routine reported %q after an edit that did not touch the "+
+		t.Errorf("the play reported %q after an edit that did not touch the "+
 			"password, which is what a redirected lookup looks like from "+
 			"outside: nothing is found and the run stops", out)
 	}
 	if len(asked) != 1 {
-		t.Fatalf("the edited routine asked the credential store for %v", asked)
+		t.Fatalf("the edited play asked the credential store for %v", asked)
 	}
 	if asked[0] != "sign-in-to-the-portal:password" {
-		t.Fatalf("the edited routine asks the credential store for %q, and it asked "+
+		t.Fatalf("the edited play asks the credential store for %q, and it asked "+
 			"for %q before the edit. Those are two different entries, so it "+
 			"signs in with nothing", asked[0],
 			"sign-in-to-the-portal:password")
@@ -200,7 +200,7 @@ func TestARefusedRebuildLeavesTheRoutineAskingForWhatItAlwaysAskedFor(t *testing
 
 	// AND THE ROUTINE STILL RUNS, ASKING FOR WHAT IT ALWAYS ASKED FOR.
 	if _, out, _ := aRunOf(t, d, rt); out != OutcomePerformed {
-		t.Fatalf("the routine reported %q after a REFUSED rebuild", out)
+		t.Fatalf("the play reported %q after a REFUSED rebuild", out)
 	}
 	if len(asked) != 1 || asked[0] != "sign-in-to-the-portal:password" {
 		t.Fatalf("the run asked the credential store for %v", asked)

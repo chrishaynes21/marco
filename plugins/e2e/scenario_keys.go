@@ -92,7 +92,7 @@ func aChordArrivesAsAChord(w *world) result {
 	if err != nil {
 		st.fail()
 		return fail(started, fmt.Sprintf("Marco wrote no finished run record for the "+
-			"chord routine: %v. The application received %s", err, f.arrivedSoFar(seq)))
+			"chord play: %v. The application received %s", err, f.arrivedSoFar(seq)))
 	}
 	w.art.step("Marco recorded %s", rec)
 	w.art.copyIn("run-record.json", rec.file)
@@ -194,10 +194,10 @@ func isAModifier(e fixtureEvent) bool {
 func theFocusingPressDidNotLand(presses []fixtureEvent, onto string) string {
 	switch {
 	case len(presses) == 0:
-		return "the routine's press never arrived, so the keyboard was never put in " +
+		return "the play's press never arrived, so the keyboard was never put in " +
 			"the application and a chord sent afterwards went somewhere else"
 	case presses[0].Control != onto:
-		return fmt.Sprintf("the routine's press landed on %q rather than %q, so whatever "+
+		return fmt.Sprintf("the play's press landed on %q rather than %q, so whatever "+
 			"it sent afterwards went to the wrong control", presses[0].Control, onto)
 	}
 	return ""
@@ -256,7 +256,7 @@ func theChordWasNotHeldWhenTheKeyArrived(got []fixtureEvent) string {
 					"%q arrived, and the chord asked for %s — so the "+
 					"modifier events were sent and the system did not apply "+
 					"them, which delivers a different keystroke than the one "+
-					"in the routine", e.Mods, theChordKey,
+					"in the play", e.Mods, theChordKey,
 					strings.Join(theChordMods, "+"))
 			}
 		}

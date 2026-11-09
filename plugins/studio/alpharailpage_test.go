@@ -140,11 +140,11 @@ setTimeout(() => {
 		return v
 	}
 	if n("painted") != 1 {
-		t.Fatalf("the Routines view is not on screen, so withholding a rail entry "+
+		t.Fatalf("the Plays view is not on screen, so withholding a rail entry "+
 			"stopped the window rendering: %q", title)
 	}
 	if n("railR") != 1 || n("railH") != 1 {
-		t.Errorf("the rail does not offer Routines and Help: %q", title)
+		t.Errorf("the rail does not offer Plays and Help: %q", title)
 	}
 	if n("railA") != 0 || n("railS") != 0 {
 		t.Errorf("Acts or Scenes is still in the rail: %q", title)

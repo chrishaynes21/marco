@@ -1288,7 +1288,7 @@ func modifierTrouble(events []recorder.RecordedEvent, argKey string) string {
 				return fmt.Sprintf("%s was pressed and never released in this "+
 					"recording, and a press was made while it was down. A "+
 					"hold written from that would have no release and would "+
-					"leave %s down on the desktop after the routine "+
+					"leave %s down on the desktop after the play "+
 					"finished. Record it again, letting go of %s before you "+
 					"stop", name, name, name)
 			}

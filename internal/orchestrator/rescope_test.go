@@ -95,7 +95,7 @@ func TestAMoveLandsTheRoutineAtItsNewScopeAndEndsTheOld(t *testing.T) {
 	// switches nothing, so the `Activate` a focus routine carries is gone — which is the
 	// whole reason a move is a re-render and not a file rename.
 	if strings.Contains(string(src), "Activate") {
-		t.Errorf("the moved routine still brings its application forward, so it was "+
+		t.Errorf("the moved play still brings its application forward, so it was "+
 			"not rendered for the scope it moved to:\n%s", src)
 	}
 	if !strings.Contains(string(was), "Activate") {
@@ -107,7 +107,7 @@ func TestAMoveLandsTheRoutineAtItsNewScopeAndEndsTheOld(t *testing.T) {
 	// A routine that arrives without one cannot be reviewed, rebuilt or moved again, and
 	// the original it was about to replace was the only other copy.
 	if !d.Reg.HasRecording(to) {
-		t.Error("the moved routine has no demonstration beside it, so it can never " +
+		t.Error("the moved play has no demonstration beside it, so it can never " +
 			"be moved or rebuilt again")
 	}
 	// ── AND THE ORIGINAL IS GONE, SOURCE AND DEMONSTRATION BOTH ──
@@ -116,7 +116,7 @@ func TestAMoveLandsTheRoutineAtItsNewScopeAndEndsTheOld(t *testing.T) {
 	}
 	if d.Reg.HasRecording(rt) {
 		t.Errorf("the original's demonstration is still at %s, so the library holds "+
-			"half a routine", RouteID(rt))
+			"half a play", RouteID(rt))
 	}
 }
 
@@ -131,7 +131,7 @@ func TestMovingARoutineToTheScopeItAlreadyHasIsNothingToDo(t *testing.T) {
 
 	_, err := d.PrepareRescope(rt, ScopeAppAnywhere, "")
 	if err == nil {
-		t.Fatal("moving a routine to the scope it already has was prepared as a move")
+		t.Fatal("moving a play to the scope it already has was prepared as a move")
 	}
 	if !strings.Contains(err.Error(), "nothing to move") {
 		t.Errorf("the refusal reads %q", err)
@@ -155,7 +155,7 @@ func TestAMoveOntoAnOccupiedIdentityNeedsItsOwnConsent(t *testing.T) {
 	other := d.DraftOf(NameOf(d.Reg, rt), aPlainDemonstration("b"), "notepad",
 		"the stop key", Unstated)
 	if _, err := d.Save(other, ScopeApp, "notepad"); err != nil {
-		t.Fatalf("saving the routine in the way: %v", err)
+		t.Fatalf("saving the play in the way: %v", err)
 	}
 	theirs, _ := os.ReadFile(d.Reg.Path(to))
 
@@ -168,13 +168,13 @@ func TestAMoveOntoAnOccupiedIdentityNeedsItsOwnConsent(t *testing.T) {
 		t.Errorf("the review does not say something is in the way: %+v", m)
 	}
 	if _, err := d.Rescope(m, Consent{}); err == nil {
-		t.Fatal("a move replaced a routine nobody consented to replacing")
-	} else if !strings.Contains(err.Error(), "already a routine at") {
+		t.Fatal("a move replaced a play nobody consented to replacing")
+	} else if !strings.Contains(err.Error(), "already a play at") {
 		t.Errorf("the refusal reads %q", err)
 	}
 	// AND NEITHER END MOVED.
 	if now, _ := os.ReadFile(d.Reg.Path(to)); string(now) != string(theirs) {
-		t.Error("the routine at the destination was written over")
+		t.Error("the play at the destination was written over")
 	}
 	if _, err := os.Stat(d.Reg.Path(rt)); err != nil {
 		t.Errorf("the original was removed by a move that refused: %v", err)
@@ -200,7 +200,7 @@ func TestConsentToReplaceTheDestinationIsBoundToTheVersionShown(t *testing.T) {
 				}
 			},
 			"saved again since you were shown it", true},
-		{"the consent names another routine",
+		{"the consent names another play",
 			func(t *testing.T, d Deps, to routes.Route) {},
 			"", false},
 	} {
@@ -291,7 +291,7 @@ func TestARoutineThatAppearsAtTheDestinationMidMoveIsNotWrittenOver(t *testing.T
 		t.Fatal(err)
 	}
 	if _, err := d.Rescope(m, Consent{}); err == nil {
-		t.Fatal("the move wrote over a routine that appeared while it was writing")
+		t.Fatal("the move wrote over a play that appeared while it was writing")
 	}
 	if now, _ := os.ReadFile(d.Reg.Path(to)); string(now) != theirs {
 		t.Errorf("what the other writer saved was overwritten: %q", now)
@@ -345,7 +345,7 @@ func TestAMoveIsRefusedWhenTheOriginalChangedAfterItWasReviewed(t *testing.T) {
 			c.spoil(t, d, rt)
 
 			if _, err := d.Rescope(m, Consent{}); err == nil {
-				t.Fatal("the move went ahead against a routine that had changed")
+				t.Fatal("the move went ahead against a play that had changed")
 			} else if !strings.Contains(err.Error(), c.reads) {
 				t.Errorf("the refusal reads %q and does not mention %q",
 					err, c.reads)
@@ -411,7 +411,7 @@ func TestAMoveNeverDeletesAnOriginalThatChangedAndSaysItCopied(t *testing.T) {
 		}
 	}
 	if strings.HasPrefix(got.Says, "Moved") {
-		t.Errorf("two routines exist and the result calls it a move: %q", got.Says)
+		t.Errorf("two plays exist and the result calls it a move: %q", got.Says)
 	}
 	// ── AND THE EDIT IS STILL THERE ──
 	now, rerr := os.ReadFile(d.Reg.Path(rt))
@@ -494,7 +494,7 @@ func TestAMoveThatCannotRemoveTheOriginalLeavesItWhole(t *testing.T) {
 	if rec, ok := d.Reg.LoadRecording(to); !ok ||
 		routes.DigestOf(string(rec)) != routes.DigestOf(string(recWas)) {
 		t.Error("the copy has no demonstration beside it, so what was retained is " +
-			"the only complete routine")
+			"the only complete play")
 	}
 
 	// ── AND THE ORIGINAL IS WHOLE: SOURCE, DEMONSTRATION AND IMAGE ──
@@ -547,7 +547,7 @@ func TestAMoveNamesWhatItCouldNotSweepAndStillMoves(t *testing.T) {
 	}
 	if len(got.Residue) == 0 {
 		t.Fatal("what could not be swept is not reported at all, so a file is left " +
-			"under that slug for the next routine saved there to inherit")
+			"under that slug for the next play saved there to inherit")
 	}
 	if !strings.Contains(got.Left, "anchor-9") {
 		t.Errorf("the residue sentence does not name what is still there: %q",
@@ -594,7 +594,7 @@ func TestAMoveThatRemovesTheOriginalTakesWhatSatBesideIt(t *testing.T) {
 	} {
 		if _, err := os.Stat(path); !os.IsNotExist(err) {
 			t.Errorf("the original's %s is still there, waiting to be inherited "+
-				"by the next routine saved under that slug", what)
+				"by the next play saved under that slug", what)
 		}
 	}
 }
@@ -668,7 +668,7 @@ func TestBothEndsOfAMoveAreLockedInTheSameOrderWhicheverWayItGoes(t *testing.T) 
 		a2, b2 := lockOrder(pair[1], pair[0])
 		if a1 != a2 || b1 != b2 {
 			t.Errorf("moving %s -> %s locks %s first and moving it back locks "+
-				"%s first, so two moves of one routine can wait on each "+
+				"%s first, so two moves of one play can wait on each "+
 				"other for ever", RouteID(pair[0]), RouteID(pair[1]),
 				RouteID(a1), RouteID(a2))
 		}
@@ -699,7 +699,7 @@ func TestAGuardedRoutineCannotBeMovedWhereItsPressesWouldRefuse(t *testing.T) {
 			t.Fatalf("%q: %v", want, err)
 		}
 		if m.Refused == "" {
-			t.Fatalf("%q was offered for a routine whose every press would "+
+			t.Fatalf("%q was offered for a play whose every press would "+
 				"then refuse", want)
 		}
 		if m.Movable() {
@@ -793,7 +793,7 @@ func TestTwoMovesThatSawDifferentDestinationsAreNotTheSameReview(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !taken.Taken {
-		t.Fatal("the second preparation does not see the routine in the way")
+		t.Fatal("the second preparation does not see the play in the way")
 	}
 	if taken.Now != empty.Now {
 		t.Fatal("the two preparations render different sources, so sharing a token " +
@@ -819,7 +819,7 @@ func TestARoutineWithNoDemonstrationCannotBeMoved(t *testing.T) {
 	}
 	_, err := d.PrepareRescope(rt, ScopeApp, "")
 	if err == nil {
-		t.Fatal("a routine with no demonstration was offered a move")
+		t.Fatal("a play with no demonstration was offered a move")
 	}
 	if !strings.Contains(err.Error(), "Record it again") {
 		t.Errorf("the refusal reads %q and does not say what to do", err)
@@ -895,7 +895,7 @@ func TestMovingAGlobalRoutineIntoAnApplicationNeedsOneNamed(t *testing.T) {
 		t.Fatal(err)
 	}
 	if m.Refused == "" {
-		t.Fatal("a global routine was moved into an application nobody named")
+		t.Fatal("a global play was moved into an application nobody named")
 	}
 	if !strings.Contains(m.Refused, "name the application") {
 		t.Errorf("the refusal reads %q", m.Refused)
@@ -938,13 +938,13 @@ func TestAGuardedRoutineCanBeMovedToOnlyIn(t *testing.T) {
 		t.Errorf("the move does not drop only the Activate:\n%s", m.Now)
 	}
 	if c, _ := ContractOf(m.Now); c != Guarded {
-		t.Errorf("the moved routine is %s, not guarded", c)
+		t.Errorf("the moved play is %s, not guarded", c)
 	}
 	done, err := d.Rescope(m, Consent{})
 	if err != nil || !done.Removed || done.To != (routes.Route{App: "arkascended", Slug: "ark-settings"}) {
 		t.Fatalf("the move: %+v, %v", done, err)
 	}
 	if got := d.Unrunnable(); len(got) != 0 {
-		t.Errorf("a guarded Only-in routine is listed as unable to press anything: %+v", got)
+		t.Errorf("a guarded Only-in play is listed as unable to press anything: %+v", got)
 	}
 }

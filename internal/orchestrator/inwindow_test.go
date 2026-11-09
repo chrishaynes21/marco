@@ -218,7 +218,7 @@ func TestADraftExcludesTheTimeSpentAwayAndSaysSo(t *testing.T) {
 	// because somebody looked something up while recording it.
 	for _, s := range dr.Steps {
 		if s.Kind == macroir.StepWait && time.Duration(s.Ms)*time.Millisecond > ResumeSettle {
-			t.Errorf("the routine waits %dms, which is the time the person spent "+
+			t.Errorf("the play waits %dms, which is the time the person spent "+
 				"outside the window", s.Ms)
 		}
 	}

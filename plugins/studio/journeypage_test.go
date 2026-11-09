@@ -40,7 +40,7 @@ func TestTheJourneyPutsTheQuestionFirstAndPlayUnderWhatIsSelected(t *testing.T) 
 		{`id="askBox"`, `id="routineList"`,
 			"the find box sits directly above the list it searches"},
 		{`id="routineList"`, `id="routineChosen"`,
-			"the panel about the selected routine comes after the list it is selected from"},
+			"the panel about the selected play comes after the list it is selected from"},
 	} {
 		if !before(routines, c.first, c.then) {
 			t.Errorf("%s is not before %s. %s", c.first, c.then, c.why)
@@ -68,7 +68,7 @@ func TestTheJourneyPutsTheQuestionFirstAndPlayUnderWhatIsSelected(t *testing.T) 
 	}
 	for i := 0; i+1 < len(order); i++ {
 		if !before(chosen, order[i], order[i+1]) {
-			t.Errorf("%s must come before %s in the selected routine's panel",
+			t.Errorf("%s must come before %s in the selected play's panel",
 				order[i], order[i+1])
 		}
 	}
@@ -132,7 +132,7 @@ func TestTheRoutineJourneyHasOneWayIntoRecording(t *testing.T) {
 	}
 	// AND THE OTHER RECORDING FLOW IS NOT ON THIS VIEW.
 	if strings.Contains(routines, `id="learnCard"`) {
-		t.Error("the Learn-a-Scene card is back on the routine journey, which is the " +
+		t.Error("the Learn-a-Scene card is back on the play journey, which is the " +
 			"two-entry-points defect this slice was about")
 	}
 	scenes := between(t, page, `<section id="view-scenes"`, "</section>")
@@ -449,7 +449,7 @@ func TestASecondLookAtARoutineIsOfferedWithoutOpeningADetail(t *testing.T) {
 	// review it opens, titled for what it is, rather than a caption under the button.
 	tabs := between(t, page, `id="routineTabs"`, `</div>`)
 	if !strings.Contains(tabs, `id="routineSimplifyBtn"`) {
-		t.Error("Simplify is not in the routine's tab row, where it is seen without " +
+		t.Error("Simplify is not in the play's tab row, where it is seen without " +
 			"opening anything")
 	}
 	if strings.Contains(between(t, page, `id="routineMaintain"`, `id="routineReviewBtn"`),
@@ -470,13 +470,13 @@ func TestASecondLookAtARoutineIsOfferedWithoutOpeningADetail(t *testing.T) {
 	// AND IT IS SHOWN ON `offer`, NOT ON `update`.
 	if !regexp.MustCompile(`showing\(\$\('routineSimplifyBtn'\),[^)]*r\.offer`).MatchString(js) {
 		t.Error("Simplify is not shown by `offer`, which is the answer " +
-			"about whether the routine still has a demonstration to rebuild from")
+			"about whether the play still has a demonstration to rebuild from")
 	}
 	shown := regexp.MustCompile(`showing\(\$\('routineSimplifyBtn'\),\s*(.*)\)`).
 		FindStringSubmatch(js)
 	if shown != nil && strings.Contains(shown[1], "update") {
 		t.Errorf("the simplification is conditioned on `update` (%q), which is about "+
-			"the GENERATION — a routine today's rules wrote can still have typing "+
+			"the GENERATION — a play today's rules wrote can still have typing "+
 			"pauses in it", shown[1])
 	}
 	// AND TODAY'S-RULES REVIEW IS THE ONE `update` CONDITIONS, because that IS the
@@ -505,12 +505,12 @@ func TestPlayNeverPromisesAnApplicationARoutineDoesNotName(t *testing.T) {
 	el := between(t, page, `id="routinePlayMeans"`, "</div>")
 	if strings.Contains(el, "application forward") {
 		t.Errorf("the sentence under Play is written into the page, so it says the "+
-			"same thing about every routine: %q", el)
+			"same thing about every play: %q", el)
 	}
 	js := page[strings.Index(page, "<script>"):]
 	means := between(t, js, "function playMeans(r){", "\n }")
 	if !strings.Contains(means, "r.app") {
-		t.Error("what Play means is not decided by whether the routine names an " +
+		t.Error("what Play means is not decided by whether the play names an " +
 			"application")
 	}
 	// THE APP-LESS ARM SAYS WHERE THE PRESSES GO, and does not name an application.
@@ -521,7 +521,7 @@ func TestPlayNeverPromisesAnApplicationARoutineDoesNotName(t *testing.T) {
 	appless := arms[1][strings.Index(arms[1], ":"):]
 	for _, must := range []string{"in front", "names no application"} {
 		if !strings.Contains(appless, must) {
-			t.Errorf("a routine with no application is told %q, which does not "+
+			t.Errorf("a play with no application is told %q, which does not "+
 				"mention %q", appless, must)
 		}
 	}
@@ -539,21 +539,21 @@ func TestThePanelSaysWhereARoutineCanBeAskedFor(t *testing.T) {
 	js := page[strings.Index(page, "<script>"):]
 	asked := between(t, js, "function askedFor(r){", "\n }")
 	if !strings.Contains(asked, "r.app") || !strings.Contains(asked, "app-anywhere") {
-		t.Errorf("where a routine can be asked for is not decided by its scope: %q",
+		t.Errorf("where a play can be asked for is not decided by its scope: %q",
 			asked)
 	}
 	// AND PLAY IS UNAFFECTED, SAID IN BOTH ARMS. Choosing a card is not asking for
 	// anything by name, and a person reading "only while Notepad is in front" beside a
 	// live Play button has been told two things that contradict each other.
-	if strings.Count(asked, "Play works from") != 2 {
-		t.Errorf("one of the two answers does not say that Play is unaffected: %q",
+	if strings.Count(asked, "Run works from") != 2 {
+		t.Errorf("one of the two answers does not say that Run is unaffected: %q",
 			asked)
 	}
 	// AND THE SCOPE CHOOSER SAYS IT TOO, at the moment the choice is made rather than
 	// a week later.
 	opts := between(t, js, "[['app',", "].forEach")
 	if !strings.Contains(opts, "only offered while") {
-		t.Errorf("the scope chooser says where a routine works and not where it can "+
+		t.Errorf("the scope chooser says where a play works and not where it can "+
 			"be reached: %q", opts)
 	}
 }
@@ -572,8 +572,8 @@ func TestThePanelSaysWhereARoutineCanBeAskedFor(t *testing.T) {
 func TestTheReviewSaysItWillNotRunAboveTheReason(t *testing.T) {
 	page := thePage(t)
 	box := between(t, page, `id="capWontRunBox"`, `id="capUnsupported"`)
-	if !strings.Contains(box, "This routine won't run.") {
-		t.Errorf("the review does not say the routine will not run above the reason "+
+	if !strings.Contains(box, "This play won't run.") {
+		t.Errorf("the review does not say the play will not run above the reason "+
 			"it will not: %q", box)
 	}
 	if !before(box, "won't run", `id="capMissing"`) {
@@ -752,16 +752,16 @@ func TestARoutineRowSaysOnlyWhatChangesTheNextAction(t *testing.T) {
 	for _, word := range []string{"Verified", "Confirmed", "Works", "Passed",
 		"Succeeded", "Checked", "checked", "Unchecked", "Window-checked"} {
 		if strings.Contains(line, "'"+word+"'") || strings.Contains(line, `"`+word+`"`) {
-			t.Errorf("a routine row is labelled %s. A row says only what changes "+
+			t.Errorf("a play row is labelled %s. A row says only what changes "+
 				"what somebody does next: %s", word, line)
 		}
 	}
 	if strings.Contains(line, "contract") {
-		t.Errorf("the row's badge reads the routine's contract, which is how its "+
+		t.Errorf("the row's badge reads the play's contract, which is how its "+
 			"presses are checked. That is not a status to put on a row: %s", line)
 	}
 	if !strings.Contains(line, `!r.runnable ? ['no', "Can't run"] : null`) {
-		t.Errorf("the row's badge is not `Can't run` for a routine that cannot run "+
+		t.Errorf("the row's badge is not `Can't run` for a play that cannot run "+
 			"and nothing otherwise: %s", line)
 	}
 	// AND THE LINE BESIDE PLAY DOES NOT SAY IT EITHER.

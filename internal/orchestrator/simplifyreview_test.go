@@ -78,7 +78,7 @@ func TestTheTwoRebuildsProduceDifferentRoutines(t *testing.T) {
 		t.Fatalf("preparing the simplified rebuild: %v", err)
 	}
 	if current.Now == folded.Now {
-		t.Fatalf("both choices rebuilt the same routine, so the choice is a label:"+
+		t.Fatalf("both choices rebuilt the same play, so the choice is a label:"+
 			"\n%s", current.Now)
 	}
 	// AND THE DIFFERENCE IS THE ONE THAT WAS ASKED FOR: the demonstration has a 540ms
@@ -139,10 +139,10 @@ func TestAStatedCoordinateModeSurvivesSimplifyingWithVisionOn(t *testing.T) {
 	}
 	// THE ARRANGEMENT HELD: the routine states its mode, and it waits.
 	if ModeOf(string(saved)) != Coordinates {
-		t.Fatalf("the saved routine states mode %q", ModeOf(string(saved)))
+		t.Fatalf("the saved play states mode %q", ModeOf(string(saved)))
 	}
 	if !strings.Contains(string(saved), "Sleep with 3000") {
-		t.Fatalf("the saved routine does not carry the deliberate pause, so there is "+
+		t.Fatalf("the saved play does not carry the deliberate pause, so there is "+
 			"nothing here to lose:\n%s", saved)
 	}
 	// ── THE ORDINARY REBUILD KEEPS IT, WHICH IS THE WHOLE OF ADR-254 ──
@@ -151,7 +151,7 @@ func TestAStatedCoordinateModeSurvivesSimplifyingWithVisionOn(t *testing.T) {
 		t.Fatalf("preparing: %v", err)
 	}
 	if !strings.Contains(p.Now, "Sleep with 3000") {
-		t.Errorf("the rebuilt routine lost the 3 second pause it waits before "+
+		t.Errorf("the rebuilt play lost the 3 second pause it waits before "+
 			"pressing, so it will press before the screen has caught "+
 			"up:\n%s", p.Now)
 	}
@@ -170,7 +170,7 @@ func TestAStatedCoordinateModeSurvivesSimplifyingWithVisionOn(t *testing.T) {
 	}
 	if strings.Contains(folded.Now, "Sleep with 3000") {
 		t.Errorf("simplifying kept the 3 second pause, so it cannot shorten a "+
-			"routine whose length is its waiting:\n%s", folded.Now)
+			"play whose length is its waiting:\n%s", folded.Now)
 	}
 	if !strings.Contains(folded.Now, "Sleep with 250") {
 		t.Errorf("simplifying did not clamp the pause to a quarter of a "+
@@ -180,7 +180,7 @@ func TestAStatedCoordinateModeSurvivesSimplifyingWithVisionOn(t *testing.T) {
 	// `SimplifyRoute` wrote through `codegen.Route` and deleted it.
 	for _, got := range []Prepared{p, folded} {
 		if ModeOf(got.Now) != Coordinates {
-			t.Errorf("the rebuilt routine states mode %q, so a tidy-up edited "+
+			t.Errorf("the rebuilt play states mode %q, so a tidy-up edited "+
 				"a claim about somebody's recording out of their "+
 				"file:\n%s", ModeOf(got.Now), got.Now)
 		}
@@ -191,10 +191,10 @@ func TestAStatedCoordinateModeSurvivesSimplifyingWithVisionOn(t *testing.T) {
 	plain, plainRt := aTypedRoutine(t, Unstated)
 	q, err := plain.Prepare(plainRt, RebuildCurrent)
 	if err != nil {
-		t.Fatalf("preparing the unstated routine: %v", err)
+		t.Fatalf("preparing the unstated play: %v", err)
 	}
 	if strings.Contains(q.Now, "Sleep with 3000") {
-		t.Errorf("a routine stating no mode kept its uncapped pause under "+
+		t.Errorf("a play stating no mode kept its uncapped pause under "+
 			"$MARCO_CV=on, so this build does not cap at all and the case "+
 			"above establishes nothing:\n%s", q.Now)
 	}
@@ -213,7 +213,7 @@ func TestPreparingASimplifiedVersionWritesNothing(t *testing.T) {
 		t.Fatalf("preparing: %v", err)
 	}
 	if !p.Changes() {
-		t.Fatal("the simplified rebuild is identical to the saved routine, so a " +
+		t.Fatal("the simplified rebuild is identical to the saved play, so a " +
 			"preparation that wrote its own result would be invisible here")
 	}
 	if why := differsFrom(before, theWholeLibrary(t, d)); why != "" {
@@ -281,9 +281,9 @@ func TestSimplifyingANamesakeIsRefusedAndNothingIsRewritten(t *testing.T) {
 
 	err = d.SimplifyRoute("type marco")
 	if err == nil {
-		t.Fatal("a command that rewrites a file chose between two routines of one name")
+		t.Fatal("a command that rewrites a file chose between two plays of one name")
 	}
-	for _, says := range []string{"2 routines", "will not choose"} {
+	for _, says := range []string{"2 plays", "will not choose"} {
 		if !strings.Contains(err.Error(), says) {
 			t.Errorf("the refusal does not say %q: %v", says, err)
 		}
@@ -306,15 +306,15 @@ func TestSimplifyingANamesakeIsRefusedAndNothingIsRewritten(t *testing.T) {
 	out.Reset()
 	d.In = strings.NewReader("y\n")
 	if err := d.SimplifyRoute("type marco"); err != nil {
-		t.Fatalf("simplifying the only routine of that name: %v", err)
+		t.Fatalf("simplifying the only play of that name: %v", err)
 	}
 	if !strings.Contains(out.String(), "editor, only while it is in front") {
-		t.Errorf("the command did not say which routine it was about before asking:"+
+		t.Errorf("the command did not say which play it was about before asking:"+
 			"\n%s", out.String())
 	}
 	raw, _ := os.ReadFile(d.Reg.Path(first))
 	if !strings.Contains(string(raw), `do OS's Type with "marco"`) {
-		t.Errorf("the simplified routine was not written:\n%s", raw)
+		t.Errorf("the simplified play was not written:\n%s", raw)
 	}
 }
 
@@ -332,7 +332,7 @@ func TestSimplifyingAndSayingNoLeavesTheRoutineAlone(t *testing.T) {
 		t.Fatalf("simplifying: %v", err)
 	}
 	if !strings.Contains(out.String(), "Left unchanged") {
-		t.Errorf("the command did not say it left the routine alone:\n%s", out.String())
+		t.Errorf("the command did not say it left the play alone:\n%s", out.String())
 	}
 	if why := differsFrom(before, theWholeLibrary(t, d)); why != "" {
 		t.Errorf("a declined simplify changed the library: %s", why)

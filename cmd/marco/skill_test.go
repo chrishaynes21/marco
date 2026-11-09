@@ -92,13 +92,13 @@ func TestASavedRoutineWinsOverASkill(t *testing.T) {
 		t.Fatal(err)
 	}
 	if r := readLine(d, "", "focus Discord", lineProposal{}); r.Kind != "routine" || r.Slug != "focus" {
-		t.Errorf("the skill shadowed the routine: %+v", r)
+		t.Errorf("the skill shadowed the play: %+v", r)
 	}
 	_ = stdoutOf(t, func() {
 		_, _ = runInvocation(d, invoke.Request{Text: "focus Discord", Source: invoke.SourceTyped})
 	})
 	if len(desk.raised) != 0 {
-		t.Errorf("the skill ran instead of the routine: raised %v", desk.raised)
+		t.Errorf("the skill ran instead of the play: raised %v", desk.raised)
 	}
 }
 
@@ -306,7 +306,7 @@ func TestEverydayWordsAreFocusOnlyForAnOpenProgram(t *testing.T) {
 		}
 	}
 	if r := readLine(d, "", "open social", lineProposal{}); r.Kind != "routine" {
-		t.Errorf("the routine open social read as %+v", r)
+		t.Errorf("the play open social read as %+v", r)
 	}
 	asked := ""
 	prev := proposeRoutine
@@ -323,7 +323,7 @@ func TestEverydayWordsAreFocusOnlyForAnOpenProgram(t *testing.T) {
 		_, _ = runInvocation(d, invoke.Request{Text: "open sosh al", Source: invoke.SourceSpoken})
 	})
 	if asked != "open sosh al" || len(desk.raised) != 1 {
-		t.Errorf("a misheard routine did not reach Director: asked %q, raised %v", asked, desk.raised)
+		t.Errorf("a misheard play did not reach Director: asked %q, raised %v", asked, desk.raised)
 	}
 }
 
@@ -348,7 +348,7 @@ func TestAMisheardOpenIsProposedAsFocus(t *testing.T) {
 	}
 	// AND THE MODEL WAS TOLD THE ROUTINES' NAMES, so a misheard one is not taken for a program.
 	if !strings.Contains(strings.Join(lastRoutines, ","), "open social") {
-		t.Errorf("the model was not told the routine names: %q", lastRoutines)
+		t.Errorf("the model was not told the play names: %q", lastRoutines)
 	}
 	modelAnswers(t, true, "")
 	_ = stdoutOf(t, func() {
@@ -383,7 +383,7 @@ func TestAMisheardOpenLeavesARoutinesWordsAlone(t *testing.T) {
 		_, _ = runInvocation(d, invoke.Request{Text: "open chad gpt", Source: invoke.SourceSpoken})
 	})
 	if skillProposal(proposedLine(said)) || asked != "open chad gpt" || len(desk.raised) != 0 {
-		t.Errorf("the routine's words were proposed as focus (Director asked %q):\n%s", asked, said)
+		t.Errorf("the play's words were proposed as focus (Director asked %q):\n%s", asked, said)
 	}
 }
 

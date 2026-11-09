@@ -64,7 +64,7 @@ func (a *Acts) answersFor(id string) (Answers, orchestrator.Deps, bool) {
 	d := orchestrator.Deps{Reg: a.reg(), Out: &strings.Builder{}}
 	if id == "" {
 		return Answers{Phrases: []string{},
-			Why: "choose a routine to see what it answers to"}, d, false
+			Why: "choose a play to see what it answers to"}, d, false
 	}
 	a.mu.Lock()
 	recording := a.recordingLocked()
@@ -79,7 +79,7 @@ func (a *Acts) answersFor(id string) (Answers, orchestrator.Deps, bool) {
 	chosen, found := a.routineWithID(id)
 	if !found {
 		return Answers{ID: id, Phrases: []string{},
-			Why: fmt.Sprintf("there is no routine %q in this library (%s) — press "+
+			Why: fmt.Sprintf("there is no play %q in this library (%s) — press "+
 				"Refresh and choose it again", id, a.routesDir)}, d, false
 	}
 	phrases, why := d.AliasesOf(chosen.route())

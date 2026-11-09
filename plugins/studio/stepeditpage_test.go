@@ -534,6 +534,6 @@ func TestAPartialStepSaveIsRenderedAsAProblem(t *testing.T) {
 		t.Errorf("it is rendered as an ordinary success: %q", title)
 	}
 	if n("partialgone") != 1 {
-		t.Errorf("the sentence stayed under another routine's name: %q", title)
+		t.Errorf("the sentence stayed under another play's name: %q", title)
 	}
 }

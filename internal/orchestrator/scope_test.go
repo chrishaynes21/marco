@@ -269,7 +269,7 @@ func TestNoApplicationIsAskedNotSavedForTheForeground(t *testing.T) {
 	t.Run("nobody to ask refuses", func(t *testing.T) {
 		reg, said := learnAppless(t, "") // stdin ends: the question has no answer
 		if reg.Has(global) {
-			t.Fatalf("a question nobody answered saved the routine:\n%s", said)
+			t.Fatalf("a question nobody answered saved the play:\n%s", said)
 		}
 	})
 }
@@ -281,7 +281,7 @@ func TestEnterAtTheScopeQuestionIsTheRuledDefault(t *testing.T) {
 		t.Fatalf("Enter did not save From anywhere → notepad:\n%s", out.String())
 	}
 	if reg.Has(routes.Route{App: "notepad", Slug: "open-the-file"}) {
-		t.Error("Enter also wrote an only-in routine")
+		t.Error("Enter also wrote an only-in play")
 	}
 	for _, want := range []string{
 		`Enter now means "From anywhere → notepad"`,

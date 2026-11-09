@@ -78,7 +78,7 @@ func typedTextArrivesAndTheNextStepFollowsIt(w *world) result {
 	if err != nil {
 		st.fail()
 		return fail(started, fmt.Sprintf("Marco wrote no finished run record for the "+
-			"typing routine: %v. The application received %s", err,
+			"typing play: %v. The application received %s", err,
 			st.f.arrivedSoFar(seq)))
 	}
 	w.art.step("Marco recorded %s", rec)
@@ -110,7 +110,7 @@ func typedTextArrivesAndTheNextStepFollowsIt(w *world) result {
 	if why != "" {
 		st.fail()
 		return fail(started, why,
-			fmt.Sprintf("the field holds %q and the routine typed %q", after.Name,
+			fmt.Sprintf("the field holds %q and the play typed %q", after.Name,
 				theTypedText),
 			fmt.Sprintf("Marco recorded %s", rec))
 	}
@@ -135,15 +135,15 @@ func theTextDidNotArrive(after fixtureState, want string) string {
 	}
 	switch {
 	case after.Name == "":
-		return fmt.Sprintf("the routine typed %q and the application's Name field is "+
+		return fmt.Sprintf("the play typed %q and the application's Name field is "+
 			"empty, so nothing arrived at all", want)
 	case strings.HasPrefix(want, after.Name):
-		return fmt.Sprintf("the field holds %q and the routine typed %q — the first "+
+		return fmt.Sprintf("the field holds %q and the play typed %q — the first "+
 			"%d character(s) of it arrived and the rest did not, which is "+
 			"exactly the partial submission this is about", after.Name, want,
 			len([]rune(after.Name)))
 	}
-	return fmt.Sprintf("the field holds %q and the routine typed %q, so what arrived "+
+	return fmt.Sprintf("the field holds %q and the play typed %q, so what arrived "+
 		"is not what was demonstrated", after.Name, want)
 }
 
@@ -166,7 +166,7 @@ func theNextStepDidNotHappen(before, after fixtureState) string {
 	if after.SavePresses == before.SavePresses+1 {
 		return ""
 	}
-	return fmt.Sprintf("the routine presses Save after it types, and the application's "+
+	return fmt.Sprintf("the play presses Save after it types, and the application's "+
 		"own count of Save went %d → %d", before.SavePresses, after.SavePresses)
 }
 

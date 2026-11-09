@@ -182,7 +182,7 @@ func carryOut(d orchestrator.Deps, dec invoke.Decision, req invoke.Request) (Out
 	//
 	// Dropping this must fail TestARepeatIsOnlyOfARoutine.
 	if req.Times > 0 && dec.Kind != invoke.KindPlay {
-		fmt.Println("only a saved routine can be repeated, and these words name none — nothing was run")
+		fmt.Println("only a saved play can be repeated, and these words name none — nothing was run")
 		return OutcomeRefused, nil
 	}
 	switch dec.Kind {
@@ -461,7 +461,7 @@ func askDirector(d orchestrator.Deps, dec invoke.Decision, req invoke.Request) (
 					"it first.\n", name)
 				return OutcomeClarify, nil
 			}
-			fmt.Printf("Marco has a saved routine that may be what you meant: %s. Nothing has run; "+
+			fmt.Printf("Marco has a saved play that may be what you meant: %s. Nothing has run; "+
 				"review it first (marco resolve shows the same answer).\n", name)
 			return OutcomeClarify, nil
 		}
@@ -602,7 +602,7 @@ func performOnePlay(d orchestrator.Deps, p playInvocation) (Outcome, error) {
 	if inFront != nil {
 		if err := d.Hosts["*"].(*oshost.Host).BindInFront(*inFront); err != nil {
 			mlog.Info("intake: the window in front could not be bound", "play", p.rt.Slug, "err", err)
-			noteEnd(lastattempt.StageWindow, err.Error(), "bring the routine's window to the front and ask again")
+			noteEnd(lastattempt.StageWindow, err.Error(), "bring the play's window to the front and ask again")
 			fmt.Fprintln(os.Stdout, err)
 			return OutcomeRefused, nil
 		}

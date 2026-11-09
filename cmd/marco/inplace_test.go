@@ -48,11 +48,11 @@ func TestAnExplicitOnlyInRoutineIsRefusedWithAnotherAppInFront(t *testing.T) {
 		t.Fatal(err)
 	}
 	if out != OutcomeRefused {
-		t.Fatalf("an only-in-notepad routine named explicitly with discord in front ended "+
+		t.Fatalf("an only-in-notepad play named explicitly with discord in front ended "+
 			"%q, want refused:\n%s", out, said)
 	}
 	if strings.Contains(said, "[route]") {
-		t.Errorf("the refused routine was announced as performed:\n%s", said)
+		t.Errorf("the refused play was announced as performed:\n%s", said)
 	}
 	for _, want := range []string{"Only in notepad", "discord is in front"} {
 		if !strings.Contains(said, want) {
@@ -76,10 +76,10 @@ func TestAnExplicitOnlyInRoutineRunsWithItsAppInFront(t *testing.T) {
 		t.Fatal(err)
 	}
 	if out == OutcomeRefused {
-		t.Fatalf("an only-in-notepad routine was refused with notepad in front:\n%s", said)
+		t.Fatalf("an only-in-notepad play was refused with notepad in front:\n%s", said)
 	}
 	if !strings.Contains(said, "[route] save and close") {
-		t.Errorf("the routine was not performed:\n%s", said)
+		t.Errorf("the play was not performed:\n%s", said)
 	}
 }
 
@@ -116,7 +116,7 @@ func TestAHandoffToAnotherProgramDoesNotAdmitAnOnlyInRoutine(t *testing.T) {
 		return e
 	})
 	if out != OutcomeRefused {
-		t.Fatalf("a chrome window admitted an only-in-notepad routine (%q):\n%s", out, said)
+		t.Fatalf("a chrome window admitted an only-in-notepad play (%q):\n%s", out, said)
 	}
 }
 
@@ -151,7 +151,7 @@ func TestOnlyTheOnlyInScopeIsCheckedAtTheDoor(t *testing.T) {
 			_, e := runInvocation(d, explicitly(rt, invoke.SourceCLI))
 			return e
 		})
-		if strings.Contains(said, `this routine is "Only in`) {
+		if strings.Contains(said, `this play is "Only in`) {
 			t.Errorf("%+v was refused by the only-in check:\n%s", rt, said)
 		}
 	}

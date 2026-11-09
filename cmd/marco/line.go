@@ -258,7 +258,7 @@ func readOnce(d orchestrator.Deps, app, line string, p lineProposal) lineReading
 	if p.Carrying {
 		if p.Route.ID() != rt.ID() {
 			out.Says = "this line is " + rt.ID() + ", not " + p.Route.ID() +
-				", the routine those values were proposed for, so nothing would run"
+				", the play those values were proposed for, so nothing would run"
 			return out
 		}
 		proposed, at = p.Values, p.At
@@ -361,7 +361,7 @@ func valuesFor(src string, args, typed []routes.Argument, form string, named map
 	if len(positional) > 0 {
 		order := routes.ArgNames(src)
 		if len(positional) > len(order) {
-			return nil, fmt.Sprintf("%d values were given and this routine takes %d — name them: %s",
+			return nil, fmt.Sprintf("%d values were given and this play takes %d — name them: %s",
 				len(positional), len(typed), namedSlots(typed))
 		}
 		secret := map[string]bool{}

@@ -171,7 +171,7 @@ func (a *Acts) Help() Help {
 	arg := argKeyLabel()
 
 	recording := []string{
-		"Press Record, give the routine a name, and choose the window to record " +
+		"Press Record, give the play a name, and choose the window to record " +
 			"in — Marco asks which one before it starts, and records that " +
 			"window only.",
 		// FROM THE SAME SENTENCE THE RECORD CARD SHOWS, so the two cannot drift
@@ -181,7 +181,7 @@ func (a *Acts) Help() Help {
 	}
 
 	asking := []string{
-		"Name it “cloud pull stone with item” and the routine asks for item " +
+		"Name it “cloud pull stone with item” and the play asks for item " +
 			"each time you play it.",
 	}
 	if arg != "" {
@@ -191,7 +191,7 @@ func (a *Acts) Help() Help {
 	asking = append(asking,
 		"Or afterwards: open its Steps tab, find the step that types the "+
 			"value, name it and press Ask me for it.",
-		"A routine that asks for a value shows a box on its card, and Play waits "+
+		"A play that asks for a value shows a box on its card, and Run waits "+
 			"until it is filled in.")
 
 	editing := []string{
@@ -199,9 +199,9 @@ func (a *Acts) Help() Help {
 			"remove a step; add one with + (a wait, a key press or typed text); or " +
 			"say a run of steps is text you typed.",
 		// ADDED CLICKS, said once. ADR-315.
-		"An added click goes inside a window one of the routine's own presses was " +
+		"An added click goes inside a window one of the play's own presses was " +
 			"measured in — you choose which — at an offset inside it, checked like " +
-			"the rest. Only a routine that checks nothing can have a click added at a " +
+			"the rest. Only a play that checks nothing can have a click added at a " +
 			"point on the screen.",
 		// DRAGS, said once. ADR-314.
 		"Drag turns a click into a drag that keeps its button. A click measured inside " +
@@ -209,7 +209,7 @@ func (a *Acts) Help() Help {
 			"two ends are changed together.",
 		// HOW SOMETHING REPEATS, said once. ADR-313.
 		"A key press, or a block that repeats, has a count. Steps can repeat together as " +
-			"one block in a routine that does not check its presses against a window; " +
+			"one block in a play that does not check its presses against a window; " +
 			"a block always holds a held key and its release together.",
 		// WHERE AN ADDED STEP MAY GO, said once. ADR-312.
 		"A step is added after the row whose + you pressed. Nothing can be added " +
@@ -228,7 +228,7 @@ func (a *Acts) Help() Help {
 			"step’s text, not part of it.",
 		"Nothing is written until you review the change and save it — the version " +
 			"you would get is shown beside the one you have.",
-		"The routine is written again from the list, so removing one half of a " +
+		"The play is written again from the list, so removing one half of a " +
 			"held key removes the other half with it, and the waits around a " +
 			"removed step stay as they are until you change them too.",
 	}
@@ -260,14 +260,14 @@ func (a *Acts) Help() Help {
 	// for the ordinary case now and links here; what is left on the card is the two
 	// contracts that are a warning. See `checksSentence` and ADR-251.
 	checks := []string{
-		"A routine recorded in a window checks three things before every press: that " +
+		"A play recorded in a window checks three things before every press: that " +
 			"the program is the one it was recorded in, that the window is the " +
 			"size it was recorded at, and that it is drawn at the same scale.",
 		"If any of them has changed it stops, rather than pressing somewhere it was " +
 			"never shown.",
-		"None of this is something you need to do or check yourself. A routine that is " +
+		"None of this is something you need to do or check yourself. A play that is " +
 			"ready to play carries no badge.",
-		"A routine saved before Marco measured windows checks nothing: every press " +
+		"A play saved before Marco measured windows checks nothing: every press " +
 			"happens at the point it was recorded at, whatever is there now. Its " +
 			"More tab says so.",
 		"A recording that measured only some of those terms refuses every press. Its " +
@@ -281,7 +281,7 @@ func (a *Acts) Help() Help {
 	simplify := []string{
 		"Simplify… shortens the waiting: a run of typing becomes one step, and every " +
 			"other pause drops to a quarter of a second.",
-		"If the simplified routine then presses before a screen has caught up, use " +
+		"If the simplified play then presses before a screen has caught up, use " +
 			"the original.",
 		"It builds the steps again from your demonstration, so a step you marked to " +
 			"ask for its text types what you recorded again — mark it again afterwards.",
@@ -292,7 +292,7 @@ func (a *Acts) Help() Help {
 	// answered "where do I change what this is called" and was not the answer. See
 	// ADR-289.
 	names := []string{
-		"A routine can answer to more than one phrase when you ask for it in your own " +
+		"A play can answer to more than one phrase when you ask for it in your own " +
 			"words. Add them on its Other names tab.",
 		"Other names are extra ways to ask for it. To change what it is called, use " +
 			"Rename beside its name.",
@@ -305,13 +305,13 @@ func (a *Acts) Help() Help {
 	}
 
 	return Help{Sections: []HelpSection{
-		{Key: "recording", Title: "Recording a routine", Lines: recording},
+		{Key: "recording", Title: "Recording a play", Lines: recording},
 		{Key: "arguments", Title: "Asking for a value each time", Lines: asking},
-		{Key: "editing", Title: "Editing what a routine does", Lines: editing},
+		{Key: "editing", Title: "Editing what a play does", Lines: editing},
 		{Key: "measured", Title: "Where a press is measured", Lines: measured},
-		{Key: "checks", Title: "What a routine checks before it presses", Lines: checks},
-		{Key: "simplify", Title: "Simplifying a routine", Lines: simplify},
-		{Key: "names", Title: "Other names for a routine", Lines: names},
-		{Key: "scope", Title: "Where a routine works", Lines: where},
+		{Key: "checks", Title: "What a play checks before it presses", Lines: checks},
+		{Key: "simplify", Title: "Simplifying a play", Lines: simplify},
+		{Key: "names", Title: "Other names for a play", Lines: names},
+		{Key: "scope", Title: "Where a play works", Lines: where},
 	}}
 }

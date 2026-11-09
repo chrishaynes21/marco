@@ -75,7 +75,7 @@ func TestAProposedRepeatIsReviewedWithItsCount(t *testing.T) {
 		t.Fatalf("the repeat was not offered: %v", d)
 	}
 	if promptAsk.Load() {
-		t.Fatal("the repeat was offered as a yes, which runs the routine once")
+		t.Fatal("the repeat was offered as a yes, which runs the play once")
 	}
 	s := h.snapshot()
 	if !s.editing || s.input != " "+line {

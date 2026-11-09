@@ -111,7 +111,7 @@ setTimeout(() => {
     ' saidbasis=' + (who.includes('in front now') ? 1 : 0) +
     ' saidstated=' + (who.includes('which you named') ? 1 : 0) +
     ' saidnocontext=' + (who.includes('nothing is known to be in front') ? 1 : 0) +
-    ' offered=' + (who.includes('3 routine(s) offered') ? 1 : 0) +
+    ' offered=' + (who.includes('3 play(s) offered') ? 1 : 0) +
     ' advisor=' + (who.includes('advisor') ? 1 : 0) +
     ' fallback=' + (who.includes('fallback') ? 1 : 0) +
     ' unavailable=' + (who.includes('did not answer') ? 1 : 0) +
@@ -181,7 +181,7 @@ func TestTheAskBoxSelectsWhatDirectorNamedAndRunsNothing(t *testing.T) {
 		t.Errorf("an application with no window is not marked: %q", title)
 	}
 	if n("selected") != 1 {
-		t.Errorf("the routine Director named is not selected: %q", title)
+		t.Errorf("the play Director named is not selected: %q", title)
 	}
 	// AND NOTHING RAN. The whole of what makes this safe to press.
 	if n("ran") != 0 {

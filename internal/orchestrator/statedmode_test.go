@@ -165,7 +165,7 @@ func TestTheModeASaveWritesIsTheModeThisReads(t *testing.T) {
 	}
 	src := string(raw)
 	if got := ModeOf(src); got != Coordinates {
-		t.Errorf("the saved routine reads back as %q, not %q", got, Coordinates)
+		t.Errorf("the saved play reads back as %q, not %q", got, Coordinates)
 	}
 	// AND IT SAYS SO IN WORDS A PERSON READS, not only in a word a parser finds. The
 	// file is the durable account of a routine and somebody opens it.
@@ -193,7 +193,7 @@ func TestARoutineThatStatesNoModeReadsBackAsUnstated(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got := ModeOf(string(raw)); got != Unstated {
-		t.Errorf("a routine saved with no mode stated reads back as %q", got)
+		t.Errorf("a play saved with no mode stated reads back as %q", got)
 	}
 	if strings.Contains(string(raw), modeStated) {
 		t.Error("a save that was told nothing wrote a mode line anyway, so every " +

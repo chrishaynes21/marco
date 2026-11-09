@@ -74,7 +74,7 @@ var onlyInNotepad = routes.Route{App: "notepad", Slug: "save-draft"}
 func TestAnOnlyInRoutineRefusesWithAnotherApplicationInFront(t *testing.T) {
 	why := AdmitInPlace(onlyInNotepad, InPlace{Foreground: "windowsterminal"})
 	if why == "" {
-		t.Fatal("an only-in-notepad routine was admitted with the terminal in front")
+		t.Fatal("an only-in-notepad play was admitted with the terminal in front")
 	}
 	for _, want := range []string{"Only in notepad", "windowsterminal is in front",
 		"nothing was performed"} {
@@ -100,7 +100,7 @@ func TestAnOnlyInRoutineRunsWithItsApplicationInFront(t *testing.T) {
 func TestAHandedOverWindowOfAnotherProgramIsNotAdmission(t *testing.T) {
 	why := AdmitInPlace(onlyInNotepad, InPlace{HandedTo: "chrome", Foreground: "notepad"})
 	if why == "" {
-		t.Fatal("a handed-over chrome window admitted an only-in-notepad routine")
+		t.Fatal("a handed-over chrome window admitted an only-in-notepad play")
 	}
 	if !strings.Contains(why, "belongs to chrome") {
 		t.Errorf("the refusal does not name the window's program: %s", why)
@@ -120,7 +120,7 @@ func TestAHandedOverWindowOfTheApplicationIsAdmission(t *testing.T) {
 func TestAnUnreadableForegroundRefuses(t *testing.T) {
 	why := AdmitInPlace(onlyInNotepad, InPlace{})
 	if why == "" {
-		t.Fatal("an only-in routine was admitted with no foreground reading at all")
+		t.Fatal("an only-in play was admitted with no foreground reading at all")
 	}
 	if !strings.Contains(why, "could not tell which application is in front") {
 		t.Errorf("the refusal does not say the foreground could not be read: %s", why)

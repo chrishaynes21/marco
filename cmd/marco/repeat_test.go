@@ -156,7 +156,7 @@ func TestARepeatIsReadBackWithItsCount(t *testing.T) {
 		t.Fatal(err)
 	}
 	if r := readLine(d, "", "open social 3 times", lineProposal{}); r.Times != 0 || r.Slug != exact.Slug {
-		t.Errorf("a routine's exact name was read as a repeat: %+v", r)
+		t.Errorf("a play's exact name was read as a repeat: %+v", r)
 	}
 	// AND A ROUTINE THAT TAKES TWO VALUES IS NOT GUESSED AT INSIDE A REPEAT EITHER.
 	two := routes.Route{App: "notepad", Focus: true, Slug: "notepad-write"}
@@ -164,7 +164,7 @@ func TestARepeatIsReadBackWithItsCount(t *testing.T) {
 		t.Fatal(err)
 	}
 	if r := readLine(d, "", "repeat notepad write hello there 2 times", lineProposal{}); r.Runnable {
-		t.Errorf("words after a two-value routine ran inside a repeat: %+v", r)
+		t.Errorf("words after a two-value play ran inside a repeat: %+v", r)
 	}
 }
 
@@ -207,7 +207,7 @@ func TestEachRunOfARepeatIsCheckedAgain(t *testing.T) {
 	var out Outcome
 	said := stdoutOf(t, func() { out, _ = runInvocation(d, req) })
 	if out != OutcomeRefused || *n != 3 {
-		t.Fatalf("a repeat whose routine was saved after run 2 ended %q after %d run(s):\n%s", out, *n, said)
+		t.Fatalf("a repeat whose play was saved after run 2 ended %q after %d run(s):\n%s", out, *n, said)
 	}
 	if got := lastRan(said); got != "open social ×2 of 4" {
 		t.Errorf("the last [ran] line is %q, want %q", got, "open social ×2 of 4")

@@ -39,14 +39,14 @@ func TestAScopedPixelRoutineIsOfferedToThePixelExecutionPath(t *testing.T) {
 	said := strings.Join(howToRun(aNamedDemonstration("graphics tab")), "\n")
 
 	if !strings.Contains(said, "perform-workflow --name \"graphics tab\"") {
-		t.Errorf("a scoped pixel routine was not offered to the command that can run "+
+		t.Errorf("a scoped pixel play was not offered to the command that can run "+
 			"it:\n%s", said)
 	}
 	if strings.Contains(said, "reacquire") {
-		t.Errorf("a runnable routine was sent to a measurement command:\n%s", said)
+		t.Errorf("a runnable play was sent to a measurement command:\n%s", said)
 	}
 	if strings.Contains(said, "cannot be verified") {
-		t.Errorf("a routine carrying an outcome expectation was described as "+
+		t.Errorf("a play carrying an outcome expectation was described as "+
 			"unverifiable:\n%s", said)
 	}
 }
@@ -62,7 +62,7 @@ func TestAnUnscopedRoutineIsNotOfferedToACommandThatWillRefuseIt(t *testing.T) {
 	said := strings.Join(howToRun(a), "\n")
 
 	if strings.Contains(said, "perform-workflow") {
-		t.Errorf("an unscoped routine was offered to the execution path, which will "+
+		t.Errorf("an unscoped play was offered to the execution path, which will "+
 			"refuse it:\n%s", said)
 	}
 	if !strings.Contains(said, "UNSCOPED") {
@@ -74,7 +74,7 @@ func TestAnUnscopedRoutineIsNotOfferedToACommandThatWillRefuseIt(t *testing.T) {
 	// AND THE GATE AGREES WITH THE ADVICE. If this ever starts allowing an unscoped
 	// artifact, the advice above is wrong and this test is why somebody finds out.
 	if ok, _ := a.ScopeAllows("arkascended"); ok {
-		t.Error("an unscoped routine is valid for an application, so the advice not " +
+		t.Error("an unscoped play is valid for an application, so the advice not " +
 			"to run it is wrong")
 	}
 }
@@ -88,10 +88,10 @@ func TestARoutineWithNoOutcomeSaysItCannotBeVerified(t *testing.T) {
 	said := strings.Join(howToRun(withoutOutcomes(aNamedDemonstration("ark menu 2"))), "\n")
 
 	if !strings.Contains(said, "perform-workflow") {
-		t.Errorf("a scoped routine with no outcome is still runnable:\n%s", said)
+		t.Errorf("a scoped play with no outcome is still runnable:\n%s", said)
 	}
 	if !strings.Contains(said, "cannot be verified") {
-		t.Errorf("a routine with nothing to verify against was offered as though it "+
+		t.Errorf("a play with nothing to verify against was offered as though it "+
 			"would be verified:\n%s", said)
 	}
 }
@@ -106,10 +106,10 @@ func TestAVerbRoutineStillGoesToTheOrdinaryPath(t *testing.T) {
 
 	said := strings.Join(howToRun(a), "\n")
 	if !strings.Contains(said, "director execute \"run rename this file\"") {
-		t.Errorf("a routine with verbs was not offered to the ordinary path:\n%s", said)
+		t.Errorf("a play with verbs was not offered to the ordinary path:\n%s", said)
 	}
 	if strings.Contains(said, "perform-workflow") {
-		t.Errorf("a routine with verbs was sent to the pixel path as well:\n%s", said)
+		t.Errorf("a play with verbs was sent to the pixel path as well:\n%s", said)
 	}
 }
 
@@ -124,7 +124,7 @@ func TestARoutineWithNeitherSaysSoRatherThanOfferingSomething(t *testing.T) {
 
 	said := strings.Join(howToRun(a), "\n")
 	if strings.Contains(said, "perform-workflow") || strings.Contains(said, "execute") {
-		t.Errorf("a routine with neither a verb nor visual evidence was offered "+
+		t.Errorf("a play with neither a verb nor visual evidence was offered "+
 			"somewhere:\n%s", said)
 	}
 	if !strings.Contains(said, "nothing to run") {

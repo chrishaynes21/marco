@@ -31,7 +31,7 @@ func aSavedRollover(t *testing.T) (*Acts, Routine) {
 	}
 	rs := a.Routines()
 	if len(rs) != 1 {
-		t.Fatalf("the library holds %d routines", len(rs))
+		t.Fatalf("the library holds %d plays", len(rs))
 	}
 	if !strings.Contains(rs[0].Source, `KeyDown with "s"`) {
 		t.Fatalf("the saved fixture does not hold its keys, so these tests cannot "+
@@ -46,7 +46,7 @@ func TestASavedRolloverCanBeDeclaredTypedText(t *testing.T) {
 
 	e := a.StepEditing(saved.ID)
 	if e.Why != "" {
-		t.Fatalf("the saved routine cannot be edited: %s", e.Why)
+		t.Fatalf("the saved play cannot be edited: %s", e.Why)
 	}
 	if len(e.TypedRuns) != 1 {
 		t.Fatalf("%d runs are offered for one word: %+v", len(e.TypedRuns), e.TypedRuns)
@@ -87,12 +87,12 @@ func TestASavedRolloverCanBeDeclaredTypedText(t *testing.T) {
 		t.Fatalf("saving the declaration refused: %+v", done)
 	}
 	if done.Partial {
-		t.Errorf("the routine was written without the step list beside it: %s",
+		t.Errorf("the play was written without the step list beside it: %s",
 			done.Says)
 	}
 	after := a.Routines()[0].Source
 	if !strings.Contains(after, `do OS's Type with "stone"`) {
-		t.Fatalf("the saved routine does not type the word:\n%s", after)
+		t.Fatalf("the saved play does not type the word:\n%s", after)
 	}
 }
 
@@ -113,7 +113,7 @@ func TestARepairedRoutineCanBeAskedForItsValue(t *testing.T) {
 	// ── AND THE PANEL CAN BE ASKED AGAIN, which needs the account the save left ──
 	again := a.StepEditing(saved.ID)
 	if again.Why != "" {
-		t.Fatalf("the repaired routine cannot be edited: %s", again.Why)
+		t.Fatalf("the repaired play cannot be edited: %s", again.Why)
 	}
 	typed := -1
 	for _, row := range again.Rows {
@@ -122,7 +122,7 @@ func TestARepairedRoutineCanBeAskedForItsValue(t *testing.T) {
 		}
 	}
 	if typed < 0 {
-		t.Fatalf("no step of the repaired routine types the word: %+v", again.Rows)
+		t.Fatalf("no step of the repaired play types the word: %+v", again.Rows)
 	}
 	v := a.ReviewStepEdit(saved.ID, again.Basis, []StepChange{
 		{Op: "argument", At: typed, Name: "item"}})
@@ -134,10 +134,10 @@ func TestARepairedRoutineCanBeAskedForItsValue(t *testing.T) {
 	}
 	src := a.Routines()[0].Source
 	if !strings.Contains(src, `do OS's Type with "{{item}}"`) {
-		t.Fatalf("the routine does not ask for the value:\n%s", src)
+		t.Fatalf("the play does not ask for the value:\n%s", src)
 	}
 	if strings.Contains(src, "OS's Secret") {
-		t.Errorf("the routine reads the credential store instead:\n%s", src)
+		t.Errorf("the play reads the credential store instead:\n%s", src)
 	}
 	needs := a.PlayNeeds(saved.ID)
 	if !needs.Needs || len(needs.Fields) != 1 || needs.Fields[0].Name != "item" {
@@ -151,7 +151,7 @@ func TestARepairedRoutineCanBeAskedForItsValue(t *testing.T) {
 	// with the word shredded and the value gone.
 	rb := a.ReviewRebuilt(saved.ID, "current")
 	if rb.Why != "" {
-		t.Fatalf("the repaired routine cannot be rebuilt: %s", rb.Why)
+		t.Fatalf("the repaired play cannot be rebuilt: %s", rb.Why)
 	}
 	if !strings.Contains(rb.Now, `{{item}}`) || strings.Contains(rb.Now, "KeyDown") {
 		t.Errorf("a rebuild under today's rules undid the repair:\n%s", rb.Now)
@@ -190,7 +190,7 @@ func TestADeclarationAskedWithAnotherChangeIsRefused(t *testing.T) {
 	}
 	// AND NOTHING WAS WRITTEN.
 	if !strings.Contains(a.Routines()[0].Source, `KeyDown with "s"`) {
-		t.Error("the refused edit changed the routine")
+		t.Error("the refused edit changed the play")
 	}
 }
 

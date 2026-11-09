@@ -180,8 +180,8 @@ func (a *Acts) Ready() Readiness {
 	}
 	// ── AND THE TWO CHILDREN, WHERE THE SPAWN WILL LOOK FOR THEM ──
 	out.Problems = append(out.Problems,
-		whereverTheSpawnWouldFind("marco.exe", out.Marco, "playing a routine",
-			"Play would run whichever marco.exe is on PATH, which may be a "+
+		whereverTheSpawnWouldFind("marco.exe", out.Marco, "playing a play",
+			"Run would start whichever marco.exe is on PATH, which may be a "+
 				"different build of a different age")...)
 	out.Problems = append(out.Problems,
 		whereverTheSpawnWouldFind("director.exe", out.Director,
@@ -259,7 +259,7 @@ func whereverTheSpawnWouldFind(name, resolved, blocks, elsewhere string) []Probl
 func aLibraryThatCanBeWritten(dir string) (Problem, bool) {
 	if strings.TrimSpace(dir) == "" {
 		return Problem{
-			Says:   "this window has no library to read or write routines in",
+			Says:   "this window has no library to read or write plays in",
 			Blocks: "recording and playing",
 			Do:     "set MARCO_ROUTES to a directory and start Marco again",
 		}, true

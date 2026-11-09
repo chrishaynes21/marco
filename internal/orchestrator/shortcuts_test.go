@@ -100,7 +100,7 @@ func TestAShortcutCannotBeWiderThanItsRoutine(t *testing.T) {
 		_, err := d.AssignShortcut(Assignment{Key: "s", ListenIn: listenIn,
 			Steps: []routes.Route{draftOnly}})
 		if err == nil || !strings.Contains(err.Error(), "Only in notepad") {
-			t.Errorf("an Only-in-notepad routine was bound listened for %q: %v", listenIn, err)
+			t.Errorf("an Only-in-notepad play was bound listened for %q: %v", listenIn, err)
 		}
 	}
 	assign(t, d, Assignment{Key: "s", ListenIn: "notepad", Steps: []routes.Route{draftOnly}})
@@ -221,7 +221,7 @@ func TestAStaleShortcutRefusesAndSaysWhich(t *testing.T) {
 	}
 	p := d.ShortcutPressed("game", "s")
 	if p.Refused == "" || !strings.Contains(p.Refused, "global/save") {
-		t.Fatalf("a shortcut to a deleted routine did not refuse naming it: %+v", p)
+		t.Fatalf("a shortcut to a deleted play did not refuse naming it: %+v", p)
 	}
 }
 
@@ -286,7 +286,7 @@ func TestAReplacedRoutinesShortcutsAreNotInheritedByWhatReplacedIt(t *testing.T)
 		t.Fatal(err)
 	}
 	if p := d.ShortcutPressed("game", "r"); p.Found {
-		t.Errorf("a replaced routine's shortcut survived: %+v", p)
+		t.Errorf("a replaced play's shortcut survived: %+v", p)
 	}
 	// And the move does it in that order, under its locks.
 	src, err := os.ReadFile("rescope.go")
@@ -297,7 +297,7 @@ func TestAReplacedRoutinesShortcutsAreNotInheritedByWhatReplacedIt(t *testing.T)
 	drop, carry := strings.Index(s, "d.dropShortcutsNaming(m.To)"),
 		strings.Index(s, "d.CarryShortcuts(m.From, m.To)")
 	if drop < 0 || carry < 0 || drop > carry {
-		t.Error("Rescope does not drop the replaced routine's shortcuts before carrying")
+		t.Error("Rescope does not drop the replaced play's shortcuts before carrying")
 	}
 }
 
@@ -396,9 +396,9 @@ func TestARealMoveCarriesShortcutsAndDropsTheReplacedRoutines(t *testing.T) {
 		t.Fatalf("the move was refused: %v", err)
 	}
 	if p := d.ShortcutPressed("notepad", "e"); len(p.Steps) != 1 || p.Steps[0].Route != to {
-		t.Errorf("`e does not follow the moved routine: %+v", p)
+		t.Errorf("`e does not follow the moved play: %+v", p)
 	}
 	if p := d.ShortcutPressed("notepad", "o"); p.Found {
-		t.Errorf("the replaced routine's `o now runs the routine that replaced it: %+v", p)
+		t.Errorf("the replaced play's `o now runs the play that replaced it: %+v", p)
 	}
 }

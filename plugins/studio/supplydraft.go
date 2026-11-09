@@ -119,11 +119,11 @@ func perCharacterTyping(steps []macroir.Step) bool {
 func supplyCaption(steps []macroir.Step, marked []string) string {
 	var say []string
 	if len(supplyChoices(steps)) > 0 {
-		say = append(say, "Pick a typed step and name it, and Play will ask for "+
+		say = append(say, "Pick a typed step and name it, and Run will ask for "+
 			"that value instead of typing it.")
 	} else if perCharacterTyping(steps) {
 		say = append(say, "This recording types one step per character, as you typed "+
-			"it, and a value the routine asks for has to be one step. Press "+
+			"it, and a value the play asks for has to be one step. Press "+
 			"Simplify — it folds a typed run into one step — or say below which "+
 			"steps are typed text, and then you can ask for it.")
 	}

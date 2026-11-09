@@ -58,7 +58,7 @@ func proposedRoutine(out service.ResolveRouteResponse) (string, string, bool) {
 	if err != nil {
 		return "", "", false
 	}
-	mlog.Info("intake: the resolver proposed a saved routine", "routine", out.Answer.ID,
+	mlog.Info("intake: the resolver proposed a saved play", "routine", out.Answer.ID,
 		"source", out.Answer.Source)
 	return string(b), out.Answer.Name, true
 }

@@ -38,7 +38,7 @@ import (
 // explainInvocation says what `marco do` would do with these words, and does none of it.
 func explainInvocation(d orchestrator.Deps, req invoke.Request) {
 	if req.Skill != "" {
-		fmt.Printf("skill        %s (built in; performed by its identity, no routine is decided)\n", req.Skill)
+		fmt.Printf("skill        %s (built in; performed by its identity, no play is decided)\n", req.Skill)
 		return
 	}
 	if req.App == "" {

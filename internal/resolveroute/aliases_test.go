@@ -61,7 +61,7 @@ func TestAPhraseResolvesToTheCanonicalRoutine(t *testing.T) {
 		"go racing")}
 	said := r.Resolve(context.Background(), "GO RACING", cs, at("trackmania"))
 	if said.Name != "enter freeplay" {
-		t.Errorf("the answer names %q rather than the routine", said.Name)
+		t.Errorf("the answer names %q rather than the play", said.Name)
 	}
 	if said.Slug != "enter-freeplay" || said.Scope == "" {
 		t.Errorf("the answer carries %q at %q", said.Slug, said.Scope)
@@ -82,11 +82,11 @@ func TestAPhraseIsNotOfferedWhenItsRoutineIsNotEligible(t *testing.T) {
 	said := r.Resolve(context.Background(), "open the settings", cs,
 		Context{Basis: Unknown})
 	if said.Kind == dispatch.IntentRun {
-		t.Fatalf("an in-place routine was selected by phrase with nothing known to "+
+		t.Fatalf("an in-place play was selected by phrase with nothing known to "+
 			"be in front: %q", said.ID)
 	}
 	if said.Offered != 0 {
-		t.Errorf("%d routines were offered", said.Offered)
+		t.Errorf("%d plays were offered", said.Offered)
 	}
 }
 
@@ -98,7 +98,7 @@ func TestAPhraseForAnUnrunnableRoutineIsNotOffered(t *testing.T) {
 	said := r.Resolve(context.Background(), "go racing", []Candidate{c},
 		at("trackmania"))
 	if said.Kind == dispatch.IntentRun {
-		t.Errorf("a routine that would refuse every press was selected by phrase")
+		t.Errorf("a play that would refuse every press was selected by phrase")
 	}
 }
 
@@ -116,7 +116,7 @@ func TestAPhraseTwoRoutinesAnswerToAsksWhich(t *testing.T) {
 	}
 	said := r.Resolve(context.Background(), "settings", cs, at("trackmania"))
 	if said.Kind != dispatch.IntentClarify {
-		t.Fatalf("a phrase two routines answer to came back as %q selecting %q",
+		t.Fatalf("a phrase two plays answer to came back as %q selecting %q",
 			said.Kind, said.ID)
 	}
 	if said.ID != "" {
@@ -156,7 +156,7 @@ func TestAPhraseNeverDisplacesARoutinesOwnName(t *testing.T) {
 		t.Errorf("%d labels were offered: %q", len(labels), labels)
 	}
 	if byLabel["trackmania-settings"].ID != "trackmania/focus/trackmania-settings" {
-		t.Errorf("the routine lost its own name to its phrase: %q",
+		t.Errorf("the play lost its own name to its phrase: %q",
 			byLabel["trackmania-settings"].ID)
 	}
 }
@@ -189,7 +189,7 @@ func TestOneRoutineWithTwoPhrasesThatReduceAlikeIsNotACollision(t *testing.T) {
 		"settings in ark", "settings ark")}
 	said := r.Resolve(context.Background(), "settings in ark", cs, at("arkascended"))
 	if said.Kind != dispatch.IntentRun {
-		t.Fatalf("one routine answering to two alike phrases came back as %q: %s",
+		t.Fatalf("one play answering to two alike phrases came back as %q: %s",
 			said.Kind, said.Reply)
 	}
 	if said.ID != "arkascended/focus/ark-settings" {
@@ -215,11 +215,11 @@ func TestARoutinesOwnNameOutranksAnotherRoutinesPhrase(t *testing.T) {
 	}
 	said := r.Resolve(context.Background(), "settings", cs, at("trackmania"))
 	if said.Kind != dispatch.IntentRun {
-		t.Fatalf("a request for a routine's own name came back as %q: %s",
+		t.Fatalf("a request for a play's own name came back as %q: %s",
 			said.Kind, said.Reply)
 	}
 	if said.ID != "global/settings" {
-		t.Errorf("it selected %q rather than the routine called settings", said.ID)
+		t.Errorf("it selected %q rather than the play called settings", said.ID)
 	}
 	// AND THE SHADOWED ROUTINE IS STILL REACHABLE, by its name and its other phrase.
 	for _, said := range []string{"trackmania settings", "open the settings"} {
@@ -265,7 +265,7 @@ func TestNamesakesAreTheQuestionAndAPhraseHolderIsNotPartOfIt(t *testing.T) {
 	}
 	said := r.Resolve(context.Background(), "settings", cs, at("trackmania"))
 	if said.Kind != dispatch.IntentClarify || said.ID != "" {
-		t.Fatalf("two routines called settings answered %q with %q",
+		t.Fatalf("two plays called settings answered %q with %q",
 			said.Kind, said.ID)
 	}
 	if len(said.Candidates) != 2 {
@@ -273,7 +273,7 @@ func TestNamesakesAreTheQuestionAndAPhraseHolderIsNotPartOfIt(t *testing.T) {
 			"what the name is ambiguous between", said.Candidates)
 	}
 	if strings.Contains(said.Reply, "notepad") {
-		t.Errorf("a routine that merely answers to the name is in the question: %q",
+		t.Errorf("a play that merely answers to the name is in the question: %q",
 			said.Reply)
 	}
 }
@@ -293,7 +293,7 @@ func TestANameDecidesTheQuestionWhateverAnswersToItByPhrase(t *testing.T) {
 	}
 	said := r.Resolve(context.Background(), "settings", cs, at("trackmania"))
 	if said.Kind != dispatch.IntentRun {
-		t.Fatalf("a routine's own name came back as %q against two phrases: %s",
+		t.Fatalf("a play's own name came back as %q against two phrases: %s",
 			said.Kind, said.Reply)
 	}
 	if said.ID != "global/settings" {

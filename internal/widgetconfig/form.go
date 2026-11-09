@@ -78,7 +78,7 @@ func Fields() []Field {
 	}
 	return []Field{
 		{Key: "leader", Group: "Keys and voice", Label: "Leader key", Kind: "choice", Choices: leaders,
-			Hint: "Press it, then a routine's key, or type a routine's name."},
+			Hint: "Press it, then a play's key, or type a play's name."},
 		{Key: "voice", Group: "Keys and voice", Label: "Act on spoken commands", Kind: "toggle"},
 		{Key: "wake", Group: "Keys and voice", Label: "Activation phrase", Kind: "text", AtLaunch: true,
 			Hint: "What you say before a command."},

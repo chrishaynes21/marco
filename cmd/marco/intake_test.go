@@ -632,7 +632,7 @@ func TestABindingIsValidatedTheWayItWillBeResolved(t *testing.T) {
 	}
 	// And a typo is refused at assignment, through the function every surface uses.
 	if _, err := resolveSteps(d, "discord", typo); err == nil {
-		t.Errorf("%q was accepted as a routine to bind", typo)
+		t.Errorf("%q was accepted as a play to bind", typo)
 	}
 	if strings.Contains(body, "nlu.Resolve(") {
 		t.Error("`marco bind` validates with a fuzzy matcher while `marco hotkey` resolves " +
@@ -1056,7 +1056,7 @@ func TestTheAdvisorProposesAndDoesNotPerform(t *testing.T) {
 	// again rather than quietly satisfied.
 	at := strings.Index(arm, "runChosen(")
 	if at < 0 {
-		t.Fatal("nothing in the advisor's run arm performs the routine, so this test is " +
+		t.Fatal("nothing in the advisor's run arm performs the play, so this test is " +
 			"no longer about anything")
 	}
 	if strings.Index(arm, "askYes(") > at {
@@ -1064,7 +1064,7 @@ func TestTheAdvisorProposesAndDoesNotPerform(t *testing.T) {
 	}
 	if strings.Contains(arm, "runDo(") {
 		t.Fatal("the advisor's run arm sends a phrase through the door, which resolves " +
-			"it again: with two routines of that name the one performed is " +
+			"it again: with two plays of that name the one performed is " +
 			"whichever the second lookup lands on")
 	}
 }
@@ -1353,7 +1353,7 @@ func TestAPhraseIsHandedToDirectorRatherThanClaimedHere(t *testing.T) {
 	// exact arm answers it here, offline, as it always did.
 	if got := decideAs(t, d, invoke.SourceTyped, "open dad's settings"); got.Kind !=
 		invoke.KindPlay || got.Play.Slug != "open-dad-s-settings" {
-		t.Errorf("the routine's own name decided %q", got.Kind)
+		t.Errorf("the play's own name decided %q", got.Kind)
 	}
 }
 
@@ -1373,7 +1373,7 @@ func TestASharedPhraseSelectsNothingAtTheDoor(t *testing.T) {
 	}
 	if got := decideAs(t, d, invoke.SourceTyped, "the settings"); got.Kind ==
 		invoke.KindPlay {
-		t.Errorf("a phrase two routines answer to performed %+v", got.Play)
+		t.Errorf("a phrase two plays answer to performed %+v", got.Play)
 	}
 }
 
@@ -1390,7 +1390,7 @@ func TestAPhraseNeverOutranksAControlWord(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got := decideAs(t, d, invoke.SourceTyped, "stop"); got.Kind != invoke.KindControl {
-		t.Errorf("a routine taught to answer to \"stop\" claimed the word that has "+
+		t.Errorf("a play taught to answer to \"stop\" claimed the word that has "+
 			"to reach a running play: %q", got.Kind)
 	}
 }

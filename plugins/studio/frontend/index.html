@@ -763,7 +763,7 @@
        demonstrate-and-watch tools, which used to be on the same screen as the routine
        recorder and gave the view two complete ways to start recording. See
        [[Studio-UI-audit-2026-10-29]]. -->
-  <button class="railbtn" id="rail-routines" onclick="show('routines')">Routines</button>
+  <button class="railbtn" id="rail-routines" onclick="show('routines')">Plays</button>
   <!-- AND TWO THAT THE ALPHA DOES NOT OFFER, HIDDEN HERE AND NOT REMOVED.
        Behind $MARCO_STUDIO_ACTS and $MARCO_STUDIO_SCENES, read once when this window
        opened. Nothing underneath them is taken away - the views, the bindings and the
@@ -859,7 +859,7 @@
         <span class="muted" id="layoutNote"></span>
       </div>
       <div class="row" style="margin-top:14px">
-        <button class="go" id="playBtn" onclick="play(true)">Play</button>
+        <button class="go" id="playBtn" onclick="play(true)">Run</button>
         <button onclick="forgetAct(chosen)">Delete this Act</button>
         <span class="muted" id="playNote"></span>
       </div>
@@ -917,7 +917,7 @@
        is the thing to press, and two filled buttons is no emphasis at all (drawRoutines).
        See [[Studio-coherence-audit-2026-11-02]], findings 1 and 2. -->
   <div class="viewhead">
-    <h1>Routines</h1>
+    <h1>Plays</h1>
     <span class="row" id="recordStart">
       <button class="go" id="recordRevealBtn" onclick="revealRecord()">Record</button>
       <!-- THE EXPLANATION IS A LINK, not forty-five words beside the button: the Recording
@@ -1234,7 +1234,7 @@
          other two things that sentence used to carry are said by this heading and that
          button. See whyItWillNotRun. -->
     <div class="hide" style="margin-top:12px" id="capWontRunBox">
-      <div class="wontrun">This routine won't run.</div>
+      <div class="wontrun">This play won't run.</div>
       <div class="no" id="capMissing"></div>
       <!-- AND THE WAY TO FIX IT, AS THE BUTTON TO PRESS. A measurement that was not taken
            is taken by recording again, so Record again is the primary here and Save anyway
@@ -1327,7 +1327,7 @@
        bring that window forward. They read like routines and refuse every press. Hidden
        entirely when there are none, which is the ordinary case. -->
   <div class="card hide" id="repairCard">
-    <div class="no">Some saved routines cannot press anything.</div>
+    <div class="no">Some saved plays cannot press anything.</div>
     <div class="muted" style="margin-top:6px">Their presses check the window they were
       made in, and they were saved to switch nothing — so there is no window for those
       presses to be checked against. Saving one again from its own demonstration fixes
@@ -1362,7 +1362,7 @@
        [[Studio-coherence-audit-2026-11-02]]. -->
   <div class="find" id="askCard">
     <div class="row">
-      <input id="askBox" type="text" placeholder="Find a routine, or say what you want done"
+      <input id="askBox" type="text" placeholder="Find a play, or say what you want done"
         aria-label="Say what you want" style="flex:1;min-width:220px">
       <!-- THE TARGET APPLICATION, STATED AND NOT INFERRED.
            An in-place routine works only while its application is in front, so it is
@@ -1405,7 +1405,7 @@
       <button type="button" id="routineCollapseAll" onclick="setAllRoutineGroups(false)">Collapse all</button>
     </div>
     <div id="routineList" style="margin-top:4px"></div>
-    <div class="muted hide" id="routineNone">No routines yet. Press Record to make one.</div>
+    <div class="muted hide" id="routineNone">No plays yet. Press Record to make one.</div>
     <!-- WHERE THE PANEL WAITS WHILE NO ROUTINE IS OPEN.
          ONE PANEL, CARRIED, AND NEVER REBUILT. Every routine is a row that opens
          where it is, and what opens is this one set of elements moved into that
@@ -1477,7 +1477,7 @@
            part: a forget that stops partway says which parts are gone and which are still here.
            Every word is the backend's (forgetone.go). -->
       <div class="card hide" id="routineForget" style="margin-top:10px">
-        <h3 id="routineForgetTitle">Forget this routine?</h3>
+        <h3 id="routineForgetTitle">Forget this play?</h3>
         <div class="muted" id="routineForgetWhere"></div>
         <div style="margin-top:6px">This removes, in this order:</div>
         <ul id="routineForgetParts" style="margin:4px 0 0 18px;padding:0"></ul>
@@ -1518,7 +1518,7 @@
         <div class="muted" style="margin-top:6px" id="routineMoveSays"></div>
         <div class="row" style="margin-top:8px">
           <details style="flex:1;min-width:0">
-            <summary>The routine as it is saved now
+            <summary>The play as it is saved now
               (<span id="routineMoveFrom"></span>)</summary>
             <pre id="routineMoveWas"></pre>
           </details>
@@ -1687,7 +1687,7 @@
            Steps and `routineWhereBtn` is Where it works -- and More is
            `routineMaintainSummary`, which the desktop scenarios press by name. See
            [[Studio-coherence-audit-2026-11-02]], finding 3. -->
-      <div class="tabs" role="tablist" aria-label="This routine" id="routineTabs">
+      <div class="tabs" role="tablist" aria-label="This play" id="routineTabs">
         <button role="tab" type="button" id="routineStepsBtn" aria-selected="false"
           aria-controls="routineTabSteps" onclick="routineTab('steps')">Steps</button>
         <button role="tab" type="button" id="routineNamesTab" aria-selected="false"
@@ -1727,7 +1727,7 @@
              difference IS; the panes are for somebody who wants to read it. -->
         <div class="row" style="margin-top:8px">
           <details style="flex:1;min-width:0">
-            <summary>The routine as it is saved now
+            <summary>The play as it is saved now
               (<span id="routineReviewWasGen"></span>)</summary>
             <pre id="routineReviewWas"></pre>
           </details>
@@ -1739,7 +1739,7 @@
         </div>
         <div class="row" style="margin-top:10px">
           <button class="go" id="routineReplaceBtn" onclick="replaceWithRebuilt()">Replace
-            the saved routine with this</button>
+            the saved play with this</button>
           <button id="routineReviewCancelBtn" onclick="cancelReview()">Cancel</button>
           <span class="muted" id="routineReplaceNote"></span>
         </div>
@@ -1826,7 +1826,7 @@
         <div class="banner bad hide" style="margin-top:6px" id="routineStepEditRefused"></div>
         <div class="row" style="margin-top:8px">
           <details style="flex:1;min-width:0">
-            <summary>The routine as it is saved now</summary>
+            <summary>The play as it is saved now</summary>
             <pre id="routineStepEditWas"></pre>
           </details>
           <details style="flex:1;min-width:0">
@@ -2284,7 +2284,7 @@
   <div class="card" id="widgetCard">
     <h3>Use Marco while you play</h3>
     <p class="muted" style="margin-top:4px">The widget is a small HUD that stays over your game: press
-      the leader key and then a routine's key, or type a routine's name. It runs on its own and
+      the leader key and then a play's key, or type a play's name. It runs on its own and
       keeps running when this window closes.</p>
     <div class="row" style="margin-top:8px"><button id="widgetCardBtn" onclick="openWidget()">Open widget</button>
       <span class="muted" id="widgetCardSays" style="margin-left:10px"></span></div>
@@ -2646,7 +2646,7 @@
    // WHERE IT HAS TO START, in words that are on the screen rather than `screen_a`.
    text($('adStart'), (a.starts_on || []).length
      ? 'It starts on the screen that reads “' + words(a.starts_on) +
-       '” — be there before you press Play.'
+       '” — be there before you press Run.'
      : '')
    showing($('adWaits'), !!a.waits)
    if (a.waits) { text($('adWaits'), 'It will wait, not press: ' + a.waits) }
@@ -3141,7 +3141,7 @@
    // which is exactly the kind this page has been bitten by.
    const at = parseInt($('capSupplyAt').value, 10)
    if (!Number.isInteger(at)) {
-     text($('capSupplyWhy'), 'choose the step whose text the routine should ask for')
+     text($('capSupplyWhy'), 'choose the step whose text the play should ask for')
      showing($('capSupplyWhy'), true)
      return
    }
@@ -4041,7 +4041,7 @@
      // into it, so the basis is the part worth showing and not just the name.
      const ctx = a.context || {}
      $('askWho').textContent = (ctx.says || ('basis ' + (ctx.basis || '?'))) +
-       '  ·  ' + (a.offered || 0) + ' routine(s) offered  ·  ' +
+       '  ·  ' + (a.offered || 0) + ' play(s) offered  ·  ' +
        (a.source || '?') + '  ·  ' + (a.resolver || '')
      if (a.kind === 'run' && a.id) {
        // AND WHAT THE REQUEST ALREADY SAID ABOUT ITS ARGUMENTS, kept as a PROPOSAL.
@@ -4136,7 +4136,7 @@
      ' aria-expanded="true">' +
      '<span class="chev" aria-hidden="true">&#9654;</span>' +
      '<span class="grow"><span class="appname">' + esc(g.label) + '</span>' +
-     '<span class="muted appcount">' + n + (n === 1 ? ' routine' : ' routines') + '</span>' +
+     '<span class="muted appcount">' + n + (n === 1 ? ' play' : ' plays') + '</span>' +
      '</span></button>'
    head.querySelector('button').onclick = () => toggleRoutineGroup(g.key)
    return head
@@ -4279,7 +4279,7 @@
        (status ? '<span class="pill ' + status[0] + '">' + esc(status[1]) + '</span>' : '') +
        (open ? '<button id="routineRenameBtn" type="button">Rename</button>' : '') +
        (open ? '<button id="routineForgetBtn" type="button">Forget</button>' : '') +
-       '<button class="go big" type="button" id="' + playId + '">Play</button>' +
+       '<button class="go big" type="button" id="' + playId + '">Run</button>' +
        '<span class="muted rowsays" id="' + saysId + '"></span>' +
        (open ? '<span class="muted rowsays hide" id="routineWants"></span>' : '') +
        '</div>' +
@@ -4367,7 +4367,7 @@
    if (pending.length && leavingTo !== to) {
      leavingTo = to
      const el = $('routineLeaving')
-     el.textContent = (to ? 'Opening another routine' : 'Closing this') +
+     el.textContent = (to ? 'Opening another play' : 'Closing this') +
        ' discards ' + andAll(pending) + '. Press again to leave it, or carry on here.'
      showing(el, true)
      el.scrollIntoView({block: 'nearest'})
@@ -4541,7 +4541,7 @@
    if (!r) { return '' }
    return r.app
      ? ''
-     : 'Play presses for real, into whatever is in front when it runs. This routine ' +
+     : 'Run presses for real, into whatever is in front when it runs. This play ' +
        'names no application, so Marco brings nothing forward.'
  }
 
@@ -4557,9 +4557,9 @@
  function askedFor(r){
    if (!r) { return '' }
    if (!r.app || r.scope === 'app-anywhere') {
-     return 'Ask for it by name from anywhere; Play works from here either way.'
+     return 'Ask for it by name from anywhere; Run works from here either way.'
    }
-   return 'Ask for it by name only while ' + r.app + ' is in front; Play works from ' +
+   return 'Ask for it by name only while ' + r.app + ' is in front; Run works from ' +
      'here either way.'
  }
 
@@ -6110,7 +6110,7 @@
    showing($('routineWhere'), have)
    if (!have) { return }
    showing($('routineWhereAppRow'), !r.app)
-   text($('routineWhereNote'), 'Where a routine works is where its file lives, so this ' +
+   text($('routineWhereNote'), 'Where a play works is where its file lives, so this ' +
      'is a move between two places rather than an edit. Nothing is written until you ' +
      'review one and move it.')
    const box = $('routineWhereChoices')
@@ -6218,7 +6218,7 @@
    acts.ReviewForgetRoutine(id).then(v => {
      const card = $('routineForget')
      card.classList.remove('hide')
-     $('routineForgetTitle').textContent = 'Forget ' + (v.name ? '“' + v.name + '”' : 'this routine') + '?'
+     $('routineForgetTitle').textContent = 'Forget ' + (v.name ? '“' + v.name + '”' : 'this play') + '?'
      $('routineForgetWhere').textContent = v.where ? 'It works ' + v.where + '.' : ''
      const list = $('routineForgetParts')
      list.innerHTML = ''
@@ -6333,17 +6333,17 @@
    showing($('routineMoveConsentRow'), !!v.taken)
    $('routineMoveConsent').checked = false
    text($('routineMoveConsentSays'), v.taken
-     ? 'Yes — replace the routine at ' + v.taken_id + ' with this one' : '')
+     ? 'Yes — replace the play at ' + v.taken_id + ' with this one' : '')
    // WHAT MOVING WOULD DO TO THE FILE, WHICH IS NOT WHETHER IT MOVES. A rendering
    // identical to the file still moves: it goes to another folder, which is the whole
    // point. Saying `nothing would change` there would describe the one thing that does.
    text($('routineMoveSays'), v.refused
      ? 'Nothing has been written: the reason is above.'
      : v.renaming
-       ? 'The routine is written under the new name and removed from the old one.'
+       ? 'The play is written under the new name and removed from the old one.'
        : (v.changes
           ? 'It would be re-rendered from its own demonstration as well as moved, so ' +
-            'the two differ. The left-hand pane is the routine you have now.'
+            'the two differ. The left-hand pane is the play you have now.'
           : 'The same source would be written at the new place and removed from the ' +
             'old one.'))
    // AND THE PANE IS NAMED FOR THE OPERATION. "What a move would write" over a
@@ -6479,11 +6479,11 @@
    // offering to do nothing.
    text($('routineReviewSays'), v.refused
      ? 'There is nothing to replace it with. Its own recording no longer produces a ' +
-       'routine under today\u2019s rules, and the reason is above.'
+       'play under today\u2019s rules, and the reason is above.'
      : (v.changes
           ? 'The two differ. Nothing has been written: compare them, then replace or ' +
             'cancel.'
-          : 'The rebuilt version is identical to the routine you have, so replacing it ' +
+          : 'The rebuilt version is identical to the play you have, so replacing it ' +
             'would change nothing.'))
    text($('routineReviewWas'), v.was || '')
    text($('routineReviewNow'), v.now || '')
@@ -7795,7 +7795,7 @@
      // thing to say is that there is no record rather than "no run yet" about a run in
      // flight.
      $('ref').textContent = w.reference
-       || (w.routine ? 'a routine — this marco wrote no run record' : 'no run yet')
+       || (w.routine ? 'a play — this marco wrote no run record' : 'no run yet')
      $('ref').dataset.id = w.reference || ''
 
      // WHAT IS HAPPENING, FROM THE RUNNER'S OWN ACCOUNT OF ITSELF.
@@ -7817,7 +7817,7 @@
        // the transcript under this line and the answer is the word it ends on.
        // "The run has not said anything yet" would be a complaint about a thing
        // that was never going to happen.
-       : w.routine ? 'a routine does not report phases — what it said is below'
+       : w.routine ? 'a play does not report phases — what it said is below'
        : 'the run has not said anything yet')
 
      // NOT PROCEEDING, AND WHY. Shown as prominently as what it is doing and NOT styled

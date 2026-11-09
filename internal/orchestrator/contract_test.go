@@ -38,7 +38,7 @@ func savedSource(t *testing.T, steps []macroir.Step) string {
 	}
 	rt, err := d.Save(dr, scope, "arkascended")
 	if err != nil {
-		t.Fatalf("saving the routine: %v", err)
+		t.Fatalf("saving the play: %v", err)
 	}
 	raw, err := os.ReadFile(d.Reg.Path(rt))
 	if err != nil {
@@ -248,7 +248,7 @@ func TestTheTermsReadAreTheWholeList(t *testing.T) {
 	want := []string{"RelX", "RelY", "WinW", "WinH", "Dpi", "Process"}
 	if len(measuredTerms) != len(want) {
 		t.Fatalf("this reads %v; the guard in internal/oshost requires %v. A term "+
-			"added to one and not the other is a routine listed as ready that "+
+			"added to one and not the other is a play listed as ready that "+
 			"refuses at its first press.", measuredTerms, want)
 	}
 	for i, w := range want {
@@ -294,7 +294,7 @@ func TestTheReportedTermsAreTheUnionOfTheShapes(t *testing.T) {
 	for _, shape := range [][]string{measuredTerms, draggedTerms} {
 		for _, term := range shape {
 			if !named[term] {
-				t.Errorf("%q is read but never reported, so a routine "+
+				t.Errorf("%q is read but never reported, so a play "+
 					"missing it would be incomplete and say so about "+
 					"nothing", term)
 			}

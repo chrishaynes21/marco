@@ -261,7 +261,7 @@ func (a Attempt) Says(now time.Time) []string {
 		out = append(out, "Why: "+a.Because)
 	} else if a.Outcome == "performed" {
 		out = append(out, "It did what it was saved to do; if that was not what you wanted, "+
-			"the routine itself needs changing.")
+			"the play itself needs changing.")
 	}
 	if a.Next != "" {
 		out = append(out, "Next: "+a.Next)

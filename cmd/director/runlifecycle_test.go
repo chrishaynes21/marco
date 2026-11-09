@@ -62,11 +62,11 @@ func theOnlyRecord(t *testing.T) RunRecord {
 // produced before this: nothing on a startup path reached a classifier.
 func TestAWindowThatCannotBeAcquiredIsRecordedAsFailed(t *testing.T) {
 	t.Setenv("MARCO_HOME", t.TempDir())
-	aSavedRoutine(t, "a routine")
+	aSavedRoutine(t, "a play")
 
 	code := runPerformWorkflow([]string{
 		"--application", "nosuchapplicationanywhere",
-		"--name", "a routine", "--seconds", "5",
+		"--name", "a play", "--seconds", "5",
 	})
 	if code == 0 {
 		t.Error("a run against an application with no window reported success")
@@ -78,8 +78,8 @@ func TestAWindowThatCannotBeAcquiredIsRecordedAsFailed(t *testing.T) {
 	if mustSay(t, rec) != 0 {
 		t.Errorf("%d action(s) sent by a run that never acquired a window", mustSay(t, rec))
 	}
-	if rec.Workflow != "a routine" {
-		t.Errorf("the record does not name the routine: %+v", rec)
+	if rec.Workflow != "a play" {
+		t.Errorf("the record does not name the play: %+v", rec)
 	}
 	// AND THE REFERENCE RETRIEVES IT, which is the whole point of printing one.
 	if _, err := os.Stat(runPath(rec.Run)); err != nil {
@@ -94,7 +94,7 @@ func TestAWindowThatCannotBeAcquiredIsRecordedAsFailed(t *testing.T) {
 // cancelled with nothing sent. This is the early return that used to leave nothing behind.
 func TestAStartPromptCancellationIsRecordedAsCancelled(t *testing.T) {
 	t.Setenv("MARCO_HOME", t.TempDir())
-	aSavedRoutine(t, "a routine")
+	aSavedRoutine(t, "a play")
 
 	// A SYNTHETIC HOOK IN PLACE OF THE DESKTOP'S, so the production command can be
 	// driven through its own start prompt.
@@ -111,7 +111,7 @@ func TestAStartPromptCancellationIsRecordedAsCancelled(t *testing.T) {
 
 	code := runPerformWorkflow([]string{
 		"--application", "nosuchapplicationanywhere",
-		"--name", "a routine", "--hotkeys", "--delay", "10s", "--seconds", "5",
+		"--name", "a play", "--hotkeys", "--delay", "10s", "--seconds", "5",
 	})
 	if code == 0 {
 		t.Error("a cancelled run reported success")
@@ -147,7 +147,7 @@ func TestAStartPromptCancellationIsRecordedAsCancelled(t *testing.T) {
 func TestAStopSaidAnywhereReachesASupervisedRun(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("MARCO_HOME", home)
-	aSavedRoutine(t, "a routine")
+	aSavedRoutine(t, "a play")
 
 	// A HOOK THAT NEVER ANSWERS, so the start prompt would wait out its own patience
 	// and the only thing that can end this run is the word.
@@ -169,7 +169,7 @@ func TestAStopSaidAnywhereReachesASupervisedRun(t *testing.T) {
 	began := time.Now()
 	code := runPerformWorkflow([]string{
 		"--application", "nosuchapplicationanywhere",
-		"--name", "a routine", "--hotkeys", "--delay", "30s", "--seconds", "5",
+		"--name", "a play", "--hotkeys", "--delay", "30s", "--seconds", "5",
 	})
 	took := time.Since(began)
 

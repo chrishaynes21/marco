@@ -397,7 +397,7 @@ func usage() {
                                  sentences are the order, from interactions you
                                  demonstrated. Prints the play. Presses nothing
   director demonstrate-visual "<name>" --application X
-                                 learn a routine from PIXELS: watch your own
+                                 learn a play from PIXELS: watch your own
                                  clicks and keep what the proposer saw
   director correct "<name>" --drop <n|last> --because "<words>"
                                  take one step out of what Marco learned; your
@@ -405,7 +405,7 @@ func usage() {
   director what-i-did "<name>"   what you actually did when you showed it: every
                                  press with its position, every key with its edges
   director reacquire "<name>" --application X
-                                 can that routine.s controls be found again?
+                                 can that play.s controls be found again?
                                  per control, no screen bound; presses nothing
   director explain procedure <n>   why a learned procedure has the shape it has
   director game                  which game is detected, and what may be automated in it

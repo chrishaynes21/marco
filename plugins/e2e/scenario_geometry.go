@@ -74,7 +74,7 @@ func theWindowMoved(w *world) result {
 	if !arrived {
 		st.fail()
 		return fail(started, fmt.Sprintf("the window moved from %s to %s and the "+
-			"routine pressed nothing. A guarded press is supposed to re-base its "+
+			"play pressed nothing. A guarded press is supposed to re-base its "+
 			"offset onto the window as it is now", was, to))
 	}
 	rec, err := waitForRecord(45*time.Second, st.store, records)
@@ -174,7 +174,7 @@ func theWindowChangedSize(w *world) result {
 		return fail(started, why, fmt.Sprintf("Marco recorded %s", rec))
 	}
 	return pass(started,
-		fmt.Sprintf("the window went %dx%d → %dx%d and the routine stopped as %q, "+
+		fmt.Sprintf("the window went %dx%d → %dx%d and the play stopped as %q, "+
 			"sending nothing at all", was.W, was.H, to.W, to.H, rec.Outcome),
 		fmt.Sprintf("it said: %s", rec.Because))
 }
@@ -193,7 +193,7 @@ func anythingWasPressed(presses []fixtureEvent, to rect) string {
 	if len(presses) == 0 {
 		return ""
 	}
-	return fmt.Sprintf("the window was a different size (%dx%d) from the one the routine "+
+	return fmt.Sprintf("the window was a different size (%dx%d) from the one the play "+
 		"was recorded in, and the application received %d press(es) anyway — the "+
 		"first at %d,%d on %q. A guarded press into a window that is not the one it "+
 		"was shown is the hazard the guard exists for, and it would look like a "+
@@ -245,6 +245,6 @@ func refusedWithoutSaying(rec runRecord) string {
 	if rec.Because != "" {
 		return ""
 	}
-	return "the routine refused and the record does not say why, so nobody reading it " +
-		"can tell a window that changed size from a routine that is broken"
+	return "the play refused and the record does not say why, so nobody reading it " +
+		"can tell a window that changed size from a play that is broken"
 }

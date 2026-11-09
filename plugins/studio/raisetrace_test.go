@@ -106,7 +106,7 @@ func TestTheRefusalSaysWhatWasObservedAndNotWhyItHappened(t *testing.T) {
 	}
 	// THE OBSERVATION, AND WHAT TO DO ABOUT IT.
 	for _, must := range []string{"couldn't confirm", "Nothing was started",
-		"press Play again"} {
+		"press Run again"} {
 		if !strings.Contains(why, must) {
 			t.Errorf("the refusal does not say %q, so somebody reading it cannot "+
 				"tell what happened or what to do: %q", must, why)

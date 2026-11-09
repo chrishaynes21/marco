@@ -96,7 +96,7 @@ func TestAFreshRecordingSaysToSimplifyBeforeAskingForAValue(t *testing.T) {
 		t.Fatalf("a recording with one step per character offers %+v", got.Supply)
 	}
 	if got.SupplySays == "" {
-		t.Fatal("the card says nothing at all, which reads as a routine that cannot " +
+		t.Fatal("the card says nothing at all, which reads as a play that cannot " +
 			"ask for a value — the report this exists to answer")
 	}
 	for _, want := range []string{"one step per character", "has to be one step", "Simplify"} {
@@ -146,7 +146,7 @@ func TestTheReviewOffersToAskForTextItWouldType(t *testing.T) {
 		}
 	}
 	// AND THE CAPTION SAYS WHAT THE CONTROL IS FOR.
-	if !strings.Contains(was.SupplySays, "Play will ask for that value") {
+	if !strings.Contains(was.SupplySays, "Run will ask for that value") {
 		t.Errorf("the caption does not say what happens: %q", was.SupplySays)
 	}
 
@@ -195,18 +195,18 @@ func TestASuppliedValueSavesAsSomethingTheRoutineAsksFor(t *testing.T) {
 	}
 	rs := a.Routines()
 	if len(rs) != 1 {
-		t.Fatalf("the library holds %d routines", len(rs))
+		t.Fatalf("the library holds %d plays", len(rs))
 	}
 	if !strings.Contains(rs[0].Source, "do OS's Type with \"{{item}}\"") {
-		t.Errorf("the saved routine does not type the supplied value:\n%s", rs[0].Source)
+		t.Errorf("the saved play does not type the supplied value:\n%s", rs[0].Source)
 	}
 	if strings.Contains(rs[0].Source, "OS's Secret") {
-		t.Errorf("the saved routine reads the credential store instead:\n%s", rs[0].Source)
+		t.Errorf("the saved play reads the credential store instead:\n%s", rs[0].Source)
 	}
 	// AND THE PLAY CARD ASKS FOR IT, BY NAME, AS TEXT AND NOT AS A SECRET.
 	needs := a.PlayNeeds(rs[0].ID)
 	if !needs.Needs || len(needs.Fields) != 1 || needs.Fields[0].Name != "item" {
-		t.Fatalf("the saved routine asks for %+v", needs.Fields)
+		t.Fatalf("the saved play asks for %+v", needs.Fields)
 	}
 	if needs.Fields[0].Secret {
 		t.Error("the value is asked of the credential store rather than of the person")
@@ -233,7 +233,7 @@ func TestADraftValueCannotBeCalledSomethingTheGeneratorReadsFromTheStore(t *test
 	why := a.SupplyDraftText(was.Basis, was.Supply[0].At, "password")
 	if why == "" {
 		t.Fatal("a value was named after a credential the generator reads from the " +
-			"store, so the routine would type whatever is saved there")
+			"store, so the play would type whatever is saved there")
 	}
 	if !strings.Contains(why, "credential store") {
 		t.Errorf("the refusal does not say why: %q", why)
@@ -399,15 +399,15 @@ func TestAMarkedOrdinaryRecordingCanStillBeEditedAndRebuilt(t *testing.T) {
 	}
 	rs := a.Routines()
 	if len(rs) != 1 {
-		t.Fatalf("the library holds %d routines", len(rs))
+		t.Fatalf("the library holds %d plays", len(rs))
 	}
 	saved := rs[0]
 	if !strings.Contains(saved.Source, "{{item}}") {
-		t.Fatalf("the saved routine does not ask for the value:\n%s", saved.Source)
+		t.Fatalf("the saved play does not ask for the value:\n%s", saved.Source)
 	}
 	rec, recErr := os.ReadFile(strings.TrimSuffix(saved.Path, ".marco") + ".rec.json")
 	if recErr != nil {
-		t.Fatalf("the demonstration is not stored beside the routine: %v", recErr)
+		t.Fatalf("the demonstration is not stored beside the play: %v", recErr)
 	}
 	// AND THE MARK IS NOT IN IT. The demonstration is stored as it was recorded; a mark
 	// is a change to the steps that were derived from it.
@@ -418,7 +418,7 @@ func TestAMarkedOrdinaryRecordingCanStillBeEditedAndRebuilt(t *testing.T) {
 	// ── THE EDIT PANEL, WHICH IS WHERE THIS SHOWED ──
 	e := a.StepEditing(saved.ID)
 	if e.Why != "" {
-		t.Fatalf("the routine that was just saved cannot be edited: %s", e.Why)
+		t.Fatalf("the play that was just saved cannot be edited: %s", e.Why)
 	}
 	if !e.Editable || e.Basis == "" {
 		t.Fatalf("the panel offers nothing to ask against: %+v", e)
@@ -430,7 +430,7 @@ func TestAMarkedOrdinaryRecordingCanStillBeEditedAndRebuilt(t *testing.T) {
 		}
 	}
 	if marked == nil {
-		t.Fatalf("no step of the saved routine takes its text from the person: %+v",
+		t.Fatalf("no step of the saved play takes its text from the person: %+v",
 			e.Rows)
 	}
 	if marked.Named != "item" {
@@ -440,10 +440,10 @@ func TestAMarkedOrdinaryRecordingCanStillBeEditedAndRebuilt(t *testing.T) {
 	// ── AND A REBUILD UNDER TODAY'S RULES KEEPS WHAT THE ROUTINE SAYS IT DOES ──
 	v := a.ReviewRebuilt(saved.ID, "current")
 	if v.Why != "" {
-		t.Fatalf("the saved routine cannot be rebuilt: %s", v.Why)
+		t.Fatalf("the saved play cannot be rebuilt: %s", v.Why)
 	}
 	if !strings.Contains(v.Now, "{{item}}") {
-		t.Errorf("a rebuild under today's rules loses the value the routine asks "+
+		t.Errorf("a rebuild under today's rules loses the value the play asks "+
 			"for:\n%s", v.Now)
 	}
 	if strings.Contains(v.Now, "OS's Secret") {
@@ -456,7 +456,7 @@ func TestAMarkedOrdinaryRecordingCanStillBeEditedAndRebuilt(t *testing.T) {
 		t.Fatalf("the demonstration is gone after a review that writes nothing: %v", err)
 	}
 	if string(again) != string(rec) {
-		t.Error("the demonstration beside the routine changed")
+		t.Error("the demonstration beside the play changed")
 	}
 }
 

@@ -210,7 +210,7 @@ func TestAVerbRoutineIsNotClaimedBySight(t *testing.T) {
 	a.Steps[0].Verb = "click"
 	aHomeHolding(t, a)
 	if d, ok := (demoSights{dir: directorDir()}).Demonstration("", "desktop tour"); ok {
-		t.Errorf("a verb routine was offered as something to perform by sight: %+v", d)
+		t.Errorf("a verb play was offered as something to perform by sight: %+v", d)
 	}
 }
 
@@ -220,14 +220,14 @@ func TestAVerbRoutineIsNotClaimedBySight(t *testing.T) {
 // then arguing with itself. So the door only claims what can actually happen: an UNSCOPED routine
 // is valid for no application, and one with no visual evidence has nothing to ground.
 func TestADemonstrationTheRunnerWouldRefuseIsNotClaimed(t *testing.T) {
-	unscoped := aPixelDemonstration("unscoped routine")
+	unscoped := aPixelDemonstration("unscoped play")
 	unscoped.Application = ""
 	blind := aPixelDemonstration("no pixels")
 	blind.Controls[0].Readings = nil
 	aHomeHolding(t, unscoped, blind)
 
 	sights := demoSights{dir: directorDir()}
-	for _, name := range []string{"unscoped routine", "no pixels", "nothing saved under this"} {
+	for _, name := range []string{"unscoped play", "no pixels", "nothing saved under this"} {
 		if d, ok := sights.Demonstration("", name); ok {
 			t.Errorf("%q was offered as performable: %+v", name, d)
 		}
@@ -236,7 +236,7 @@ func TestADemonstrationTheRunnerWouldRefuseIsNotClaimed(t *testing.T) {
 	// refusing everything.
 	aHomeHolding(t, aPixelDemonstration("ark graphics live"))
 	if _, ok := (demoSights{dir: directorDir()}).Demonstration("", "ark graphics live"); !ok {
-		t.Error("a scoped pixel routine was not offered as performable")
+		t.Error("a scoped pixel play was not offered as performable")
 	}
 }
 
@@ -590,7 +590,7 @@ func TestExplainSaysWhyASavedRoutineCannotBeRunBySight(t *testing.T) {
 
 	said := saidByExplain(t, invoke.Request{Text: "ark menu 2"})
 	if !strings.Contains(said, "decision     director") {
-		t.Fatalf("an unscoped routine was claimed after all:\n%s", said)
+		t.Fatalf("an unscoped play was claimed after all:\n%s", said)
 	}
 	for _, want := range []string{"IS saved", "UNSCOPED", "demonstrate-visual"} {
 		if !strings.Contains(said, want) {

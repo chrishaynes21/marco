@@ -141,5 +141,5 @@ func whyRefusedHere(err error) string {
 		}
 		return "the Director refused this request: " + refused.Error()
 	}
-	return "asking the Director which routine this is failed: " + err.Error()
+	return "asking the Director which play this is failed: " + err.Error()
 }

@@ -108,9 +108,9 @@ setTimeout(() => {
 		return v
 	}
 	for _, c := range []struct{ key, why string }{
-		{"none", "a routine opened with a tab already open"},
-		{"recordquiet", "Record is still filled while a routine is open"},
-		{"outlined", "a shut row's Play is filled, so the open routine's is not the one filled button"},
+		{"none", "a play opened with a tab already open"},
+		{"recordquiet", "Record is still filled while a play is open"},
+		{"outlined", "a shut row's Play is filled, so the open play's is not the one filled button"},
 		{"onlysteps", "pressing Steps did not open its panel alone"},
 		{"selected", "the open tab does not say it is selected"},
 		{"onlynames", "pressing Other names did not open its panel alone"},
@@ -120,7 +120,7 @@ setTimeout(() => {
 		{"phraseredraw", "a redraw of the list lost a typed phrase"},
 		{"tabredraw", "a redraw of the list closed the open tab"},
 		{"stepsredraw", "a redraw of the list lost a typed wait"},
-		{"warned", "opening another routine did not say what it would throw away"},
+		{"warned", "opening another play did not say what it would throw away"},
 		{"keptonleave", "the typing was lost while the window asked"},
 	} {
 		if n(c.key) != 1 {

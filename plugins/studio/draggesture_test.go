@@ -120,7 +120,7 @@ func TestADragWhoseWindowMovedIsRefusedWithTheReason(t *testing.T) {
 
 	if !got.Failed {
 		t.Error("the window offers a drag whose two ends are offsets into two " +
-			"different rectangles, so the person is invited to keep a routine " +
+			"different rectangles, so the person is invited to keep a play " +
 			"that performs something else")
 	}
 	for _, want := range []string{"window moved", "demonstrate it again"} {
@@ -135,7 +135,7 @@ func TestADragWhoseWindowMovedIsRefusedWithTheReason(t *testing.T) {
 			"wrong and not what it saw")
 	}
 	if why := a.SaveDraft("app-anywhere", ""); why == "" {
-		t.Error("SaveDraft wrote a routine for a drag across two rectangles")
+		t.Error("SaveDraft wrote a play for a drag across two rectangles")
 	}
 }
 
@@ -174,7 +174,7 @@ func TestADragMissingAMeasurementIsNamedAtReview(t *testing.T) {
 
 	if !got.Incomplete {
 		t.Error("the window says nothing about a drag that cannot be checked, so " +
-			"somebody keeps a routine that will refuse to run")
+			"somebody keeps a play that will refuse to run")
 	}
 	if !strings.Contains(got.Missing, "scale") {
 		t.Errorf("the window says %q and does not name the measurement that did "+
@@ -184,7 +184,7 @@ func TestADragMissingAMeasurementIsNamedAtReview(t *testing.T) {
 		t.Error("the window does not say the recording cannot be saved")
 	}
 	if why := a.SaveDraft("app-anywhere", ""); why == "" {
-		t.Error("SaveDraft wrote a routine containing a drag that asked to be " +
+		t.Error("SaveDraft wrote a play containing a drag that asked to be " +
 			"checked and cannot be")
 	}
 }

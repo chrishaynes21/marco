@@ -49,7 +49,7 @@ func TestAPressesKeyIsChangedThroughTheStepPanel(t *testing.T) {
 	}
 	// AND THE PANEL LISTS IT AGAIN, which is the stored account having been written too.
 	if again := a.StepEditing(r.ID); again.Why != "" {
-		t.Errorf("after the change the panel refuses the routine: %s", again.Why)
+		t.Errorf("after the change the panel refuses the play: %s", again.Why)
 	}
 }
 

@@ -118,7 +118,7 @@ func TestABlockIsRefusedWhereItWouldSplitOrBreakSomething(t *testing.T) {
 			StepEdit{Op: EditLoop, At: 0, Upto: 2, Count: 2}, "brings notepad forward"},
 		{"once", unguardedKeys(), StepEdit{Op: EditLoop, At: 1, Upto: 2, Count: 1},
 			"at least twice"},
-		{"a routine whose presses are checked", guarded,
+		{"a play whose presses are checked", guarded,
 			StepEdit{Op: EditLoop, At: 1, Upto: 2, Count: 2}, "checks each press"},
 		{"backwards", unguardedKeys(), StepEdit{Op: EditLoop, At: 3, Upto: 1, Count: 2},
 			"no steps 4 to 2"},
@@ -148,7 +148,7 @@ func TestARepeatedKeyIsWhatTheRoutineDoesAndSurvivesARebuild(t *testing.T) {
 	at := keyStepAt(t, d, rt, "esc")
 	editing(t, d, rt, StepEdit{Op: EditRepeat, At: at, Count: 3})
 	if got := countCalls(whatItAsked(t, d, rt, 0), "OS's Key with esc"); got != 3 {
-		t.Errorf("the routine pressed esc %d times, not 3", got)
+		t.Errorf("the play pressed esc %d times, not 3", got)
 	}
 	p, err := d.Prepare(rt, RebuildCurrent)
 	if err != nil || p.Refused != "" {

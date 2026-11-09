@@ -138,7 +138,7 @@ func reportConjunction(dir string, limit int) error {
 
 	// THE WORKFLOW FOLD A DEMONSTRATED, through the production path: the same Learn the
 	// live command calls, on the same three inputs.
-	draft := workflow.Learn("the measured routine", learn.walk, learn.clicks, learn.registry)
+	draft := workflow.Learn("the measured play", learn.walk, learn.clicks, learn.registry)
 	if len(draft.Steps) == 0 {
 		return fmt.Errorf("fold A demonstrated nothing, so there is no rule to measure")
 	}

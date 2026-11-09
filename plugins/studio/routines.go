@@ -453,7 +453,7 @@ func saidTerms(lacks []string) []string {
 func (a *Acts) PlayRoutine(id, window string) string {
 	id = strings.TrimSpace(id)
 	if id == "" {
-		return "choose a routine to run"
+		return "choose a play to run"
 	}
 	// EXACTLY THE ONE THAT WAS CHOSEN, by its whole identity.
 	//
@@ -473,12 +473,12 @@ func (a *Acts) PlayRoutine(id, window string) string {
 	}
 	switch {
 	case chosen == nil:
-		return fmt.Sprintf("there is no routine %q in this library (%s) — press "+
+		return fmt.Sprintf("there is no play %q in this library (%s) — press "+
 			"Refresh and choose it again", id, a.routesDir)
 	case !chosen.Runnable:
 		// ITS OWN SENTENCE. "It would not run" is not something anybody can act on;
 		// what it lacks, or what to do about it, is.
-		return "this routine cannot be performed as it stands: " + chosen.Why
+		return "this play cannot be performed as it stands: " + chosen.Why
 	}
 	// ── AND A ROUTINE THAT NEEDS TEXT DOES NOT COME THROUGH HERE AT ALL ──
 	//
@@ -489,7 +489,7 @@ func (a *Acts) PlayRoutine(id, window string) string {
 	// beside it while leaving this live would be offering two buttons, one of which is
 	// wrong. See playvalues.go.
 	if needs := a.PlayNeeds(id); needs.Why == "" && needs.Needs {
-		return "this routine types text you supply, so fill that in and press Play " +
+		return "this play types text you supply, so fill that in and press Run " +
 			"there — it will show you what it would type before it runs"
 	}
 	// NOTHING PINNED, because nothing was confirmed: this button is for a routine that
@@ -671,9 +671,9 @@ func (a *Acts) liftChosen(into orchestrator.Pickable) string {
 		// readings are in the trace above. See raiseWindowTraced.
 		return fmt.Sprintf("Marco couldn't confirm the foreground handoff to %s "+
 			"within the wait. Nothing was started. Bring that window "+
-			"forward yourself, then press Play again. (One possibility: "+
+			"forward yourself, then press Run again. (One possibility: "+
 			"Windows only lets the window you last clicked hand the "+
-			"foreground on, so pressing Play while a full-screen game is "+
+			"foreground on, so pressing Run while a full-screen game is "+
 			"behind it can be refused.)", into.Label())
 	}
 	return ""
@@ -980,7 +980,7 @@ func (a *Acts) Library() Library {
 		// directory a binary was started from — this program's history, and not
 		// anything about the person's routines. What they need is that the
 		// routines exist, where, that nothing has moved, and how to use them.
-		out.Says = fmt.Sprintf("%d routine(s) are in %s, which is not this library. "+
+		out.Says = fmt.Sprintf("%d play(s) are in %s, which is not this library. "+
 			"Nothing has been moved. To use those instead, set MARCO_ROUTES to "+
 			"that folder and start Marco again.", n, dir)
 	}
@@ -1116,11 +1116,11 @@ func nextOfRoutine(said string) string {
 		return "Nothing was pressed. The sentence above is the run's own reason — a " +
 			"press checked against the window it was recorded in refuses when that " +
 			"window is a different size or a different program, so put it back the " +
-			"way it was when you recorded it and press Play again."
+			"way it was when you recorded it and press Run again."
 	case outcome.Cancelled:
 		return "Nothing was sent after you pressed Stop."
 	case outcome.Unavailable:
-		return "Nothing performed it at all, so this is not about the routine. Check " +
+		return "Nothing performed it at all, so this is not about the play. Check " +
 			"that the marco beside Studio is the one you built."
 	case outcome.Failed:
 		return "It stopped at the first thing that did not happen, and nothing after " +
@@ -1128,7 +1128,7 @@ func nextOfRoutine(said string) string {
 	case outcome.Unverified:
 		return "It was delivered and nothing could confirm it arrived."
 	case outcome.Clarify:
-		return "It is waiting to be told something, which a routine performed from a " +
+		return "It is waiting to be told something, which a play performed from a " +
 			"window cannot be — record it again without the part that asks."
 	}
 	// A RECORD STATE RATHER THAN AN OUTCOME, and the one word both kinds share. See

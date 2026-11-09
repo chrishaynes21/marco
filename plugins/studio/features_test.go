@@ -34,7 +34,7 @@ func TestTheAlphaRailOffersOneJourney(t *testing.T) {
 		t.Fatalf("a window with nothing set offers acts=%v scenes=%v", f.Acts, f.Scenes)
 	}
 	if got := strings.Join(f.Views, " "); got != "routines history help widget" {
-		t.Fatalf("the rail is %q, and the alpha journey is Routines", got)
+		t.Fatalf("the rail is %q, and the alpha journey is Plays", got)
 	}
 }
 

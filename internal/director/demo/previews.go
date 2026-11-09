@@ -159,7 +159,7 @@ func (s *Store) forgetOtherPreviews(a workflowstore.Artifact) error {
 // previewsFor is the directory every revision of a routine's pictures lives under.
 func (s *Store) previewsFor(routine string) (string, error) {
 	if strings.TrimSpace(routine) == "" {
-		return "", fmt.Errorf("previews with no routine to belong to have nowhere to go")
+		return "", fmt.Errorf("previews with no play to belong to have nowhere to go")
 	}
 	return filepath.Join(s.dir, previewDir, safeName(routine)), nil
 }

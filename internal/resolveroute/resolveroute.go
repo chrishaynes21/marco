@@ -271,7 +271,7 @@ func (r Resolver) Resolve(ctx context.Context, request string, cs []Candidate,
 		c, ok := byLabel[dec.Route]
 		if !ok {
 			said.Kind, said.Reply = dispatch.IntentClarify,
-				"something was suggested that is not one of the routines "+
+				"something was suggested that is not one of the plays "+
 					"offered, so nothing has been selected"
 			return said
 		}
@@ -530,7 +530,7 @@ func whichOnesAnswerTo(request string, cs []Candidate) (string, []string) {
 	}
 	sort.Strings(says)
 	sort.Strings(ids)
-	return fmt.Sprintf("%q is the name of %d routines, and nothing has said which you "+
+	return fmt.Sprintf("%q is the name of %d plays, and nothing has said which you "+
 		"mean: %s", request, len(says), strings.Join(says, "; ")), ids
 }
 
@@ -652,11 +652,11 @@ func scopedLabel(c Candidate) string {
 // whyNothing says which scopes were and were not available, when none were.
 func whyNothing(where Context) string {
 	if !where.Basis.Admits() {
-		return "nothing is known to be in front, so no in-place routine is offered — " +
-			"name an application, or save what you want as a routine that works " +
+		return "nothing is known to be in front, so no in-place play is offered — " +
+			"name an application, or save what you want as a play that works " +
 			"anywhere"
 	}
-	return fmt.Sprintf("there is no runnable global routine, no routine that brings an "+
+	return fmt.Sprintf("there is no runnable global play, no play that brings an "+
 		"application forward, and none in place for %s", where.App)
 }
 

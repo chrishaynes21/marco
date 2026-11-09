@@ -126,7 +126,7 @@ func (a *Acts) SaveDraftAs(name, scope, app string) string {
 	// declarations in the play that composes them.
 	for _, c := range a.Saved() {
 		if strings.EqualFold(c.Name, name) {
-			return fmt.Sprintf("there is already an Act called %q, and a routine "+
+			return fmt.Sprintf("there is already an Act called %q, and a play "+
 				"cannot share its name — call this something else", c.Name)
 		}
 	}
@@ -152,7 +152,7 @@ func (a *Acts) SaveDraftAs(name, scope, app string) string {
 func (a *Acts) ReplaceDraft(id, source, recording, scope, app string) string {
 	id = strings.TrimSpace(id)
 	if id == "" {
-		return "say which routine is being replaced"
+		return "say which play is being replaced"
 	}
 	dr, cp, why := a.draftToSave()
 	if why != "" {

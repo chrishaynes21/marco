@@ -164,7 +164,7 @@ func TestTheBoundaryIsNotPutInAModeItHasNoWindowFor(t *testing.T) {
 		t.Error("a granted run with a recorded window is not in geometry replay mode")
 	}
 	if w := replayWindow(true, unrecorded); w != nil {
-		t.Error("a routine with no recorded window put the press boundary into " +
+		t.Error("a play with no recorded window put the press boundary into " +
 			"geometry replay mode, where it would check four things about " +
 			"where a click lands and nothing at all about the layout")
 	}

@@ -107,7 +107,7 @@ func TestMain(m *testing.M) {
 func TestTheseTestsDoNotRunAgainstTheRealStore(t *testing.T) {
 	home := os.Getenv(marcopaths.EnvHome)
 	if strings.TrimSpace(home) == "" {
-		t.Fatal("these tests run with no MARCO_HOME, so every routine they perform " +
+		t.Fatal("these tests run with no MARCO_HOME, so every play they perform " +
 			"writes its record into the real store — see TestMain above")
 	}
 	if marcopaths.SameStore(home, marcopaths.Default()) {

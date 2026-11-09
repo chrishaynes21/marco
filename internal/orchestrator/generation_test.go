@@ -44,11 +44,11 @@ func TestTheGenerationASaveWritesIsTheGenerationThisReads(t *testing.T) {
 	src := string(raw)
 	got := GenerationOf(src)
 	if got.Reading != GenerationCurrent {
-		t.Errorf("a routine this build just wrote reads back as %q (%s)", got.Reading,
+		t.Errorf("a play this build just wrote reads back as %q (%s)", got.Reading,
 			got.Why)
 	}
 	if got.Generation != codegen.Generation {
-		t.Errorf("the saved routine reads back as generation %d and codegen writes %d",
+		t.Errorf("the saved play reads back as generation %d and codegen writes %d",
 			got.Generation, codegen.Generation)
 	}
 	// AND IT SAYS SO IN WORDS A PERSON READS, not only in a word a parser finds. The
@@ -73,7 +73,7 @@ func TestEveryEntranceToTheGeneratorStampsTheGeneration(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got := GenerationOf(plain); got.Reading != GenerationCurrent {
-		t.Errorf("codegen.Route wrote a routine that reads as %q", got.Reading)
+		t.Errorf("codegen.Route wrote a play that reads as %q", got.Reading)
 	}
 }
 
@@ -86,7 +86,7 @@ func TestEveryEntranceToTheGeneratorStampsTheGeneration(t *testing.T) {
 func TestTheHistoryIsTheOneAuthorityForTheVersionAndTheWords(t *testing.T) {
 	if GenerationNow() != codegen.Generation {
 		t.Errorf("this package says the current generation is %d and codegen writes %d, "+
-			"so a routine this build wrote would read as something other than "+
+			"so a play this build wrote would read as something other than "+
 			"current", GenerationNow(), codegen.Generation)
 	}
 	for i, g := range theHistory {
@@ -95,7 +95,7 @@ func TestTheHistoryIsTheOneAuthorityForTheVersionAndTheWords(t *testing.T) {
 				"contiguous 1..n a reading walks", i, g.Generation)
 		}
 		if len(g.Rules) == 0 {
-			t.Errorf("generation %d has no words, so a routine stating the one "+
+			t.Errorf("generation %d has no words, so a play stating the one "+
 				"before it would be told it is older and never told what "+
 				"changed", g.Generation)
 		}
@@ -130,10 +130,10 @@ func aStampedRoutine(lines ...string) string {
 func TestARoutineThatStatesNoGenerationReadsAsUnstated(t *testing.T) {
 	got := GenerationOf(aStampedRoutine("// Recorded as: coordinates."))
 	if got.Reading != GenerationUnstated {
-		t.Errorf("a routine with no generation line reads as %q", got.Reading)
+		t.Errorf("a play with no generation line reads as %q", got.Reading)
 	}
 	if got.Generation != 0 || got.Declared != "" {
-		t.Errorf("a routine that states nothing read back as %+v", got)
+		t.Errorf("a play that states nothing read back as %+v", got)
 	}
 	// AND THE SENTENCE CLAIMS NOTHING ABOUT WHEN THE FILE WAS MADE. "Written before
 	// versioning" is a claim the file does not support: a handwritten routine says
@@ -144,7 +144,7 @@ func TestARoutineThatStatesNoGenerationReadsAsUnstated(t *testing.T) {
 	}
 	for _, forbidden := range []string{"before", "older", "out of date", "outdated"} {
 		if strings.Contains(strings.ToLower(said), forbidden) {
-			t.Errorf("the sentence for an unstated routine says %q, which is a "+
+			t.Errorf("the sentence for an unstated play says %q, which is a "+
 				"claim about a file that states nothing: %q", forbidden, said)
 		}
 	}
@@ -196,7 +196,7 @@ func TestAStampThisCannotReadIsUnknownAndNeitherOfTheOthers(t *testing.T) {
 			// generation means cannot say what replacing it would change.
 			said := GenerationSentence(got, true)
 			if strings.Contains(said, "You can review") {
-				t.Errorf("a routine this build cannot explain is offered a "+
+				t.Errorf("a play this build cannot explain is offered a "+
 					"rebuild anyway: %q", said)
 			}
 			if !strings.Contains(said, "does not recognise") {
@@ -217,7 +217,7 @@ func TestANewerStampIsNotRelabelledCurrentOrLost(t *testing.T) {
 	got := GenerationOf(aStampedRoutine(fmt.Sprintf("// Generation: %d.", ahead)))
 
 	if got.Reading != GenerationUnknown {
-		t.Fatalf("a routine from a later build reads as %q", got.Reading)
+		t.Fatalf("a play from a later build reads as %q", got.Reading)
 	}
 	if got.Declared != fmt.Sprint(ahead) {
 		t.Errorf("the file states generation %d and the reading preserved %q — which "+
@@ -253,10 +253,10 @@ func TestTheGenerationAndTheContractAreIndependentFacts(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got := GenerationOf(legacy); got.Reading != GenerationCurrent {
-		t.Errorf("a routine today's generator just wrote reads as %q", got.Reading)
+		t.Errorf("a play today's generator just wrote reads as %q", got.Reading)
 	}
 	if c, _ := ContractOf(legacy); c != Legacy {
-		t.Errorf("a routine with no measured press reads as contract %q, so this case "+
+		t.Errorf("a play with no measured press reads as contract %q, so this case "+
 			"does not establish the two can disagree", c)
 	}
 	// AND THE OTHER WAY ROUND: a measured press is guarded, written by the same
@@ -270,10 +270,10 @@ func TestTheGenerationAndTheContractAreIndependentFacts(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got := GenerationOf(guardedSrc); got.Reading != GenerationCurrent {
-		t.Errorf("a guarded routine today's generator wrote reads as %q", got.Reading)
+		t.Errorf("a guarded play today's generator wrote reads as %q", got.Reading)
 	}
 	if c, _ := ContractOf(guardedSrc); c != Guarded {
-		t.Errorf("the measured routine reads as contract %q", c)
+		t.Errorf("the measured play reads as contract %q", c)
 	}
 }
 
@@ -320,7 +320,7 @@ func TestTheDifferencesAreTheGenerationsAfterTheOneStated(t *testing.T) {
 		t.Run(fmt.Sprint("stating ", c.states), func(t *testing.T) {
 			src := aStampedRoutine(fmt.Sprintf("// Generation: %d.", c.states))
 			if got := h.read(src); got.Reading != GenerationOlder {
-				t.Fatalf("a routine stating %d of 3 reads as %q", c.states,
+				t.Fatalf("a play stating %d of 3 reads as %q", c.states,
 					got.Reading)
 			}
 			diffs := h.differences(src)
@@ -336,7 +336,7 @@ func TestTheDifferencesAreTheGenerationsAfterTheOneStated(t *testing.T) {
 			for _, d := range diffs {
 				if d.Generation <= c.states {
 					t.Errorf("%q is attributed to generation %d, which "+
-						"this routine states it already had", d.Says,
+						"this play states it already had", d.Says,
 						d.Generation)
 				}
 			}
@@ -345,15 +345,15 @@ func TestTheDifferencesAreTheGenerationsAfterTheOneStated(t *testing.T) {
 	// AND A ROUTINE STATING THE LAST GENERATION IS CURRENT, WITH NOTHING TO WALK.
 	src := aStampedRoutine("// Generation: 3.")
 	if got := h.read(src); got.Reading != GenerationCurrent {
-		t.Errorf("a routine stating the newest generation reads as %q", got.Reading)
+		t.Errorf("a play stating the newest generation reads as %q", got.Reading)
 	}
 	if diffs := h.differences(src); len(diffs) != 0 {
-		t.Errorf("a current routine was written without %d thing(s)", len(diffs))
+		t.Errorf("a current play was written without %d thing(s)", len(diffs))
 	}
 	// AND AN UNSTATED ROUTINE IS NOT WALKED FROM A GUESS. Walking from generation 1
 	// because that is the likeliest answer is the inference this whole slice refuses.
 	if diffs := h.differences(aStampedRoutine()); len(diffs) != 0 {
-		t.Errorf("a routine that states no generation was told what it was written "+
+		t.Errorf("a play that states no generation was told what it was written "+
 			"without: %+v", diffs)
 	}
 }
@@ -376,17 +376,17 @@ func TestOlderDoesNotMeanAffectedUnlessTheContentsShowIt(t *testing.T) {
 		bearing[d.Says] = d.Bears
 	}
 	if !bearing["a typed text stops what follows it"] {
-		t.Error("a routine that types text is not told the typing difference bears " +
+		t.Error("a play that types text is not told the typing difference bears " +
 			"on it, so the one claim worth making is the one not made")
 	}
 	if bearing["a drag states both of its ends"] {
-		t.Error("a routine with no drag in it is told the drag difference bears on it")
+		t.Error("a play with no drag in it is told the drag difference bears on it")
 	}
 	if bearing["something no saved file can show either way"] {
 		t.Error("a difference nothing can establish is reported as established")
 	}
 	if !Bears(diffs) {
-		t.Error("a routine with an affected content reports nothing bearing on it")
+		t.Error("a play with an affected content reports nothing bearing on it")
 	}
 	// AND THE CONTROL: the same older generation, a routine none of the differences
 	// touches. Still older, still offered a comparison, and NOT claimed to need one.
@@ -401,7 +401,7 @@ func TestOlderDoesNotMeanAffectedUnlessTheContentsShowIt(t *testing.T) {
 			"establish that differences are listed without being claimed")
 	}
 	if Bears(quiet) {
-		t.Errorf("a routine none of the differences touches is claimed to need an "+
+		t.Errorf("a play none of the differences touches is claimed to need an "+
 			"update: %+v", quiet)
 	}
 }
@@ -418,7 +418,7 @@ func TestARoutineWithNoDemonstrationIsExplainedAndNotOffered(t *testing.T) {
 	} {
 		said := GenerationSentence(s, false)
 		if strings.Contains(said, "You can review") {
-			t.Errorf("a routine with no stored demonstration is offered a rebuild: "+
+			t.Errorf("a play with no stored demonstration is offered a rebuild: "+
 				"%q", said)
 		}
 		if !strings.Contains(said, "no longer stored beside it") {
@@ -431,7 +431,7 @@ func TestARoutineWithNoDemonstrationIsExplainedAndNotOffered(t *testing.T) {
 		// AND THE EXPLANATION SURVIVES, which is the half that is owed regardless.
 		if withOne := GenerationSentence(s, true); !strings.Contains(withOne,
 			"You can review") {
-			t.Errorf("the same routine with its demonstration still there is not "+
+			t.Errorf("the same play with its demonstration still there is not "+
 				"offered one: %q", withOne)
 		}
 	}
@@ -467,10 +467,10 @@ func TestTheExportedReadersWalkTheHistoryAndSayWhatChanged(t *testing.T) {
 
 	got := GenerationOf(src)
 	if got.Reading != GenerationOlder || got.Generation != 1 {
-		t.Fatalf("a routine stating 1 of 3 reads as %+v", got)
+		t.Fatalf("a play stating 1 of 3 reads as %+v", got)
 	}
 	if !got.Offerable() {
-		t.Error("an older routine this build can explain is not offerable, so the " +
+		t.Error("an older play this build can explain is not offerable, so the " +
 			"one case this flow exists for would be refused a review")
 	}
 	diffs := GenerationDifferencesOf(src)
@@ -480,17 +480,17 @@ func TestTheExportedReadersWalkTheHistoryAndSayWhatChanged(t *testing.T) {
 			len(diffs))
 	}
 	if !Bears(diffs) {
-		t.Error("a routine that types text is not reported as bearing on the typing " +
+		t.Error("a play that types text is not reported as bearing on the typing " +
 			"difference, through the exported path")
 	}
 	// AND THE SENTENCE SAYS BOTH NUMBERS AND OFFERS THE REVIEW.
 	said := GenerationSentence(got, true)
 	if !strings.Contains(said, "generation 1") || !strings.Contains(said, "generation 3") {
-		t.Errorf("the sentence for an older routine is %q and does not say which "+
+		t.Errorf("the sentence for an older play is %q and does not say which "+
 			"generation wrote it and which this build writes", said)
 	}
 	if !strings.Contains(said, "You can review") {
-		t.Errorf("an older routine with its demonstration still there is not offered "+
+		t.Errorf("an older play with its demonstration still there is not offered "+
 			"a review: %q", said)
 	}
 	// AND THE CURRENT GENERATION IS THE HISTORY'S LAST ENTRY, asked through the
@@ -513,11 +513,11 @@ func TestAnUnknownReadingIsNotOfferableUnderAnyHistory(t *testing.T) {
 	underAHistoryOfThree(t)
 	got := GenerationOf(aStampedRoutine("// Generation: 9."))
 	if got.Reading != GenerationUnknown {
-		t.Fatalf("a routine stating 9 of 3 reads as %q", got.Reading)
+		t.Fatalf("a play stating 9 of 3 reads as %q", got.Reading)
 	}
 	if got.Offerable() {
 		t.Error("a generation this build cannot explain is offerable, so a window " +
-			"would offer to replace a routine it cannot describe the change to")
+			"would offer to replace a play it cannot describe the change to")
 	}
 	// AND THE THREE THIS BUILD CAN ARE. Without this the rule is satisfied by
 	// refusing everything.
@@ -546,7 +546,7 @@ func TestARoutineThatTypesTheGenerationLineStatesNothing(t *testing.T) {
 		"    do OS's Type with \"// Generation: 9.\".\n"
 	got := GenerationOf(typed)
 	if got.Reading != GenerationUnstated {
-		t.Errorf("a routine that TYPES the generation line reads as %q with declared "+
+		t.Errorf("a play that TYPES the generation line reads as %q with declared "+
 			"%q — the text of a demonstration read as a claim about the file",
 			got.Reading, got.Declared)
 	}
@@ -556,7 +556,7 @@ func TestARoutineThatTypesTheGenerationLineStatesNothing(t *testing.T) {
 		"    do OS's Type with \"// Generation: 9.\".\n"
 	if got := GenerationOf(both); got.Reading != GenerationCurrent ||
 		got.Declared != "1" {
-		t.Errorf("a routine that states 1 and types 9 reads as %+v", got)
+		t.Errorf("a play that states 1 and types 9 reads as %+v", got)
 	}
 }
 
@@ -575,7 +575,7 @@ func TestTheSentenceForACurrentRoutineOffersTheComparisonAndPromisesNothing(t *t
 		t.Errorf("the sentence is %q and does not offer the comparison as a "+
 			"question", said)
 	}
-	for _, promise := range []string{"the same routine", "will be the same",
+	for _, promise := range []string{"the same play", "will be the same",
 		"identical"} {
 		if strings.Contains(said, promise) {
 			t.Errorf("the sentence promises %q about a rebuild it has not done: %q",
@@ -586,7 +586,7 @@ func TestTheSentenceForACurrentRoutineOffersTheComparisonAndPromisesNothing(t *t
 	// sentence above is the one it gets — and a rebuild of it differs.
 	edited := "// a person edited this\n" + aStampedRoutine("// Generation: 1.")
 	if got := GenerationOf(edited); got.Reading != GenerationCurrent {
-		t.Errorf("a hand-edited routine that kept its stamp reads as %q, so the case "+
+		t.Errorf("a hand-edited play that kept its stamp reads as %q, so the case "+
 			"this is about does not arise", got.Reading)
 	}
 }

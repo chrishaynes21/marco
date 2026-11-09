@@ -25,7 +25,7 @@ func TestAForgetAsPlannedRemovesWhatItShowed(t *testing.T) {
 		t.Fatalf("forgetting as planned: %+v, %v", f, err)
 	}
 	if d.Reg.Has(rt) || d.Reg.HasRecording(rt) || d.Reg.HasSteps(rt) {
-		t.Error("a part of the routine is still there")
+		t.Error("a part of the play is still there")
 	}
 }
 

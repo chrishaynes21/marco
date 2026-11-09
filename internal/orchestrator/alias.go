@@ -67,11 +67,11 @@ func (d Deps) AliasesOf(rt routes.Route) (phrases []string, why string) {
 		return s.Phrases, ""
 	case routes.AliasesElsewhere:
 		return nil, fmt.Sprintf("the phrases stored beside %q say they belong to %s, "+
-			"so none of them answers for this routine — they were left by a "+
-			"move that did not finish, or by a routine that used to be saved "+
+			"so none of them answers for this play — they were left by a "+
+			"move that did not finish, or by a play that used to be saved "+
 			"here", rt.Slug, s.Route)
 	case routes.AliasesOrphaned:
-		return nil, fmt.Sprintf("there are phrases stored at %s and no routine there "+
+		return nil, fmt.Sprintf("there are phrases stored at %s and no play there "+
 			"to answer to them", rt.ID())
 	}
 	return nil, fmt.Sprintf("the phrases stored beside %q could not be read, so it is "+
@@ -87,7 +87,7 @@ func (d Deps) AddAlias(rt routes.Route, phrase string) (Aliased, error) {
 	phrase = strings.TrimSpace(phrase)
 	switch {
 	case rt.Slug == "":
-		return Aliased{}, fmt.Errorf("a phrase needs a routine to belong to")
+		return Aliased{}, fmt.Errorf("a phrase needs a play to belong to")
 	case phrase == "":
 		return Aliased{}, fmt.Errorf("say what %q should also answer to", rt.Slug)
 	case routes.Slug(phrase) == "":
@@ -96,7 +96,7 @@ func (d Deps) AddAlias(rt routes.Route, phrase string) (Aliased, error) {
 		return Aliased{}, fmt.Errorf("%q has no words in it, so nothing could ever "+
 			"match it", phrase)
 	case !d.Reg.Has(rt):
-		return Aliased{}, fmt.Errorf("there is no routine saved at %s", rt.ID())
+		return Aliased{}, fmt.Errorf("there is no play saved at %s", rt.ID())
 	}
 	hold, err := d.Reg.Lock(rt, SaveWithin)
 	if err != nil {
@@ -112,7 +112,7 @@ func (d Deps) AddAlias(rt routes.Route, phrase string) (Aliased, error) {
 	// before any phrase is consulted, so storing it would store a phrase that can never
 	// be reached — said rather than written.
 	if same(phrase, rt.Slug) {
-		return d.aliased(rt, have, fmt.Sprintf("%q is already this routine's own "+
+		return d.aliased(rt, have, fmt.Sprintf("%q is already this play's own "+
 			"name, so there was nothing to add", phrase)), nil
 	}
 	for _, p := range have {
@@ -123,7 +123,7 @@ func (d Deps) AddAlias(rt routes.Route, phrase string) (Aliased, error) {
 	}
 	if clash := d.whatElseAnswersTo(phrase, rt); clash != "" {
 		return Aliased{}, fmt.Errorf("%q is already how %s is reached, and a phrase "+
-			"two routines answer to selects neither of them — it asks which. "+
+			"two plays answer to selects neither of them — it asks which. "+
 			"Choose another phrase, or rename one of them", phrase, clash)
 	}
 	if err := d.Reg.SaveAliases(rt, append(slices.Clone(have), phrase)); err != nil {
@@ -142,7 +142,7 @@ func (d Deps) RemoveAlias(rt routes.Route, phrase string) (Aliased, error) {
 	phrase = strings.TrimSpace(phrase)
 	switch {
 	case rt.Slug == "":
-		return Aliased{}, fmt.Errorf("a phrase needs a routine to belong to")
+		return Aliased{}, fmt.Errorf("a phrase needs a play to belong to")
 	case phrase == "":
 		return Aliased{}, fmt.Errorf("say which phrase %q should stop answering to",
 			rt.Slug)

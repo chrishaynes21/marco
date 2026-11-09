@@ -152,7 +152,7 @@ var theHistory = history{{
 			"checked before it happens, and refuses rather than pressing somewhere " +
 			"else when the window has changed."},
 		{Says: "Every action that can fail is its own step, and each one runs the next " +
-			"only when it succeeded — so the routine stops at the first action that " +
+			"only when it succeeded — so the play stops at the first action that " +
 			"did not happen instead of carrying on."},
 		{Says: "A press states which button it was, so a right or middle press is one " +
 			"checked press rather than an aim followed by a click at the cursor."},
@@ -162,11 +162,11 @@ var theHistory = history{{
 			"each run of text stops what follows it when part of it did not go in."},
 		{Says: "A keystroke, a chord and a held key stop what follows them when the " +
 			"machine did not take them."},
-		{Says: "A routine whose application has to come forward does that as its first " +
+		{Says: "A play whose application has to come forward does that as its first " +
 			"step and stops if it did not, so nothing is pressed into whatever " +
 			"happened to be in front."},
 		{Says: "A demonstration containing a press that cannot be stopped at is refused " +
-			"when it is saved, rather than written as a routine that reads as " +
+			"when it is saved, rather than written as a play that reads as " +
 			"checked and is not."},
 	},
 }}
@@ -344,7 +344,7 @@ func Bears(diffs []Difference) bool {
 func GenerationSentence(s StatedGeneration, rebuildable bool) string {
 	switch s.Reading {
 	case GenerationCurrent:
-		was := fmt.Sprintf("This routine states that generation %d of Marco's rules "+
+		was := fmt.Sprintf("This play states that generation %d of Marco's rules "+
 			"wrote it, which is the generation this build writes.", s.Generation)
 		if !rebuildable {
 			// SAID EVEN THOUGH NOTHING IS WRONG, because the button is off
@@ -368,7 +368,7 @@ func GenerationSentence(s StatedGeneration, rebuildable bool) string {
 			"recording, which will show whether it differs from what is " +
 			"saved."
 	case GenerationOlder:
-		was := fmt.Sprintf("This routine states that generation %d of Marco's rules "+
+		was := fmt.Sprintf("This play states that generation %d of Marco's rules "+
 			"wrote it, and this build writes generation %d.", s.Generation,
 			theHistory.current())
 		return was + " " + offer(rebuildable)
@@ -376,14 +376,14 @@ func GenerationSentence(s StatedGeneration, rebuildable bool) string {
 		// NOTHING IS OFFERED. See the note at the top of this file: a reader that
 		// cannot say what a generation does cannot say what replacing it would
 		// change, so this says what it found and stops.
-		return fmt.Sprintf("This routine states a generation this build does not "+
+		return fmt.Sprintf("This play states a generation this build does not "+
 			"recognise: %s. It is left exactly as it is, and runs under the "+
 			"same rules it always has.", s.Why)
 	}
 	// AND UNSTATED SAYS ONLY THAT. Not "written before versioning", which would be a
 	// claim about when the file was made: a handwritten routine says nothing here, and so
 	// does one somebody took the line out of.
-	return "This routine does not state which generation rules wrote it. " + offer(rebuildable)
+	return "This play does not state which generation rules wrote it. " + offer(rebuildable)
 }
 
 // offer is the half of those sentences that depends on there being a demonstration, for a routine

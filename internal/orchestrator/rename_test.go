@@ -59,7 +59,7 @@ func TestAMoveKeepsTheValuesTheRoutineAsksFor(t *testing.T) {
 			m.Now)
 	}
 	if strings.Contains(m.Now, `OS's Secret with "item"`) {
-		t.Errorf("a move turned the value the routine asks for into a read of the "+
+		t.Errorf("a move turned the value the play asks for into a read of the "+
 			"credential store:\n%s", m.Now)
 	}
 
@@ -71,10 +71,10 @@ func TestAMoveKeepsTheValuesTheRoutineAsksFor(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !strings.Contains(string(after), "{{item}}") {
-		t.Fatalf("the moved routine no longer asks for the value:\n%s", after)
+		t.Fatalf("the moved play no longer asks for the value:\n%s", after)
 	}
 	if strings.Contains(string(after), `OS's Secret`) {
-		t.Errorf("the moved routine reads the credential store:\n%s", after)
+		t.Errorf("the moved play reads the credential store:\n%s", after)
 	}
 }
 
@@ -121,11 +121,11 @@ func TestAMoveKeepsTheCredentialItWasReading(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !strings.Contains(string(after), want) {
-		t.Fatalf("the moved routine reads a different credential:\n%s", after)
+		t.Fatalf("the moved play reads a different credential:\n%s", after)
 	}
 	// AND IT IS STILL A CREDENTIAL, not a value somebody types into a box.
 	if strings.Contains(string(after), "{{password}}") {
-		t.Errorf("the moved routine carries the password as a placeholder:\n%s", after)
+		t.Errorf("the moved play carries the password as a placeholder:\n%s", after)
 	}
 }
 
@@ -154,7 +154,7 @@ func TestARebuildThatCannotKeepTheCredentialIsRefused(t *testing.T) {
 		t.Fatalf("preparing the rebuild: %v", err)
 	}
 	if p.Refused == "" {
-		t.Fatalf("a re-simplification dropped the credential the routine reads, and "+
+		t.Fatalf("a re-simplification dropped the credential the play reads, and "+
 			"would write:\n%s", p.Now)
 	}
 	for _, say := range []string{"type-my-address:password", "credential store",
@@ -168,7 +168,7 @@ func TestARebuildThatCannotKeepTheCredentialIsRefused(t *testing.T) {
 	}
 	now, err := os.ReadFile(d.Reg.Path(rt))
 	if err != nil || string(now) != string(before) {
-		t.Error("the refused rebuild changed the routine")
+		t.Error("the refused rebuild changed the play")
 	}
 }
 
@@ -219,14 +219,14 @@ func TestARenameChangesTheSlugAndNothingElseAboutTheIdentity(t *testing.T) {
 		t.Fatalf("renaming: %v", err)
 	}
 	if _, err := os.Stat(d.Reg.Path(rt)); err == nil {
-		t.Error("the routine is still at its old name as well")
+		t.Error("the play is still at its old name as well")
 	}
 	raw, err := os.ReadFile(d.Reg.Path(m.To))
 	if err != nil {
-		t.Fatalf("the renamed routine is not there: %v", err)
+		t.Fatalf("the renamed play is not there: %v", err)
 	}
 	if !strings.Contains(string(raw), "post my address") {
-		t.Errorf("the renamed routine does not call itself by its new name:\n%s", raw)
+		t.Errorf("the renamed play does not call itself by its new name:\n%s", raw)
 	}
 }
 
@@ -269,7 +269,7 @@ func TestARenameThatWouldMoveACredentialNameIsRefused(t *testing.T) {
 	}
 	after, err := os.ReadFile(d.Reg.Path(rt))
 	if err != nil || string(after) != string(before) {
-		t.Error("the refused rename changed the routine")
+		t.Error("the refused rename changed the play")
 	}
 }
 
@@ -302,14 +302,14 @@ func TestARenameOntoAnOccupiedNameIsRefusedWithNothingToAgreeTo(t *testing.T) {
 		t.Fatalf("a rename onto an occupied name was offered, and it would write "+
 			"over:\n%s", before)
 	}
-	if !strings.Contains(m.Refused, "already a routine") {
+	if !strings.Contains(m.Refused, "already a play") {
 		t.Errorf("the refusal does not name what is in the way: %q", m.Refused)
 	}
 	// BY THE NAME SOMEBODY TYPED AND THE APPLICATION, NOT THE ROUTE ID. It is read beside
 	// the box the name was typed into.
-	if !strings.Contains(m.Refused, `"post my address" is already a routine in notepad`) ||
+	if !strings.Contains(m.Refused, `"post my address" is already a play in notepad`) ||
 		strings.Contains(m.Refused, "/") {
-		t.Errorf("the refusal does not name the routine in the person's words: %q", m.Refused)
+		t.Errorf("the refusal does not name the play in the person's words: %q", m.Refused)
 	}
 	// NOTHING TO AGREE TO. `Taken` is what makes a consent possible at all.
 	if m.Taken || m.TakenSays != "" {
@@ -324,10 +324,10 @@ func TestARenameOntoAnOccupiedNameIsRefusedWithNothingToAgreeTo(t *testing.T) {
 	}
 	after, err := os.ReadFile(d.Reg.Path(at))
 	if err != nil || string(after) != string(before) {
-		t.Error("the routine that was in the way has been written over")
+		t.Error("the play that was in the way has been written over")
 	}
 	if _, err := os.Stat(d.Reg.Path(rt)); err != nil {
-		t.Error("the routine being renamed is gone")
+		t.Error("the play being renamed is gone")
 	}
 }
 
@@ -343,7 +343,7 @@ func TestARenameRefusesAClauseAndRefusesANameWithNothingInIt(t *testing.T) {
 	// AND THE NAME IT ALREADY HAS, by the slug: `Type My Address` is the same place.
 	for _, same := range []string{"type my address", "Type My Address", "type-my-address"} {
 		if _, err := d.PrepareRename(rt, same); err == nil {
-			t.Errorf("%q was offered as a rename of the routine that has it", same)
+			t.Errorf("%q was offered as a rename of the play that has it", same)
 		}
 	}
 }

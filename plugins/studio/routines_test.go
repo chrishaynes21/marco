@@ -80,7 +80,7 @@ func playing(t *testing.T, a *Acts, name string) string {
 	withAMarcoBeside(t)
 	r, found := routineCalled(a.Routines(), name)
 	if !found {
-		t.Fatalf("there is no routine called %q in the library: %+v", name,
+		t.Fatalf("there is no play called %q in the library: %+v", name,
 			a.Routines())
 	}
 	// AND A WINDOW TO PLAY IT INTO, STATED, because Studio does not Play without one.
@@ -205,13 +205,13 @@ func TestASavedRoutineIsListedAndReadyToPlay(t *testing.T) {
 	a := aSavedRoutine(t, "app-anywhere", nil)
 	r, found := routineCalled(a.Routines(), "ark graphics")
 	if !found {
-		t.Fatalf("the routine just saved is not in the library: %+v", a.Routines())
+		t.Fatalf("the play just saved is not in the library: %+v", a.Routines())
 	}
 	if !r.Runnable {
 		t.Errorf("it is listed as unable to run: %s", r.Why)
 	}
 	if r.Cant != "" {
-		t.Errorf("a routine ready to play carries a refusal for its row: %q", r.Cant)
+		t.Errorf("a play ready to play carries a refusal for its row: %q", r.Cant)
 	}
 	if r.Slug != "ark-graphics" {
 		t.Errorf("its slug is %q", r.Slug)
@@ -278,12 +278,12 @@ func TestAnActIsNotListedAsARoutine(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, listed := routineCalled(a.Routines(), "open the audio settings"); listed {
-		t.Error("an Act is listed as a routine, so it would be performed by the " +
-			"wrong thing — a routine runs through `marco do` and an Act " +
+		t.Error("an Act is listed as a play, so it would be performed by the " +
+			"wrong thing — a play runs through `marco do` and an Act " +
 			"through the supervised runner under an authorisation")
 	}
 	if _, still := routineCalled(a.Routines(), "ark graphics"); !still {
-		t.Error("the recorded routine went missing from the library")
+		t.Error("the recorded play went missing from the library")
 	}
 }
 
@@ -319,12 +319,12 @@ func TestAModuleBesideTheRoutinesIsNotOfferedAsOne(t *testing.T) {
 		}
 	}
 	if !listed {
-		t.Fatal("the registry does not list a module beside the routines, so this " +
+		t.Fatal("the registry does not list a module beside the plays, so this " +
 			"test is not asking the question it was written for")
 	}
 	for _, r := range a.Routines() {
 		if r.Slug == "helpers" {
-			t.Fatalf("a module is offered as a routine, and pressing Play on "+
+			t.Fatalf("a module is offered as a play, and pressing Play on "+
 				"it would perform nothing: %+v", r)
 		}
 	}
@@ -484,7 +484,7 @@ func TestEveryMeasurementADragCanLackIsSaidInWords(t *testing.T) {
 	said := saidTerms(lacks)
 	for i := range lacks {
 		if said[i] == lacks[i] {
-			t.Errorf("a routine missing %s shows a person the term out of the "+
+			t.Errorf("a play missing %s shows a person the term out of the "+
 				"file rather than what it means", lacks[i])
 		}
 	}
@@ -499,7 +499,7 @@ func TestPlayingAnUnknownRoutineNamesTheLibrary(t *testing.T) {
 	a := aSavedRoutine(t, "app-anywhere", nil)
 	why := a.PlayRoutine("arkascended/focus/nothing-like-this", "")
 	if why == "" {
-		t.Fatal("a routine nobody saved was performed")
+		t.Fatal("a play nobody saved was performed")
 	}
 	if !strings.Contains(why, a.routesDir) {
 		t.Errorf("the refusal does not say where it looked: %s", why)
@@ -517,12 +517,12 @@ func TestPlayingARoutineByNameAloneIsRefused(t *testing.T) {
 	a.raising = func(string) string { raised++; return "" }
 	for _, loose := range []string{"ark graphics", "ark-graphics", "arkascended"} {
 		if why := a.PlayRoutine(loose, ""); why == "" {
-			t.Errorf("%q performed a routine, so a term that names two of them "+
+			t.Errorf("%q performed a play, so a term that names two of them "+
 				"would perform one of the two", loose)
 		}
 	}
 	if raised != 0 {
-		t.Errorf("something was brought forward for a routine nobody identified "+
+		t.Errorf("something was brought forward for a play nobody identified "+
 			"(%d time(s))", raised)
 	}
 	if a.busy {
@@ -549,7 +549,7 @@ func TestARoutineWillNotRunWhileSomethingElseIs(t *testing.T) {
 	}
 	why := playing(t, a, "ark graphics")
 	if why == "" {
-		t.Fatal("a routine started while a run was already in flight")
+		t.Fatal("a play started while a run was already in flight")
 	}
 	if !strings.Contains(why, "one at a time") {
 		t.Errorf("the refusal reads: %s", why)
@@ -574,7 +574,7 @@ func TestARoutineWillNotRunWhileSomethingIsBeingRecorded(t *testing.T) {
 	}
 	why := playing(t, a, "ark graphics")
 	if why == "" {
-		t.Fatal("a routine ran while the screen was being watched")
+		t.Fatal("a play ran while the screen was being watched")
 	}
 	if !strings.Contains(why, "recording") {
 		t.Errorf("the refusal reads: %s", why)
@@ -691,7 +691,7 @@ func TestARoutineThatNamesNoApplicationIsPlayedIntoAChosenWindow(t *testing.T) {
 		t.Fatal("a run started although the window would not come forward")
 	}
 	if len(lifted) != 1 || lifted[0] != 0x6161 {
-		t.Errorf("the handles brought forward were %#x, want [0x6161]: a routine "+
+		t.Errorf("the handles brought forward were %#x, want [0x6161]: a play "+
 			"that works anywhere still presses somewhere, and without this the "+
 			"run begins with Studio in front", lifted)
 	}
@@ -748,7 +748,7 @@ func TestTheCommandCarriesTheRoutesIdentityAndTheLibrary(t *testing.T) {
 	a := aSavedRoutine(t, "app-anywhere", nil)
 	r, found := routineCalled(a.Routines(), "ark graphics")
 	if !found {
-		t.Fatal("the routine is not listed")
+		t.Fatal("the play is not listed")
 	}
 	// AND THE AMBIENT ENVIRONMENT NOW SAYS SOMETHING ELSE.
 	//
@@ -777,7 +777,7 @@ func TestTheCommandCarriesTheRoutesIdentityAndTheLibrary(t *testing.T) {
 	// environment keeping the last value, which is what makes an explicit append an
 	// override rather than a duplicate.
 	if got := effective(env, "MARCO_ROUTES"); got != a.routesDir {
-		t.Errorf("the command would read %s and the window listed this routine "+
+		t.Errorf("the command would read %s and the window listed this play "+
 			"from %s. A run not told which library to read reads whichever "+
 			"directory it was started in, which is the defect this surface "+
 			"was built on top of.", got, a.routesDir)
@@ -825,7 +825,7 @@ func TestAContextRoutineIsNotAskedForAsAFocusOne(t *testing.T) {
 	}
 	_, args, _ := a.doCommand(r, orchestrator.Pickable{}, nil, "")
 	if hasArg(args, "--focus") {
-		t.Errorf("a context routine is asked for as a focus one: %v", args)
+		t.Errorf("a context play is asked for as a focus one: %v", args)
 	}
 	if !hasArg(args, "--app=arkascended") {
 		t.Errorf("it is not asked for in its application: %v", args)
@@ -922,7 +922,7 @@ func TestARefusedPressReachesTheWindowWithItsReason(t *testing.T) {
 		t.Errorf("the reason the window kept is %q, want %q", w.Reason, said)
 	}
 	if !strings.Contains(w.Said, "nothing after the press that did not happen") {
-		t.Errorf("the sentence does not say what a stopped routine means: %q",
+		t.Errorf("the sentence does not say what a stopped play means: %q",
 			w.Said)
 	}
 	// AND THE RUN'S OWN SENTENCE IS IN WHAT THE PERSON READS, not only in the
@@ -982,7 +982,7 @@ func TestAWordThatIsNotOneOfTheSevenIsNotAnAnswer(t *testing.T) {
 func TestARoutinesRunSaysItIsOne(t *testing.T) {
 	w := aRunThatSaid(t, outcome.Line(outcome.Performed))
 	if !w.Routine {
-		t.Error("the run does not say it is a routine's, so the page would look " +
+		t.Error("the run does not say it is a play's, so the page would look " +
 			"for a reference, a phase and a question that will never come")
 	}
 	if w.Reference != "" {
@@ -1020,7 +1020,7 @@ func TestTheTrialJournalRecordsARoutinesRun(t *testing.T) {
 	// "the run cited no reference", which no routine ever does.
 	said := strings.Join(resultVerdict(tr), " ")
 	if strings.Contains(said, "cited no reference") {
-		t.Errorf("a routine's run is read back as a performance that cited "+
+		t.Errorf("a play's run is read back as a performance that cited "+
 			"nothing: %s", said)
 	}
 	if !strings.Contains(said, string(outcome.Failed)) ||
@@ -1112,11 +1112,11 @@ func TestALibraryLeftBesideTheLaunchDirectoryIsNamed(t *testing.T) {
 	t.Chdir(here)
 	l := a.Library()
 	if l.Elsewhere == "" {
-		t.Fatal("a library sitting beside this window with a routine in it is " +
+		t.Fatal("a library sitting beside this window with a play in it is " +
 			"not mentioned, so somebody reads an empty list and concludes " +
 			"their work is gone")
 	}
-	if !strings.Contains(l.Says, "1 routine") {
+	if !strings.Contains(l.Says, "1 play") {
 		t.Errorf("it does not say how much is in there: %q", l.Says)
 	}
 	// AND NOTHING IS MOVED. Adopting a directory nobody named would be this window
@@ -1158,7 +1158,7 @@ func TestPlayingARoutineRunsItAndReportsWhatItSaid(t *testing.T) {
 	}
 	r, found := routineCalled(a.Routines(), "says hello")
 	if !found {
-		t.Fatalf("the routine is not in the library: %+v", a.Routines())
+		t.Fatalf("the play is not in the library: %+v", a.Routines())
 	}
 	if !r.Runnable {
 		t.Fatalf("it is listed as unable to run: %s", r.Why)
@@ -1203,7 +1203,7 @@ func TestPlayingARoutineRunsItAndReportsWhatItSaid(t *testing.T) {
 			outcome.Performed, strings.Join(w.Transcript, "\n"))
 	}
 	if !w.Routine {
-		t.Error("the run is not reported as a routine's")
+		t.Error("the run is not reported as a play's")
 	}
 	if w.Active {
 		t.Error("the slot is still claimed after the run finished")
@@ -1211,7 +1211,7 @@ func TestPlayingARoutineRunsItAndReportsWhatItSaid(t *testing.T) {
 	// AND IT REALLY RAN THE PROGRAM. The routine's own log line is the proof that the
 	// command found the library this window handed it rather than some other one.
 	if !strings.Contains(strings.Join(w.Transcript, "\n"), "nothing was pressed") {
-		t.Errorf("the routine's own output is not in the transcript:\n%s",
+		t.Errorf("the play's own output is not in the transcript:\n%s",
 			strings.Join(w.Transcript, "\n"))
 	}
 }
@@ -1249,7 +1249,7 @@ func TestARunToldToActInAWindowThatIsNotThereIsRefused(t *testing.T) {
 	}
 	r, found := routineCalled(a.Routines(), "says hello")
 	if !found {
-		t.Fatalf("the routine is not in the library: %+v", a.Routines())
+		t.Fatalf("the play is not in the library: %+v", a.Routines())
 	}
 	ghost := orchestrator.Pickable{HWnd: 0x7FFFFFF0, PID: 0x7FFFFFF0, App: "nothing"}
 	if why := a.startRoutine(r, ghost, nil, ""); why != "" {
@@ -1274,7 +1274,7 @@ func TestARunToldToActInAWindowThatIsNotThereIsRefused(t *testing.T) {
 	// refused the window and then performed the play would have pressed into whatever
 	// was in front, which is the behaviour being replaced.
 	if strings.Contains(said, "nothing was pressed") {
-		t.Errorf("the routine ran although the window it was given is not there:\n%s",
+		t.Errorf("the play ran although the window it was given is not there:\n%s",
 			said)
 	}
 }
@@ -1336,7 +1336,7 @@ func TestTwoRoutinesOfOneNameAreTwoRoutines(t *testing.T) {
 		}
 	}
 	if len(same) != 2 {
-		t.Fatalf("saving one name in two applications gave %d routine(s): %+v",
+		t.Fatalf("saving one name in two applications gave %d play(s): %+v",
 			len(same), listed)
 	}
 	if same[0].ID == same[1].ID {
@@ -1365,7 +1365,7 @@ func TestTwoRoutinesOfOneNameAreTwoRoutines(t *testing.T) {
 		t.Run(want.app, func(t *testing.T) {
 			r, found := routineWithID(a.Routines(), want.id)
 			if !found {
-				t.Fatalf("there is no routine %q: %+v", want.id,
+				t.Fatalf("there is no play %q: %+v", want.id,
 					a.Routines())
 			}
 			if r.App != want.app {
@@ -1373,7 +1373,7 @@ func TestTwoRoutinesOfOneNameAreTwoRoutines(t *testing.T) {
 			}
 			// THE SOURCE IS ITS OWN, which is what the preview shows.
 			if !strings.Contains(r.Source, want.app) {
-				t.Errorf("%q shows the other routine's saved Marco:\n%s",
+				t.Errorf("%q shows the other play's saved Marco:\n%s",
 					want.id, r.Source)
 			}
 			if !r.Runnable {
@@ -1443,14 +1443,14 @@ func TestAnUnrunnableNamesakeDoesNotDisableTheValidRoutine(t *testing.T) {
 	}
 	good, found := routineWithID(a.Routines(), "arkascended/focus/ark-graphics")
 	if !found {
-		t.Fatalf("the valid routine is not listed: %+v", a.Routines())
+		t.Fatalf("the valid play is not listed: %+v", a.Routines())
 	}
 	if !good.Runnable {
-		t.Fatalf("a valid routine is disabled by its namesake in another scope, "+
+		t.Fatalf("a valid play is disabled by its namesake in another scope, "+
 			"with that one's reason beside it: %s", good.Why)
 	}
 	if good.Why != "" {
-		t.Errorf("the valid routine carries a refusal: %s", good.Why)
+		t.Errorf("the valid play carries a refusal: %s", good.Why)
 	}
 	// AND PRESSING PLAY ON THE VALID ONE IS NOT REFUSED FOR THE OTHER'S REASON.
 	//
@@ -1462,10 +1462,10 @@ func TestAnUnrunnableNamesakeDoesNotDisableTheValidRoutine(t *testing.T) {
 	withAMarcoBeside(t)
 	why := a.PlayRoutine(good.ID, "")
 	if !strings.Contains(why, "no window open") {
-		t.Errorf("pressing Play on the valid routine answered: %s", why)
+		t.Errorf("pressing Play on the valid play answered: %s", why)
 	}
 	if strings.Contains(why, "every press") {
-		t.Errorf("the valid routine was refused for its namesake's reason: %s", why)
+		t.Errorf("the valid play was refused for its namesake's reason: %s", why)
 	}
 }
 
@@ -1494,13 +1494,13 @@ func TestSavingOneOfTwoNamesakesAgainRepairsTheOneAskedFor(t *testing.T) {
 
 	listed := a.Unrunnable()
 	if len(listed) != 1 || listed[0].App != "" {
-		t.Fatalf("one routine cannot press anything and the listing is %+v", listed)
+		t.Fatalf("one play cannot press anything and the listing is %+v", listed)
 	}
 	want := listed[0]
 	// A NAME IS NOT AN IDENTITY HERE EITHER, so handing one over repairs nothing: it
 	// names both of these, and repairing "whichever answered first" is the defect.
 	if why := a.Resave(want.Name); why == "" {
-		t.Fatalf("%q repaired a routine, and it names both of them", want.Name)
+		t.Fatalf("%q repaired a play, and it names both of them", want.Name)
 	}
 	if len(a.Unrunnable()) != 1 {
 		t.Fatalf("a name repaired it after all: %+v", a.Unrunnable())
@@ -1510,7 +1510,7 @@ func TestSavingOneOfTwoNamesakesAgainRepairsTheOneAskedFor(t *testing.T) {
 	}
 	// THE ONE ASKED FOR IS REPAIRED AND THE NAMESAKE IS UNTOUCHED.
 	if left := a.Unrunnable(); len(left) != 0 {
-		t.Fatalf("after the repair, %d routine(s) cannot press anything: %+v", len(left), left)
+		t.Fatalf("after the repair, %d play(s) cannot press anything: %+v", len(left), left)
 	}
 	if !a.reg().Has(discord) {
 		t.Errorf("the repair took the namesake in discord: %q was asked for", want.ID)
@@ -1544,7 +1544,7 @@ func TestTheRunsOwnReferenceReachesTheWindow(t *testing.T) {
 			"sentence explaining what went wrong", w.Reason)
 	}
 	if !w.Routine {
-		t.Error("the run no longer says it is a routine's")
+		t.Error("the run no longer says it is a play's")
 	}
 }
 
@@ -1578,13 +1578,13 @@ func TestSavingAgainKeepsWhatTheRoutineSaysItRecorded(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got := orchestrator.ModeOf(string(raw)); got != orchestrator.Coordinates {
-		t.Fatalf("this window saved a routine stating %q, so there is nothing here "+
+		t.Fatalf("this window saved a play stating %q, so there is nothing here "+
 			"for a repair to lose:\n%s", got, raw)
 	}
 
 	listed := a.Unrunnable()
 	if len(listed) != 1 {
-		t.Fatalf("%d routines cannot press anything, want the one just saved: %+v",
+		t.Fatalf("%d plays cannot press anything, want the one just saved: %+v",
 			len(listed), listed)
 	}
 	if why := a.Resave(listed[0].ID); why != "" {
@@ -1598,11 +1598,11 @@ func TestSavingAgainKeepsWhatTheRoutineSaysItRecorded(t *testing.T) {
 		}
 	}
 	if row.ID == "" {
-		t.Fatalf("the repaired routine is not in the listing: %+v", a.Routines())
+		t.Fatalf("the repaired play is not in the listing: %+v", a.Routines())
 	}
 	if row.Mode != string(orchestrator.Coordinates) {
 		t.Errorf("after being saved again the card says it was recorded as %q, and "+
-			"the routine was recorded as %q — the repair took the statement out "+
+			"the play was recorded as %q — the repair took the statement out "+
 			"of the file the card reads:\n%s", row.Mode,
 			orchestrator.Coordinates, row.Source)
 	}
@@ -1645,7 +1645,7 @@ func TestAStoppedRoutineShowsWhatItLeftHeldDown(t *testing.T) {
 	// AND IT IS IN THE SENTENCE SOMEBODY READS, not only in a field.
 	switch {
 	case !strings.Contains(w.Said, "stopped part of the way through"):
-		t.Errorf("the window no longer says a stopped routine was stopped: %q", w.Said)
+		t.Errorf("the window no longer says a stopped play was stopped: %q", w.Said)
 	case !strings.Contains(w.Said, "would not release ctrl"):
 		t.Errorf("the window says %q about a run that left Ctrl held down — the stop "+
 			"is reported and the key still down is not, which is the half "+
@@ -1682,7 +1682,7 @@ func TestAStoppedRoutineShowsTheButtonItLeftHeldDown(t *testing.T) {
 	}
 	switch {
 	case !strings.Contains(w.Said, "stopped part of the way through"):
-		t.Errorf("the window no longer says a stopped routine was stopped: %q", w.Said)
+		t.Errorf("the window no longer says a stopped play was stopped: %q", w.Said)
 	case !strings.Contains(w.Said, "left mouse button"):
 		t.Errorf("the window says %q about a run that left the left button down — the "+
 			"stop is reported and the button still held is not, which is the "+
@@ -1721,7 +1721,7 @@ func TestAStoppedRoutineShowsTheTextItLeftHalfSubmitted(t *testing.T) {
 	}
 	switch {
 	case !strings.Contains(w.Said, "stopped part of the way through"):
-		t.Errorf("the window no longer says a stopped routine was stopped: %q", w.Said)
+		t.Errorf("the window no longer says a stopped play was stopped: %q", w.Said)
 	case !strings.Contains(w.Said, "4 of 11"):
 		t.Errorf("the window says %q about a run that left part of a value in a "+
 			"field — the stop is reported and the field is not, which is the "+
@@ -1800,7 +1800,7 @@ func TestARoutineThatNoLongerChecksSaysWhatToDo(t *testing.T) {
 	}
 	// AT THE TOP LEVEL, outside any script, where the checker refuses a sentence.
 	if !strings.Contains(r.Source, "use os.\n") {
-		t.Fatalf("the saved routine does not open the way this edit expects: %q", r.Source)
+		t.Fatalf("the saved play does not open the way this edit expects: %q", r.Source)
 	}
 	broken := strings.Replace(r.Source, "use os.\n",
 		"use os.\nthis is not a sentence Marco has.\n", 1)
@@ -1812,7 +1812,7 @@ func TestARoutineThatNoLongerChecksSaysWhatToDo(t *testing.T) {
 		t.Fatal("after the edit it is not listed at all")
 	}
 	if r.Runnable {
-		t.Fatal("a routine that no longer checks is offered for Play")
+		t.Fatal("a play that no longer checks is offered for Play")
 	}
 	if !strings.Contains(r.Why, "no longer a program Marco can run") {
 		t.Errorf("the whole refusal reads %q", r.Why)

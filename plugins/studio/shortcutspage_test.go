@@ -52,11 +52,11 @@ func TestTheShortcutTabDoesWhatItShows(t *testing.T) {
 		t.Fatalf("the page threw: %q", title)
 	}
 	for _, c := range []struct{ key, says string }{
-		{"chips", "the routine's row shows its key as it is pressed"},
+		{"chips", "the play's row shows its key as it is pressed"},
 		{"rowsays", "the tab lists the key and where it is listened for"},
 		{"legacy", "a shortcut set up by name is shown, with Reassign"},
 		{"leader", "the configured leader is said"},
-		{"defaultwhere", "a routine about an application offers that application first"},
+		{"defaultwhere", "a play about an application offers that application first"},
 		{"setdisabledempty", "Set is unavailable until a key is pressed"},
 		{"boxlower", "the key box takes the key pressed, as one lower-case key"},
 		{"taken", "a key in use is shown with what it runs"},
@@ -75,12 +75,12 @@ func TestTheShortcutTabDoesWhatItShows(t *testing.T) {
 		{"refused", "a refusal is the owner's sentence"},
 		{"refusedbad", "a refusal is drawn as one"},
 		{"refusedkept", "a refused key stays where it was typed"},
-		{"copyclean", "another routine's tab shows none of the first one's keys"},
-		{"copynodefault", "a routine about no application has no place chosen for it"},
+		{"copyclean", "another play's tab shows none of the first one's keys"},
+		{"copynodefault", "a play about no application has no place chosen for it"},
 		{"copyshadow", "a global key says where an application's own key hides it"},
 		{"copysetdisabled", "Set is unavailable until a place is chosen"},
-		{"pdfeverywhere", "an Only-in routine shows everywhere as unavailable"},
-		{"pdfwhy", "an Only-in routine gives its one reason once"},
+		{"pdfeverywhere", "an Only-in play shows everywhere as unavailable"},
+		{"pdfwhy", "an Only-in play gives its one reason once"},
 	} {
 		if n(c.key) != 1 {
 			t.Errorf("%s: %s=%d", c.says, c.key, n(c.key))

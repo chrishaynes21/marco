@@ -359,7 +359,7 @@ func TestTheLoopCollectsControlEvidenceAndTheCommandWritesIt(t *testing.T) {
 		"r.watchPressed(look, frame, lk.Presses, lk.Regions)") {
 		t.Error("the look loop does not collect control evidence from this " +
 			"look's own presses and proposals, so every demonstration " +
-			"would save a routine with nothing measured about its controls")
+			"would save a play with nothing measured about its controls")
 	}
 	// AND IN THE SAME BLOCK AS THE PICTURES, which is where the frame is known to
 	// be of the window, in front, and not missing. Collecting outside it would

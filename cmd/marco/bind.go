@@ -63,7 +63,7 @@ func runBind(args []string) {
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "marco: "+err.Error())
 		}
-		fmt.Fprintln(os.Stderr, `usage: marco bind [--everywhere|--in=<app>] <key> "<routine>"`)
+		fmt.Fprintln(os.Stderr, `usage: marco bind [--everywhere|--in=<app>] <key> "<play>"`)
 		fmt.Fprintln(os.Stderr, `       marco bind --reassign [--everywhere|--in=<app>] <key>`)
 		os.Exit(2)
 	}
@@ -132,12 +132,12 @@ func reassignKey(d orchestrator.Deps, fg, listenIn, key string, out io.Writer) e
 		return fmt.Errorf("there is no shortcut on `%s %s", key, where(listenIn))
 	}
 	if !st.Binding.Legacy() {
-		return fmt.Errorf("`%s %s already names its routine: %s", key, where(listenIn), st.Says)
+		return fmt.Errorf("`%s %s already names its play: %s", key, where(listenIn), st.Says)
 	}
 	steps, err := resolveSteps(d, fg, st.Binding.Command())
 	if err != nil {
 		return fmt.Errorf("`%s %s was set up by name as %q, and that name does not "+
-			"reach a routine here: %v", key, where(listenIn), st.Binding.Command(), err)
+			"reach a play here: %v", key, where(listenIn), st.Binding.Command(), err)
 	}
 	ids := make([]string, len(steps))
 	for i, rt := range steps {
@@ -317,9 +317,9 @@ func listShortcuts(d orchestrator.Deps, app string, here, carried, asJSON bool, 
 		case "needs-reassigning":
 			mark = "  [needs reassigning]"
 		case "stale":
-			mark = "  [routine gone]"
+			mark = "  [play gone]"
 		case "wider":
-			mark = "  [wider than its routine]"
+			mark = "  [wider than its play]"
 		}
 		if r.Shadowed {
 			mark += "  [hidden here by an app shortcut]"

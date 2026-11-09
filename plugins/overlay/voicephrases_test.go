@@ -65,6 +65,6 @@ func TestTheRecogniserIsToldTheRoutineNames(t *testing.T) {
 		}
 	}
 	if !has(later, "enter freeplay") {
-		t.Errorf("a routine learned while voice listens did not reach the list: %q", later)
+		t.Errorf("a play learned while voice listens did not reach the list: %q", later)
 	}
 }

@@ -235,7 +235,7 @@ setTimeout(() => {
 			n("rows"), n("discl"), title)
 	}
 	if n("plays") != 3 {
-		t.Errorf("%d Play buttons for 3 routines. Each row carries its own, open or "+
+		t.Errorf("%d Play buttons for 3 plays. Each row carries its own, open or "+
 			"shut: %s", n("plays"), title)
 	}
 	if n("shut") != 1 || n("parked") != 1 {
@@ -249,20 +249,20 @@ setTimeout(() => {
 
 	// ── it opens where it is ──
 	if n("inRow") != 1 || n("open1") != 1 {
-		t.Errorf("opening a routine did not put its panel inside its own row with "+
+		t.Errorf("opening a play did not put its panel inside its own row with "+
 			"aria-expanded set: %s", title)
 	}
 
 	// ── and Play is on the row, once ──
 	if n("playOnRow") != 1 {
-		t.Errorf("Play is not on the routine's row: %s", title)
+		t.Errorf("Play is not on the play's row: %s", title)
 	}
 	if n("playInPanel") != 0 {
 		t.Error("there is a second primary button inside the expanded section, " +
 			"which is the duplicate Play the ruling names")
 	}
 	if n("oneBig") != 3 {
-		t.Errorf("%d primary buttons across 3 routines, so one of them has two: %s",
+		t.Errorf("%d primary buttons across 3 plays, so one of them has two: %s",
 			n("oneBig"), title)
 	}
 
@@ -277,16 +277,16 @@ setTimeout(() => {
 
 	// ── one at a time, and press again to close ──
 	if n("moved") != 1 || n("open2") != 1 || n("closed1") != 1 {
-		t.Errorf("opening a second routine did not close the first and carry the "+
+		t.Errorf("opening a second play did not close the first and carry the "+
 			"panel into the second: %s", title)
 	}
 	if n("renameClosed") != 1 {
 		t.Error("the rename box came with the panel, holding the name of the " +
-			"routine it was opened for. Under this one's name it is an offer " +
-			"to call this routine that, which is a different routine")
+			"play it was opened for. Under this one's name it is an offer " +
+			"to call this play that, which is a different play")
 	}
 	if n("collapsed") != 1 || n("backInPark") != 1 || n("panelHidden") != 1 {
-		t.Errorf("pressing the open routine again did not collapse it: %s", title)
+		t.Errorf("pressing the open play again did not collapse it: %s", title)
 	}
 
 	// ── Play from a row that was not open ──
@@ -299,12 +299,12 @@ setTimeout(() => {
 			"cursor in the field it is waiting for: %s", title)
 	}
 	if n("notRun") != 1 {
-		t.Errorf("a routine was performed with its value never supplied: %s", title)
+		t.Errorf("a play was performed with its value never supplied: %s", title)
 	}
 
 	// ── and the one that cannot run ──
 	if n("deadPlay") != 1 || n("whyBeside") != 1 {
-		t.Errorf("the routine that cannot run does not have a dark Play with its "+
+		t.Errorf("the play that cannot run does not have a dark Play with its "+
 			"short reason beside it: %s", title)
 	}
 }
@@ -352,11 +352,11 @@ setTimeout(() => {
 	n := counters(t, title, "asked=")
 
 	if n("asked") != 1 {
-		t.Errorf("leaving a routine with text typed into it discarded the text "+
+		t.Errorf("leaving a play with text typed into it discarded the text "+
 			"without saying so: %s", title)
 	}
 	if n("stayed") != 1 || n("kept") != 1 {
-		t.Errorf("the first press left the routine anyway: %s", title)
+		t.Errorf("the first press left the play anyway: %s", title)
 	}
 	if n("named") != 1 {
 		t.Errorf("the warning does not name the argument whose text would go. What " +
@@ -372,7 +372,7 @@ setTimeout(() => {
 	// whatever was being typed in, and wiping this warning about two seconds after
 	// it appeared. `drawRoutines` records what it drew now.
 	if n("stillAsked") != 1 || n("stillKept") != 1 || n("stillThere") != 1 {
-		t.Errorf("a poll took the warning, the text or the open routine away "+
+		t.Errorf("a poll took the warning, the text or the open play away "+
 			"underneath somebody: %s", title)
 	}
 	if n("wentAfterAgreeing") != 1 || n("warningGone") != 0 {
@@ -415,11 +415,11 @@ setTimeout(() => {
 	n := counters(t, title, "opened=")
 
 	if n("opened") != 1 || n("proposalIn") != 1 {
-		t.Fatalf("the request did not open the routine it chose with its value in "+
+		t.Fatalf("the request did not open the play it chose with its value in "+
 			"the box: %s", title)
 	}
 	if n("leftWithoutAsking") != 1 || n("asked") != 0 {
-		t.Errorf("opening another routine stopped to warn about a value a request "+
+		t.Errorf("opening another play stopped to warn about a value a request "+
 			"proposed rather than one somebody typed: %s", title)
 	}
 }

@@ -565,7 +565,7 @@ func (r Registry) Create(rt Route, source string) error {
 		// because the DIRECTION of the guess is the whole point: treating an
 		// unanswerable stat as absence is what clears somebody's phrases and then
 		// refuses, which is the defect this ordering exists to prevent.
-		return fmt.Errorf("routes: %s was not created: whether a routine is already "+
+		return fmt.Errorf("routes: %s was not created: whether a play is already "+
 			"saved there could not be determined (%v), so nothing has been "+
 			"touched", rt.ID(), err)
 	}
@@ -604,7 +604,7 @@ func (r Registry) Create(rt Route, source string) error {
 	if err := r.DeleteAliases(rt); err != nil {
 		return fmt.Errorf("routes: %s was not created: phrases left at that identity "+
 			"by whatever used to be saved there could not be removed (%v), and a "+
-			"routine created beside them would answer to them — close whatever "+
+			"play created beside them would answer to them — close whatever "+
 			"is holding %s, or remove it, and save again",
 			rt.ID(), err, rt.Slug+aliasExt)
 	}

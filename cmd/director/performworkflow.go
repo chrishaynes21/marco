@@ -107,7 +107,7 @@ func runPerformWorkflow(args []string) int {
 	play := fs.String("play", "",
 		"the name of a saved demonstrated ACT: a `.marco` play whose own sentences "+
 			"are the order. Its bindings are resolved and the play rebuilt from "+
-			"them before anything is grounded, and the routine it performs comes "+
+			"them before anything is grounded, and the play it performs comes "+
 			"from the play rather than from --name")
 	granted := fs.String("granted", "",
 		"perform the Act under the authorisation in `path`, given in advance: the "+
@@ -274,7 +274,7 @@ func runPerformWorkflow(args []string) int {
 			"director: name what to perform.\n"+
 				"  --name \"graphics tab\"      a demonstration you saved\n"+
 				"  --play \"graphics tab\"      a play composed from one\n"+
-				"  --workflow routine.json   an artifact file")
+				"  --workflow play.json   an artifact file")
 		return 2
 	case *seconds < 1 || *seconds > maxPerformSeconds:
 		fmt.Fprintf(os.Stderr, "director: --seconds must be between 1 and %d\n",
@@ -576,7 +576,7 @@ func runPerformWorkflow(args []string) int {
 	if sel.Zero() {
 		fmt.Fprintf(os.Stderr, "director: which application? %s\n"+
 			"  name it: director perform-workflow --application solasta "+
-			"--workflow routine.json\n", targetWhy)
+			"--workflow play.json\n", targetWhy)
 		return endedEarly(2, RunFailed, "no application was named and none "+
 			"could be identified: "+targetWhy)
 	}
@@ -598,7 +598,7 @@ func runPerformWorkflow(args []string) int {
 		if serr != nil {
 			fmt.Fprintf(os.Stderr, "director: %v\n", serr)
 			return endedEarly(2, RunFailed, fmt.Sprintf("--step %d is not a "+
-				"step of this routine: %v", *step, serr))
+				"step of this play: %v", *step, serr))
 		}
 		art = one
 		fmt.Printf("Performing step %d of %q on its own: %s -> %s via %s\n",
@@ -927,7 +927,7 @@ func runPerformWorkflow(args []string) int {
 	// happen. What the demonstration was made in is named, because that is the condition
 	// the whole licence hangs on and the one a person can check at a glance.
 	if run.FixedLayout() {
-		where := "and this routine did not record the window it was demonstrated " +
+		where := "and this play did not record the window it was demonstrated " +
 			"in, so nothing will be pressed on that basis"
 		if art.Window.Known() {
 			where = fmt.Sprintf("while the window is %dx%d, which is what it "+

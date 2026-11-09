@@ -14,7 +14,7 @@ func TestAClickIsAddedInsideTheRoutinesWindowThroughTheStepPanel(t *testing.T) {
 	r := a.Routines()[0]
 	e := a.StepEditing(r.ID)
 	if len(e.ClickBases) != 1 || e.ScreenClicks || e.ClickSays != "" {
-		t.Fatalf("a routine measured in one window offers %+v, screen %v, saying %q",
+		t.Fatalf("a play measured in one window offers %+v, screen %v, saying %q",
 			e.ClickBases, e.ScreenClicks, e.ClickSays)
 	}
 	b := e.ClickBases[0]
@@ -40,7 +40,7 @@ func TestAClickIsAddedInsideTheRoutinesWindowThroughTheStepPanel(t *testing.T) {
 	v = a.ReviewStepEdit(r.ID, e.Basis, []StepChange{{Op: "insert", At: b.At, Kind: "click",
 		Screen: true, X: 5, Y: 5}})
 	if v.Why == "" || !v.Correct || !strings.Contains(v.Why, "checks each press") {
-		t.Errorf("a screen click in a checked routine was not refused as a correction: %+v", v)
+		t.Errorf("a screen click in a checked play was not refused as a correction: %+v", v)
 	}
 }
 
@@ -50,7 +50,7 @@ func TestAScreenClickIsAddedToAnUncheckedRoutineThroughTheStepPanel(t *testing.T
 	e := a.StepEditing(r.ID)
 	if len(e.ClickBases) != 0 || !e.ScreenClicks || !strings.Contains(e.ClickSays,
 		"only at a point on the screen") {
-		t.Fatalf("an unchecked routine offers %+v, screen %v, saying %q", e.ClickBases,
+		t.Fatalf("an unchecked play offers %+v, screen %v, saying %q", e.ClickBases,
 			e.ScreenClicks, e.ClickSays)
 	}
 	v := a.ReviewStepEdit(r.ID, e.Basis, []StepChange{{Op: "insert", At: 0, Kind: "click",

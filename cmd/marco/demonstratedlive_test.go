@@ -199,7 +199,7 @@ func TestTypingADemonstratedNameReachesTheRealRunner(t *testing.T) {
 		t.Errorf("the record says %q", rec.Outcome)
 	}
 	if rec.Name != "ark graphics live" {
-		t.Errorf("the record names the routine %q", rec.Name)
+		t.Errorf("the record names the play %q", rec.Name)
 	}
 	// NOTHING WAS SENT, which is the one assertion that makes this test safe to run on
 	// a desktop at all: no action was authorised, so none was performed.

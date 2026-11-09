@@ -148,7 +148,7 @@ func TestAReRecordingSaysSavingWillNotReplace(t *testing.T) {
 		t.Fatalf("the review card is not on screen: %q", title)
 	}
 	if n("saysshown") != 1 {
-		t.Errorf("the review does not say that Save will not replace the routine "+
+		t.Errorf("the review does not say that Save will not replace the play "+
 			"this was recorded from: %q", title)
 	}
 	// AND NO WARNING, because it was recorded where the routine lives. A warning on
@@ -163,7 +163,7 @@ func TestAReRecordingSaysSavingWillNotReplace(t *testing.T) {
 		t.Errorf("an empty warning box is on screen above Save: %q", title)
 	}
 	if n("scope") != 1 {
-		t.Errorf("the review did not open on the routine's own scope: %q", title)
+		t.Errorf("the review did not open on the play's own scope: %q", title)
 	}
 }
 
@@ -172,10 +172,10 @@ func TestAReRecordingMadeElsewhereIsWarnedAbout(t *testing.T) {
 	title, n := aRenderedAgainPage(t, aReRecordingMadeElsewhere)
 	if n("awayshown") != 1 {
 		t.Errorf("a re-recording made in another application carries no warning, "+
-			"so Save would quietly write a second routine: %q", title)
+			"so Save would quietly write a second play: %q", title)
 	}
 	if n("saysshown") != 1 {
-		t.Errorf("it stopped saying which routine it is a second recording of: %q",
+		t.Errorf("it stopped saying which play it is a second recording of: %q",
 			title)
 	}
 }

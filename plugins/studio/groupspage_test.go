@@ -35,7 +35,7 @@ setTimeout(() => {
     return e ? e.id : '' }
   r.under = under(K1) === 'routineGroup-app-arkascended' &&
     under(K2) === 'routineGroup-app-notepad' && under(K3) === 'routineGroup-anywhere' ? 1 : 0
-  r.count = head('app-arkascended').querySelector('.appcount').textContent === '1 routine' ? 1 : 0
+  r.count = head('app-arkascended').querySelector('.appcount').textContent === '1 play' ? 1 : 0
   r.bar = shown(document.getElementById('routineGroupBar'))
   r.allShown = shownCards()
   r.expandDark = document.getElementById('routineExpandAll').disabled ? 1 : 0
@@ -84,27 +84,27 @@ setTimeout(() => {
 
 	checks := []struct{ key, says string }{
 		{"heads", "one head per application, in order, with Any application last"},
-		{"under", "each routine sits under its own application's head"},
-		{"count", "a head says how many routines it holds"},
+		{"under", "each play sits under its own application's head"},
+		{"count", "a head says how many plays it holds"},
 		{"bar", "with three applications the Show / Expand all / Collapse all bar is shown"},
 		{"expandDark", "Expand all is offered while nothing is shut"},
-		{"arkShut", "pressing an application's head hides that application's routines and only those"},
-		{"arkHeadStays", "a shut application's head is hidden with its routines"},
+		{"arkShut", "pressing an application's head hides that application's plays and only those"},
+		{"arkHeadStays", "a shut application's head is hidden with its plays"},
 		{"kept", "a shut application is not kept for the next time the window opens"},
 		{"redrawKeeps", "a redraw of the list opens a shut application again"},
-		{"collapsed", "Collapse all leaves a routine showing"},
+		{"collapsed", "Collapse all leaves a play showing"},
 		{"headsStay", "Collapse all hides an application's head"},
 		{"collapseDark", "Collapse all is still offered with everything shut"},
-		{"expanded", "Expand all leaves a routine hidden"},
+		{"expanded", "Expand all leaves a play hidden"},
 		{"options", "Show does not offer every application and All applications"},
 		{"onlyNotepad", "showing one application shows anything else"},
-		{"onlyAnywhere", "showing Any application alone does not show only the routine with no application"},
-		{"allAgain", "All applications does not show every routine again"},
-		{"revealed", "a routine opened in a shut, filtered-away group is opened out of sight"},
-		{"othersStayShut", "opening one routine opened the other shut groups too"},
+		{"onlyAnywhere", "showing Any application alone does not show only the play with no application"},
+		{"allAgain", "All applications does not show every play again"},
+		{"revealed", "a play opened in a shut, filtered-away group is opened out of sight"},
+		{"othersStayShut", "opening one play opened the other shut groups too"},
 	}
 	if n("allShown") != 3 {
-		t.Fatalf("%d routines shown at first, want all 3: %s", n("allShown"), title)
+		t.Fatalf("%d plays shown at first, want all 3: %s", n("allShown"), title)
 	}
 	for _, c := range checks {
 		if n(c.key) != 1 {

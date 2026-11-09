@@ -35,7 +35,7 @@ func TestThisCommandReadsTheOneLibrary(t *testing.T) {
 		t.Errorf("this command reads %s and the rest of Marco reads %s", got, want)
 	}
 	if want := filepath.Join(home, "routes"); got != want {
-		t.Errorf("the library is %s, want %s — a routine saved anywhere else is "+
+		t.Errorf("the library is %s, want %s — a play saved anywhere else is "+
 			"one this command cannot find", got, want)
 	}
 }

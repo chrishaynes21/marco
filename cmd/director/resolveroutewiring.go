@@ -101,8 +101,8 @@ func (r *Runtime) ResolveRoute(p service.ResolveRoutePayload) service.ResolveRou
 	// carries for a review built in one library and replaced in another.
 	if asked := strings.TrimSpace(p.Library); asked != "" && asked != reg.Dir {
 		out.Mismatch = "this was resolved against the library at " + reg.Dir +
-			" and you asked about " + asked + ", so a routine of that name here " +
-			"is a different routine — nothing has been selected"
+			" and you asked about " + asked + ", so a play of that name here " +
+			"is a different play — nothing has been selected"
 		// AND THE SELECTION IS CLEARED HERE, not left for a surface to remember.
 		//
 		// The first version carried the identity and a note saying a surface must

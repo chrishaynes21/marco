@@ -57,7 +57,7 @@ func runCorrect(args []string) int {
 	_ = fs.Parse(flagsFirst(rest))
 
 	if strings.TrimSpace(name) == "" || strings.TrimSpace(*drop) == "" {
-		fmt.Fprintln(os.Stderr, "director: say which routine and which step, e.g.\n"+
+		fmt.Fprintln(os.Stderr, "director: say which play and which step, e.g.\n"+
 			`  director correct "ark graphics" --drop 2 --because "that click was accidental"`+
 			"\n"+`  director correct "ark graphics" --drop last --because "redo the last step"`)
 		return 2
@@ -69,7 +69,7 @@ func runCorrect(args []string) int {
 	}
 	a, ok := store.Sequence(name)
 	if !ok {
-		fmt.Fprintf(os.Stderr, "director: no routine is saved as %q\n", name)
+		fmt.Fprintf(os.Stderr, "director: no play is saved as %q\n", name)
 		return 1
 	}
 	step, err := whichStep(*drop, len(a.Steps))
@@ -108,7 +108,7 @@ func runCorrect(args []string) int {
 func whichStep(said string, steps int) (int, error) {
 	if strings.EqualFold(strings.TrimSpace(said), "last") {
 		if steps == 0 {
-			return 0, fmt.Errorf("there is no last step: the routine has none")
+			return 0, fmt.Errorf("there is no last step: the play has none")
 		}
 		return steps, nil
 	}
@@ -132,7 +132,7 @@ func reportCorrection(w io.Writer, before, after workflowstore.Artifact, step in
 		// A ROUTINE WITH NOTHING LEFT IS STILL A ROUTINE, and saying so is better than
 		// refusing: the person knows what they took out, and an empty procedure
 		// performs nothing rather than performing something wrong.
-		fmt.Fprintf(w, "  left: nothing. The routine keeps its name and its screens, "+
+		fmt.Fprintf(w, "  left: nothing. The play keeps its name and its screens, "+
 			"and performs no step.\n")
 	} else {
 		fmt.Fprintf(w, "  left:\n")
@@ -148,7 +148,7 @@ func reportCorrection(w io.Writer, before, after workflowstore.Artifact, step in
 			"with where and when.\n", len(raw.Presses), len(raw.Keystrokes()))
 		fmt.Fprintf(w, "        director what-i-did %q\n", before.Name)
 	}
-	fmt.Fprintf(w, "  Kept: the step itself, with your reason, in the routine's own "+
+	fmt.Fprintf(w, "  Kept: the step itself, with your reason, in the play's own "+
 		"corrections.\n")
 }
 

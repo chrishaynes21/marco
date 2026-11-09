@@ -49,11 +49,11 @@ func TestARoutineCanBeCalledSomethingElse(t *testing.T) {
 		t.Fatalf("renaming refused: %s", done.Why)
 	}
 	if !done.Moved {
-		t.Fatalf("the original is still there, so this is two routines: %+v", done)
+		t.Fatalf("the original is still there, so this is two plays: %+v", done)
 	}
 	after := a.Routines()
 	if len(after) != 1 {
-		t.Fatalf("the library holds %d routines after a rename: %+v", len(after), after)
+		t.Fatalf("the library holds %d plays after a rename: %+v", len(after), after)
 	}
 	if after[0].Slug != "post-my-address" {
 		t.Errorf("it is filed under %q", after[0].Slug)
@@ -68,12 +68,12 @@ func TestARoutineCanBeCalledSomethingElse(t *testing.T) {
 	// ── AND ITS DEMONSTRATION CAME WITH IT, which is what a rebuild needs ──
 	reg := routes.Registry{Dir: a.routesDir}
 	if _, ok := reg.LoadRecording(after[0].route()); !ok {
-		t.Error("the renamed routine has no demonstration beside it, so it can " +
+		t.Error("the renamed play has no demonstration beside it, so it can " +
 			"never be rebuilt or moved again")
 	}
 	if _, ok := reg.LoadRecording(r.route()); ok {
 		t.Error("the demonstration is still lying under the old slug, where the " +
-			"next routine saved there would inherit it")
+			"next play saved there would inherit it")
 	}
 }
 
@@ -118,14 +118,14 @@ func TestARenameKeepsTheValuesTheRoutineAsksFor(t *testing.T) {
 
 	after := a.Routines()[0]
 	if after.Name != "post my address" {
-		t.Fatalf("the renamed routine is called %q", after.Name)
+		t.Fatalf("the renamed play is called %q", after.Name)
 	}
 	if !strings.Contains(after.Source, "{{item}}") {
 		t.Errorf("the saved source no longer has the placeholder:\n%s", after.Source)
 	}
 	if n := a.PlayNeeds(after.ID); !n.Needs || len(n.Fields) != 1 ||
 		n.Fields[0].Name != "item" {
-		t.Fatalf("the renamed routine's Play card asks for %+v", n.Fields)
+		t.Fatalf("the renamed play's Play card asks for %+v", n.Fields)
 	}
 }
 
@@ -138,14 +138,14 @@ func TestAClauseTypedIntoTheRenameBoxIsRefused(t *testing.T) {
 	a, r := aRoutineThatAsksForAValue(t)
 	m := a.ReviewRename(r.ID, "post my address with quantity")
 	if m.Why == "" && m.Refused == "" {
-		t.Fatal("a rename changed what the routine asks for")
+		t.Fatal("a rename changed what the play asks for")
 	}
 	said := m.Why + m.Refused
 	if !strings.Contains(said, "with") {
 		t.Errorf("the refusal does not say what to leave off: %q", said)
 	}
 	if a.Routines()[0].Name != r.Name {
-		t.Error("the refused rename changed the routine")
+		t.Error("the refused rename changed the play")
 	}
 }
 
@@ -191,11 +191,11 @@ func TestARenameOntoAnExistingNameIsRefused(t *testing.T) {
 	// ── AND BOTH ROUTINES ARE EXACTLY AS THEY WERE ──
 	after := a.Routines()
 	if len(after) != 2 {
-		t.Fatalf("the library holds %d routines: %+v", len(after), after)
+		t.Fatalf("the library holds %d plays: %+v", len(after), after)
 	}
 	for _, x := range after {
 		if x.Slug == "post-my-address" && x.Source != other {
-			t.Error("the routine that was in the way has been written over")
+			t.Error("the play that was in the way has been written over")
 		}
 	}
 }
@@ -213,7 +213,7 @@ func TestRenamingARoutineToItsOwnNameIsRefused(t *testing.T) {
 			t.Errorf("%q was offered as a rename of %q", same, r.Name)
 		}
 		if a.Routines()[0].Source != r.Source {
-			t.Fatalf("%q changed the routine", same)
+			t.Fatalf("%q changed the play", same)
 		}
 	}
 	// AND AN EMPTY BOX SAYS SO RATHER THAN DOING NOTHING QUIETLY.
@@ -239,7 +239,7 @@ func TestARoutineThatReadsACredentialUnderItsOwnNameRefusesToBeRenamed(t *testin
 
 	m := a.ReviewRename(r.ID, "sign in again")
 	if m.Refused == "" && m.Why == "" {
-		t.Fatal("a routine whose credential name is made from its own name was " +
+		t.Fatal("a play whose credential name is made from its own name was " +
 			"offered a rename, so the rename would send it to the credential " +
 			"store under a name nobody stored anything under")
 	}
@@ -258,7 +258,7 @@ func TestARoutineThatReadsACredentialUnderItsOwnNameRefusesToBeRenamed(t *testin
 		t.Error("the refused rename is still movable")
 	}
 	if a.Routines()[0].Source != r.Source {
-		t.Error("the refused rename changed the routine")
+		t.Error("the refused rename changed the play")
 	}
 }
 
@@ -274,7 +274,7 @@ func aRoutineThatAsksForAValue(t *testing.T) (*Acts, Routine) {
 	a := aStudioLibrary(t, "type my address with item", briskTypingIntoNotepad())
 	rs := a.Routines()
 	if len(rs) != 1 {
-		t.Fatalf("the library holds %d routines", len(rs))
+		t.Fatalf("the library holds %d plays", len(rs))
 	}
 	e := a.StepEditing(rs[0].ID)
 	if e.Why != "" {

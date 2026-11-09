@@ -302,9 +302,9 @@ func addedClick(steps []macroir.Step, ed StepEdit, where string) (macroir.Step, 
 	}
 	if ed.Screen {
 		if !ScreenClicksAllowed(steps) {
-			return macroir.Step{}, "", fmt.Errorf("this routine checks each press against " +
+			return macroir.Step{}, "", fmt.Errorf("this play checks each press against " +
 				"its window, so a click at a point on the screen cannot be added to it — " +
-				"add it inside a window the routine was measured in")
+				"add it inside a window the play was measured in")
 		}
 		return macroir.Step{Kind: macroir.StepClick, Button: btn, X: ed.X, Y: ed.Y},
 			fmt.Sprintf("a %s-click at %d, %d on the screen is added %s", btn, ed.X, ed.Y,
@@ -312,7 +312,7 @@ func addedClick(steps []macroir.Step, ed StepEdit, where string) (macroir.Step, 
 	}
 	bases := ClickBases(steps)
 	if len(bases) == 0 {
-		return macroir.Step{}, "", fmt.Errorf("no press in this routine was measured " +
+		return macroir.Step{}, "", fmt.Errorf("no press in this play was measured " +
 			"inside a window, so there is no window to add a click inside")
 	}
 	var b ClickBasis
@@ -323,7 +323,7 @@ func addedClick(steps []macroir.Step, ed StepEdit, where string) (macroir.Step, 
 		}
 	}
 	if !found {
-		return macroir.Step{}, "", fmt.Errorf("step %d is not a press this routine was "+
+		return macroir.Step{}, "", fmt.Errorf("step %d is not a press this play was "+
 			"measured in a window at, so it cannot be the basis of an added click",
 			ed.BasisAt+1)
 	}
@@ -381,7 +381,7 @@ func namesAWindow(s macroir.Step) bool {
 // which is why this is written as a copy rather than as a new `macroir.Step`.
 func movedPoint(steps []macroir.Step, at, x, y int) (macroir.Step, string, error) {
 	if at < 0 || at >= len(steps) {
-		return macroir.Step{}, "", fmt.Errorf("there is no step %d in a routine of %d "+
+		return macroir.Step{}, "", fmt.Errorf("there is no step %d in a play of %d "+
 			"steps, so nothing was changed — look at it again", at+1, len(steps))
 	}
 	p := PointIn(steps, at)

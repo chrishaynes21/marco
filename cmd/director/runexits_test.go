@@ -203,11 +203,11 @@ func TestAnAbsentOptionalSourceIsRecordedAsAStartupFailure(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Setenv("MARCO_HOME", t.TempDir())
-			aRoutineScopedTo(t, "a routine", app)
+			aRoutineScopedTo(t, "a play", app)
 			tc.bind(t)
 
 			code := runPerformWorkflow([]string{
-				"--application", app, "--name", "a routine",
+				"--application", app, "--name", "a play",
 				tc.flag, "--delay", "0s", "--seconds", "2",
 			})
 			if code == 0 {
@@ -245,7 +245,7 @@ func TestRepairWithoutOCRIsRecordedAsAStartupFailure(t *testing.T) {
 	app := anAcquirableApplication(t, windows)
 
 	t.Setenv("MARCO_HOME", t.TempDir())
-	aRoutineScopedTo(t, "a routine", app)
+	aRoutineScopedTo(t, "a play", app)
 	was := openWordReader
 	t.Cleanup(func() { openWordReader = was })
 	openWordReader = func(*wincapture.Capture, func() (directorapi.Window, bool)) *wordReader {
@@ -254,7 +254,7 @@ func TestRepairWithoutOCRIsRecordedAsAStartupFailure(t *testing.T) {
 
 	shots := filepath.Join(t.TempDir(), "shots")
 	code := runPerformWorkflow([]string{
-		"--application", app, "--name", "a routine", "--frames", shots,
+		"--application", app, "--name", "a play", "--frames", shots,
 		"--repair", "some control", "--delay", "0s", "--seconds", "2",
 	})
 	if code == 0 {

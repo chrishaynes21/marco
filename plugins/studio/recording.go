@@ -782,7 +782,7 @@ func (a *Acts) Recording() Recording {
 	if g := c.again; g != nil {
 		out.Again, out.AgainName, out.AgainScope = g.id, g.name, g.scope
 		out.AgainSays = fmt.Sprintf("This is a second recording of %q. Saving it "+
-			"will NOT replace that routine: Save refuses to write over one, "+
+			"will NOT replace that play: Save refuses to write over one, "+
 			"and then offers you Replace by name.", g.name)
 	}
 	select {
@@ -891,7 +891,7 @@ func (a *Acts) Recording() Recording {
 		// by reading words, and a repeated block, and none of those is a hand
 		// somebody chose to use: telling them to click differently would send them to
 		// change the one thing that is not the problem.
-		out.Unsupported = fmt.Sprintf("This recording contains %s. A routine whose "+
+		out.Unsupported = fmt.Sprintf("This recording contains %s. A play whose "+
 			"presses are checked against the window they were made in has to "+
 			"stop when one of them does not happen, and this version cannot "+
 			"make %s do that — so it cannot be saved yet.", why, why)
@@ -1199,7 +1199,7 @@ func whyItWillNotRun(steps []macroir.Step) string {
 	repair := "Record it again with the program in front of you."
 	if lacks["what scale it was drawn at"] && !canReadWindowScale() {
 		repair = "This computer's Windows cannot report a window's scale, so a " +
-			"routine that checks the window it was made in cannot be made " +
+			"play that checks the window it was made in cannot be made " +
 			"on this machine."
 	}
 	// AND IT AGREES WITH ITSELF. A `%d press(es)` and a verb that does not bend with it
@@ -1298,7 +1298,7 @@ func (a *Acts) Resave(id string) string {
 			"Run it.", false, Pictured{})
 		return ""
 	}
-	return fmt.Sprintf("there is no routine %q that needs saving again — press "+
+	return fmt.Sprintf("there is no play %q that needs saving again — press "+
 		"Refresh and choose it again", id)
 }
 
@@ -1381,7 +1381,7 @@ func argSentence(key string, argNames []string) string {
 		return "Press " + key + " where each value goes, in order: " +
 			strings.Join(argNames, ", ") + "."
 	default:
-		return "Press " + key + " where the routine should ask for a value instead " +
+		return "Press " + key + " where the play should ask for a value instead " +
 			"of typing. Add “with item” to the name to call it item."
 	}
 }

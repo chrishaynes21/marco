@@ -834,7 +834,7 @@ func (e *editor) handleScope(w http.ResponseWriter, r *http.Request) {
 	// Moving this after the Delete must fail TestTheControlCentreMoveCarriesBeforeItDeletes.
 	if _, cerr := d.CarryShortcuts(from, to); cerr != nil {
 		_ = e.reg.Delete(to)
-		http.Error(w, "the routine was not moved: its shortcuts could not be moved with it: "+
+		http.Error(w, "the play was not moved: its shortcuts could not be moved with it: "+
 			cerr.Error(), 500)
 		return
 	}

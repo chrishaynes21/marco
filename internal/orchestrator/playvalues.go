@@ -140,7 +140,7 @@ func (d Deps) PrepareProposed(rt routes.Route, values, proposed map[string]strin
 	proposedAt string) (Invocation, error) {
 
 	if rt.Slug == "" {
-		return Invocation{}, fmt.Errorf("an invocation needs a routine")
+		return Invocation{}, fmt.Errorf("an invocation needs a play")
 	}
 	raw, err := os.ReadFile(d.Reg.Path(rt))
 	if err != nil {

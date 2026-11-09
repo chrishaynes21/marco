@@ -206,7 +206,7 @@ func (a *Acts) granted(c Act) (string, error) {
 		// Play in Studio" and "the person at the keyboard (F7)" are two different
 		// claims about how a press came to be allowed, and the record keeps them
 		// apart.
-		By: "the person who pressed Play in Studio", At: time.Now(),
+		By: "the person who pressed Run in Studio", At: time.Now(),
 	})
 	if err != nil {
 		return "", err
@@ -254,7 +254,7 @@ func (a *Acts) bringForward(app string) string {
 	c, found := theWindowToRaise(a.windowsNow(), app)
 	if !found {
 		return fmt.Sprintf("%s does not seem to be running — start it and press "+
-			"Play again", app)
+			"Run again", app)
 	}
 	// AND IF IT IS NOT IN FRONT AFTERWARDS, SAY SO NOW.
 	//
@@ -276,9 +276,9 @@ func (a *Acts) bringForward(app string) string {
 		// accepted every time anybody measured it. See liftChosen in routines.go.
 		return fmt.Sprintf("Marco couldn't confirm the foreground handoff to %s "+
 			"within the wait. Nothing was started. Bring %s's own window "+
-			"forward yourself, then press Play again. (One possibility: "+
+			"forward yourself, then press Run again. (One possibility: "+
 			"Windows only lets the window you last clicked hand the "+
-			"foreground on, so pressing Play while a full-screen game is "+
+			"foreground on, so pressing Run while a full-screen game is "+
 			"behind it can be refused.)", app, app)
 	}
 	return ""

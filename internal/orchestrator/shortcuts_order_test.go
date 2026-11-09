@@ -50,7 +50,7 @@ func TestAReplacedRoutinesShortcutsGoBeforeItIsReplaced(t *testing.T) {
 			t.Error("the destination was written before its shortcuts were invalidated")
 		}
 		if _, ok := d.Reg.BindingAt("notepad", "o"); ok {
-			t.Error("the replaced routine's shortcut was still there when the move went " +
+			t.Error("the replaced play's shortcut was still there when the move went " +
 				"on to publish over it")
 		}
 	}
@@ -77,7 +77,7 @@ func TestAReplacingMoveWhoseShortcutsCannotBeInvalidatedWritesNothing(t *testing
 	src, rec := d.versionAt(to)
 	corruptBindings(t, d)
 	if _, err := d.Rescope(m, Consent{ID: m.TakenID, Source: src, Recording: rec}); err == nil {
-		t.Fatal("a move went ahead with its replaced routine's shortcuts still in place")
+		t.Fatal("a move went ahead with its replaced play's shortcuts still in place")
 	}
 	if now, _ := d.versionAt(to); now != src {
 		t.Error("the destination was written although its shortcuts were not invalidated")
@@ -120,7 +120,7 @@ func TestAForgetWhoseShortcutsCannotBeRemovedForgetsNothing(t *testing.T) {
 		t.Fatal("the forget reported success with its shortcuts unremoved")
 	}
 	if !d.Reg.Has(freeplay) {
-		t.Error("the routine was deleted although its shortcuts could not be removed first")
+		t.Error("the play was deleted although its shortcuts could not be removed first")
 	}
 }
 
@@ -136,7 +136,7 @@ func TestARoutineRecreatedAfterAForgetDoesNotInheritItsShortcuts(t *testing.T) {
 		t.Fatal(err)
 	}
 	if p := d.ShortcutPressed("game", "e"); p.Found {
-		t.Errorf("a routine saved where a forgotten one was inherited its key: %+v", p)
+		t.Errorf("a play saved where a forgotten one was inherited its key: %+v", p)
 	}
 }
 
@@ -247,7 +247,7 @@ func TestAFailedRenameLeavesNoShortcutForTheNextRoutineThere(t *testing.T) {
 			p := d.ShortcutPressed("game", "e")
 			for _, s := range p.Steps {
 				if s.Route == renamed || s.Pin == routes.DigestOf(unrelatedSrc) {
-					t.Fatalf("`e runs the unrelated routine saved at %s: %+v",
+					t.Fatalf("`e runs the unrelated play saved at %s: %+v",
 						renamed.ID(), p.Steps)
 				}
 			}
@@ -287,7 +287,7 @@ func TestARenameWhoseOriginalCannotBeRemovedStillRunsTheSameRoutine(t *testing.T
 	p := d.ShortcutPressed("game", "e")
 	if len(p.Steps) != 1 || p.Steps[0].Route != renamed ||
 		p.Steps[0].Pin != routes.DigestOf(shortcutSrc) {
-		t.Fatalf("`e should run the same routine at %s, fires %+v (%s)", renamed.ID(),
+		t.Fatalf("`e should run the same play at %s, fires %+v (%s)", renamed.ID(),
 			p.Steps, p.Refused)
 	}
 }
@@ -305,7 +305,7 @@ func TestARenameCarriesOnlyOnceTheNewNameHoldsTheRoutine(t *testing.T) {
 		}
 		reached = true
 		if got, err := os.ReadFile(d.Reg.Path(renamed)); err != nil || string(got) != shortcutSrc {
-			t.Errorf("the shortcuts were about to move to %s before it held the routine",
+			t.Errorf("the shortcuts were about to move to %s before it held the play",
 				renamed.ID())
 		}
 		if b, ok := d.Reg.BindingAt("game", "e"); !ok || !runs(b, freeplay.ID()) {
@@ -426,7 +426,7 @@ func TestAReplacementQuestionNeverSaysNoShortcutsWhenItCannotTell(t *testing.T) 
 	again := d.DraftOf(NameOf(d.Reg, rt), aPlainDemonstration("b"), "notepad",
 		"the stop key", Unstated)
 	if at := d.Collision(again, ScopeAppAnywhere, "notepad"); strings.Contains(at.Says, "shortcut") {
-		t.Errorf("a routine with no shortcuts was said to have some: %s", at.Says)
+		t.Errorf("a play with no shortcuts was said to have some: %s", at.Says)
 	}
 	corruptBindings(t, d)
 	at := d.Collision(again, ScopeAppAnywhere, "notepad")

@@ -24,7 +24,7 @@ func takesFor(t *testing.T, body string) string {
 	}
 	rs := a.Routines()
 	if len(rs) != 1 {
-		t.Fatalf("the library holds %d routines", len(rs))
+		t.Fatalf("the library holds %d plays", len(rs))
 	}
 	if rs[0].Name != "cloud pull" {
 		t.Fatalf("the name is %q", rs[0].Name)
@@ -45,7 +45,7 @@ func TestARoutineRowSaysWhatItAsksFor(t *testing.T) {
 		t.Errorf("two values read %q, want each named, as the widget writes them", got)
 	}
 	if got := takesFor(t, "log \"nothing asked\".\n"); got != "" {
-		t.Errorf("a routine that asks for nothing reads %q", got)
+		t.Errorf("a play that asks for nothing reads %q", got)
 	}
 	secret := one + "do OS's Secret with \"cloud-pull:password\"...\n" +
 		"    when ok?\n        log \"done\".\n    or?\n        log that's error.\n"
@@ -79,6 +79,6 @@ setTimeout(() => {
 		t.Errorf("what it asks for is not set apart from the name: %s", title)
 	}
 	if n("bare") != 1 {
-		t.Errorf("a routine that asks for nothing has a placeholder: %s", title)
+		t.Errorf("a play that asks for nothing has a placeholder: %s", title)
 	}
 }

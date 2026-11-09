@@ -198,7 +198,7 @@ func (p Prepared) StepsWarning() string {
 			"of the demonstration."
 	}
 	return "This rebuild removes the stored steps, which are no longer a description " +
-		"of this routine."
+		"of this play."
 }
 
 // Prepare renders a saved routine again from its own stored demonstration, or from its own stored
@@ -212,7 +212,7 @@ func (d Deps) Prepare(rt routes.Route, kind Rebuild) (Prepared, error) {
 		// A WORD THIS DOES NOT KNOW IS NOT A CHOICE. Not defaulted to the gentler
 		// one either: a caller asking for rules nobody here can name is a caller
 		// about to show somebody a review labelled as something it is not.
-		return Prepared{}, fmt.Errorf("%q is not a way of rebuilding a routine", kind)
+		return Prepared{}, fmt.Errorf("%q is not a way of rebuilding a play", kind)
 	}
 	path := d.Reg.Path(rt)
 	raw, err := os.ReadFile(path)
@@ -398,7 +398,7 @@ func (d Deps) Prepare(rt routes.Route, kind Rebuild) (Prepared, error) {
 // and a failure to write them must not leave a new source beside the old pictures.
 func (d Deps) Replace(p Prepared) error {
 	if p.Route.Slug == "" {
-		return fmt.Errorf("a replacement needs the routine it was prepared from")
+		return fmt.Errorf("a replacement needs the play it was prepared from")
 	}
 	// AND THE LIBRARY IS THIS ONE. Said separately from the token, which would also
 	// catch it and would say the wrong thing about it: "not the one that was prepared"
@@ -407,7 +407,7 @@ func (d Deps) Replace(p Prepared) error {
 	// test store and in somebody's real one.
 	if p.library != "" && p.library != d.Reg.Dir {
 		return fmt.Errorf("%q was reviewed in the library at %s and this is %s, so "+
-			"nothing was written — a routine of that name here is a different "+
+			"nothing was written — a play of that name here is a different "+
 			"routine", p.Name, p.library, d.Reg.Dir)
 	}
 	// AND IT IS THE PREPARATION IT SAYS IT IS. The token is derived from the fields
@@ -453,7 +453,7 @@ func (d Deps) Replace(p Prepared) error {
 	if now := routes.DigestOf(string(raw)); now != p.sourceAt {
 		return fmt.Errorf("%q has been saved again since the version you reviewed was "+
 			"built, so it is left as it is — review it again and the comparison "+
-			"will be against the routine as it now stands", p.Name)
+			"will be against the play as it now stands", p.Name)
 	}
 	rec, ok := d.Reg.LoadRecording(p.Route)
 	if !ok {
@@ -474,7 +474,7 @@ func (d Deps) Replace(p Prepared) error {
 	if at, readable := d.Reg.StepsDigest(p.Route); !readable || at != p.stepsAt {
 		return fmt.Errorf("the step list stored beside %q has changed since the "+
 			"version you reviewed was built, so it is left as it is — review it "+
-			"again and the comparison will be against the routine as it now "+
+			"again and the comparison will be against the play as it now "+
 			"stands", p.Name)
 	}
 	// ── THE PICTURES ARE NOT ADDITIVE, WHICH THIS USED TO ASSUME ──
@@ -511,7 +511,7 @@ func (d Deps) Replace(p Prepared) error {
 		if errors.Is(err, fs.ErrExist) {
 			return fmt.Errorf("%q is left as it is: an image the rebuilt version "+
 				"needs appeared while this was being prepared to write, so "+
-				"something else is writing beside this routine — review it "+
+				"something else is writing beside this play — review it "+
 				"again and the comparison will be against what is there now "+
 				"(%v)", p.Name, err)
 		}
@@ -545,7 +545,7 @@ func (d Deps) Replace(p Prepared) error {
 		// leaving the file would make that sentence half true.
 		if err := d.Reg.DeleteSteps(p.Route); err != nil {
 			return fmt.Errorf("%q was rebuilt but the step list it replaced "+
-				"could not be removed from beside it (%v) — the routine is "+
+				"could not be removed from beside it (%v) — the play is "+
 				"the rebuilt one, and that file describes nothing",
 				p.Name, err)
 		}
@@ -595,14 +595,14 @@ func imagesToWrite(assets map[string][]byte) (map[string][]byte, string) {
 		case err != nil:
 			return nil, fmt.Sprintf("the image at %s cannot be read, so nothing "+
 				"here can say whether replacing it would change what the "+
-				"routine you have looks for — so nothing was written (%v)",
+				"play you have looks for — so nothing was written (%v)",
 				path, err)
 		case bytes.Equal(got, want):
 			// SKIPPED, not written. See above.
 		default:
 			return nil, fmt.Sprintf("the image at %s is not the one the rebuilt "+
 				"version needs, and replacing it would change what the "+
-				"routine you have looks for as well — so nothing was "+
+				"play you have looks for as well — so nothing was "+
 				"written. Record it again if the pictures beside it are out "+
 				"of date", path)
 		}

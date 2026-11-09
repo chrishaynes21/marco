@@ -59,7 +59,7 @@ import (
 // REFUSED rather than movable.
 func (d Deps) PrepareRename(rt routes.Route, newBase string) (Rescoping, error) {
 	if rt.Slug == "" {
-		return Rescoping{}, fmt.Errorf("a rename needs the routine it is about")
+		return Rescoping{}, fmt.Errorf("a rename needs the play it is about")
 	}
 	if strings.TrimSpace(newBase) == "" {
 		return Rescoping{}, fmt.Errorf("say what it should be called")
@@ -96,7 +96,7 @@ func (d Deps) PrepareRename(rt routes.Route, newBase string) (Rescoping, error) 
 		if m.To.App != "" {
 			where = "in " + m.To.App
 		}
-		m.Refused = fmt.Sprintf("%q is already a routine %s. Nothing has been "+
+		m.Refused = fmt.Sprintf("%q is already a play %s. Nothing has been "+
 			"renamed — choose another name, or delete that one first",
 			strings.TrimSpace(newBase), where)
 		m.Taken, m.TakenSays = false, ""
@@ -115,13 +115,13 @@ func (d Deps) PrepareRename(rt routes.Route, newBase string) (Rescoping, error) 
 func renamedTo(now, base string, rt routes.Route) (string, string) {
 	base = strings.TrimSpace(base)
 	if _, typed := routes.SplitArgs(base); len(typed) > 0 {
-		return "", "a rename changes what a routine is CALLED, and “with …” is how " +
+		return "", "a rename changes what a play is CALLED, and “with …” is how " +
 			"it says what it asks for — leave that part off and the values it " +
 			"already asks for are kept"
 	}
 	if routes.Slug(base) == "" {
 		return "", fmt.Sprintf("%q has no letters or digits in it, so there would be "+
-			"nothing to file the routine under", base)
+			"nothing to file the play under", base)
 	}
 	_, args := routes.SplitArgs(now)
 	if len(args) == 0 {

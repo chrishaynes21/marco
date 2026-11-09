@@ -216,7 +216,7 @@ func (r Registry) Steps(rt Route) (StoredSteps, StepsState) {
 func (r Registry) SaveSteps(rt Route, s StoredSteps) error {
 	switch {
 	case rt.Slug == "":
-		return fmt.Errorf("routes: a routine needs a name")
+		return fmt.Errorf("routes: a play needs a name")
 	case len(s.Steps) == 0:
 		return fmt.Errorf("routes: %s's account has no steps in it", rt.Slug)
 	case s.Source == "" || s.Demonstration == "":

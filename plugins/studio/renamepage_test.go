@@ -190,10 +190,10 @@ setTimeout(() => {
 		t.Fatalf("the rename box is not revealed by its button: %q", title)
 	}
 	if n("boxHas") != 1 {
-		t.Errorf("the box does not open with the routine's name in it: %q", title)
+		t.Errorf("the box does not open with the play's name in it: %q", title)
 	}
 	if n("chip") != 1 {
-		t.Errorf("what the routine asks for is not shown beside the box, so there "+
+		t.Errorf("what the play asks for is not shown beside the box, so there "+
 			"is nothing to tell somebody the values are being kept: %q", title)
 	}
 	if n("panel") != 1 || n("named") != 1 || n("keeps") != 1 {
@@ -294,7 +294,7 @@ setTimeout(() => {
 			"will not happen: %q", title)
 	}
 	if n("takenConsent") != 0 {
-		t.Errorf("the window offered to replace the routine that is in the way: %q",
+		t.Errorf("the window offered to replace the play that is in the way: %q",
 			title)
 	}
 	if n("ran") != 0 || n("moved") != 0 {

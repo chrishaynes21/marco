@@ -260,7 +260,7 @@ func aRoutineFromALookAt(t *testing.T, windows *winprovider.Provider,
 				continue
 			}
 			t.Skipf("%q %v is not holding still: looks %d and %d agree at "+
-				"%.3f, below the %.2f the run requires, so a routine "+
+				"%.3f, below the %.2f the run requires, so a play "+
 				"built from one of them cannot be performed against a "+
 				"look taken later", w.Title, w.Bounds, i+1, j+1, agree,
 				observe.VisualScreenMatch)
@@ -276,7 +276,7 @@ func aRoutineFromALookAt(t *testing.T, windows *winprovider.Provider,
 	// to widen the distance it is asked over.
 	regions := looks[len(looks)-1]
 	if len(regions) < 2 {
-		t.Skipf("the window in front proposes %d region(s); a routine needs a "+
+		t.Skipf("the window in front proposes %d region(s); a play needs a "+
 			"control to re-acquire and an arrangement to settle", len(regions))
 	}
 	// THE BIGGEST CONTROL-SHAPED REGION, which is not the biggest region.
@@ -314,7 +314,7 @@ func aRoutineFromALookAt(t *testing.T, windows *winprovider.Provider,
 		}
 		if !found {
 			t.Skipf("%q %v proposed nothing under the middle of this "+
-				"routine's own control on look %d of %d, so the control "+
+				"play's own control on look %d of %d, so the control "+
 				"it would press is not reliably there", w.Title, w.Bounds,
 				i+1, len(looks))
 		}
@@ -384,7 +384,7 @@ func watchWindow(t *testing.T, windows *winprovider.Provider, w directorapi.Wind
 				observe.ArrangeLook(look)); agree < observe.VisualScreenMatch {
 				diverged = true
 				why = fmt.Sprintf("during the run, %q agreed with the "+
-					"routine's own screen at %.3f, below the %.2f it "+
+					"play's own screen at %.3f, below the %.2f it "+
 					"requires", w.Title, agree, observe.VisualScreenMatch)
 				continue
 			}
@@ -402,7 +402,7 @@ func watchWindow(t *testing.T, windows *winprovider.Provider, w directorapi.Wind
 			if !found {
 				diverged = true
 				why = fmt.Sprintf("during the run, %q proposed nothing "+
-					"under the middle of the routine's own control",
+					"under the middle of the play's own control",
 					w.Title)
 			}
 		}

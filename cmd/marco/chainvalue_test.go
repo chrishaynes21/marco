@@ -55,6 +55,6 @@ func TestAChainStepTakesItsValueAsALineDoes(t *testing.T) {
 
 	// TWO VALUES AND A LINE OF WORDS: not guessed at.
 	if steps, ok := grammar(d, "discord mute then notepad write hello there", ""); ok {
-		t.Errorf("words after a routine taking two values were read as one: %+v", steps)
+		t.Errorf("words after a play taking two values were read as one: %+v", steps)
 	}
 }

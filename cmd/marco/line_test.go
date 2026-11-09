@@ -122,7 +122,7 @@ func TestAMissingValueIsAskedFor(t *testing.T) {
 	d, _ := aLineWorld(t)
 	r := readLine(d, "game-b", "cloud pull", lineProposal{})
 	if r.Runnable || r.Pending != "‹resource›" || r.Says != "Resource needed · cloud pull ‹resource›" {
-		t.Errorf("a routine with its value missing reads as %+v", r)
+		t.Errorf("a play with its value missing reads as %+v", r)
 	}
 	g := readLine(d, "notepad", "greet name:sam", lineProposal{})
 	if g.Runnable || g.Pending != "message:‹message›" || !strings.HasPrefix(g.Says, "Message needed") {
@@ -135,7 +135,7 @@ func TestSeveralValuesWithoutLabelsAreAskedAbout(t *testing.T) {
 	d, host := aLineWorld(t)
 	r := readLine(d, "notepad", "greet sam see you at 8", lineProposal{})
 	if r.Runnable || r.Says != "Two values needed — say which: greet name:‹name› message:‹message›" {
-		t.Errorf("an unlabelled line for a two-value routine reads as %+v", r)
+		t.Errorf("an unlabelled line for a two-value play reads as %+v", r)
 	}
 	n := readLine(d, "notepad", "greet name:sam message:see you at 8", lineProposal{})
 	if !n.Runnable || n.Readback != "Greet · name: sam · message: see you at 8" {
@@ -153,7 +153,7 @@ func TestASecretIsNeitherAskedForNorTyped(t *testing.T) {
 	d, _ := aLineWorld(t)
 	r := readLine(d, "game-b", "log in sam", lineProposal{})
 	if !r.Runnable || r.Values["user"] != "sam" || r.Readback != "Log in · user: sam · password: from the credential store" {
-		t.Errorf("a routine with a secret reads as %+v", r)
+		t.Errorf("a play with a secret reads as %+v", r)
 	}
 	if _, carried := r.Values["password"]; carried {
 		t.Error("a secret was carried as a value")
@@ -197,10 +197,10 @@ func TestAProposalIsReviewedNotSupplied(t *testing.T) {
 	}
 	other := readLine(d, "game-b", "cloud pull stone", p)
 	if other.ID == rt.ID() {
-		t.Fatalf("the exact routine lost to the proposal: %+v", other)
+		t.Fatalf("the exact play lost to the proposal: %+v", other)
 	}
-	if other.Runnable || !strings.Contains(other.Says, "the routine those values were proposed for") {
-		t.Errorf("a line naming another routine with a proposal carried reads as %+v", other)
+	if other.Runnable || !strings.Contains(other.Says, "the play those values were proposed for") {
+		t.Errorf("a line naming another play with a proposal carried reads as %+v", other)
 	}
 
 	// Saved since the proposal was read: refused, even with the same names.
@@ -226,7 +226,7 @@ func TestARoutineSavedAfterTheReadBackIsRefused(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got := runReading(t, d, host, r); len(got) != 0 {
-		t.Errorf("a routine saved after its read-back typed %q", got)
+		t.Errorf("a play saved after its read-back typed %q", got)
 	}
 }
 
@@ -262,7 +262,7 @@ func TestTheBareFormIsARoutineThatTakesAValue(t *testing.T) {
 	d, _ := aLineWorld(t)
 	if r := readLine(d, "game-b", "cloud pull stone granite", lineProposal{}); r.Slug != "cloud-pull" ||
 		r.Values["resource"] != "stone granite" {
-		t.Errorf("a line past a routine that takes no value reads as %+v", r)
+		t.Errorf("a line past a play that takes no value reads as %+v", r)
 	}
 	if r := readLine(d, "game-b", "cloud pull now resource:stone", lineProposal{}); r.Kind != "none" {
 		t.Errorf("a labelled line naming nothing reads as %+v", r)
@@ -287,6 +287,6 @@ func TestAProposalForAFocusRoutineIsNotReadOnItsNamesake(t *testing.T) {
 		t.Fatalf("the fixture did not produce the namesake: %+v", r)
 	}
 	if r.Runnable || r.From["resource"] == routes.FromTyped || !strings.Contains(r.Says, focus.ID()) {
-		t.Errorf("a proposal for the focus routine read on its namesake: %+v", r)
+		t.Errorf("a proposal for the focus play read on its namesake: %+v", r)
 	}
 }

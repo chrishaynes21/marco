@@ -60,7 +60,7 @@ func TestTheTextAStepTypesBecomesSomethingSupplied(t *testing.T) {
 		t.Errorf("the step is now a %q", out[1].Kind)
 	}
 	if out[0].Text != "notepad" || out[2].Key != "enter" || out[3].Ms != 50 {
-		t.Errorf("the rest of the routine moved: %+v", out)
+		t.Errorf("the rest of the play moved: %+v", out)
 	}
 	// AND THE REVIEW SAYS WHAT IT WAS, which is what makes keeping it an informed choice:
 	// the text is about to stop being part of the routine.

@@ -115,7 +115,7 @@ func runResolveChild(phrase string) (resolved, string) {
 	if ctx.Err() != nil {
 		mlogI("overlay: resolve took too long", "phrase", heard(phrase), "within",
 			resolveWithin.String())
-		return resolved{}, "the Director did not answer which routine that is within " +
+		return resolved{}, "the Director did not answer which play that is within " +
 			resolveWithin.String() + ", so nothing has been selected"
 	}
 	// AN EXIT CODE IS NOT THE ANSWER HERE. `resolve` exits 3 when there is no answer and
@@ -123,13 +123,13 @@ func runResolveChild(phrase string) (resolved, string) {
 	// way and only unreadable output is a failure.
 	if len(strings.TrimSpace(string(out))) == 0 {
 		mlogI("overlay: resolve said nothing", "phrase", heard(phrase), "err", errText(err))
-		return resolved{}, "nothing could be asked which routine that is: " +
+		return resolved{}, "nothing could be asked which play that is: " +
 			marcoBin() + " answered nothing (" + errText(err) + ")"
 	}
 	var r resolved
 	if jsonErr := json.Unmarshal(out, &r); jsonErr != nil {
 		mlogW2("overlay: resolve answered something unreadable", "err", jsonErr.Error())
-		return resolved{}, "what answered which routine that is could not be read: " +
+		return resolved{}, "what answered which play that is could not be read: " +
 			jsonErr.Error()
 	}
 	return r, ""
@@ -247,7 +247,7 @@ func offerResolved(h *model, phrase string, r resolved) disposition {
 	default:
 		// A CLARIFICATION OR A CHAT REPLY. Asking "shall I record one" on top of
 		// "which of these did you mean" is the question nobody asked.
-		h.log(saidOr(a.Reply, "nothing was said about which routine that is"))
+		h.log(saidOr(a.Reply, "nothing was said about which play that is"))
 		return saidWhyNot
 	}
 }

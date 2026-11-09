@@ -45,10 +45,10 @@ import (
 // printed only the sentences would read as a list of faults.
 func differenceLine(d orchestrator.Difference) string {
 	if d.Bears {
-		return fmt.Sprintf("generation %d: %s — this routine's own contents bear on "+
+		return fmt.Sprintf("generation %d: %s — this play's own contents bear on "+
 			"this one", d.Generation, d.Says)
 	}
-	return fmt.Sprintf("generation %d: %s — nothing in this routine shows whether it "+
+	return fmt.Sprintf("generation %d: %s — nothing in this play shows whether it "+
 		"applies", d.Generation, d.Says)
 }
 
@@ -135,7 +135,7 @@ type Review struct {
 func (a *Acts) ReviewRebuilt(id, kind string) Review {
 	id = strings.TrimSpace(id)
 	if id == "" {
-		return Review{Why: "choose a routine to review"}
+		return Review{Why: "choose a play to review"}
 	}
 	// WHICH RULES, STATED BY THE PAGE AND CHECKED HERE. There are two choices and
 	// `orchestrator.Prepare` refuses a word it cannot name, so an unknown one arrives
@@ -152,7 +152,7 @@ func (a *Acts) ReviewRebuilt(id, kind string) Review {
 	}
 	chosen, ok := a.routineWithID(id)
 	if !ok {
-		return Review{ID: id, Why: fmt.Sprintf("there is no routine %q in this "+
+		return Review{ID: id, Why: fmt.Sprintf("there is no play %q in this "+
 			"library (%s) — press Refresh and choose it again", id, a.routesDir)}
 	}
 	// AND NOTHING IS OFFERED FOR A GENERATION THIS BUILD CANNOT EXPLAIN.
@@ -263,7 +263,7 @@ func (a *Acts) ReplaceWithRebuilt(token string) string {
 		// one they were looking at.
 		return "the version you are looking at is no longer the one this window " +
 			"holds — review it again and the comparison will be against the " +
-			"routine as it now stands"
+			"play as it now stands"
 	}
 	d := orchestrator.Deps{Reg: a.reg(), Out: &strings.Builder{}}
 	if err := d.Replace(p); err != nil {

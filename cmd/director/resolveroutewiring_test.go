@@ -54,7 +54,7 @@ func TestTheLibraryDirectorOffersIsItsOwn(t *testing.T) {
 	reg := aLibraryHere(t)
 	cs := theLibrary(reg)
 	if len(cs) != 3 {
-		t.Fatalf("the library offered %d routine(s), want the three written: %+v",
+		t.Fatalf("the library offered %d play(s), want the three written: %+v",
 			len(cs), cs)
 	}
 	ids := map[string]resolveroute.Candidate{}
@@ -76,10 +76,10 @@ func TestTheLibraryDirectorOffersIsItsOwn(t *testing.T) {
 	}
 	// AND THE SCOPE EACH ONE IS ALREADY UNDER, read off where it lives rather than guessed.
 	if got := ids["arkascended/focus/ark-graphics"].Scope; got != "app-anywhere" {
-		t.Errorf("the focus routine's scope is %q", got)
+		t.Errorf("the focus play's scope is %q", got)
 	}
 	if got := ids["global/quit-everything"].Scope; got != "everywhere" {
-		t.Errorf("the global routine's scope is %q", got)
+		t.Errorf("the global play's scope is %q", got)
 	}
 }
 
@@ -118,7 +118,7 @@ func TestTheLibrarySaysWhatEachRoutineTakes(t *testing.T) {
 		}
 	}
 	if got.ID == "" {
-		t.Fatalf("the routine was not offered: %+v", theLibrary(reg))
+		t.Fatalf("the play was not offered: %+v", theLibrary(reg))
 	}
 	// THE TEXT ARGUMENT AND THE SECRET, each said for what it is.
 	if len(got.Takes) != 2 {
@@ -164,7 +164,7 @@ func TestATargetThisLibraryHasNothingForIsSaid(t *testing.T) {
 	known := r.ResolveRoute(service.ResolveRoutePayload{
 		Request: "ark sound", Target: "arkascended"})
 	if strings.Contains(known.Answer.Context.Says, "nothing in this library") {
-		t.Errorf("an application with routines was reported as having none: %q",
+		t.Errorf("an application with plays was reported as having none: %q",
 			known.Answer.Context.Says)
 	}
 	if known.Answer.ID != "arkascended/context/ark-sound" {
@@ -183,7 +183,7 @@ func TestATargetThisLibraryHasNothingForIsSaid(t *testing.T) {
 		t.Errorf("a stated target was downgraded to %q", unknown.Answer.Context.Basis)
 	}
 	if unknown.Answer.Offered != 2 {
-		t.Errorf("%d routine(s) were offered, want the global one and the one that "+
+		t.Errorf("%d play(s) were offered, want the global one and the one that "+
 			"brings its own application forward", unknown.Answer.Offered)
 	}
 	_ = reg
@@ -221,7 +221,7 @@ func TestALibraryMismatchIsNamedAndSelectsNothing(t *testing.T) {
 	// AND NOTHING IS SELECTED. Cleared HERE rather than left to a surface to remember:
 	// an answer that must not be acted on does not carry the thing to act on.
 	if got.Answer.ID != "" || got.Answer.App != "" || got.Answer.Slug != "" {
-		t.Errorf("a mismatched answer still carries a routine to run: %+v", got.Answer)
+		t.Errorf("a mismatched answer still carries a play to run: %+v", got.Answer)
 	}
 	if got.Answer.Kind == "run" {
 		t.Errorf("a mismatched answer is still a run: %+v", got.Answer)
@@ -341,7 +341,7 @@ func TestTheLibraryOffersWhatEachRoutineAnswersTo(t *testing.T) {
 	}
 	got := byID["arkascended/focus/ark-graphics"]
 	if len(got.Answers) != 1 || got.Answers[0] != "make it pretty" {
-		t.Errorf("the routine is offered answering to %q", got.Answers)
+		t.Errorf("the play is offered answering to %q", got.Answers)
 	}
 	if left := byID["global/quit-everything"]; len(left.Answers) != 0 {
 		t.Errorf("phrases belonging to another identity were offered: %q",

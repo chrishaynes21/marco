@@ -100,7 +100,7 @@ func TestARoutinesRunCitesItselfAndLeavesARecord(t *testing.T) {
 	// would be left inside the path. The outcome arrives on `[result]`, from the package
 	// that owns a routine's words.
 	if ref.Outcome != "" {
-		t.Errorf("the citation carries the outcome %q; a routine's word is not one of "+
+		t.Errorf("the citation carries the outcome %q; a play's word is not one of "+
 			"the supervised seven and would be read as part of the path", ref.Outcome)
 	}
 	m, raw := recordAt(t, ref.ID)
@@ -157,12 +157,12 @@ func TestARoutinesRecordSaysNothingAboutEvidence(t *testing.T) {
 	m, raw := recordAt(t, ref.ID)
 	for _, field := range []string{"verified", "contradicted", "unconfirmed"} {
 		if _, present := m[field]; present {
-			t.Errorf("a routine's record carries %q, which nothing on this path "+
+			t.Errorf("a play's record carries %q, which nothing on this path "+
 				"ever asked:\n%s", field, raw)
 		}
 	}
 	if strings.Contains(raw, "verified") {
-		t.Errorf("the word `verified` is in a routine's record:\n%s", raw)
+		t.Errorf("the word `verified` is in a play's record:\n%s", raw)
 	}
 }
 
@@ -181,7 +181,7 @@ func TestALegacyRoutinesRecordSaysWhichContractItRanUnder(t *testing.T) {
 	// AND IT STILL REPORTS WHAT IT ALWAYS DID: a legacy route was saved under a contract
 	// that says a click is attempted and the run carries on.
 	if out != OutcomePerformed {
-		t.Errorf("a legacy routine reported %q; that contract is not this one's "+
+		t.Errorf("a legacy play reported %q; that contract is not this one's "+
 			"business", out)
 	}
 }
@@ -426,7 +426,7 @@ func TestTheRecordInFlightSaysWhatWasRunning(t *testing.T) {
 	// it was recorded in; a record that said `unstated` here would be describing a run
 	// nobody had looked at.
 	if watcher.inFlight["contract"] != string(orchestrator.Guarded) {
-		t.Errorf("the record in flight says the contract is %v, and the routine "+
+		t.Errorf("the record in flight says the contract is %v, and the play "+
 			"states the window it was recorded in", watcher.inFlight["contract"])
 	}
 	// AND IT IS THE SAME SOURCE THE FINISHED RECORD CITES, after the file underneath it
@@ -551,7 +551,7 @@ func TestAnIncompleteRoutinesRefusalStillFailsTheCommand(t *testing.T) {
 	_, out, ref := aRunOf(t, d, rt)
 
 	if out == OutcomePerformed {
-		t.Error("a routine whose press refused for a missing measurement reported " +
+		t.Error("a play whose press refused for a missing measurement reported " +
 			"that it performed")
 	}
 	m, _ := recordAt(t, ref.ID)

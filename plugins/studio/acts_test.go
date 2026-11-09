@@ -430,7 +430,7 @@ func TestMain(m *testing.M) {
 				continue
 			}
 			if w, werr := runstate.NewWriter(os.Args[i+1], "run-standin",
-				"an act", "a routine", false); werr == nil {
+				"an act", "a play", false); werr == nil {
 				w.Say(runstate.Event{Phase: runstate.Naming,
 					Question: &runstate.Question{ID: "screen-1",
 						Asks: "which screen?",

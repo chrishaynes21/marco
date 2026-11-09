@@ -406,7 +406,7 @@ func TestTheRoutineAndTheRawDemonstrationAreBothSaved(t *testing.T) {
 	// ── READ BACK, AND THE LINK IS CHECKED ──
 	saved, ok := store.Sequence("ark graphics")
 	if !ok {
-		t.Fatal("the routine was not saved")
+		t.Fatal("the play was not saved")
 	}
 	back, ok := store.Evidence(saved)
 	if !ok {
@@ -435,7 +435,7 @@ func TestTheRoutineAndTheRawDemonstrationAreBothSaved(t *testing.T) {
 			button++
 			if p.Control != "control_1" {
 				t.Errorf("the press on the button reads as %q, and the "+
-					"routine calls that control %q", p.Control,
+					"play calls that control %q", p.Control,
 					back.Presses[0].Control)
 			}
 			if p.Containing < 1 {
@@ -467,13 +467,13 @@ func TestTheRoutineAndTheRawDemonstrationAreBothSaved(t *testing.T) {
 	}
 	for _, forbidden := range []string{"0.88", "observations"} {
 		if strings.Contains(string(body), forbidden) {
-			t.Errorf("the saved routine contains %q, which belongs to the raw "+
+			t.Errorf("the saved play contains %q, which belongs to the raw "+
 				"record and not to the executable artifact:\n%s",
 				forbidden, body)
 		}
 	}
 	if !strings.Contains(string(body), "\"at\"") {
-		t.Errorf("the saved routine carries no demonstrated click:\n%s", body)
+		t.Errorf("the saved play carries no demonstrated click:\n%s", body)
 	}
 	// AND THE RECORD OF AN EARLIER SESSION IS NOT READ AS A LATER ONE'S.
 	later := saved
@@ -574,13 +574,13 @@ func TestAnAccidentalClickIsCorrectedAndTheDemonstrationSurvivesIt(t *testing.T)
 	// ── THE PROCEDURE REFLECTS IT ──
 	back, ok := store.Sequence("ark graphics")
 	if !ok {
-		t.Fatal("the corrected routine was not saved")
+		t.Fatal("the corrected play was not saved")
 	}
 	if len(back.Steps) != before-1 {
 		t.Errorf("%d step(s) after the correction, want %d", len(back.Steps), before-1)
 	}
 	if !back.Corrected() || back.Corrections[0].Said != "that click was accidental" {
-		t.Errorf("the correction is not recorded in the routine: %+v", back.Corrections)
+		t.Errorf("the correction is not recorded in the play: %+v", back.Corrections)
 	}
 
 	// ── AND THE DEMONSTRATION IS UNCHANGED, which is the half that matters ──
@@ -677,10 +677,10 @@ func TestARoutineWithNoRawRecordIsStillCorrectable(t *testing.T) {
 	reportCorrection(&out, a, after, 1, false, workflowstore.Evidence{})
 	got := out.String()
 	if strings.Contains(got, "director what-i-did") {
-		t.Errorf("a routine with no raw record is told to go and read one:\n%s", got)
+		t.Errorf("a play with no raw record is told to go and read one:\n%s", got)
 	}
 	if !strings.Contains(got, "performs no step") {
-		t.Errorf("a routine with nothing left does not say so:\n%s", got)
+		t.Errorf("a play with nothing left does not say so:\n%s", got)
 	}
 }
 

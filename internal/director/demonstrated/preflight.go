@@ -140,7 +140,7 @@ func Preflight(src string, b Bindings, in Routines, check Plays) (Plan, error) {
 	}
 	art, ok := in.Sequence(routine)
 	if !ok {
-		return Plan{}, fmt.Errorf("%q is not a saved routine on this machine, so the "+
+		return Plan{}, fmt.Errorf("%q is not a saved play on this machine, so the "+
 			"interactions this play names cannot be found", routine)
 	}
 	now, err := RevisionOf(art)

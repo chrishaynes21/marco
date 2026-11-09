@@ -20,7 +20,7 @@ func TestANarrationIsOfTheChosenWindow(t *testing.T) {
 	d.Window = recorder.Target{HWnd: 0x1234, PID: uint32(os.Getpid())}
 	got, env := narrationIn(d)
 	if want := winctx.ProcessImage(uint32(os.Getpid())); want == "" || got.App() != want {
-		t.Errorf("the routine would be filed under %q, not the chosen window's %q", got.App(), want)
+		t.Errorf("the play would be filed under %q, not the chosen window's %q", got.App(), want)
 	}
 	if e, ok := env.(chosenWindowEnv); !ok || e.hwnd != 0x1234 {
 		t.Errorf("the session reads positions from %T %+v", env, env)
@@ -60,6 +60,6 @@ func TestTheNarratedRoutineIsFiledUnderTheChosenWindow(t *testing.T) {
 	want := winctx.ProcessImage(uint32(os.Getpid()))
 	saved := d.Reg.List()
 	if len(saved) != 1 || saved[0].App != want {
-		t.Errorf("the narrated routine was saved as %+v, not under %q\n%s", saved, want, out.String())
+		t.Errorf("the narrated play was saved as %+v, not under %q\n%s", saved, want, out.String())
 	}
 }

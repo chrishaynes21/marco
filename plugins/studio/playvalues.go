@@ -92,7 +92,7 @@ func (a *Acts) playFor(id string) (PlayValues, orchestrator.Deps, Routine, bool)
 	d := orchestrator.Deps{Reg: a.reg(), Out: &strings.Builder{}}
 	if id == "" {
 		return PlayValues{Fields: []PlayField{},
-			Why: "choose a routine to run"}, d, Routine{}, false
+			Why: "choose a play to run"}, d, Routine{}, false
 	}
 	a.mu.Lock()
 	recording := a.recordingLocked()
@@ -105,7 +105,7 @@ func (a *Acts) playFor(id string) (PlayValues, orchestrator.Deps, Routine, bool)
 	chosen, found := a.routineWithID(id)
 	if !found {
 		return PlayValues{ID: id, Fields: []PlayField{},
-				Why: fmt.Sprintf("there is no routine %q in this library (%s) — press "+
+				Why: fmt.Sprintf("there is no play %q in this library (%s) — press "+
 					"Refresh and choose it again", id, a.routesDir)}, d,
 			Routine{}, false
 	}
@@ -132,7 +132,7 @@ func fieldSays(arg routes.Argument) string {
 		return "read from the credential store — if it is not set, the run says so and " +
 			"`marco secret set` is how to set it"
 	}
-	return "typed into the routine where you tapped during the demonstration"
+	return "typed into the play where you tapped during the demonstration"
 }
 
 // ReviewPlay prepares the run and says what it would type, without running anything.
@@ -227,7 +227,7 @@ func (a *Acts) ConfirmPlay(token, window string) string {
 	i, held := a.invocations[token]
 	a.mu.Unlock()
 	if !held {
-		return "this is no longer the run this window prepared — press Play again and " +
+		return "this is no longer the run this window prepared — press Run again and " +
 			"read what it would type"
 	}
 	d := orchestrator.Deps{Reg: a.reg(), Out: &strings.Builder{}}
@@ -238,7 +238,7 @@ func (a *Acts) ConfirmPlay(token, window string) string {
 	chosen, found := a.routineWithID(i.ID)
 	if !found {
 		a.CancelPlay(token)
-		return fmt.Sprintf("there is no routine %q in this library (%s) any more",
+		return fmt.Sprintf("there is no play %q in this library (%s) any more",
 			i.ID, a.routesDir)
 	}
 	a.CancelPlay(token)

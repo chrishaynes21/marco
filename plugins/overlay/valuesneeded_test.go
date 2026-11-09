@@ -26,7 +26,7 @@ import (
 // Copied rather than imported: this is a separate module and cannot reach `cmd/marco`. A copy that
 // drifts is the known cost, and `TestTheEngineStillSaysWhatThisExpects` in `cmd/marco` is what
 // holds the two together — it asserts the same sentence against the real door.
-const theEngineRefusal = `"write a note": this routine types text that has to be supplied, ` +
+const theEngineRefusal = `"write a note": this play types text that has to be supplied, ` +
 	`and no value was given for "message". This request needs text values reviewed before ` +
 	`running. Open it in Studio, or supply the value with the request` + "\n"
 

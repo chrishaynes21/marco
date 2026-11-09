@@ -31,7 +31,7 @@ func TestAStatedApplicationBeatsEveryObservation(t *testing.T) {
 		t.Fatalf("a stated application produced %+v", where)
 	}
 	if !where.Basis.Admits() {
-		t.Error("a stated application does not admit an in-place routine")
+		t.Error("a stated application does not admit an in-place play")
 	}
 	if !strings.Contains(where.Says, "you named") {
 		t.Errorf("the sentence does not say where it came from: %q", where.Says)
@@ -47,7 +47,7 @@ func TestALiveForegroundReadingAdmitsInPlaceRoutines(t *testing.T) {
 		t.Fatalf("a corroborated foreground produced %+v", where)
 	}
 	if !where.Basis.Admits() {
-		t.Error("a corroborated foreground does not admit an in-place routine")
+		t.Error("a corroborated foreground does not admit an in-place play")
 	}
 	if !strings.Contains(where.Says, "in front now") {
 		t.Errorf("the sentence does not say it is current: %q", where.Says)

@@ -259,7 +259,7 @@ func TestMovingWhatCannotBeMovedSaysWhichOfTheThreeItIs(t *testing.T) {
 	}
 	for _, at := range []int{-1, 2, 99} {
 		if _, _, err := movedPoint(steps, at, 1, 2); err == nil {
-			t.Errorf("step %d was moved in a routine of 2 steps", at)
+			t.Errorf("step %d was moved in a play of 2 steps", at)
 		}
 	}
 }

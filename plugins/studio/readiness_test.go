@@ -173,7 +173,7 @@ func TestALibraryThatCannotBeWrittenIsReportedBeforeSave(t *testing.T) {
 	r := a.Ready()
 	p := problemAbout(r, "library")
 	if p == nil {
-		t.Fatalf("a library that cannot hold a routine was not reported: %+v",
+		t.Fatalf("a library that cannot hold a play was not reported: %+v",
 			r.Problems)
 	}
 	if p.Blocks == "" || p.Do == "" {
@@ -269,7 +269,7 @@ func TestTheLibraryCheckLeavesNothingBehind(t *testing.T) {
 	// AND NOTHING IT WRITES IS EVER LISTED AS A ROUTINE, which is the second half: a
 	// file left behind by a crash must not appear on somebody's shelf.
 	if n := len(a.Routines()); n != 0 {
-		t.Errorf("the library lists %d routine(s) after two readiness checks", n)
+		t.Errorf("the library lists %d play(s) after two readiness checks", n)
 	}
 }
 

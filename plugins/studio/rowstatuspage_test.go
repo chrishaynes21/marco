@@ -68,30 +68,30 @@ setTimeout(() => {
 		t.Fatalf("%d rows drawn, want 3: %s", n("rows"), title)
 	}
 	if n("guardedBare") != 1 || n("legacyBare") != 1 {
-		t.Errorf("a routine that is ready to play carries a badge. Ready needs none, "+
+		t.Errorf("a play that is ready to play carries a badge. Ready needs none, "+
 			"whatever its window checks are: %s", title)
 	}
 	if n("cantPill") != 1 {
-		t.Errorf("a routine that cannot run is not badged `Can't run`: %s", title)
+		t.Errorf("a play that cannot run is not badged `Can't run`: %s", title)
 	}
 	if n("cantBeside") != 1 {
-		t.Errorf("a routine that cannot run does not say its short reason and what "+
+		t.Errorf("a play that cannot run does not say its short reason and what "+
 			"to do beside its Play: %s", title)
 	}
 	if n("listSaysCheck") != 0 {
-		t.Errorf("the routine list says something about checking. The window checks "+
+		t.Errorf("the play list says something about checking. The window checks "+
 			"are how Marco works, and on a row they read as a step somebody "+
 			"missed: %s", title)
 	}
 	if n("checksUnderMore") != 1 || n("checksFilled") != 1 {
-		t.Errorf("a routine's checks sentence is not under More, or is not there at "+
+		t.Errorf("a play's checks sentence is not under More, or is not there at "+
 			"all: %s", title)
 	}
 	if n("intoSaysCheck") != 0 {
 		t.Errorf("the line beside Play talks about checking: %s", title)
 	}
 	if n("bannerShown") != 1 || n("bannerShort") != 1 {
-		t.Errorf("the open routine that cannot run does not lead with the short "+
+		t.Errorf("the open play that cannot run does not lead with the short "+
 			"reason and remedy: %s", title)
 	}
 	if n("fullUnderMore") != 1 || n("fullKept") != 1 {

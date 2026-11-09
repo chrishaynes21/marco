@@ -161,14 +161,14 @@ func aRoutineSavedWhileStudioIsOpenAppears(w *world) result {
 	id := cardID(routeIdentity(second))
 	if _, err := st.s.waitFor(30*time.Second, id, present); err != nil {
 		st.fail()
-		return fail(started, fmt.Sprintf("a routine saved into this window's library "+
+		return fail(started, fmt.Sprintf("a play saved into this window's library "+
 			"while it was open never appeared in it: %v", err))
 	}
 	// AND THE FIRST ONE IS STILL THERE. A list that replaced itself with the newcomer
 	// would pass the assertion above and have lost the routine somebody was working on.
 	if _, err := st.s.waitFor(10*time.Second, cardID(routeIdentity(st.seed)), present); err != nil {
 		st.fail()
-		return fail(started, fmt.Sprintf("the new routine appeared and the one that "+
+		return fail(started, fmt.Sprintf("the new play appeared and the one that "+
 			"was already there is gone: %v", err))
 	}
 	return pass(started,

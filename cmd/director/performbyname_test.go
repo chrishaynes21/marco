@@ -78,7 +78,7 @@ func TestADemonstrationIsPerformedByTheNameItWasSavedUnder(t *testing.T) {
 		t.Errorf("name %q, want the one it was saved under", art.Name)
 	}
 	if art.Application != workflowstore.NormaliseScope("arkascended") {
-		t.Errorf("scope %q — a routine performed by name must keep the application "+
+		t.Errorf("scope %q — a play performed by name must keep the application "+
 			"it was demonstrated against", art.Application)
 	}
 	if len(art.Steps) != 1 || len(art.Steps[0].Outcome) != 5 {
@@ -189,10 +189,10 @@ func TestARoutineThatCannotBeReadSaysSoRatherThanThatItWasNeverTaught(t *testing
 
 	said := stderrOf(t, func() { workflowToPerform("", "graphics tab") })
 	if strings.Contains(said, "has been saved") {
-		t.Errorf("a corrupt routine was reported as never taught:\n%s", said)
+		t.Errorf("a corrupt play was reported as never taught:\n%s", said)
 	}
 	if !strings.Contains(said, "cannot be read") {
-		t.Errorf("refusal = %q, want it to say the routine cannot be read", said)
+		t.Errorf("refusal = %q, want it to say the play cannot be read", said)
 	}
 }
 

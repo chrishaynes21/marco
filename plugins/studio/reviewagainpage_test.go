@@ -218,7 +218,7 @@ setTimeout(() => {
     (window.calls.join('|') === 'cancel|again:arkascended/focus/graphics-low:4660' ? 1 : 0)
 }, 3000)`)
 	if n("again") != 1 {
-		t.Error("recording a second recording again lost which routine it is a second " +
+		t.Error("recording a second recording again lost which play it is a second " +
 			"recording of")
 	}
 }

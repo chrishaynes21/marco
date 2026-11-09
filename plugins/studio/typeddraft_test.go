@@ -176,7 +176,7 @@ func TestADeclaredRunCanThenBeAskedFor(t *testing.T) {
 		t.Fatalf("asking for it was refused: %s", why)
 	}
 	if !strings.Contains(strings.Join(a.Recording().Steps, "|"), "{{item}}") {
-		t.Errorf("the value is not something the routine asks for: %v",
+		t.Errorf("the value is not something the play asks for: %v",
 			a.Recording().Steps)
 	}
 }
@@ -198,25 +198,25 @@ func TestADeclaredRunSurvivesSaveAndEditingAndARebuild(t *testing.T) {
 	}
 	rs := a.Routines()
 	if len(rs) != 1 {
-		t.Fatalf("the library holds %d routines", len(rs))
+		t.Fatalf("the library holds %d plays", len(rs))
 	}
 	saved := rs[0]
 	if !strings.Contains(saved.Source, `do OS's Type with "stone"`) {
-		t.Fatalf("the saved routine does not type the word:\n%s", saved.Source)
+		t.Fatalf("the saved play does not type the word:\n%s", saved.Source)
 	}
 	if strings.Contains(saved.Source, "KeyDown") {
-		t.Errorf("the saved routine still holds the keys:\n%s", saved.Source)
+		t.Errorf("the saved play still holds the keys:\n%s", saved.Source)
 	}
 	// AND THE DEMONSTRATION IS THE ONE THAT WAS MADE.
 	rec, err := os.ReadFile(strings.TrimSuffix(saved.Path, ".marco") + ".rec.json")
 	if err != nil {
-		t.Fatalf("the demonstration is not beside the routine: %v", err)
+		t.Fatalf("the demonstration is not beside the play: %v", err)
 	}
 
 	// ── THE EDIT PANEL ──
 	e := a.StepEditing(saved.ID)
 	if e.Why != "" {
-		t.Fatalf("the routine that was just saved cannot be edited: %s", e.Why)
+		t.Fatalf("the play that was just saved cannot be edited: %s", e.Why)
 	}
 	typed := 0
 	for _, row := range e.Rows {
@@ -235,7 +235,7 @@ func TestADeclaredRunSurvivesSaveAndEditingAndARebuild(t *testing.T) {
 	// back to being held keys.
 	v := a.ReviewRebuilt(saved.ID, "current")
 	if v.Why != "" {
-		t.Fatalf("the saved routine cannot be rebuilt: %s", v.Why)
+		t.Fatalf("the saved play cannot be rebuilt: %s", v.Why)
 	}
 	if !strings.Contains(v.Now, `do OS's Type with "stone"`) {
 		t.Errorf("a rebuild under today's rules undid the declaration:\n%s", v.Now)

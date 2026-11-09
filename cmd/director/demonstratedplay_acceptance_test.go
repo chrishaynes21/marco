@@ -138,7 +138,7 @@ func TestATwoActionPlayAndItsBindingsSurviveSaveAndReload(t *testing.T) {
 	was, _ := demonstrated.RevisionOf(art)
 	now, _ := demonstrated.RevisionOf(dpCorrected)
 	if was == now {
-		t.Fatal("a dpCorrected routine has the same revision as the one it replaced")
+		t.Fatal("a dpCorrected play has the same revision as the one it replaced")
 	}
 }
 
@@ -447,16 +447,16 @@ func TestInvalidSourceOrMissingMetadataRefusesBeforeAnyInput(t *testing.T) {
 			in: dpAStore{art.Name: art}, says: "does not compile",
 		},
 		{
-			name: "the routine is not on this machine",
-			src:  src, b: binds, in: dpAStore{}, says: "not a saved routine",
+			name: "the play is not on this machine",
+			src:  src, b: binds, in: dpAStore{}, says: "not a saved play",
 		},
 		{
-			name: "the routine has changed since the play was bound",
+			name: "the play has changed since the play was bound",
 			src:  src, b: binds, in: dpAStore{art.Name: dpCorrected(art)},
 			says: "has changed since this play was saved",
 		},
 		{
-			name: "a binding names an interaction the routine does not have",
+			name: "a binding names an interaction the play does not have",
 			src:  src, b: dpWithPosition(binds, "apply changes", 7),
 			in: dpAStore{art.Name: art}, says: "which has 2",
 		},
@@ -465,7 +465,7 @@ func TestInvalidSourceOrMissingMetadataRefusesBeforeAnyInput(t *testing.T) {
 			// A MISMATCHED POSITION ALSO CHANGES THE DIGEST CASE: rebuild the
 			// source digest where the test altered the record rather than the play.
 			b := c.b
-			if c.name == "a binding names an interaction the routine does not have" {
+			if c.name == "a binding names an interaction the play does not have" {
 				b.Source = binds.Source
 			}
 			_, err := demonstrated.Preflight(c.src, b, c.in, marcoChecks{})
@@ -483,7 +483,7 @@ func TestInvalidSourceOrMissingMetadataRefusesBeforeAnyInput(t *testing.T) {
 }
 
 func dpCorrected(a workflowstore.Artifact) workflowstore.Artifact {
-	a.Notes = append(a.Notes, "a person corrected this routine")
+	a.Notes = append(a.Notes, "a person corrected this play")
 	return a
 }
 

@@ -276,27 +276,27 @@ func TestSaveKeepsTheRecordingUnderTheStatedScope(t *testing.T) {
 			}
 			r := a.Recording()
 			if r.Saved == "" {
-				t.Fatal("Save did not say where the routine went")
+				t.Fatal("Save did not say where the play went")
 			}
 			if r.Review {
-				t.Error("review is still open over a routine already saved")
+				t.Error("review is still open over a play already saved")
 			}
 			raw, err := os.ReadFile(r.Saved)
 			if err != nil {
-				t.Fatalf("the routine is not on disk: %v", err)
+				t.Fatalf("the play is not on disk: %v", err)
 			}
 			src := string(raw)
 			for _, want := range []string{"842", "274", "496", "283"} {
 				if !strings.Contains(src, want) {
-					t.Errorf("the saved routine is missing %s:\n%s",
+					t.Errorf("the saved play is missing %s:\n%s",
 						want, src)
 				}
 			}
 			if strings.Contains(src, "1511") {
-				t.Errorf("the saved routine presses Stop:\n%s", src)
+				t.Errorf("the saved play presses Stop:\n%s", src)
 			}
 			if strings.Contains(strings.ToLower(src), winctx.Self()) {
-				t.Errorf("the saved routine names Studio:\n%s", src)
+				t.Errorf("the saved play names Studio:\n%s", src)
 			}
 			// AND IT IS FILED WHERE THE SCOPE SAYS — under the application,
 			// or not under one at all. That directory is what decides
@@ -310,13 +310,13 @@ func TestSaveKeepsTheRecordingUnderTheStatedScope(t *testing.T) {
 			under := parts[0]
 			if c.under == "" {
 				if strings.EqualFold(under, "arkascended") {
-					t.Errorf("a routine saved for everywhere is "+
+					t.Errorf("a play saved for everywhere is "+
 						"filed under the application (%q), so "+
 						"it is offered where it was recorded "+
 						"and nowhere else", rel)
 				}
 			} else if !strings.EqualFold(under, c.under) {
-				t.Errorf("the routine is at %q, and an %s scope files it "+
+				t.Errorf("the play is at %q, and an %s scope files it "+
 					"under %q", rel, c.scope, c.under)
 			}
 		})
@@ -367,7 +367,7 @@ func TestAnUnknownScopeIsRefusedAndTheDraftSurvives(t *testing.T) {
 	a, dir := aStudioRecording(t, "ark graphics")
 
 	if why := a.SaveDraft("", ""); why == "" {
-		t.Fatal("an empty scope was accepted; the routine would work somewhere " +
+		t.Fatal("an empty scope was accepted; the play would work somewhere " +
 			"nobody chose")
 	}
 	if why := a.SaveDraft("somewhere", ""); why == "" {
@@ -530,7 +530,7 @@ func TestReviewExplainsAMeasurementThatFailed(t *testing.T) {
 		t.Fatal("nothing was saved")
 	}
 	if !strings.Contains(after.Said, "refuse to press") {
-		t.Errorf("the save message reads %q and does not say the routine "+
+		t.Errorf("the save message reads %q and does not say the play "+
 			"will refuse", after.Said)
 	}
 	if !after.Incomplete {
@@ -1008,7 +1008,7 @@ func TestARoutineThatCannotPressAnythingIsListedAndSavedAgain(t *testing.T) {
 
 	listed := a.Unrunnable()
 	if len(listed) != 1 || !strings.EqualFold(listed[0].Name, "ark graphics") {
-		t.Fatalf("the routine is not listed as unable to press anything: %+v",
+		t.Fatalf("the play is not listed as unable to press anything: %+v",
 			listed)
 	}
 	if !listed[0].Resavable {
@@ -1037,7 +1037,7 @@ func TestARoutineThatCannotPressAnythingIsListedAndSavedAgain(t *testing.T) {
 		t.Fatal("nothing called ark-graphics is on disk")
 	}
 	if !strings.Contains(saved, `do OS's Activate with "arkascended"`) {
-		t.Errorf("the routine saved again still brings no window forward:\n%s",
+		t.Errorf("the play saved again still brings no window forward:\n%s",
 			saved)
 	}
 	if !strings.Contains(saved, `RelTo "window"`) {
@@ -1144,7 +1144,7 @@ func TestARightOrMiddlePressIsSavedAndTheReviewSaysWhichButton(t *testing.T) {
 				"RelX 722", "RelTo \"window\"", "WinW", "Dpi", "Process",
 			} {
 				if !strings.Contains(string(src), want) {
-					t.Errorf("the saved routine does not state %q:\n%s",
+					t.Errorf("the saved play does not state %q:\n%s",
 						want, src)
 				}
 			}
@@ -1331,10 +1331,10 @@ func TestAVisitToStudioLeavesARecordingThatStillSaves(t *testing.T) {
 		t.Fatal("nothing was written to the library")
 	}
 	if n := strings.Count(saved, "do OS's Click"); n != 2 {
-		t.Errorf("the saved routine presses %d time(s), want 2:\n%s", n, saved)
+		t.Errorf("the saved play presses %d time(s), want 2:\n%s", n, saved)
 	}
 	if strings.Contains(saved, "Drag") {
-		t.Errorf("the saved routine drags:\n%s", saved)
+		t.Errorf("the saved play drags:\n%s", saved)
 	}
 }
 
@@ -1352,6 +1352,6 @@ func TestAGuardedRecordingCanBeSavedOnlyIn(t *testing.T) {
 		t.Fatal("nothing was saved")
 	}
 	if got := a.Unrunnable(); len(got) != 0 {
-		t.Errorf("a guarded Only-in routine is listed as unable to press anything: %+v", got)
+		t.Errorf("a guarded Only-in play is listed as unable to press anything: %+v", got)
 	}
 }

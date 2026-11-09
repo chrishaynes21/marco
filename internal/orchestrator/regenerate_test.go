@@ -42,7 +42,7 @@ func aSavedRoutineWithItsRecording(t *testing.T) (Deps, routes.Route) {
 		t.Fatalf("save: %v", err)
 	}
 	if !d.Reg.HasRecording(rt) {
-		t.Fatal("the save left no demonstration beside the routine, so there is " +
+		t.Fatal("the save left no demonstration beside the play, so there is " +
 			"nothing for a review to rebuild from")
 	}
 	return d, rt
@@ -120,7 +120,7 @@ func statingNoGeneration(t *testing.T, d Deps, rt routes.Route) {
 		kept = append(kept, line)
 	}
 	if took == 0 {
-		t.Fatal("the saved routine states no generation already, so this build is " +
+		t.Fatal("the saved play states no generation already, so this build is " +
 			"not writing one and a rebuild would differ in nothing")
 	}
 	if err := d.Reg.Save(rt, strings.Join(kept, "\n")); err != nil {
@@ -157,7 +157,7 @@ func TestPreparingAndCancellingAVersionWritesNothing(t *testing.T) {
 	// reviewed. A preparation that returned a summary would have nothing a person could
 	// check the replacement against.
 	if p.Was == "" || p.Route != rt {
-		t.Errorf("the preparation describes %+v rather than the routine it was asked "+
+		t.Errorf("the preparation describes %+v rather than the play it was asked "+
 			"about", p.Route)
 	}
 	if why := differsFrom(before, theWholeLibrary(t, d)); why != "" {
@@ -196,7 +196,7 @@ func TestAReplacementWritesExactlyTheSourceThatWasReviewed(t *testing.T) {
 	}
 	raw, err := os.ReadFile(path)
 	if err != nil {
-		t.Fatalf("the routine is not where it was: %v", err)
+		t.Fatalf("the play is not where it was: %v", err)
 	}
 	if string(raw) != p.Now {
 		t.Errorf("the file now holds something other than the version that was "+
@@ -209,10 +209,10 @@ func TestAReplacementWritesExactlyTheSourceThatWasReviewed(t *testing.T) {
 	// would move the file — `routes/<app>/focus` to `routes/<app>/context` is a routine
 	// that stops working from anywhere — and the person reviewed a source, not a move.
 	if d.Reg.Path(rt) != path {
-		t.Errorf("the routine now lives at %s and was at %s", d.Reg.Path(rt), path)
+		t.Errorf("the play now lives at %s and was at %s", d.Reg.Path(rt), path)
 	}
 	if !d.Reg.HasRecording(rt) {
-		t.Error("the replacement took the demonstration with it, so the routine can " +
+		t.Error("the replacement took the demonstration with it, so the play can " +
 			"never be rebuilt again")
 	}
 	// AND REPLACING AGAIN IS A NO-OP THAT SAYS SO. The routine has now been written by
@@ -220,15 +220,15 @@ func TestAReplacementWritesExactlyTheSourceThatWasReviewed(t *testing.T) {
 	// — and offering to replace a file with itself is an offer to do nothing.
 	again, err := d.Prepare(rt, RebuildCurrent)
 	if err != nil {
-		t.Fatalf("preparing the replaced routine: %v", err)
+		t.Fatalf("preparing the replaced play: %v", err)
 	}
 	if again.Changes() {
-		t.Errorf("a routine this generator just wrote would be changed by being "+
+		t.Errorf("a play this generator just wrote would be changed by being "+
 			"rebuilt:\n--- saved ---\n%s\n--- rebuilt ---\n%s", again.Was,
 			again.Now)
 	}
 	if again.WasGeneration.Reading != GenerationCurrent {
-		t.Errorf("the replaced routine reads as %q", again.WasGeneration.Reading)
+		t.Errorf("the replaced play reads as %q", again.WasGeneration.Reading)
 	}
 }
 
@@ -249,7 +249,7 @@ func TestTheScopeAReplacementUsesIsTheOneTheRoutineAlreadyHas(t *testing.T) {
 		{"is about no application", routes.Route{Slug: "a"}, ScopeEverywhere},
 	} {
 		if got := ScopeAlreadyOf(c.rt); got != c.want {
-			t.Errorf("a routine that %s reads as scope %q, want %q", c.what, got,
+			t.Errorf("a play that %s reads as scope %q, want %q", c.what, got,
 				c.want)
 		}
 	}
@@ -274,25 +274,25 @@ func TestAReplacementAfterTheRoutineChangedRefusesAndLeavesItAlone(t *testing.T)
 	}
 	err = d.Replace(p)
 	if err == nil {
-		t.Fatal("a routine that changed since the review was replaced anyway, so a " +
+		t.Fatal("a play that changed since the review was replaced anyway, so a " +
 			"hand edit can be overwritten by a review of the file as it used to be")
 	}
 	if !strings.Contains(err.Error(), "saved again") {
-		t.Errorf("the refusal is %q and does not say the routine was saved again", err)
+		t.Errorf("the refusal is %q and does not say the play was saved again", err)
 	}
 	raw, _ := os.ReadFile(d.Reg.Path(rt))
 	if string(raw) != byHand {
-		t.Errorf("the refusal did not leave the routine as it was; it now holds:\n%s",
+		t.Errorf("the refusal did not leave the play as it was; it now holds:\n%s",
 			raw)
 	}
 	// AND THE WAY FORWARD IS A FRESH REVIEW, which the refusal says and which works:
 	// the comparison is now against the routine as it stands.
 	after, err := d.Prepare(rt, RebuildCurrent)
 	if err != nil {
-		t.Fatalf("reviewing the edited routine: %v", err)
+		t.Fatalf("reviewing the edited play: %v", err)
 	}
 	if after.Was != byHand {
-		t.Errorf("a fresh review compares against %q rather than the routine as it "+
+		t.Errorf("a fresh review compares against %q rather than the play as it "+
 			"now stands", after.Was)
 	}
 }
@@ -323,7 +323,7 @@ func TestAReplacementAfterTheRecordingChangedRefusesAndLeavesItAlone(t *testing.
 	}
 	err = d.Replace(p)
 	if err == nil {
-		t.Fatal("a routine whose demonstration changed since the review was replaced " +
+		t.Fatal("a play whose demonstration changed since the review was replaced " +
 			"anyway, from the recording that is no longer there")
 	}
 	if !strings.Contains(err.Error(), "recorded again") {
@@ -331,7 +331,7 @@ func TestAReplacementAfterTheRecordingChangedRefusesAndLeavesItAlone(t *testing.
 	}
 	raw, _ := os.ReadFile(d.Reg.Path(rt))
 	if string(raw) != string(was) {
-		t.Errorf("the refusal did not leave the routine as it was; it now holds:\n%s",
+		t.Errorf("the refusal did not leave the play as it was; it now holds:\n%s",
 			raw)
 	}
 }
@@ -367,7 +367,7 @@ func TestARoutineWithNoDemonstrationIsExplainedAndCannotBeRebuilt(t *testing.T) 
 
 	_, err = d.Prepare(rt, RebuildCurrent)
 	if err == nil {
-		t.Fatal("a routine with no demonstration was prepared for review anyway")
+		t.Fatal("a play with no demonstration was prepared for review anyway")
 	}
 	if !strings.Contains(err.Error(), "no longer has the demonstration") {
 		t.Errorf("the refusal is %q", err)
@@ -382,10 +382,10 @@ func TestARoutineWithNoDemonstrationIsExplainedAndCannotBeRebuilt(t *testing.T) 
 	raw, _ := os.ReadFile(d.Reg.Path(rt))
 	said := GenerationSentence(GenerationOf(string(raw)), d.Reg.HasRecording(rt))
 	if !strings.Contains(said, "does not state which generation") {
-		t.Errorf("the routine this is about reads as something else: %q", said)
+		t.Errorf("the play this is about reads as something else: %q", said)
 	}
 	if strings.Contains(said, "You can review") {
-		t.Errorf("a routine with no demonstration is offered a review: %q", said)
+		t.Errorf("a play with no demonstration is offered a review: %q", said)
 	}
 	if !strings.Contains(said, "no longer stored beside it") {
 		t.Errorf("the sentence does not explain why there is nothing to rebuild: %q",
@@ -430,7 +430,7 @@ func TestARebuildTodaysRulesWouldRefuseIsShownAndCannotBeReplacedWith(t *testing
 	}
 	if p.Refused == "" {
 		t.Fatalf("a demonstration with a press that cannot be stopped at rebuilt "+
-			"into a routine:\n%s", p.Now)
+			"into a play:\n%s", p.Now)
 	}
 	if !strings.Contains(p.Refused, "matching a picture") {
 		t.Errorf("the refusal is %q and does not name what cannot be wrapped",
@@ -439,7 +439,7 @@ func TestARebuildTodaysRulesWouldRefuseIsShownAndCannotBeReplacedWith(t *testing
 	// AND THE SAVED SOURCE IS STILL SHOWN BESIDE IT, because the review is a comparison
 	// and a person looking at a refusal still needs to see what they have.
 	if p.Was != string(was) {
-		t.Error("a refused review does not show the routine as it stands")
+		t.Error("a refused review does not show the play as it stands")
 	}
 	if p.Replaceable() || p.Changes() {
 		t.Error("a review with nothing to write reports itself replaceable")
@@ -448,13 +448,13 @@ func TestARebuildTodaysRulesWouldRefuseIsShownAndCannotBeReplacedWith(t *testing
 	// button that did nothing would read as a save that worked.
 	err = d.Replace(p)
 	if err == nil {
-		t.Fatal("a review that produced no routine was replaced with anyway")
+		t.Fatal("a review that produced no play was replaced with anyway")
 	}
 	if !strings.Contains(err.Error(), "matching a picture") {
 		t.Errorf("the refusal to replace is %q and does not carry the reason", err)
 	}
 	if now, _ := os.ReadFile(d.Reg.Path(rt)); string(now) != string(was) {
-		t.Errorf("the routine was changed by a replacement that refused:\n%s", now)
+		t.Errorf("the play was changed by a replacement that refused:\n%s", now)
 	}
 }
 
@@ -492,7 +492,7 @@ func TestAReplacementKeepsAScopeThatChangesWhatIsGenerated(t *testing.T) {
 	d := Deps{Reg: routes.Registry{Dir: t.TempDir()}, Out: &strings.Builder{}}
 	rt, err := d.Save(dr, ScopeApp, "arkascended")
 	if err != nil {
-		t.Fatalf("saving a context-scoped routine: %v", err)
+		t.Fatalf("saving a context-scoped play: %v", err)
 	}
 	path := d.Reg.Path(rt)
 	was, err := os.ReadFile(path)
@@ -502,7 +502,7 @@ func TestAReplacementKeepsAScopeThatChangesWhatIsGenerated(t *testing.T) {
 	// THE ARRANGEMENT HELD: this routine switches nothing, which is what the
 	// regeneration has to reproduce.
 	if strings.Contains(string(was), "OS's Activate") {
-		t.Fatalf("a context-scoped routine was generated with an Activate in it, so "+
+		t.Fatalf("a context-scoped play was generated with an Activate in it, so "+
 			"this case does not establish what it says:\n%s", was)
 	}
 	p, err := d.Prepare(rt, RebuildCurrent)
@@ -514,15 +514,15 @@ func TestAReplacementKeepsAScopeThatChangesWhatIsGenerated(t *testing.T) {
 	}
 	now, err := os.ReadFile(path)
 	if err != nil {
-		t.Fatalf("the routine is no longer where it was: %v", err)
+		t.Fatalf("the play is no longer where it was: %v", err)
 	}
 	if strings.Contains(string(now), "OS's Activate") {
-		t.Errorf("the replacement brings an application forward and the routine it "+
+		t.Errorf("the replacement brings an application forward and the play it "+
 			"replaced switched nothing, so it was regenerated under a scope "+
 			"nobody chose:\n%s", now)
 	}
 	if string(now) != string(was) {
-		t.Errorf("a routine today's generator wrote was changed by being rebuilt "+
+		t.Errorf("a play today's generator wrote was changed by being rebuilt "+
 			"under its own scope:\n--- was ---\n%s\n--- now ---\n%s", was, now)
 	}
 	if rt.Focus {
@@ -542,16 +542,16 @@ func TestTheRegistryRefusesToReplaceSomethingWithNoName(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := reg.Replace(routes.Route{App: "ark", Focus: true}, "something else"); err == nil {
-		t.Error("the registry replaced a routine with no name")
+		t.Error("the registry replaced a play with no name")
 	}
 	raw, err := os.ReadFile(reg.Path(rt))
 	if err != nil || string(raw) != "use os.\n" {
-		t.Errorf("the refused write disturbed the routine beside it: %q (%v)", raw, err)
+		t.Errorf("the refused write disturbed the play beside it: %q (%v)", raw, err)
 	}
 	// AND IT DOES REPLACE ONE THAT HAS A NAME, or the guard above is satisfied by a
 	// function that refuses everything.
 	if err := reg.Replace(rt, "// replaced\nuse os.\n"); err != nil {
-		t.Fatalf("replacing a named routine: %v", err)
+		t.Fatalf("replacing a named play: %v", err)
 	}
 	if raw, _ := os.ReadFile(reg.Path(rt)); string(raw) != "// replaced\nuse os.\n" {
 		t.Errorf("the replacement wrote %q", raw)
@@ -597,7 +597,7 @@ func TestTwoPreparationsOfOneRoutineAreTwoReviews(t *testing.T) {
 			"replacement is of")
 	}
 	if first.Token == second.Token {
-		t.Fatalf("two preparations of one routine built from different sources share "+
+		t.Fatalf("two preparations of one play built from different sources share "+
 			"the token %q, so a replacement cannot tell them apart", first.Token)
 	}
 	if first.Was == second.Was {
@@ -610,14 +610,14 @@ func TestTwoPreparationsOfOneRoutineAreTwoReviews(t *testing.T) {
 	// rendering of a file that has moved on.
 	err = d.Replace(first)
 	if err == nil {
-		t.Fatal("the earlier preparation was written over a routine that had changed " +
+		t.Fatal("the earlier preparation was written over a play that had changed " +
 			"since it was built")
 	}
 	if !strings.Contains(err.Error(), "saved again") {
 		t.Errorf("the refusal is %q", err)
 	}
 	if raw, _ := os.ReadFile(d.Reg.Path(rt)); string(raw) != edited {
-		t.Errorf("the refused replacement disturbed the routine:\n%s", raw)
+		t.Errorf("the refused replacement disturbed the play:\n%s", raw)
 	}
 	// AND THE SECOND ONE, WHICH IS THE CURRENT REVIEW, GOES THROUGH.
 	if err := d.Replace(second); err != nil {
@@ -656,7 +656,7 @@ func TestAPreparationThatWasAlteredDoesNotMatchItsToken(t *testing.T) {
 		t.Errorf("the refusal is %q", err)
 	}
 	if raw, _ := os.ReadFile(d.Reg.Path(rt)); string(raw) != string(was) {
-		t.Errorf("the refused replacement wrote to the routine:\n%s", raw)
+		t.Errorf("the refused replacement wrote to the play:\n%s", raw)
 	}
 	// AND THE UNALTERED ONE STILL GOES THROUGH, or the check above is satisfied by a
 	// `Replace` that refuses everything.
@@ -686,13 +686,13 @@ func TestARoutineThatBecameUnexplainableBetweenTheReadsIsRefused(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !GenerationOf(string(raw)).Offerable() {
-		t.Fatal("the seeded routine was never offerable, so this establishes nothing " +
+		t.Fatal("the seeded play was never offerable, so this establishes nothing " +
 			"about the gap between two reads")
 	}
 	// AND THEN THE FILE MOVES ON, to a generation this build has no account of.
 	ahead := strings.Replace(string(raw), "// Generation: 1.", "// Generation: 97.", 1)
 	if ahead == string(raw) {
-		t.Fatalf("the routine does not state its generation where this expects:\n%s",
+		t.Fatalf("the play does not state its generation where this expects:\n%s",
 			raw)
 	}
 	if err := d.Reg.Save(rt, ahead); err != nil {
@@ -702,7 +702,7 @@ func TestARoutineThatBecameUnexplainableBetweenTheReadsIsRefused(t *testing.T) {
 
 	_, err = d.Prepare(rt, RebuildCurrent)
 	if err == nil {
-		t.Fatal("a routine stating a generation this build cannot explain was " +
+		t.Fatal("a play stating a generation this build cannot explain was " +
 			"prepared for review anyway, so the restriction is only as good as " +
 			"whatever a caller looked at earlier")
 	}
@@ -739,14 +739,14 @@ func anAnchoredRoutine(t *testing.T) (Deps, routes.Route, string) {
 	}
 	rt, err := d.Save(dr, ScopeApp, "arkascended")
 	if err != nil {
-		t.Fatalf("saving the anchored routine: %v", err)
+		t.Fatalf("saving the anchored play: %v", err)
 	}
 	if _, ok := d.Reg.LoadRecording(rt); !ok {
-		t.Fatal("the save left no demonstration beside the anchored routine")
+		t.Fatal("the save left no demonstration beside the anchored play")
 	}
 	p, err := d.Prepare(rt, RebuildCurrent)
 	if err != nil {
-		t.Fatalf("preparing the anchored routine: %v", err)
+		t.Fatalf("preparing the anchored play: %v", err)
 	}
 	if len(p.assets) != 1 {
 		t.Fatalf("the rebuild produced %d image(s), so this test has nothing to be "+
@@ -826,7 +826,7 @@ func TestAnImageThatIsAlreadyTheRightOneIsNoConflict(t *testing.T) {
 	// THE IMAGE ON DISK IS THE ONE THE REBUILD WOULD WRITE, which is the ordinary case:
 	// the same recording renders the same picture.
 	if raw, rerr := os.ReadFile(image); rerr != nil || !bytes.Equal(raw, p.assets[image]) {
-		t.Fatalf("the image beside the routine is not the one its own rebuild "+
+		t.Fatalf("the image beside the play is not the one its own rebuild "+
 			"produces, so this is not the ordinary case (%v)", rerr)
 	}
 	if err := d.Replace(p); err != nil {
@@ -901,14 +901,14 @@ func TestTwoRoutinesWithIdenticalContentsDoNotShareAToken(t *testing.T) {
 		t.Fatalf("preparing the second: %v", err)
 	}
 	if first.Token == second.Token {
-		t.Fatalf("two routines share the token %q, so a replacement cannot tell "+
+		t.Fatalf("two plays share the token %q, so a replacement cannot tell "+
 			"which file it is for", first.Token)
 	}
 	// AND THE CASE IS REAL: these two really are the same bytes, which is why the
 	// content alone could not tell them apart.
 	if first.Was != second.Was || first.recordingAt != second.recordingAt ||
 		first.Now != second.Now {
-		t.Errorf("the two routines differ in their saved source, their recording or " +
+		t.Errorf("the two plays differ in their saved source, their recording or " +
 			"their rebuild, so this does not establish what it says — a token " +
 			"from the content alone would already have separated them")
 	}
@@ -921,10 +921,10 @@ func TestTwoRoutinesWithIdenticalContentsDoNotShareAToken(t *testing.T) {
 		t.Fatalf("replacing the first: %v", err)
 	}
 	if raw, _ := os.ReadFile(d.Reg.Path(discord)); string(raw) != string(otherWas) {
-		t.Errorf("replacing one routine rewrote the other:\n%s", raw)
+		t.Errorf("replacing one play rewrote the other:\n%s", raw)
 	}
 	if raw, _ := os.ReadFile(d.Reg.Path(ark)); string(raw) != first.Now {
-		t.Errorf("the replaced routine does not hold the reviewed version:\n%s", raw)
+		t.Errorf("the replaced play does not hold the reviewed version:\n%s", raw)
 	}
 }
 
@@ -972,7 +972,7 @@ func TestAPreparationCannotBeReplacedWithInAnotherLibrary(t *testing.T) {
 		t.Fatalf("preparing in the second library: %v", err)
 	}
 	if mine.Token == theirPrep.Token {
-		t.Errorf("the same routine prepared in two libraries shares the token %q",
+		t.Errorf("the same play prepared in two libraries shares the token %q",
 			mine.Token)
 	}
 	if mine.Was != theirPrep.Was || mine.Now != theirPrep.Now {
@@ -1002,7 +1002,7 @@ func mustRecording(t *testing.T, d Deps, rt routes.Route) []byte {
 	t.Helper()
 	raw, ok := d.Reg.LoadRecording(rt)
 	if !ok {
-		t.Fatal("the routine has no demonstration beside it")
+		t.Fatal("the play has no demonstration beside it")
 	}
 	return raw
 }
@@ -1025,7 +1025,7 @@ func TestAnImageThatAlreadyHoldsTheRightPictureIsNotWrittenAgain(t *testing.T) {
 		t.Fatalf("preparing: %v", err)
 	}
 	if raw, rerr := os.ReadFile(image); rerr != nil || !bytes.Equal(raw, p.assets[image]) {
-		t.Fatalf("the image beside the routine is not the one its rebuild produces, "+
+		t.Fatalf("the image beside the play is not the one its rebuild produces, "+
 			"so this is not the case it says it is (%v)", rerr)
 	}
 	if err := os.Chmod(image, 0o444); err != nil {
@@ -1038,11 +1038,11 @@ func TestAnImageThatAlreadyHoldsTheRightPictureIsNotWrittenAgain(t *testing.T) {
 			"refused, so it tried to write a file it did not need to: %v", err)
 	}
 	if raw, _ := os.ReadFile(d.Reg.Path(rt)); string(raw) != p.Now {
-		t.Errorf("the routine does not hold the reviewed version:\n%s", raw)
+		t.Errorf("the play does not hold the reviewed version:\n%s", raw)
 	}
 	// AND THE PICTURE IS STILL THE RIGHT ONE, which is what the skip has to preserve.
 	if raw, _ := os.ReadFile(image); !bytes.Equal(raw, p.assets[image]) {
-		t.Error("the image beside the replaced routine is not the one it needs")
+		t.Error("the image beside the replaced play is not the one it needs")
 	}
 }
 
@@ -1122,7 +1122,7 @@ func TestARefusalOnOneImageWritesNoneOfThem(t *testing.T) {
 		t.Fatal("a replacement went ahead over a different image")
 	}
 	if _, err := os.Stat(missing); !errors.Is(err, fs.ErrNotExist) {
-		t.Errorf("the refused replacement created %s anyway, so a routine can be "+
+		t.Errorf("the refused replacement created %s anyway, so a play can be "+
 			"left beside pictures from two different rebuilds", missing)
 	}
 	if raw, _ := os.ReadFile(d.Reg.Path(rt)); string(raw) != string(was) {
@@ -1210,7 +1210,7 @@ func TestAnImageThatAppearsAfterClassificationIsRefused(t *testing.T) {
 		t.Errorf("the missing image was not created (%v)", rerr)
 	}
 	if raw, _ := os.ReadFile(d.Reg.Path(rt)); string(raw) != p.Now {
-		t.Errorf("the routine does not hold the reviewed version:\n%s", raw)
+		t.Errorf("the play does not hold the reviewed version:\n%s", raw)
 	}
 }
 

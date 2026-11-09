@@ -95,12 +95,12 @@ func TestTheCLIRenameIsTheReviewedOne(t *testing.T) {
 	}
 	src, err := os.ReadFile(d.Reg.Path(to))
 	if err != nil || !strings.Contains(string(src), "{{resource}}") {
-		t.Errorf("the renamed routine lost its value: %s", src)
+		t.Errorf("the renamed play lost its value: %s", src)
 	}
 	// AND IT IS THE ROUTINE RE-RENDERED UNDER ITS NEW NAME, not the old file moved: what it calls
 	// itself is what it is filed under.
 	if got := orchestrator.NameIn(string(src), to.Slug); got != "gather" {
-		t.Errorf("the renamed routine calls itself %q", got)
+		t.Errorf("the renamed play calls itself %q", got)
 	}
 }
 
@@ -135,7 +135,7 @@ func TestTheCLIRenameNeedsTheDemonstration(t *testing.T) {
 	answering(t, "y")
 	var out bytes.Buffer
 	if code := renameReviewed(d, rt, "other", &out); code != 1 || !strings.Contains(out.String(), "no longer has the demonstration") {
-		t.Errorf("renaming a routine with no demonstration: %d\n%s", code, out.String())
+		t.Errorf("renaming a play with no demonstration: %d\n%s", code, out.String())
 	}
 	if !d.Reg.Has(rt) {
 		t.Error("it was renamed anyway")

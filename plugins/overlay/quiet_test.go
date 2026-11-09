@@ -48,7 +48,7 @@ func TestNothingHeardReachesTheLog(t *testing.T) {
 	// child; the phrase is its first bare word, so the flags after it are not parsed.
 	t.Setenv("MARCO_BIN", os.Args[0])
 	t.Setenv("MARCO_OVERLAY_ECHO", "heard: "+phrase+"\nrefused: resource "+value+
-		" is not one of the values this routine takes\n[result] refused\n")
+		" is not one of the values this play takes\n[result] refused\n")
 	runRecordTracked(newModel(), phrase, false,
 		"-test.run=TestOverlayEchoHelper", phrase, "--arg=resource="+value)
 

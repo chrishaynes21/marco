@@ -54,7 +54,7 @@ func savedUnrepaired(t *testing.T, mode RecordedAs) (Deps, routes.Route) {
 	// admission, so this is the one shape Unrunnable still lists. See Unrunnable.
 	rt, err := saving.Save(dr, ScopeEverywhere, "")
 	if err != nil {
-		t.Fatalf("saving the routine this repair is about: %v", err)
+		t.Fatalf("saving the play this repair is about: %v", err)
 	}
 	return Deps{Reg: routes.Registry{Dir: dir}, Out: &strings.Builder{}}, rt
 }
@@ -73,7 +73,7 @@ func theOneToRepair(t *testing.T, d Deps, rt routes.Route) Unrunnable {
 		}
 		return u
 	}
-	t.Fatalf("the routine just saved is not listed as one that cannot press anything: "+
+	t.Fatalf("the play just saved is not listed as one that cannot press anything: "+
 		"%+v", listed)
 	return Unrunnable{}
 }
@@ -126,7 +126,7 @@ func TestARepairKeepsWhatTheRoutineSaysItRecorded(t *testing.T) {
 
 	d, rt := savedUnrepaired(t, Coordinates)
 	if was := sourceOf(t, d, rt); ModeOf(was) != Coordinates {
-		t.Fatalf("the routine this repair is about does not state coordinates, so "+
+		t.Fatalf("the play this repair is about does not state coordinates, so "+
 			"there is nothing here for a repair to lose:\n%s", was)
 	}
 	now, err := d.Resave(theOneToRepair(t, d, rt))
@@ -135,14 +135,14 @@ func TestARepairKeepsWhatTheRoutineSaysItRecorded(t *testing.T) {
 	}
 	src := sourceOf(t, d, now)
 	if got := ModeOf(src); got != Coordinates {
-		t.Errorf("a routine that stated %q came out of the repair stating %q, so the "+
+		t.Errorf("a play that stated %q came out of the repair stating %q, so the "+
 			"repair edited a claim about how somebody recorded it:\n%s",
 			Coordinates, got, src)
 	}
 	// AND IN WORDS A PERSON READS, not only in a word a parser finds. Somebody opens
 	// this file.
 	if !strings.Contains(src, modeStated+string(Coordinates)) {
-		t.Errorf("the repaired routine does not say how it was recorded anywhere a "+
+		t.Errorf("the repaired play does not say how it was recorded anywhere a "+
 			"person reading the file would see it:\n%s", src)
 	}
 }
@@ -160,7 +160,7 @@ func TestARepairKeepsTheRecordedPausesOfACoordinateRoutine(t *testing.T) {
 	before := longestPause(t, sourceOf(t, d, rt))
 	capped := simplify.DefaultOptions().MaxWaitMs
 	if before <= capped {
-		t.Fatalf("the routine this repair is about waits %dms at most, which the %dms "+
+		t.Fatalf("the play this repair is about waits %dms at most, which the %dms "+
 			"cap would not change — so this cannot tell a repair that kept the "+
 			"pauses from one that capped them", before, capped)
 	}
@@ -169,9 +169,9 @@ func TestARepairKeepsTheRecordedPausesOfACoordinateRoutine(t *testing.T) {
 		t.Fatalf("saving it again: %v", err)
 	}
 	if after := longestPause(t, sourceOf(t, d, now)); after != before {
-		t.Errorf("the routine waited %dms before the repair and %dms after it. With "+
+		t.Errorf("the play waited %dms before the repair and %dms after it. With "+
 			"the sensing flags inherited on, the repair capped the recorded gaps "+
-			"of a routine that states it was recorded as coordinates — which has "+
+			"of a play that states it was recorded as coordinates — which has "+
 			"no anchor to wait on in their place, so the pauses are simply gone",
 			before, after)
 	}
@@ -194,10 +194,10 @@ func TestARepairStatesNothingWhenTheRoutineStatedNothing(t *testing.T) {
 	}
 	src := sourceOf(t, d, now)
 	if got := ModeOf(src); got != Unstated {
-		t.Errorf("a routine that stated no mode came out of the repair stating %q", got)
+		t.Errorf("a play that stated no mode came out of the repair stating %q", got)
 	}
 	if strings.Contains(src, modeStated) {
-		t.Errorf("the repair wrote a mode line into a routine that never carried one, "+
+		t.Errorf("the repair wrote a mode line into a play that never carried one, "+
 			"so it now makes a claim nobody made:\n%s", src)
 	}
 }
@@ -221,7 +221,7 @@ func TestARepairDoesNotCarryOnAWordThisBuildDoesNotKnow(t *testing.T) {
 	}
 	src := sourceOf(t, d, now)
 	if got := ModeOf(src); got != Unstated {
-		t.Errorf("a routine stating a word this build does not know came out of the "+
+		t.Errorf("a play stating a word this build does not know came out of the "+
 			"repair stating %q", got)
 	}
 	if strings.Contains(src, "semantic") {
@@ -251,26 +251,26 @@ func TestARepairStillRepairsAndWritesTheSameRoutine(t *testing.T) {
 	// (the one unrunnable shape left since S9), so that application is the demonstration's.
 	want := routes.Route{Slug: rt.Slug, App: "arkascended", Focus: true}
 	if now != want {
-		t.Errorf("the repair wrote %+v, and the routine it was asked about is %+v",
+		t.Errorf("the repair wrote %+v, and the play it was asked about is %+v",
 			now, want)
 	}
 	if left := d.Reg.List(); len(left) != 1 {
-		t.Errorf("after one repair the library holds %d routines: %+v", len(left), left)
+		t.Errorf("after one repair the library holds %d plays: %+v", len(left), left)
 	}
 	if still := d.Unrunnable(); len(still) != 0 {
-		t.Errorf("the routine still cannot press anything after being repaired: %+v",
+		t.Errorf("the play still cannot press anything after being repaired: %+v",
 			still)
 	}
 	// AND ITS DEMONSTRATION IS STILL BESIDE IT, so it can be repaired or re-simplified
 	// again. A repair that consumed the recording would work exactly once.
 	if !d.Reg.HasRecording(now) {
-		t.Error("the repaired routine has no demonstration stored beside it any more")
+		t.Error("the repaired play has no demonstration stored beside it any more")
 	}
 	// AND ITS PRESSES SAY WHAT THEY SAID. Compared against the routine before the repair
 	// rather than against a word written here: this fixture's contract is whatever the
 	// generator makes of it, and the claim is that a repair does not degrade it.
 	if contract, lacks := ContractOf(sourceOf(t, d, now)); contract != was {
-		t.Errorf("the routine's presses read as %q (lacking %v) before the repair and "+
+		t.Errorf("the play's presses read as %q (lacking %v) before the repair and "+
 			"%q (lacking %v) after it", was, lacked, contract, lacks)
 	}
 }

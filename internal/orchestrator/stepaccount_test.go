@@ -121,17 +121,17 @@ func TestAMoveOfAnEditedRoutineKeepsItsEdits(t *testing.T) {
 	// AND THE ROUTINE AT THE DESTINATION IS EDITABLE AGAIN, which is the whole claim:
 	// the account arrived and still describes what is there.
 	if !strings.Contains(sourceOf(t, d, done.To), "Sleep with 777") {
-		t.Error("the moved routine lost the edit")
+		t.Error("the moved play lost the edit")
 	}
 	if _, st := d.Reg.Steps(done.To); st != routes.StepsIntact {
 		t.Errorf("the account at the destination reads %q", st)
 	}
 	if _, err := d.PrepareEdit(done.To, nil); err != nil {
-		t.Errorf("the moved routine cannot be edited: %v", err)
+		t.Errorf("the moved play cannot be edited: %v", err)
 	}
 	// AND NOTHING WAS LEFT UNDER THE OLD SLUG.
 	if d.Reg.HasSteps(rt) {
-		t.Error("an account was left beside the routine that was moved away")
+		t.Error("an account was left beside the play that was moved away")
 	}
 	if len(done.Residue) != 0 {
 		t.Errorf("the move reported residue it should not have: %v", done.Residue)
@@ -232,7 +232,7 @@ func TestAMoveIsRefusedWhenTheRoutineWasEditedWhileItWasOpen(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := d.Rescope(m, m.ConsentToReplace()); err == nil {
-		t.Fatal("the move went ahead over a routine whose stored steps had changed")
+		t.Fatal("the move went ahead over a play whose stored steps had changed")
 	} else if !strings.Contains(err.Error(), "step list stored beside") {
 		t.Errorf("the refusal does not say what happened: %v", err)
 	}
@@ -268,7 +268,7 @@ func TestAMoveOfAHandEditedRoutineStillShowsTheLoss(t *testing.T) {
 		t.Error("the move invented source nobody wrote")
 	}
 	if !m.Movable() {
-		t.Error("a hand-edited routine cannot be moved at all, which is a bigger " +
+		t.Error("a hand-edited play cannot be moved at all, which is a bigger " +
 			"change than this decision makes")
 	}
 	// AND NO ACCOUNT IS INVENTED FOR IT at the destination: there is nothing to carry,
@@ -278,7 +278,7 @@ func TestAMoveOfAHandEditedRoutineStillShowsTheLoss(t *testing.T) {
 		t.Fatalf("moving: %v", err)
 	}
 	if d.Reg.HasSteps(done.To) {
-		t.Error("the move wrote an account of a routine nobody had one for")
+		t.Error("the move wrote an account of a play nobody had one for")
 	}
 }
 
@@ -305,14 +305,14 @@ func TestARepairOfAnEditedRoutineKeepsItsEdits(t *testing.T) {
 	// AND THE REPAIRED ROUTINE IS EDITABLE, so the account was written back bound to
 	// what the repair wrote.
 	if _, st := d.Reg.Steps(repaired); st != routes.StepsIntact {
-		t.Errorf("the repaired routine's account reads %q", st)
+		t.Errorf("the repaired play's account reads %q", st)
 	}
 	if _, err := d.PrepareEdit(repaired, nil); err != nil {
-		t.Errorf("the repaired routine cannot be edited: %v", err)
+		t.Errorf("the repaired play cannot be edited: %v", err)
 	}
 	// AND THE REPAIR DID WHAT IT IS FOR: the scope its presses need.
 	if ScopeAlreadyOf(repaired) != ScopeAppAnywhere {
-		t.Errorf("the repaired routine is under %q", ScopeAlreadyOf(repaired))
+		t.Errorf("the repaired play is under %q", ScopeAlreadyOf(repaired))
 	}
 }
 
@@ -367,7 +367,7 @@ func TestARepairIsRefusedWhenTheAccountCannotBeRead(t *testing.T) {
 				t.Errorf("the refusal does not point anywhere: %v", err)
 			}
 			if sourceOf(t, d, rt) != before {
-				t.Error("the routine was written anyway")
+				t.Error("the play was written anyway")
 			}
 		})
 	}
@@ -376,7 +376,7 @@ func TestARepairIsRefusedWhenTheAccountCannotBeRead(t *testing.T) {
 	t.Run("no account at all", func(t *testing.T) {
 		d, rt := savedUnrepaired(t, Coordinates)
 		if _, err := d.Resave(theOneToRepair(t, d, rt)); err != nil {
-			t.Fatalf("an unedited routine could not be repaired: %v", err)
+			t.Fatalf("an unedited play could not be repaired: %v", err)
 		}
 	})
 }
@@ -406,7 +406,7 @@ func TestARebuildOfAnEditedRoutineKeepsTheEdits(t *testing.T) {
 	// AND A ROUTINE ALREADY RENDERED BY TODAY'S RULES FROM ITS OWN STEPS REBUILDS TO
 	// ITSELF, which is what makes "nothing would change" an honest thing to say.
 	if p.Changes() {
-		t.Errorf("rebuilding an edited routine changes it:\nwas\n%s\nnow\n%s",
+		t.Errorf("rebuilding an edited play changes it:\nwas\n%s\nnow\n%s",
 			p.Was, p.Now)
 	}
 	if err := d.Replace(p); err != nil {
@@ -416,7 +416,7 @@ func TestARebuildOfAnEditedRoutineKeepsTheEdits(t *testing.T) {
 		t.Errorf("after the rebuild the account reads %q", st)
 	}
 	if !strings.Contains(sourceOf(t, d, rt), "Sleep with 777") {
-		t.Error("the replaced routine lost the edit")
+		t.Error("the replaced play lost the edit")
 	}
 }
 
@@ -435,7 +435,7 @@ func TestAReSimplificationSaysItDiscardsTheStepEdits(t *testing.T) {
 	}
 	if !p.DiscardsEdits() {
 		t.Fatal("a re-simplification does not report that it would throw away the " +
-			"step list stored beside the routine")
+			"step list stored beside the play")
 	}
 	// THE WORDING IS TRUE WHETHER OR NOT ANYBODY EDITED ANYTHING, which is the whole of
 	// why it is this sentence: a stored basis comes from a step edit AND from a
@@ -447,7 +447,7 @@ func TestAReSimplificationSaysItDiscardsTheStepEdits(t *testing.T) {
 	for _, mustNot := range []string{"your step edits", "you edited"} {
 		if strings.Contains(p.StepsWarning(), mustNot) {
 			t.Errorf("the warning claims %q, which a re-simplification of a "+
-				"routine nobody edited would be claiming falsely: %q",
+				"play nobody edited would be claiming falsely: %q",
 				mustNot, p.StepsWarning())
 		}
 	}
@@ -478,7 +478,7 @@ func TestAReSimplificationSaysItDiscardsTheStepEdits(t *testing.T) {
 		t.Fatalf("the account after a re-simplification reads %q", st)
 	}
 	if _, err := d.PrepareEdit(rt, nil); err != nil {
-		t.Errorf("the re-simplified routine cannot be edited: %v", err)
+		t.Errorf("the re-simplified play cannot be edited: %v", err)
 	}
 }
 
@@ -503,7 +503,7 @@ func TestARebuildOverAnAccountThatNoLongerDescribesTheRoutineSweepsIt(t *testing
 	// AND THE OTHER SENTENCE, because this is the other situation: nothing replaces
 	// them, so saying a fresh simplification takes their place would be wrong.
 	if p.StepsWarning() != "This rebuild removes the stored steps, which are no longer "+
-		"a description of this routine." {
+		"a description of this play." {
 		t.Errorf("the warning is %q", p.StepsWarning())
 	}
 	if err := d.Replace(p); err != nil {
@@ -546,7 +546,7 @@ func TestAReplacementIsRefusedWhenTheStoredStepsMovedWhileItWasOpen(t *testing.T
 		t.Errorf("the refusal does not say what moved: %v", rerr2)
 	}
 	if sourceOf(t, d, rt) != before {
-		t.Error("the routine was written anyway")
+		t.Error("the play was written anyway")
 	}
 }
 
@@ -596,7 +596,7 @@ func TestWhatAReplacementWouldDoToTheStoredStepsIsPartOfWhatWasApproved(t *testi
 				t.Errorf("the refusal is not about the review's identity: %v", err)
 			}
 			if sourceOf(t, d, rt) != before {
-				t.Error("the routine was written anyway")
+				t.Error("the play was written anyway")
 			}
 		})
 	}
@@ -645,7 +645,7 @@ func TestRecordingARoutineAgainRemovesItsAccountAndSaysSo(t *testing.T) {
 		t.Fatal("saving the same name again is not reported as a collision")
 	}
 	if !at.HasStoredSteps {
-		t.Error("the question does not report that the routine there keeps a step " +
+		t.Error("the question does not report that the play there keeps a step " +
 			"list of its own")
 	}
 	if !strings.Contains(at.Says, "keeps a step list of its own") {
@@ -657,19 +657,19 @@ func TestRecordingARoutineAgainRemovesItsAccountAndSaysSo(t *testing.T) {
 	}
 	// AND THE ACCOUNT IS GONE, because it is an account of a routine nobody has any more.
 	if d.Reg.HasSteps(rt) {
-		t.Error("the account survived the routine being demonstrated again")
+		t.Error("the account survived the play being demonstrated again")
 	}
 	if strings.Contains(sourceOf(t, d, rt), "Sleep with 777") {
-		t.Error("the replaced routine still carries the old edit")
+		t.Error("the replaced play still carries the old edit")
 	}
 	// AND THE NEW ROUTINE IS EDITABLE, against its own demonstration.
 	if _, err := d.PrepareEdit(rt, nil); err != nil {
-		t.Errorf("the re-recorded routine cannot be edited: %v", err)
+		t.Errorf("the re-recorded play cannot be edited: %v", err)
 	}
 	// AND A ROUTINE WITH NO EDITS SAYS NOTHING ABOUT ANY.
 	plain := d.Collision(again, ScopeApp, "notepad")
 	if plain.HasStoredSteps || strings.Contains(plain.Says, "step list of its own") {
-		t.Errorf("a routine with no stored step list is reported as keeping one: %q",
+		t.Errorf("a play with no stored step list is reported as keeping one: %q",
 			plain.Says)
 	}
 }

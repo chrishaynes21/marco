@@ -208,7 +208,7 @@ func (d Deps) Collision(dr *Draft, scope Scope, app string) Collision {
 		return Collision{Route: rt}
 	case serr != nil:
 		return Collision{Route: rt, Why: fmt.Sprintf("whether there is already a "+
-			"routine at %s could not be read, so nothing has been saved: %v",
+			"play at %s could not be read, so nothing has been saved: %v",
 			d.Reg.Path(rt), serr)}
 	}
 	c := Collision{Exists: true, Route: rt, ID: RouteID(rt), Name: dr.Name,
@@ -218,10 +218,10 @@ func (d Deps) Collision(dr *Draft, scope Scope, app string) Collision {
 	}
 	// AND WHICH VERSION THIS QUESTION IS ABOUT. See Consent.
 	c.Source, c.Recording = d.versionAt(rt)
-	c.Says = fmt.Sprintf("there is already a routine saved there: %q, kept on %s. "+
+	c.Says = fmt.Sprintf("there is already a play saved there: %q, kept on %s. "+
 		"Saving this one over it would replace its steps and the demonstration "+
 		"beside it, and neither can be got back. Give this one another name, or "+
-		"replace that routine on purpose.", c.Name, c.SavedAt)
+		"replace that play on purpose.", c.Name, c.SavedAt)
 	// AND ITS OWN STEP LIST, WHICH IS A THIRD THING. The sentence above names the two
 	// files; a routine with a stored basis has a step list in neither of them, and saving
 	// over it is the one lifecycle operation where losing that is the right answer —
@@ -315,11 +315,11 @@ func (d Deps) Keep(dr *Draft, scope Scope, app string, consent Consent) (routes.
 	case !consent.Given() && at.Exists:
 		return routes.Route{}, fmt.Errorf("%s", at.Says)
 	case consent.Given() && !at.Exists:
-		return routes.Route{}, fmt.Errorf("there is no routine %q to replace any "+
+		return routes.Route{}, fmt.Errorf("there is no play %q to replace any "+
 			"more — it has gone since you chose it. Save this recording as it is.",
 			consent.ID)
 	case consent.Given() && at.ID != consent.ID:
-		return routes.Route{}, fmt.Errorf("this would not replace the routine you "+
+		return routes.Route{}, fmt.Errorf("this would not replace the play you "+
 			"chose. You chose %q, and this recording would be saved as %q — "+
 			"choose once more.", consent.ID, at.ID)
 	}
@@ -342,7 +342,7 @@ func (d Deps) Keep(dr *Draft, scope Scope, app string, consent Consent) (routes.
 			if again := d.Collision(dr, scope, app); again.Says != "" {
 				return rt, fmt.Errorf("%s", again.Says)
 			}
-			return rt, fmt.Errorf("a routine was saved at %s while this one was "+
+			return rt, fmt.Errorf("a play was saved at %s while this one was "+
 				"being kept, so nothing has been written over it", RouteID(rt))
 		}
 		return rt, err

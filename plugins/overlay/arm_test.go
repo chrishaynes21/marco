@@ -74,7 +74,7 @@ func TestTheArmListIsTheEnginesAnswer(t *testing.T) {
 		"`  in notepad",
 		"e  save draft",
 		"l  open mouse settings  · set up by name: reassign it to run it",
-		"s  soon gone  (everywhere)  · its routine is gone: change or remove it",
+		"s  soon gone  (everywhere)  · its play is gone: change or remove it",
 		"c  copy  (everywhere)",
 		`p  save as pdf  (everywhere)  · "save as pdf" works only in acrobat`,
 		"f5  refresh  (everywhere)  · the widget cannot send this key",

@@ -142,7 +142,7 @@ func aMovedWindowStillGetsTheRightPress(w *world) result {
 	if !arrived {
 		st.fail()
 		return fail(started, fmt.Sprintf("the window moved from %s to %s and the "+
-			"routine pressed nothing. A guarded press re-bases its offset onto "+
+			"play pressed nothing. A guarded press re-bases its offset onto "+
 			"the window as it is now, whichever button it uses", was, to))
 	}
 	rec, err := waitForRecord(45*time.Second, st.store, records)
@@ -333,8 +333,8 @@ func notTheButtonsDemonstrated(presses []fixtureEvent, seed seededRoutine) strin
 	for i, e := range presses {
 		if i >= len(seed.buttons) {
 			return fmt.Sprintf("the application received %d press(es) and the "+
-				"routine demonstrates %d, so there is a press here that "+
-				"nothing in the routine asked for: %s", len(presses),
+				"play demonstrates %d, so there is a press here that "+
+				"nothing in the play asked for: %s", len(presses),
 				len(seed.buttons), buttonsAre(presses))
 		}
 		if want := seed.buttons[i] + "_down"; e.What != want {
@@ -356,7 +356,7 @@ func notOnePressPerDemonstratedOne(presses []fixtureEvent, seed seededRoutine) s
 	if len(presses) == len(seed.controls) {
 		return ""
 	}
-	return fmt.Sprintf("the routine demonstrates %d press(es) and the application "+
+	return fmt.Sprintf("the play demonstrates %d press(es) and the application "+
 		"received %d: %s", len(seed.controls), len(presses), buttonsAre(presses))
 }
 

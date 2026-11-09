@@ -73,7 +73,7 @@ func aReviewedRebuildReplacesTheRoutine(w *world) result {
 	// THE ARRANGEMENT HELD. A routine that still states a generation would be offered
 	// nothing to review, and every assertion below would be about a disabled button.
 	if g := orchestrator.GenerationOf(saved); g.Reading != orchestrator.GenerationUnstated {
-		return skip(started, fmt.Sprintf("the seeded routine reads as %q rather than "+
+		return skip(started, fmt.Sprintf("the seeded play reads as %q rather than "+
 			"stating no generation, so there is nothing for this to review",
 			g.Reading))
 	}
@@ -99,12 +99,12 @@ func aReviewedRebuildReplacesTheRoutine(w *world) result {
 	}
 	if !shot.says("does not state which generation") {
 		st.fail()
-		return fail(started, "Studio does not say that the chosen routine states no "+
+		return fail(started, "Studio does not say that the chosen play states no "+
 			"generation, so what it is offering to review is not what this "+
 			"scenario arranged",
 			fmt.Sprintf("what the window says: %s", strings.Join(shot.ids(), " ")))
 	}
-	w.art.step("Studio says the routine states no generation, and offers a review")
+	w.art.step("Studio says the play states no generation, and offers a review")
 
 	// ── REVIEW: THE PANEL COMES UP AND THE FILE IS UNTOUCHED ──
 	if _, err := st.s.waitFor(10*time.Second, "routineReviewBtn", enabled); err != nil {
@@ -123,7 +123,7 @@ func aReviewedRebuildReplacesTheRoutine(w *world) result {
 		st.fail()
 		return fail(started, why)
 	}
-	w.art.step("the review is up and the saved routine is untouched")
+	w.art.step("the review is up and the saved play is untouched")
 
 	// ── CANCEL: THE PANEL GOES AND THE FILE IS STILL UNTOUCHED ──
 	if err := st.s.press("routineReviewCancelBtn"); err != nil {
@@ -137,7 +137,7 @@ func aReviewedRebuildReplacesTheRoutine(w *world) result {
 		st.fail()
 		return fail(started, why)
 	}
-	w.art.step("the review was cancelled and the saved routine is untouched")
+	w.art.step("the review was cancelled and the saved play is untouched")
 
 	// ── REVIEW AGAIN, AND REPLACE ──
 	if err := st.s.press("routineReviewBtn"); err != nil {
@@ -203,7 +203,7 @@ func statingNoGeneration(s *seededRoutine, art *artifacts) error {
 		kept = append(kept, line)
 	}
 	if took == 0 {
-		return fmt.Errorf("the seeded routine states no generation already, so this "+
+		return fmt.Errorf("the seeded play states no generation already, so this "+
 			"build is not writing one and there is nothing to arrange: %s", s.path)
 	}
 	src := strings.Join(kept, "\n")
@@ -273,12 +273,12 @@ func (s *studioRun) waitForNoReview() error {
 func theFileMoved(path, was, when string) string {
 	now, err := readFileString(path)
 	if err != nil {
-		return fmt.Sprintf("the saved routine could not be read %s: %v", when, err)
+		return fmt.Sprintf("the saved play could not be read %s: %v", when, err)
 	}
 	if now == was {
 		return ""
 	}
-	return fmt.Sprintf("the saved routine changed %s, and nothing had been replaced "+
+	return fmt.Sprintf("the saved play changed %s, and nothing had been replaced "+
 		"yet:\n--- was ---\n%s\n--- now ---\n%s", when, was, now)
 }
 
@@ -301,7 +301,7 @@ func theReplacedRoutine(path, was string) (string, error) {
 		return true, "replaced"
 	})
 	if !ok {
-		return was, fmt.Errorf("Replace was pressed and the saved routine never "+
+		return was, fmt.Errorf("Replace was pressed and the saved play never "+
 			"changed: %s", saw)
 	}
 	return now, nil
@@ -316,7 +316,7 @@ func theReplacedRoutine(path, was string) (string, error) {
 func theReplacementIsNotWhatTheGeneratorWrites(now, was string) string {
 	g := orchestrator.GenerationOf(now)
 	if g.Reading != orchestrator.GenerationCurrent {
-		return fmt.Sprintf("the replaced routine reads as %q rather than stating the "+
+		return fmt.Sprintf("the replaced play reads as %q rather than stating the "+
 			"generation this build writes (%s)", g.Reading, g.Why)
 	}
 	var without []string
@@ -344,14 +344,14 @@ func theReplacementIsNotWhatTheGeneratorWrites(now, was string) string {
 func theRoutineDidNotKeepItsPlace(st *stage, now string) string {
 	reg := routes.Registry{Dir: routesDir()}
 	if at := reg.Path(st.seed.route); at != st.seed.path {
-		return fmt.Sprintf("the routine was at %s and is now at %s", st.seed.path, at)
+		return fmt.Sprintf("the play was at %s and is now at %s", st.seed.path, at)
 	}
 	if !reg.HasRecording(st.seed.route) {
-		return "the replacement took the routine's demonstration with it, so it can " +
+		return "the replacement took the play's demonstration with it, so it can " +
 			"never be rebuilt again"
 	}
 	if c, _ := orchestrator.ContractOf(now); c != orchestrator.Guarded {
-		return fmt.Sprintf("the routine was guarded and the replacement reads as %q, "+
+		return fmt.Sprintf("the play was guarded and the replacement reads as %q, "+
 			"so the rebuild changed what its presses promise", c)
 	}
 	return ""

@@ -71,14 +71,14 @@ func Where(stated string, observed, foreground Seen, now time.Time) Context {
 	// routine that works only in place is offered — and the application is NOT carried.
 	if observed.OK && strings.TrimSpace(observed.App) != "" {
 		return Context{Basis: LastExternal, Says: fmt.Sprintf(
-			"nothing is known to be in front, so no in-place routine is offered. "+
+			"nothing is known to be in front, so no in-place play is offered. "+
 				"The last application Marco saw was %s%s, and a Marco window "+
 				"has the foreground now — name an application to read this "+
 				"against one.", strings.TrimSpace(observed.App),
 			agoOf(observed.At, now))}
 	}
 	return Context{Basis: Unknown, Says: "nothing is known to be in front, so no " +
-		"in-place routine is offered — name an application to read this against one."}
+		"in-place play is offered — name an application to read this against one."}
 }
 
 // agoOf is how long before `now` a reading was taken, or "" when it does not say.

@@ -68,7 +68,7 @@ func TestAPhraseAnotherRoutineIsCalledIsRefused(t *testing.T) {
 	d := aLibraryOf(t, mine, theirs)
 	_, err := d.AddAlias(mine, "settings")
 	if err == nil {
-		t.Fatal("a phrase that is another routine's own name was accepted")
+		t.Fatal("a phrase that is another play's own name was accepted")
 	}
 	if !strings.Contains(err.Error(), "settings") ||
 		!strings.Contains(err.Error(), theirs.ID()) {
@@ -90,10 +90,10 @@ func TestAPhraseAnotherRoutineAlreadyAnswersToIsRefused(t *testing.T) {
 	}
 	_, err := d.AddAlias(mine, "go racing")
 	if err == nil {
-		t.Fatal("two routines were allowed to answer to one phrase")
+		t.Fatal("two plays were allowed to answer to one phrase")
 	}
 	if !strings.Contains(err.Error(), theirs.ID()) {
-		t.Errorf("the refusal does not name the other routine: %v", err)
+		t.Errorf("the refusal does not name the other play: %v", err)
 	}
 }
 
@@ -114,7 +114,7 @@ func TestAPhraseThatCollidesInEitherNormalizationIsRefused(t *testing.T) {
 			"this would pass without the second check")
 	}
 	if _, err := d.AddAlias(mine, "settings in ark"); err == nil {
-		t.Error("a phrase the resolver cannot tell from another routine's name was " +
+		t.Error("a phrase the resolver cannot tell from another play's name was " +
 			"accepted, so what it means would depend on which surface asked")
 	}
 }
@@ -183,7 +183,7 @@ func TestAPhraseIsRemovedByNamingIt(t *testing.T) {
 		t.Errorf("it answers to %q", said.Answers)
 	}
 	if len(d.Reg.AnsweringTo("free play")) != 0 {
-		t.Error("the removed phrase still answers for the routine")
+		t.Error("the removed phrase still answers for the play")
 	}
 	if back := d.Reg.AnsweringTo("start a race"); len(back) != 1 || back[0] != rt {
 		t.Error("removing one phrase took another with it")
@@ -214,7 +214,7 @@ func TestAPhraseWithNoWordsInItIsRefused(t *testing.T) {
 	d := aLibraryOf(t, rt)
 	for _, said := range []string{"", "   ", "!!!", "-- --"} {
 		if _, err := d.AddAlias(rt, said); err == nil {
-			t.Errorf("%q was accepted as something a routine answers to", said)
+			t.Errorf("%q was accepted as something a play answers to", said)
 		}
 	}
 }
@@ -232,7 +232,7 @@ func TestPhrasesBoundElsewhereAreNotAddedTo(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := d.AddAlias(rt, "something new"); err == nil {
-		t.Fatal("a routine with phrases belonging to something else was added to")
+		t.Fatal("a play with phrases belonging to something else was added to")
 	}
 	if _, why := d.AliasesOf(rt); !strings.Contains(why, "ark/focus/other") {
 		t.Errorf("the reason does not say where they claim to belong: %q", why)

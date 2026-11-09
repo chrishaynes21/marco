@@ -102,7 +102,7 @@ func nextOf(outcome runref.Outcome, waits string) string {
 		}
 		return "Nothing was pressed. The sentence above is the run's own reason; " +
 			"a run that was waiting for a screen or a window needs that thing " +
-			"to be true and then another press of Play."
+			"to be true and then another press of Run."
 	case runref.Cancelled:
 		return "Nothing was sent after you pressed Stop."
 	case runref.Failed:

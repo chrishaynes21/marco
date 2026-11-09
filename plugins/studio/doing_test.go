@@ -104,7 +104,7 @@ func TestEveryEndingSaysWhatToDoAboutIt(t *testing.T) {
 		{runref.Verified, "", ""},
 		{runref.Contradicted, "", "demonstrate it again"},
 		{runref.Unconfirmed, "", "resting after the click"},
-		{runref.Refused, "", "another press of Play"},
+		{runref.Refused, "", "another press of Run"},
 		{runref.Cancelled, "", "after you pressed Stop"},
 		{runref.Failed, "", "Technical details"},
 		{runref.Started, "", "nobody can"},

@@ -380,7 +380,7 @@ func runDemonstrateVisual(args []string) int {
 				ref, *fps, *seconds, name)
 			fmt.Printf("  settle rule %d consecutive looks, derived from the %s interval\n",
 				settle, interval)
-			fmt.Printf("  Perform the routine once, with your own hands. Nothing is " +
+			fmt.Printf("  Perform the play once, with your own hands. Nothing is " +
 				"injected.\n")
 			// CLICK, NOT KEYS. A control is identified from a pointer press landing
 			// inside something the proposer found; a highlight moved by the arrow
@@ -575,7 +575,7 @@ func runDemonstrateVisual(args []string) int {
 	// failed because a picture could not be written. Nothing that runs reads these.
 	if *previews {
 		if n, why := keepPreviews(store, a, draft, res, obs.Clicks()); why != "" {
-			fmt.Fprintf(os.Stderr, "director: the routine is saved and some "+
+			fmt.Fprintf(os.Stderr, "director: the play is saved and some "+
 				"pictures of it are not: %s\n", why)
 		} else if n > 0 {
 			fmt.Printf("  %d picture(s) kept, to look at in Studio under "+
@@ -590,7 +590,7 @@ func runDemonstrateVisual(args []string) int {
 		// way too, and a control nothing could be concluded about says so in
 		// the words somebody standing at the screen can act on.
 		if n, said, why := keepControls(store, a, draft, res, obs.Clicks()); why != "" {
-			fmt.Fprintf(os.Stderr, "director: the routine is saved and what "+
+			fmt.Fprintf(os.Stderr, "director: the play is saved and what "+
 				"its controls are worth is not: %s\n", why)
 		} else if n > 0 {
 			fmt.Printf("  %d control(s) measured against what is beside "+
@@ -602,7 +602,7 @@ func runDemonstrateVisual(args []string) int {
 	}
 	kept := ""
 	if err := store.SaveEvidence(rawDemonstration(a, *app, *title, obs, draft, res)); err != nil {
-		fmt.Fprintf(os.Stderr, "director: the routine is saved and the raw "+
+		fmt.Fprintf(os.Stderr, "director: the play is saved and the raw "+
 			"demonstration is not: %v\n", err)
 	} else {
 		kept = fmt.Sprintf("  director what-i-did %q    what you actually did\n", a.Name)

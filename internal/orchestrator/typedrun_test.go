@@ -164,7 +164,7 @@ func TestTheOwnersRolloverConvertsWhenItIsDeclared(t *testing.T) {
 	// AND THE STEPS NEED WRITING DOWN, or the save leaves a routine nothing can explain.
 	if !next.Changed {
 		t.Error("the declaration did not mark the steps as changed, so a save would " +
-			"leave no account beside the routine")
+			"leave no account beside the play")
 	}
 	// AND THE DRAFT IT CAME FROM IS UNTOUCHED.
 	if len(holdsIn(dr.Steps)) != 4 {
@@ -358,7 +358,7 @@ func TestWhatCannotBeDeclaredTypedTextIsSaidPlainly(t *testing.T) {
 			{Kind: macroir.StepKeyUp, Key: "s"},
 			{Kind: macroir.StepKey, Key: "t", Text: "t"},
 		}, 0, 1},
-		{"text the routine already asks for", []macroir.Step{
+		{"text the play already asks for", []macroir.Step{
 			{Kind: macroir.StepType, Text: "{{item}}"},
 			{Kind: macroir.StepKey, Key: "t", Text: "t"},
 		}, 0, 1},

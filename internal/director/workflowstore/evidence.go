@@ -302,7 +302,7 @@ func newest(open map[observe.NavIntent][]int, in observe.NavIntent) (int, bool) 
 // MarshalEvidence writes the record, refusing one that describes nothing.
 func MarshalEvidence(e Evidence) ([]byte, error) {
 	if e.Name == "" {
-		return nil, fmt.Errorf("workflowstore: evidence with no routine to belong to")
+		return nil, fmt.Errorf("workflowstore: evidence with no play to belong to")
 	}
 	e.Version = EvidenceVersion
 	if len(e.Moments) > MaxEvidenceMoments {

@@ -31,7 +31,7 @@ setTimeout(() => {
 		t.Fatalf("the page never reported the field: %q", title)
 	}
 	if !strings.Contains(title, "first=[]") {
-		t.Errorf("the save did not clear the name for the next routine: %q", title)
+		t.Errorf("the save did not clear the name for the next play: %q", title)
 	}
 	if !strings.Contains(title, "name=[second routine]") {
 		t.Errorf("what was typed after the save was wiped: %q", title)

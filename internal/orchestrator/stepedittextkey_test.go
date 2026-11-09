@@ -52,7 +52,7 @@ func TestAStepsTextCanBeChangedToOtherFixedText(t *testing.T) {
 		t.Errorf("the step types %q", out[1].Text)
 	}
 	if out[0].Text != "notepad" || out[2].Key != "enter" || out[3].Ms != 50 {
-		t.Errorf("the rest of the routine moved: %+v", out)
+		t.Errorf("the rest of the play moved: %+v", out)
 	}
 	if len(says) != 1 || !strings.Contains(says[0], "hello there") ||
 		!strings.Contains(says[0], "friend") {
@@ -249,11 +249,11 @@ func TestAChangedTextIsWhatTheRoutineTypes(t *testing.T) {
 	editing(t, d, rt, StepEdit{Op: EditText, At: at, Text: "polo"})
 	calls := whatItAsked(t, d, rt, 0)
 	if !hasCall(calls, "OS's Type with polo") || hasCall(calls, "OS's Type with marco") {
-		t.Errorf("the edited routine typed: %v", calls)
+		t.Errorf("the edited play typed: %v", calls)
 	}
 	// AND THE NEXT EDIT IS OFFERED, which is the account having been written beside it.
 	if again, err := d.PrepareEdit(rt, nil); err != nil || again.Refused != "" {
-		t.Errorf("after the edit the routine cannot be edited again: %v %q", err,
+		t.Errorf("after the edit the play cannot be edited again: %v %q", err,
 			again.Refused)
 	}
 }
@@ -281,10 +281,10 @@ func TestAChangedHoldIsWhatTheRoutineHolds(t *testing.T) {
 	editing(t, d, rt, StepEdit{Op: EditKey, At: at, Key: "ctrl"})
 	after := strings.Join(whatItAsked(t, d, rt, 0), "\n")
 	if strings.Contains(after, "shift") {
-		t.Errorf("the edited routine still holds or releases shift:\n%s", after)
+		t.Errorf("the edited play still holds or releases shift:\n%s", after)
 	}
 	if strings.Count(after, "ctrl") < 2 {
-		t.Errorf("the edited routine does not both hold and release ctrl:\n%s", after)
+		t.Errorf("the edited play does not both hold and release ctrl:\n%s", after)
 	}
 }
 
@@ -354,7 +354,7 @@ func keyStepAt(t *testing.T, d Deps, rt routes.Route, key string) int {
 			return i
 		}
 	}
-	t.Fatalf("the routine presses no %q: %+v", key, e.Steps())
+	t.Fatalf("the play presses no %q: %+v", key, e.Steps())
 	return -1
 }
 

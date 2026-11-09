@@ -250,7 +250,7 @@ func scopeMeans(scope orchestrator.Scope, app string) (where, asked string) {
 func (a *Acts) ReviewRescope(id, scope, app string) Move {
 	id = strings.TrimSpace(id)
 	if id == "" {
-		return Move{Why: "choose a routine to move"}
+		return Move{Why: "choose a play to move"}
 	}
 	a.mu.Lock()
 	recording := a.recordingLocked()
@@ -261,7 +261,7 @@ func (a *Acts) ReviewRescope(id, scope, app string) Move {
 	}
 	chosen, ok := a.routineWithID(id)
 	if !ok {
-		return Move{ID: id, Why: fmt.Sprintf("there is no routine %q in this library "+
+		return Move{ID: id, Why: fmt.Sprintf("there is no play %q in this library "+
 			"(%s) — press Refresh and choose it again", id, a.routesDir)}
 	}
 	// WHICH SCOPE, STATED BY THE PAGE AND CHECKED BELOW. `PrepareRescope` refuses a word
@@ -364,7 +364,7 @@ func (a *Acts) MoveRoutine(token string, replace bool) MoveDone {
 		// lands at the destination is the one that was on the screen.
 		return MoveDone{Why: "the move you are looking at is no longer the one this " +
 			"window holds — review it again and the comparison will be against " +
-			"the routine as it now stands"}
+			"the play as it now stands"}
 	}
 	// ── THE CONSENT, BUILT FROM WHAT WAS SHOWN ──
 	//

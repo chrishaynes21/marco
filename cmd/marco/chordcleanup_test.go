@@ -226,7 +226,7 @@ func TestTheHeldKeyWarningIsTheLastThingTheRunSays(t *testing.T) {
 	}
 	if !strings.Contains(kept, "still be held down") {
 		t.Errorf("the last thing the run said was %q, and the window keeps that as "+
-			"the sentence beside the routine — so the key it left held down is not "+
+			"the sentence beside the play — so the key it left held down is not "+
 			"what anybody is shown:\n%s", kept, said)
 	}
 }

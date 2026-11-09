@@ -177,7 +177,7 @@ func InProgress(home string) (Marker, State) {
 func (m Marker) Says() string {
 	what := strings.TrimSpace(m.What)
 	if what == "" {
-		what = "a routine"
+		what = "a play"
 	} else {
 		what = strconv.Quote(what)
 	}

@@ -978,7 +978,7 @@ func (d Deps) oneRoutineCalled(name string) (routes.Route, error) {
 	for _, rt := range found {
 		where = append(where, "  "+whereItLives(rt))
 	}
-	return routes.Route{}, fmt.Errorf("there are %d routines called %q and simplifying "+
+	return routes.Route{}, fmt.Errorf("there are %d plays called %q and simplifying "+
 		"rewrites one of them, so I will not choose:\n%s\nOpen Studio and review a "+
 		"rebuilt version of the one you mean — its card says which application and "+
 		"scope it is in", len(found), name, strings.Join(where, "\n"))

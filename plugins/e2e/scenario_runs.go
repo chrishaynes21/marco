@@ -43,7 +43,7 @@ func twoRunsAreTwoRecords(w *world) result {
 		if i == 1 {
 			if err := st.leaveRun(); err != nil {
 				return fail(started, fmt.Sprintf("after the first run the window "+
-					"would not go back to the routines: %v", err))
+					"would not go back to the plays: %v", err))
 			}
 		}
 	}
@@ -241,7 +241,7 @@ func wrongNumberOfPresses(presses []fixtureEvent, want int) string {
 	if len(presses) == want {
 		return ""
 	}
-	return fmt.Sprintf("%d run(s) of a routine that presses once should have produced "+
+	return fmt.Sprintf("%d run(s) of a play that presses once should have produced "+
 		"%d press(es), and the application received %d", want, want, len(presses))
 }
 
@@ -298,7 +298,7 @@ func cancelWasPressed(before, after fixtureState) string {
 	if after.CancelPresses == before.CancelPresses {
 		return ""
 	}
-	return fmt.Sprintf("the second step of the routine presses the application's own "+
+	return fmt.Sprintf("the second step of the play presses the application's own "+
 		"Cancel, and its count went %d → %d — so the step after the stop happened",
 		before.CancelPresses, after.CancelPresses)
 }

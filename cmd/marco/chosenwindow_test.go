@@ -143,7 +143,7 @@ func TestARejectedHandoffRefusesAndPressesNothing(t *testing.T) {
 	// had been: a run that typed and then reported a refusal is the exact state this
 	// closes.
 	if strings.Contains(said, "hello there") {
-		t.Errorf("the routine ran:\n%s", said)
+		t.Errorf("the play ran:\n%s", said)
 	}
 	// AND THE FAILURE IS STILL IN THE ACCOUNT, which is worth keeping and is not what
 	// stops the run.
@@ -173,10 +173,10 @@ func TestAnAcceptedHandoffRunsTheRoutine(t *testing.T) {
 		t.Errorf("an accepted hand-over refused the run:\n%s", said)
 	}
 	if !strings.Contains(said, "it was entered") {
-		t.Errorf("the routine was not entered:\n%s", said)
+		t.Errorf("the play was not entered:\n%s", said)
 	}
 	if n := h.InputActions(); n != 0 {
-		t.Errorf("a routine that only logs asked for %d input action(s)", n)
+		t.Errorf("a play that only logs asked for %d input action(s)", n)
 	}
 	// AND THE WINDOW IT WAS GIVEN IS THE ONE IT IS BOUND TO, which is what a guarded
 	// press would be checked against.
@@ -206,7 +206,7 @@ func TestAHandoverOfAWindowThatIsNotThereRefusesAndPressesNothing(t *testing.T) 
 		t.Errorf("the command exited %d, want %d", code, outcome.Refused.Exit())
 	}
 	if strings.Contains(said, "hello there") {
-		t.Errorf("the routine ran:\n%s", said)
+		t.Errorf("the play ran:\n%s", said)
 	}
 }
 
@@ -247,7 +247,7 @@ func TestASiblingWindowInFrontRefusesAndPressesNothing(t *testing.T) {
 		t.Errorf("the command exited %d, want %d", code, outcome.Refused.Exit())
 	}
 	if strings.Contains(said, "hello there") {
-		t.Errorf("the routine ran:\n%s", said)
+		t.Errorf("the play ran:\n%s", said)
 	}
 	// AND THE ACCOUNT SAYS WHICH WINDOW, because "could not be brought to the front" is
 	// not what happened: the program came forward and the wrong window of it is in
@@ -277,7 +277,7 @@ func TestTheChosenWindowInFrontRunsTheRoutine(t *testing.T) {
 			said)
 	}
 	if !strings.Contains(said, "it was entered") {
-		t.Errorf("the routine was not entered:\n%s", said)
+		t.Errorf("the play was not entered:\n%s", said)
 	}
 	if len(h.Unperformed()) != 0 {
 		t.Errorf("a hand-over to the right window recorded something as not done: "+
@@ -301,6 +301,6 @@ func TestWithoutAChosenWindowTheCommandIsUnchanged(t *testing.T) {
 		t.Errorf("a command that named no window was refused one:\n%s", said)
 	}
 	if !strings.Contains(said, "it was entered") {
-		t.Errorf("the routine was not entered:\n%s", said)
+		t.Errorf("the play was not entered:\n%s", said)
 	}
 }

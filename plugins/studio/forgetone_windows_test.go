@@ -27,8 +27,8 @@ func TestAPartialForgetSaysWhatIsStillThere(t *testing.T) {
 	for _, p := range done.Parts {
 		state[p.What] = p.Gone
 	}
-	if state["the routine itself"] {
-		t.Errorf("the routine is reported gone while its file is still there: %+v", done.Parts)
+	if state["the play itself"] {
+		t.Errorf("the play is reported gone while its file is still there: %+v", done.Parts)
 	}
 	if !state["the shortcut `c in notepad"] || !state["the demonstration"] {
 		t.Errorf("parts that did go are not reported gone: %+v", done.Parts)

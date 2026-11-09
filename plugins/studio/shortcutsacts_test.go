@@ -64,13 +64,13 @@ func TestTheShortcutTabOffersTheLeaderAndTheRoutinesOwnApplicationFirst(t *testi
 	a, r, _ := twoRoutinesInStudio(t)
 	got := a.RoutineShortcuts(r.ID)
 	if !got.Askable || got.Why != "" {
-		t.Fatalf("an ordinary routine cannot be given a shortcut: %+v", got)
+		t.Fatalf("an ordinary play cannot be given a shortcut: %+v", got)
 	}
 	if got.Leader != "`" || !strings.Contains(got.LeaderSays, "(`)") {
 		t.Errorf("the leader is %q (%q), want the widget's default", got.Leader, got.LeaderSays)
 	}
 	if len(got.Keys) != 0 || len(got.Legacy) != 0 {
-		t.Errorf("a routine with no shortcut lists %+v %+v", got.Keys, got.Legacy)
+		t.Errorf("a play with no shortcut lists %+v %+v", got.Keys, got.Legacy)
 	}
 	var def []ShortcutPlace
 	for _, p := range got.Places {
@@ -102,7 +102,7 @@ func TestAKeySetInStudioIsWhatAPressRuns(t *testing.T) {
 	}
 	row, _ := a.routineWithID(r.ID)
 	if len(row.Keys) != 1 || row.Keys[0] != "`e notepad" {
-		t.Errorf("the routine's row shows %q", row.Keys)
+		t.Errorf("the play's row shows %q", row.Keys)
 	}
 }
 
@@ -179,14 +179,14 @@ func TestAnOnlyInRoutineIsNotOfferedEverywhere(t *testing.T) {
 	got := a.RoutineShortcuts(onlyIn.ID)
 	for _, p := range got.Places {
 		if (p.ListenIn == "" || p.Named) && (p.Allowed || p.Why == "") {
-			t.Errorf("an Only-in routine is offered %+v", p)
+			t.Errorf("an Only-in play is offered %+v", p)
 		}
 	}
 	if s := a.SetShortcut(onlyIn.ID, "e", "", ""); !s.Failed {
-		t.Fatalf("an Only-in routine was given a shortcut everywhere: %+v", s)
+		t.Fatalf("an Only-in play was given a shortcut everywhere: %+v", s)
 	}
 	if s := a.SetShortcut(onlyIn.ID, "e", "paint", ""); !s.Failed {
-		t.Fatalf("an Only-in routine was given a shortcut in another application: %+v", s)
+		t.Fatalf("an Only-in play was given a shortcut in another application: %+v", s)
 	}
 	if keyPressed(t, a, "paint", "e").Found {
 		t.Error("it was written anyway")

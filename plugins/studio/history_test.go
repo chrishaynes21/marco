@@ -551,25 +551,25 @@ func TestARoutinesRunIsListedInARoutinesWords(t *testing.T) {
 		t.Errorf("the row does not say which kind of run it was: %q", p.Kind)
 	}
 	if p.Routine != "ark-graphics" {
-		t.Errorf("the row calls the routine %q", p.Routine)
+		t.Errorf("the row calls the play %q", p.Routine)
 	}
 	// THE SENTENCE A ROUTINE GETS, which is careful about the one thing it cannot see.
 	if !strings.Contains(p.Said, "Nothing here checked") {
-		t.Errorf("a routine's run is described as %q, which claims more than was "+
+		t.Errorf("a play's run is described as %q, which claims more than was "+
 			"checked", p.Said)
 	}
 	// AND NOT AN ACT'S. These are `saidOf`'s own words for its own verdicts.
 	for _, wrong := range []string{"It worked", "the screen changed", "could not tell",
 		"ended as performed"} {
 		if strings.Contains(p.Said, wrong) {
-			t.Errorf("a routine's run is described with an Act's words (%q): %q",
+			t.Errorf("a play's run is described with an Act's words (%q): %q",
 				wrong, p.Said)
 		}
 	}
 	// AND `performed` IS GIVEN NOTHING TO DO. There is nothing to do about a run where
 	// every press happened, and a next step would imply something was wrong with it.
 	if p.Next != "" {
-		t.Errorf("a routine that performed is told to do something about it: %q", p.Next)
+		t.Errorf("a play that performed is told to do something about it: %q", p.Next)
 	}
 	// AND THE NUMBER COMES OFF ITS OWN KEY. A routine writes `input_actions`; reading
 	// `actions_sent` would show zero presses for a run that made four.
@@ -582,7 +582,7 @@ func TestARoutinesRunIsListedInARoutinesWords(t *testing.T) {
 	// false, and the page labelled a run that asked for four input actions `input
 	// disabled`. See PastRun.Live and TestARowDoesNotSayInputWasDisabledWhenNothingSaidSo.
 	if p.Live != nil {
-		t.Errorf("a routine's row was given a liveness of %v, and its record states "+
+		t.Errorf("a play's row was given a liveness of %v, and its record states "+
 			"none", *p.Live)
 	}
 }
@@ -608,7 +608,7 @@ func TestARefusedRoutinesRemedyIsAboutTheWindowAndNotADemonstration(t *testing.T
 		t.Errorf("the run's own sentence is not in what the person reads: %q", p.Said)
 	}
 	if p.Next == "" {
-		t.Fatal("a refused routine is given nothing to do about it")
+		t.Fatal("a refused play is given nothing to do about it")
 	}
 	for _, wrong := range []string{"demonstrate", "Demonstrate", "verified",
 		"interaction"} {
@@ -661,7 +661,7 @@ func TestReportingAProblemWithARoutineGathersItsSource(t *testing.T) {
 	a := aSavedRoutine(t, "app-anywhere", nil)
 	r, found := routineCalled(a.Routines(), "ark graphics")
 	if !found {
-		t.Fatalf("the fixture routine is not in the library: %+v", a.Routines())
+		t.Fatalf("the fixture play is not in the library: %+v", a.Routines())
 	}
 	aRecordOf(t, a, "run-20261024-170000-ff78", fmt.Sprintf(`{
 	  "version": 1, "kind": "routine", "run": "run-20261024-170000-ff78",
@@ -684,9 +684,9 @@ func TestReportingAProblemWithARoutineGathersItsSource(t *testing.T) {
 	report := string(raw)
 	for _, want := range []struct{ text, why string }{
 		{"run-20261024-170000-ff78", "the report does not name the run"},
-		{"THE ROUTINE, AS IT STANDS NOW", "the routine is not in it, and the " +
+		{"THE PLAY, AS IT STANDS NOW", "the play is not in it, and the " +
 			"source is the only thing a reader can judge the run against"},
-		{"is a script", "the routine's own source is not in it"},
+		{"is a script", "the play's own source is not in it"},
 		{"the window was 1920x1080", "the run's own reason is not in it"},
 		{"deadbeef", "the build that performed it is not in it"},
 		{"guarded", "the contract it ran under is not in it"},
@@ -698,7 +698,7 @@ func TestReportingAProblemWithARoutineGathersItsSource(t *testing.T) {
 	}
 	// AND IT DOES NOT CLAIM TO HOLD AN ACT. There is no Act here.
 	if strings.Contains(report, "THE ACT, AS IT STANDS NOW") {
-		t.Error("the report of a routine's run holds a section about an Act")
+		t.Error("the report of a play's run holds a section about an Act")
 	}
 	// AND IT DOES NOT WARN THAT THE SOURCE CHANGED, because it has not.
 	if strings.Contains(report, "THIS IS NOT THE SOURCE THAT RAN") {
@@ -715,7 +715,7 @@ func TestAReportSaysWhenTheRoutineHasBeenSavedAgainSince(t *testing.T) {
 	a := aSavedRoutine(t, "app-anywhere", nil)
 	r, found := routineCalled(a.Routines(), "ark graphics")
 	if !found {
-		t.Fatalf("the fixture routine is not in the library: %+v", a.Routines())
+		t.Fatalf("the fixture play is not in the library: %+v", a.Routines())
 	}
 	// A DIGEST THAT IS NOT THIS FILE'S, which is what the record of a run from before
 	// the routine was saved again holds.
@@ -767,11 +767,11 @@ func TestAReportSaysWhenTheRoutineIsNotInTheLibraryAnyMore(t *testing.T) {
 	}
 	raw, _ := os.ReadFile(got.Path)
 	report := string(raw)
-	if !strings.Contains(report, "THE ROUTINE, AS IT STANDS NOW") {
+	if !strings.Contains(report, "THE PLAY, AS IT STANDS NOW") {
 		t.Errorf("the section is missing entirely:\n%s", report)
 	}
 	if !strings.Contains(report, "is not in this library") {
-		t.Errorf("the report does not say the routine has gone:\n%s", report)
+		t.Errorf("the report does not say the play has gone:\n%s", report)
 	}
 }
 

@@ -120,7 +120,7 @@ func TestPlayHandsTheRunnerAnAuthorisationForTheChosenAct(t *testing.T) {
 		t.Error("the authorisation names no play digest, so it does not pin which " +
 			"version of the Act was authorised")
 	}
-	if !strings.Contains(g.By, "pressed Play") {
+	if !strings.Contains(g.By, "pressed Run") {
 		t.Errorf("the authorisation does not say who gave it: %q", g.By)
 	}
 	if g.At.IsZero() {
@@ -573,7 +573,7 @@ func TestAnApplicationThatIsNotRunningIsSaidSoBeforeAnythingStarts(t *testing.T)
 	if why == "" {
 		t.Fatal("an application that is not running was treated as ready")
 	}
-	for _, says := range []string{"does not seem to be running", "press Play again"} {
+	for _, says := range []string{"does not seem to be running", "press Run again"} {
 		if !strings.Contains(why, says) {
 			t.Errorf("the sentence does not say %q: %s", says, why)
 		}

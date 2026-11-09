@@ -201,11 +201,11 @@ func TestAnEditedRoutineKeepsItsDemonstrationByteForByte(t *testing.T) {
 func TestAnEditIsOfferedAgainstTheDemonstrationWhenThereIsNoAccount(t *testing.T) {
 	d, rt := aThreePressRoutine(t)
 	if d.Reg.HasSteps(rt) {
-		t.Fatal("a freshly saved routine already has an account beside it")
+		t.Fatal("a freshly saved play already has an account beside it")
 	}
 	e, err := d.PrepareEdit(rt, nil)
 	if err != nil {
-		t.Fatalf("a routine saved by the production path cannot be edited: %v", err)
+		t.Fatalf("a play saved by the production path cannot be edited: %v", err)
 	}
 	// AND ASKING WITH NO OPERATIONS IS THE QUESTION "may this be edited", answered
 	// through the path that would perform one.
@@ -218,7 +218,7 @@ func TestAnEditIsOfferedAgainstTheDemonstrationWhenThereIsNoAccount(t *testing.T
 	}
 	if e.Savable() {
 		t.Error("a review with no operations in it is savable, so a surface asking " +
-			"whether a routine can be edited would write a file")
+			"whether a play can be edited would write a file")
 	}
 	if d.Reg.HasSteps(rt) {
 		t.Error("asking the question wrote an account")
@@ -245,7 +245,7 @@ func TestAnAlreadyEditedRoutineCanBeEditedAgain(t *testing.T) {
 	src := sourceOf(t, d, rt)
 	for _, want := range []string{"Sleep with 800", "Sleep with 900"} {
 		if !strings.Contains(src, want) {
-			t.Errorf("the routine does not say %q, so one of the two edits was "+
+			t.Errorf("the play does not say %q, so one of the two edits was "+
 				"lost:\n%s", want, src)
 		}
 	}
@@ -483,7 +483,7 @@ func TestARemovedHoldTakesBothHalvesOrNothing(t *testing.T) {
 			}
 			src := sourceOf(t, d, rt)
 			if strings.Contains(src, `"shift"`) {
-				t.Errorf("the saved routine still mentions shift:\n%s", src)
+				t.Errorf("the saved play still mentions shift:\n%s", src)
 			}
 		})
 	}
@@ -569,7 +569,7 @@ func TestARemovedStepIsRemovedWholeInBothShapes(t *testing.T) {
 			t.Errorf("the chain still has five links after a press went:\n%s", src)
 		}
 		if err := driver.CheckSource(src); err != nil {
-			t.Errorf("the re-rendered routine does not compile: %v\n%s", err, src)
+			t.Errorf("the re-rendered play does not compile: %v\n%s", err, src)
 		}
 	})
 	t.Run("unguarded", func(t *testing.T) {
@@ -605,7 +605,7 @@ func TestARemovedStepIsRemovedWholeInBothShapes(t *testing.T) {
 			t.Errorf("the removed press is still there:\n%s", src)
 		}
 		if err := driver.CheckSource(src); err != nil {
-			t.Errorf("the re-rendered routine does not compile: %v\n%s", err, src)
+			t.Errorf("the re-rendered play does not compile: %v\n%s", err, src)
 		}
 	})
 }
@@ -673,7 +673,7 @@ func TestAnEditThatWouldEmptyARoutineIsRefusedAndSaysToDeleteItInstead(t *testin
 	if empty.Refused == "" {
 		t.Fatal("an edit that removes every step was not refused")
 	}
-	if !strings.Contains(empty.Refused, "Deleting the routine") {
+	if !strings.Contains(empty.Refused, "Deleting the play") {
 		t.Errorf("the refusal does not say what to do instead: %q", empty.Refused)
 	}
 	if err := d.SaveEdit(empty); err == nil {
@@ -705,7 +705,7 @@ func TestAnEditedRenderThatIsNotLegalMarcoIsRefusedBeforeAnythingIsWritten(t *te
 		t.Fatalf("preparing: %v", err)
 	}
 	if asked == 0 {
-		t.Fatal("the compile gate was never asked, so an edited routine could be " +
+		t.Fatal("the compile gate was never asked, so an edited play could be " +
 			"offered without being compiled")
 	}
 	if e.Refused == "" {
@@ -769,7 +769,7 @@ func TestAnEditedRoutinePressesWhatIsLeftInOrder(t *testing.T) {
 		"OS's Key with esc",
 	}
 	if len(calls) != len(want)+1 { // +1 for the trailing settle wait
-		t.Errorf("the edited routine made %d calls, not the %d expected: %v",
+		t.Errorf("the edited play made %d calls, not the %d expected: %v",
 			len(calls), len(want)+1, calls)
 	}
 	for i, w := range want {
@@ -808,7 +808,7 @@ func TestAFailedStepStopsWhatFollowsInAnEditedRoutine(t *testing.T) {
 			"stopped: %v", len(stopped), stopped)
 	}
 	if len(stopped) >= len(all) {
-		t.Errorf("a refused press cost the routine nothing: %d calls of %d",
+		t.Errorf("a refused press cost the play nothing: %d calls of %d",
 			len(stopped), len(all))
 	}
 }
@@ -882,11 +882,11 @@ func TestASourceWrittenWithoutItsAccountStillRunsAndRefusesTheNextEdit(t *testin
 	// IT RUNS, and it runs the edit.
 	calls := whatItAsked(t, d, rt, 0)
 	if !hasCall(calls, "OS's Sleep with 800") {
-		t.Errorf("the edited routine did not run its edit: %v", calls)
+		t.Errorf("the edited play did not run its edit: %v", calls)
 	}
 	// AND THE NEXT EDIT IS REFUSED, in the neutral words.
 	if _, err := d.PrepareEdit(rt, nil); err == nil {
-		t.Error("a routine whose steps are not written down beside it was offered " +
+		t.Error("a play whose steps are not written down beside it was offered " +
 			"for editing anyway")
 	} else if !strings.Contains(err.Error(), "no longer match") {
 		t.Errorf("the refusal is not about the source and its steps: %v", err)
@@ -940,10 +940,10 @@ func TestAnAccountThatCannotBeReadIsNotTakenForAnAbsentOne(t *testing.T) {
 			t.Errorf("no file at all reports (%q, %v)", at, readable)
 		}
 		if _, err := d.PrepareEdit(rt, nil); err != nil {
-			t.Errorf("a routine with no account cannot be edited: %v", err)
+			t.Errorf("a play with no account cannot be edited: %v", err)
 		}
 		if _, err := d.Prepare(rt, RebuildCurrent); err != nil {
-			t.Errorf("a routine with no account cannot be rebuilt: %v", err)
+			t.Errorf("a play with no account cannot be rebuilt: %v", err)
 		}
 	})
 }
@@ -1073,7 +1073,7 @@ func TestAnEditIsRefusedWhenTheWorldMovedWhileItWasOpen(t *testing.T) {
 				t.Errorf("the refusal does not say %q: %v", c.says, serr)
 			}
 			if sourceOf(t, d, rt) != before {
-				t.Error("the routine was written anyway")
+				t.Error("the play was written anyway")
 			}
 		})
 	}
@@ -1141,7 +1141,7 @@ func TestTwoEditsOfOneRoutineAreTwoReviews(t *testing.T) {
 		t.Fatalf("preparing: %v", err)
 	}
 	if a.Token == b.Token {
-		t.Fatalf("two different edits of one routine share the token %q", a.Token)
+		t.Fatalf("two different edits of one play share the token %q", a.Token)
 	}
 	// AND A REVIEW WHOSE FIELDS WERE CHANGED AFTER IT WAS SEALED IS NOT ITS OWN REVIEW.
 	c := a
@@ -1208,8 +1208,8 @@ func TestAReviewsTokenCoversWhatTheRoutineSaysAboutItself(t *testing.T) {
 			"about what the account's digest is for")
 	}
 	if after.Token == before.Token {
-		t.Error("two edit reviews of one routine share a token across a change to " +
-			"what the routine says about itself, so a window holding one and " +
+		t.Error("two edit reviews of one play share a token across a change to " +
+			"what the play says about itself, so a window holding one and " +
 			"handed the other's token would be allowed to write with it")
 	}
 	rebuiltAfter, err := d.Prepare(rt, RebuildCurrent)
@@ -1220,8 +1220,8 @@ func TestAReviewsTokenCoversWhatTheRoutineSaysAboutItself(t *testing.T) {
 		t.Fatal("the rebuild fixture changed more than the account")
 	}
 	if rebuiltAfter.Token == rebuiltBefore.Token {
-		t.Error("two rebuild reviews of one routine share a token across a change " +
-			"to what the routine says about itself")
+		t.Error("two rebuild reviews of one play share a token across a change " +
+			"to what the play says about itself")
 	}
 
 	// AND FOR A REBUILD THAT IS NOT FROM THE ACCOUNT EITHER, which is the case the
@@ -1251,7 +1251,7 @@ func TestAReviewsTokenCoversWhatTheRoutineSaysAboutItself(t *testing.T) {
 	}
 	switch {
 	case overAfter.Now != overBefore.Now || overAfter.Was != overBefore.Was:
-		t.Fatal("this fixture changed more than the file beside the routine")
+		t.Fatal("this fixture changed more than the file beside the play")
 	case overAfter.Token == overBefore.Token:
 		t.Error("two rebuilds that would REMOVE the stored steps share a token " +
 			"across a change to those steps, so the digest of the file is " +

@@ -437,7 +437,7 @@ func (d Deps) PrepareEdit(rt routes.Route, edits []StepEdit) (EditReview, error)
 // way to tell, from here, whether a caller had a list on a screen.
 func (d Deps) PrepareEditOf(rt routes.Route, shown string, edits []StepEdit) (EditReview, error) {
 	if rt.Slug == "" {
-		return EditReview{}, fmt.Errorf("an edit needs the routine it is about")
+		return EditReview{}, fmt.Errorf("an edit needs the play it is about")
 	}
 	raw, err := os.ReadFile(d.Reg.Path(rt))
 	if err != nil {
@@ -475,7 +475,7 @@ func (d Deps) PrepareEditOf(rt routes.Route, shown string, edits []StepEdit) (Ed
 		// one state routes.SaveSteps refuses to write.
 		return EditReview{}, fmt.Errorf("%q no longer has the demonstration it was "+
 			"made from, so its steps cannot be edited — recording it again is "+
-			"the way to get a routine that can be", e.Name)
+			"the way to get a play that can be", e.Name)
 	}
 	e.recordingAt = routes.DigestOf(string(rec))
 	e.Basis = routes.DigestOf(strings.Join([]string{e.sourceAt, e.recordingAt,
@@ -571,7 +571,7 @@ func (d Deps) PrepareEditOf(rt routes.Route, shown string, edits []StepEdit) (Ed
 	// credential. The other three change nothing about the steps, so a lost credential
 	// there is always an accident; here it can be the request.
 	if cerr := d.checkSource(now); cerr != nil {
-		e.Refused = fmt.Sprintf("the edited routine would not compile, so it cannot "+
+		e.Refused = fmt.Sprintf("the edited play would not compile, so it cannot "+
 			"be saved: %v", cerr)
 		return e.sealed(), nil
 	}
@@ -623,7 +623,7 @@ func (d Deps) basisFor(rt routes.Route, src string, rec []byte) (basis, string, 
 			mismatch: "its saved source is not what its stored steps render " +
 				"to under today's rules, so the two no longer agree — " +
 				"rebuilding it from its demonstration is the way to get a " +
-				"routine that can be edited"}, "", nil
+				"play that can be edited"}, "", nil
 	case routes.StepsNone:
 		// NO ACCOUNT MEANS NO EDIT, which is the one-way inference every routine
 		// already on disk depends on: absence may never read as a claim.
@@ -658,7 +658,7 @@ func (d Deps) basisFor(rt routes.Route, src string, rec []byte) (basis, string, 
 	case routes.StepsAdrift:
 		return basis{}, "its stored steps are bound to a different demonstration " +
 			"than the one beside it now, so they are not an account of this " +
-			"routine — reviewing a rebuild is where that is decided", nil
+			"play — reviewing a rebuild is where that is decided", nil
 	case routes.StepsOrphaned:
 		return basis{}, "its stored steps describe a source that is not there", nil
 	default:
@@ -764,7 +764,7 @@ func applyEdits(steps []macroir.Step, edits []StepEdit) ([]macroir.Step, []strin
 			continue
 		}
 		if ed.At < 0 || ed.At >= len(steps) {
-			return nil, nil, "", nil, fmt.Errorf("there is no step %d in a routine of %d "+
+			return nil, nil, "", nil, fmt.Errorf("there is no step %d in a play of %d "+
 				"steps, so nothing was changed — look at it again",
 				ed.At+1, len(steps))
 		}
@@ -1073,8 +1073,8 @@ func applyEdits(steps []macroir.Step, edits []StepEdit) ([]macroir.Step, []strin
 		// smaller routine, and deleting one is an operation that already exists and
 		// already sweeps what sits beside it. An edit that quietly amounted to a
 		// delete would be offering that without any of it.
-		return nil, says, "removing that would leave the routine with nothing to do. " +
-			"Deleting the routine is how to get rid of it", nil, nil
+		return nil, says, "removing that would leave the play with nothing to do. " +
+			"Deleting the play is how to get rid of it", nil, nil
 	}
 	// THE NAMES THIS EDIT DECLARED, so a render keeps them in the typed literal instead of
 	// reaching for the credential store.
@@ -1267,7 +1267,7 @@ func couldBeTyping(s macroir.Step) bool {
 func typedRun(steps []macroir.Step, from, to int) (string, error) {
 	switch {
 	case from < 0 || from >= len(steps) || to < 0 || to >= len(steps):
-		return "", fmt.Errorf("there is no range of steps %d to %d in a routine of %d "+
+		return "", fmt.Errorf("there is no range of steps %d to %d in a play of %d "+
 			"steps", from+1, to+1, len(steps))
 	case to < from:
 		return "", fmt.Errorf("steps %d to %d is not a range", from+1, to+1)
@@ -1303,7 +1303,7 @@ func typedRun(steps []macroir.Step, from, to int) (string, error) {
 			// untouched.
 		case macroir.StepType:
 			if routes.Arguments(s.Text) != nil {
-				return "", fmt.Errorf("step %d is already something the routine "+
+				return "", fmt.Errorf("step %d is already something the play "+
 					"asks for, so it cannot be folded into typed text", i+1)
 			}
 			b.WriteString(s.Text)
@@ -1447,7 +1447,7 @@ func timesWord(n int) string {
 // times, and the review's sentence, or why it cannot be.
 func loopedRange(steps []macroir.Step, from, to, n int) ([]macroir.Step, string, error) {
 	if from < 0 || to >= len(steps) || from > to {
-		return nil, "", fmt.Errorf("there are no steps %d to %d in a routine of %d steps "+
+		return nil, "", fmt.Errorf("there are no steps %d to %d in a play of %d steps "+
 			"to repeat, so nothing was changed — look at it again", from+1, to+1, len(steps))
 	}
 	switch {
@@ -1460,7 +1460,7 @@ func loopedRange(steps []macroir.Step, from, to, n int) ([]macroir.Step, string,
 		switch steps[i].Kind {
 		case macroir.StepActivate:
 			return nil, "", fmt.Errorf("step %d brings %s forward, which is where a "+
-				"routine starts, not something it repeats — choose steps after it",
+				"play starts, not something it repeats — choose steps after it",
 				i+1, steps[i].Text)
 		case macroir.StepKeyDown, macroir.StepKeyUp:
 			// A HOLD IS IN THE BLOCK WHOLE OR NOT AT ALL, asked of the function a
@@ -1484,8 +1484,8 @@ func loopedRange(steps []macroir.Step, from, to, n int) ([]macroir.Step, string,
 	// AND NOT IN A ROUTINE WHOSE PRESSES ARE CHECKED, asked of the generator's own rule so this
 	// cannot accept a block the render then refuses.
 	if why := codegen.Unpropagatable(out); why != "" {
-		return nil, "", fmt.Errorf("this routine checks each press against its window, so "+
-			"it cannot repeat steps as a block (%s): a block cannot stop the routine when "+
+		return nil, "", fmt.Errorf("this play checks each press against its window, so "+
+			"it cannot repeat steps as a block (%s): a block cannot stop the play when "+
 			"one of its presses does not happen. Repeat a key press by its count instead",
 			why)
 	}
@@ -1500,7 +1500,7 @@ func loopedRange(steps []macroir.Step, from, to, n int) ([]macroir.Step, string,
 // refused as an edit and then accepted as an addition.
 func insertedStep(steps []macroir.Step, ed StepEdit) (macroir.Step, string, error) {
 	if ed.At < -1 || ed.At >= len(steps) {
-		return macroir.Step{}, "", fmt.Errorf("there is no step %d in a routine of %d "+
+		return macroir.Step{}, "", fmt.Errorf("there is no step %d in a play of %d "+
 			"steps to add a step after, so nothing was changed — look at it again",
 			ed.At+1, len(steps))
 	}
@@ -1545,7 +1545,7 @@ func insertedStep(steps []macroir.Step, ed StepEdit) (macroir.Step, string, erro
 			return macroir.Step{}, "", fmt.Errorf("type the text to add %s", where)
 		case strings.Contains(ed.Text, "{{") || strings.Contains(ed.Text, "}}"):
 			return macroir.Step{}, "", fmt.Errorf("the text to add %s has {{ or }} in it, "+
-				"which is how a routine asks for a value — add the text, then use "+
+				"which is how a play asks for a value — add the text, then use "+
 				"“Ask me for it” on it", where)
 		}
 		return macroir.Step{Kind: macroir.StepType, Text: ed.Text},
@@ -1576,7 +1576,7 @@ func newText(steps []macroir.Step, at int, raw string) (string, error) {
 			at+1)
 	case strings.Contains(raw, "{{") || strings.Contains(raw, "}}"):
 		return "", fmt.Errorf("the new text for step %d has {{ or }} in it, which is how "+
-			"a routine asks for a value — use “Ask me for it” for that", at+1)
+			"a play asks for a value — use “Ask me for it” for that", at+1)
 	case raw == s.Text:
 		return "", fmt.Errorf("step %d already types %q", at+1, raw)
 	}
@@ -1651,7 +1651,7 @@ func suppliedName(steps []macroir.Step, at int, raw string) (string, error) {
 	// placeholder inside another and the routine would type the braces.
 	case routes.Arguments(steps[at].Text) != nil:
 		return "", fmt.Errorf("the text at step %d is already supplied when the "+
-			"routine runs", at+1)
+			"play runs", at+1)
 	}
 	name := strings.ToLower(strings.TrimSpace(raw))
 	if !argName.MatchString(name) {
@@ -1670,7 +1670,7 @@ func suppliedName(steps []macroir.Step, at int, raw string) (string, error) {
 	// and said plainly.
 	if codegen.MeansASecret(name) {
 		return "", fmt.Errorf("a supplied value cannot be called %q: the generator reads "+
-			"that name from the credential store instead of typing it, so the routine "+
+			"that name from the credential store instead of typing it, so the play "+
 			"would type whatever is saved there — pick another name", name)
 	}
 	return name, nil
@@ -1738,9 +1738,9 @@ func holdPartner(steps []macroir.Step, at int) (int, string) {
 				return i, ""
 			}
 		}
-		return -1, fmt.Sprintf("step %d holds %q and nothing in this routine releases "+
+		return -1, fmt.Sprintf("step %d holds %q and nothing in this play releases "+
 			"it, so removing it is not something this can work out — rebuilding "+
-			"the routine from its demonstration is where that is decided",
+			"the play from its demonstration is where that is decided",
 			at+1, steps[at].Key)
 	case macroir.StepKeyUp:
 		for i := at - 1; i >= 0; i-- {
@@ -1748,9 +1748,9 @@ func holdPartner(steps []macroir.Step, at int) (int, string) {
 				return i, ""
 			}
 		}
-		return -1, fmt.Sprintf("step %d releases %q and nothing in this routine holds "+
+		return -1, fmt.Sprintf("step %d releases %q and nothing in this play holds "+
 			"it, so removing it is not something this can work out — rebuilding "+
-			"the routine from its demonstration is where that is decided",
+			"the play from its demonstration is where that is decided",
 			at+1, steps[at].Key)
 	}
 	return -1, ""
@@ -1778,10 +1778,10 @@ func holdPartner(steps []macroir.Step, at int) (int, string) {
 func (d Deps) SaveEdit(e EditReview) error {
 	switch {
 	case e.Route.Slug == "":
-		return fmt.Errorf("an edit needs the routine it was prepared from")
+		return fmt.Errorf("an edit needs the play it was prepared from")
 	case e.library != "" && e.library != d.Reg.Dir:
 		return fmt.Errorf("%q was edited in the library at %s and this is %s, so "+
-			"nothing was written — a routine of that name here is a different "+
+			"nothing was written — a play of that name here is a different "+
 			"routine", e.Name, e.library, d.Reg.Dir)
 	case e.Token == "" || e.Token != e.sealed().Token:
 		return fmt.Errorf("the edit offered for %q is not the one that was reviewed, "+
@@ -1805,7 +1805,7 @@ func (d Deps) SaveEdit(e EditReview) error {
 	if routes.DigestOf(string(raw)) != e.sourceAt {
 		return fmt.Errorf("%q has been saved again since the edit you reviewed was "+
 			"prepared, so it is left as it is — review it again and the "+
-			"comparison will be against the routine as it now stands", e.Name)
+			"comparison will be against the play as it now stands", e.Name)
 	}
 	rec, ok := d.Reg.LoadRecording(e.Route)
 	if !ok {

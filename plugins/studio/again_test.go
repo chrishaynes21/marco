@@ -32,7 +32,7 @@ func aRoutineWorthRecordingAgain(t *testing.T) (*Acts, Routine, string) {
 	}
 	rs := a.Routines()
 	if len(rs) != 1 {
-		t.Fatalf("the library holds %d routines after one save", len(rs))
+		t.Fatalf("the library holds %d plays after one save", len(rs))
 	}
 	return a, rs[0], dir
 }
@@ -94,20 +94,20 @@ func TestRecordAgainStartsWithTheRoutinesOwnNameAndScope(t *testing.T) {
 		t.Errorf("the second recording is called %q, not %q", got.Name, r.Name)
 	}
 	if got.Again != r.ID {
-		t.Errorf("it does not say which routine it is a second recording of: %q",
+		t.Errorf("it does not say which play it is a second recording of: %q",
 			got.Again)
 	}
 	if got.AgainName != r.Name {
-		t.Errorf("it does not name that routine: %q", got.AgainName)
+		t.Errorf("it does not name that play: %q", got.AgainName)
 	}
 	if got.AgainScope != r.Scope {
-		t.Errorf("it opens on scope %q, not the routine's own %q", got.AgainScope,
+		t.Errorf("it opens on scope %q, not the play's own %q", got.AgainScope,
 			r.Scope)
 	}
 	// AND IT SAYS WHAT SAVE WILL DO, which is the expectation this has to head off:
 	// somebody who pressed Record again may reasonably think Save replaces.
 	if !strings.Contains(got.AgainSays, "NOT replace") {
-		t.Errorf("it does not say that saving will not replace that routine: %q",
+		t.Errorf("it does not say that saving will not replace that play: %q",
 			got.AgainSays)
 	}
 }
@@ -129,7 +129,7 @@ func TestRecordAgainCannotOverwriteThroughOrdinarySave(t *testing.T) {
 	recordingAgain(t, a, r.ID, "arkascended")
 	why := a.SaveDraft(string(orchestrator.ScopeAppAnywhere), "")
 	if why == "" {
-		t.Fatal("an ordinary Save after Record again replaced the routine without " +
+		t.Fatal("an ordinary Save after Record again replaced the play without " +
 			"being asked, which is the loss R5 exists to prevent")
 	}
 	// AND THE REFUSAL NAMES THE ROUTINE AND OFFERS THE WAY ON, rather than simply
@@ -138,7 +138,7 @@ func TestRecordAgainCannotOverwriteThroughOrdinarySave(t *testing.T) {
 	if !strings.Contains(why, r.Name) {
 		t.Errorf("the refusal does not name what is already there: %q", why)
 	}
-	if !strings.Contains(strings.ToLower(why), "replace that routine on purpose") {
+	if !strings.Contains(strings.ToLower(why), "replace that play on purpose") {
 		t.Errorf("the refusal does not offer a deliberate replacement: %q", why)
 	}
 
@@ -147,19 +147,19 @@ func TestRecordAgainCannotOverwriteThroughOrdinarySave(t *testing.T) {
 		t.Fatal(err)
 	}
 	if string(after) != string(before) {
-		t.Error("the routine on disk changed, so something was written over it")
+		t.Error("the play on disk changed, so something was written over it")
 	}
 	if recErr == nil {
 		if _, err := os.ReadFile(strings.TrimSuffix(r.Path, ".marco") + ".rec.json"); err != nil {
-			t.Error("the demonstration beside the routine is gone, which is the " +
-				"copy a routine is ever saved again from")
+			t.Error("the demonstration beside the play is gone, which is the " +
+				"copy a play is ever saved again from")
 		}
 		_ = recording
 	}
 	// AND THE LIBRARY STILL HOLDS EXACTLY ONE. Nothing was written anywhere else
 	// either, which a refusal that had quietly saved under another name would hide.
 	if n := len(a.Routines()); n != 1 {
-		t.Errorf("the library holds %d routines after a refused save", n)
+		t.Errorf("the library holds %d plays after a refused save", n)
 	}
 	_ = dir
 }
@@ -192,7 +192,7 @@ func TestAfterRecordAgainReplacingIsStillAnExplicitChoice(t *testing.T) {
 		t.Fatalf("the deliberate replacement refused: %s", why)
 	}
 	if n := len(a.Routines()); n != 1 {
-		t.Errorf("replacing one routine left %d in the library", n)
+		t.Errorf("replacing one play left %d in the library", n)
 	}
 }
 
@@ -219,10 +219,10 @@ func TestCancelAfterRecordAgainLeavesTheRoutineAlone(t *testing.T) {
 		t.Fatal(err)
 	}
 	if string(after) != string(before) {
-		t.Error("cancelling a re-recording changed the routine it came from")
+		t.Error("cancelling a re-recording changed the play it came from")
 	}
 	if n := len(a.Routines()); n != 1 {
-		t.Errorf("cancelling left %d routines in the library", n)
+		t.Errorf("cancelling left %d plays in the library", n)
 	}
 }
 
@@ -239,7 +239,7 @@ func TestARecordingMadeInAnotherApplicationSaysSoBeforeSave(t *testing.T) {
 	got := a.Recording()
 	if got.AgainElsewhere == "" {
 		t.Fatal("a re-recording made in another application said nothing, so Save " +
-			"would quietly make a second routine")
+			"would quietly make a second play")
 	}
 	for _, must := range []string{"notepad", r.App, "SECOND"} {
 		if !strings.Contains(got.AgainElsewhere, must) {
@@ -254,7 +254,7 @@ func TestARecordingMadeInAnotherApplicationSaysSoBeforeSave(t *testing.T) {
 	}
 	recordingAgain(t, a, r.ID, "arkascended")
 	if got := a.Recording(); got.AgainElsewhere != "" {
-		t.Errorf("a re-recording made where the routine lives warned anyway: %q",
+		t.Errorf("a re-recording made where the play lives warned anyway: %q",
 			got.AgainElsewhere)
 	}
 }
@@ -271,7 +271,7 @@ func TestRecordAgainRefusesARoutineThatIsGone(t *testing.T) {
 	}
 	why := a.RecordAgain(r.ID, "")
 	if why == "" {
-		t.Fatal("it started a second recording of a routine that is not there")
+		t.Fatal("it started a second recording of a play that is not there")
 	}
 	if !strings.Contains(why, r.ID) {
 		t.Errorf("the refusal does not name what was asked for: %q", why)
@@ -392,7 +392,7 @@ func TestRecordAgainKeepsTheRoutineItMatchedWhileTheLibraryChanges(t *testing.T)
 				events: aDemonstrationIn("arkascended", owner, ownerApp)}
 		}
 		if why := a.RecordAgain(want.ID, ""); why != "" {
-			t.Fatalf("pass %d: RecordAgain refused a routine that is in the "+
+			t.Fatalf("pass %d: RecordAgain refused a play that is in the "+
 				"library: %s", pass, why)
 		}
 		got := a.Recording()
@@ -419,7 +419,7 @@ func aLibraryOfThreeRoutines(t *testing.T) (*Acts, []Routine) {
 	t.Helper()
 	a, _ := aStudioRecording(t, "a thing")
 	if why := a.SaveDraft(string(orchestrator.ScopeAppAnywhere), ""); why != "" {
-		t.Fatalf("saving the first routine refused: %s", why)
+		t.Fatalf("saving the first play refused: %s", why)
 	}
 	owner, ownerApp := uint32(os.Getpid()), winctx.Self()
 	for _, name := range []string{"b thing", "c thing"} {
@@ -439,7 +439,7 @@ func aLibraryOfThreeRoutines(t *testing.T) (*Acts, []Routine) {
 	}
 	rs := a.Routines()
 	if len(rs) != 3 {
-		t.Fatalf("the library holds %d routines after three saves", len(rs))
+		t.Fatalf("the library holds %d plays after three saves", len(rs))
 	}
 	for i, want := range []string{"a thing", "b thing", "c thing"} {
 		if rs[i].Name != want {

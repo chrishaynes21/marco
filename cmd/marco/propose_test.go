@@ -41,7 +41,7 @@ func TestAMisheardNameIsProposedBeforeTheScreenIsRead(t *testing.T) {
 		t.Fatalf("the resolver was not asked about the words (asked %q)", asked)
 	}
 	if submitted != "" {
-		t.Fatal("a routine was proposed and the words were STILL read against the screen")
+		t.Fatal("a play was proposed and the words were STILL read against the screen")
 	}
 	if out != OutcomeClarify {
 		t.Fatalf("a proposal ended %q; it is a question, nothing ran", out)
@@ -68,7 +68,7 @@ func TestNoProposalLeavesTheScreenReadingAsItWas(t *testing.T) {
 		"no id":    {Answer: resolveroute.Answer{Kind: "run"}},
 	} {
 		if _, _, ok := proposedRoutine(resp); ok {
-			t.Errorf("%s was proposed as a routine", name)
+			t.Errorf("%s was proposed as a play", name)
 		}
 	}
 	d := intakeWorld(t)
@@ -94,6 +94,6 @@ func TestAnAnswerIsNotResolvedAsARoutine(t *testing.T) {
 	proposeRoutine = func(string) (string, string, bool) { asked = true; return "{}", "x", true }
 	t.Cleanup(func() { submitPhrase, proposeRoutine, pendingQuestion = prevSubmit, prevPropose, prevPending })
 	if out, _ := runInvocation(d, invoke.Request{Text: "the second one", Source: invoke.SourceSpoken}); asked || out != OutcomePerformed {
-		t.Fatalf("an answer to a pending question was resolved as a routine (asked=%v, %q)", asked, out)
+		t.Fatalf("an answer to a pending question was resolved as a play (asked=%v, %q)", asked, out)
 	}
 }

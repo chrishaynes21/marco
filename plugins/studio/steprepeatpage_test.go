@@ -17,7 +17,7 @@ import (
 func repeatHarness(blocks bool) string {
 	b := "blocks: true"
 	if !blocks {
-		b = "blocks_says: 'This routine checks each press against its window, so steps " +
+		b = "blocks_says: 'This play checks each press against its window, so steps " +
 			"cannot repeat as a block. A key press can still repeat by its count.'"
 	}
 	return stepEditBackend + `
@@ -107,7 +107,7 @@ func TestTheStepPanelOffersACountAndABlockAndSendsThem(t *testing.T) {
 		{"countOnPress", "a key press is not offered its count"},
 		{"countOnBlock", "a block is not offered its count"},
 		{"noCountOnHold", "half of a hold is offered a count"},
-		{"blockRow", "a routine that can repeat a block is not offered the chooser"},
+		{"blockRow", "a play that can repeat a block is not offered the chooser"},
 		{"asked", "the changed count is not listed as the change"},
 		{"waited", "repeating a block did not wait for the other changes, or threw them away"},
 	} {
@@ -116,7 +116,7 @@ func TestTheStepPanelOffersACountAndABlockAndSendsThem(t *testing.T) {
 		}
 	}
 	if n("blockSays") != 0 {
-		t.Errorf("a routine that can repeat a block is told it cannot: %s", title)
+		t.Errorf("a play that can repeat a block is told it cannot: %s", title)
 	}
 	if len(sent) != 2 {
 		t.Fatalf("sent %d reviews, want the count and then the block: %v", len(sent), sent)
@@ -134,12 +134,12 @@ func TestTheStepPanelOffersACountAndABlockAndSendsThem(t *testing.T) {
 func TestAGuardedRoutineIsToldWhyItHasNoBlock(t *testing.T) {
 	title, n, sent := renderRepeat(t, false)
 	if n("blockRow") != 0 || n("blockSays") != 1 {
-		t.Errorf("a routine that cannot repeat a block is offered the chooser, or not told "+
+		t.Errorf("a play that cannot repeat a block is offered the chooser, or not told "+
 			"why: %s", title)
 	}
 	for _, s := range sent {
 		if strings.Contains(s, `"op":"loop"`) {
-			t.Errorf("a block was sent for a routine that cannot have one: %s", s)
+			t.Errorf("a block was sent for a play that cannot have one: %s", s)
 		}
 	}
 }

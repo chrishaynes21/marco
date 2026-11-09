@@ -103,7 +103,7 @@ type PlayWindow struct {
 func (a *Acts) PlaybackTarget(id string) PlayInto {
 	chosen, ok := a.routineWithID(strings.TrimSpace(id))
 	if !ok {
-		return PlayInto{Why: "choose a routine first"}
+		return PlayInto{Why: "choose a play first"}
 	}
 	cands := a.playbackCandidates(chosen.App)
 	out := PlayInto{Windows: []PlayWindow{}}
@@ -164,12 +164,12 @@ func sameProgramAs(image, app string) bool {
 func noWindowFor(r Routine) string {
 	if r.App != "" {
 		return fmt.Sprintf("%s has no window open on this screen, so there is nothing "+
-			"for this routine to press in. Start it and press Refresh.", r.App)
+			"for this play to press in. Start it and press Refresh.", r.App)
 	}
 	// NO APPLICATION AND NO WINDOW. The routine presses into whatever is in front, and
 	// the only thing in front is Marco — which is never what was meant, and is what this
 	// surface used to do silently.
-	return "there is no window on this screen other than Marco's own, and this routine " +
+	return "there is no window on this screen other than Marco's own, and this play " +
 		"presses into whatever is in front. Open the window you want it to press in."
 }
 
@@ -183,7 +183,7 @@ func noWindowFor(r Routine) string {
 // the whole run, which only a guarded routine's own boundary can keep — so the guarded case says
 // the presses are checked and stop, and the unguarded case says they are not.
 func handoffSays(r Routine, which string) string {
-	says := fmt.Sprintf("Play brings %s to the front and presses there.", which)
+	says := fmt.Sprintf("Run brings %s to the front and presses there.", which)
 	if r.Contract == string(orchestrator.Guarded) {
 		return says + " Its presses are checked against that window and stop if " +
 			"something else comes forward."
@@ -216,7 +216,7 @@ func (a *Acts) theChosenWindow(r Routine, window string) (orchestrator.Pickable,
 			return orchestrator.Pickable{}, noWindowFor(r)
 		}
 		return orchestrator.Pickable{}, fmt.Sprintf("there are %d windows this "+
-			"routine could press in — choose which one before playing it",
+			"play could press in — choose which one before playing it",
 			len(cands))
 	}
 	for _, p := range cands {
@@ -224,7 +224,7 @@ func (a *Acts) theChosenWindow(r Routine, window string) (orchestrator.Pickable,
 			return p, ""
 		}
 	}
-	return orchestrator.Pickable{}, "the window chosen for this routine is no longer " +
+	return orchestrator.Pickable{}, "the window chosen for this play is no longer " +
 		"open, or is no longer that window — press Refresh, choose it again, and " +
-		"press Play"
+		"press Run"
 }

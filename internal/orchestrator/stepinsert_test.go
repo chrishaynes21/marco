@@ -94,7 +94,7 @@ func TestNothingIsAddedBeforeTheWindowComesForward(t *testing.T) {
 	steps := typingSteps()[1:] // no activate
 	out, _, why := editedFrom(steps, StepEdit{Op: EditInsert, At: -1, Kind: "wait", To: 10})
 	if why != "" || ofKinds(out)[:len("wait:10")] != "wait:10" {
-		t.Errorf("adding at the start of a routine that brings nothing forward: refused %q, "+
+		t.Errorf("adding at the start of a play that brings nothing forward: refused %q, "+
 			"made %s", why, ofKinds(out))
 	}
 }
@@ -147,12 +147,12 @@ func TestAnAddedStepIsWhatTheRoutineDoes(t *testing.T) {
 			calls)
 	}
 	if len(calls) != len(before)+2 {
-		t.Errorf("the routine made %d calls, %d before and two added", len(calls),
+		t.Errorf("the play made %d calls, %d before and two added", len(calls),
 			len(before))
 	}
 	e, err := d.PrepareEdit(rt, nil)
 	if err != nil || e.Refused != "" {
-		t.Fatalf("after the addition the routine cannot be edited again: %v %q", err,
+		t.Fatalf("after the addition the play cannot be edited again: %v %q", err,
 			e.Refused)
 	}
 	// AND THE ADDED STEP IS A STEP LIKE ANY OTHER: it can be changed in the next edit.

@@ -20,7 +20,7 @@ func TestEnterDeclinesAnOfferAndStillSubmitsACommand(t *testing.T) {
 	}
 	answerPrompt(h, "") // Enter
 	if got := runs(); len(got) != 0 {
-		t.Fatalf("Enter at an offer ran a routine: %q", got)
+		t.Fatalf("Enter at an offer ran a play: %q", got)
 	}
 	offerRoutine(h, "open settings", "open-settings", "", "open-settings", false)
 	answerPrompt(h, "y")

@@ -79,7 +79,7 @@ type reRecording struct {
 func (a *Acts) RecordAgain(id, window string) string {
 	id = strings.TrimSpace(id)
 	if id == "" {
-		return "say which routine to record again"
+		return "say which play to record again"
 	}
 	// THE ROUTINE AS IT IS RIGHT NOW, through the listing the page chose from, so what
 	// is remembered is one answer about one route and not a second derivation of it.
@@ -101,14 +101,14 @@ func (a *Acts) RecordAgain(id, window string) string {
 		}
 	}
 	if found == nil {
-		return fmt.Sprintf("there is no routine %q any more — it has gone since "+
+		return fmt.Sprintf("there is no play %q any more — it has gone since "+
 			"this page was drawn. Choose one from the list below.", id)
 	}
 	if strings.TrimSpace(found.Name) == "" {
 		// A ROUTINE WHOSE NAME CANNOT BE READ. `NameIn` falls back to the slug with
 		// its dashes read as spaces, so this is a file whose header is gone AND
 		// whose slug is empty — which is not a thing a recording can be called.
-		return "that routine does not say what it is called, so a new recording " +
+		return "that play does not say what it is called, so a new recording " +
 			"cannot be named after it. Record it under a name of your own."
 	}
 	return a.beginRecording(found.Name, window, &reRecording{
@@ -126,8 +126,8 @@ func againElsewhere(g *reRecording, observed string) string {
 		return ""
 	}
 	return fmt.Sprintf("This was recorded in %s, and %q is saved for %s. Saving it "+
-		"will make a SECOND routine rather than a new version of that one, and "+
-		"nothing will refuse it: which routine a save writes is decided by the "+
+		"will make a SECOND play rather than a new version of that one, and "+
+		"nothing will refuse it: which play a save writes is decided by the "+
 		"application it was recorded in. Record it again in %s, or keep it under "+
 		"a name of its own.", observed, g.name, g.app, g.app)
 }

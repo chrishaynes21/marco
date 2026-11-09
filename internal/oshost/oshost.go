@@ -500,7 +500,7 @@ func (h *Host) PartlyTyped() string {
 func (h *Host) doSecret(c runtime.HostCall) (string, runtime.Value, error) {
 	name := c.Input.AsText()
 	if name == "" {
-		return h.couldNotLookUp("", "this routine asks for a secret and does not "+
+		return h.couldNotLookUp("", "this play asks for a secret and does not "+
 			"say which one")
 	}
 	// The arg name is the part after the last ":" (route-qualified keys look like
@@ -2320,8 +2320,8 @@ func (h *Host) activateGiven(hwnd uintptr, pid uint32, app string) error {
 		return fmt.Errorf("the program that owns the window chosen for this run will " +
 			"not say what it is")
 	case app != "" && !sameProgram(is, app):
-		return fmt.Errorf("this routine brings %q forward and the window chosen for "+
-			"this run belongs to %s, so it is not a window this routine is "+
+		return fmt.Errorf("this play brings %q forward and the window chosen for "+
+			"this run belongs to %s, so it is not a window this play is "+
 			"about", app, is)
 	}
 	h.bindGiven(hwnd, pid, is)
