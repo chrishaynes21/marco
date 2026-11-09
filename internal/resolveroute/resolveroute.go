@@ -335,6 +335,9 @@ func (r Resolver) Resolve(ctx context.Context, request string, cs []Candidate,
 		if len(said.Values) > 0 {
 			value = said.Values[0].Value
 		}
+		if q, ok := searchAsTyped(chosen, request); ok {
+			value = q
+		}
 		said.Line, said.SourceAt = skills.LineFor(chosen.Slug(), value), ""
 	}
 	return said
@@ -693,4 +696,32 @@ func ResolverSentence(a dispatch.Advisor, state string) string {
 			" — check that the model server is running"
 	}
 	return "a resolver is configured: " + dispatch.PluginPath()
+}
+
+// searchAsTyped is the query of a web search the resolver chose for a line that BEGINS with
+// "search" or "search for": the rest of the line exactly as typed.
+//
+// The model chooses WHETHER a line is a web search, which is a judgement: "search for wood" in a
+// game is more likely one of somebody's plays, and that is why those words are not read as a
+// search locally (skills.Read). It does not choose which of the person's words are the query.
+// Asked to, it read "search broken titan builds" as a mishearing of "search the web" and searched
+// for "titan builds". A query is passed on as entered (ADR-327), so once the choice is made the
+// words after the verb are the query. A line that does not begin that way ("look up titan builds
+// on google") keeps the model's reading of it, and the person reviews the search either way.
+func searchAsTyped(chosen Candidate, request string) (string, bool) {
+	if !chosen.Builtin || chosen.Slug() != skills.Search {
+		return "", false
+	}
+	line := strings.TrimSpace(request)
+	low := strings.ToLower(line)
+	for _, lead := range []string{"search for ", "search "} {
+		if strings.HasPrefix(low, lead) {
+			// "search for" with nothing after it has no query, not the query "for".
+			if q := strings.TrimSpace(line[len(lead):]); !strings.EqualFold(q, "for") {
+				return q, true
+			}
+			return "", false
+		}
+	}
+	return "", false
 }

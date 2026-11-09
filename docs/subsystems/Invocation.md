@@ -144,6 +144,8 @@ it without reading `Request.Text` at all.
   forward, `search the web for <query>` opens the configured provider's results. Read only when no
   routine took the words, run as `--skill=… --arg=…` from the read-back, and a paraphrase is
   Director's resolver's, proposed as the skill's explicit line. See [[ADR-327-built-in-desktop-skills]].
+  A search it chose for a line beginning "search" or "search for" is for the rest of the line as
+  typed. See [[ADR-343-a-search-is-for-the-words-as-typed]].
 - Studio opens the widget (Open widget). It starts the installer's own stack beside it, with
   Studio's library and store, never a second one beside one already running, and never from pieces
   of different builds. A widget Studio did not start is said to be running with its library and
