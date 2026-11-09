@@ -451,6 +451,13 @@ released when the run ends — even on error or **Esc** — so nothing is ever l
 down. (Normal taps also get a small key-down→up linger so fast games register them;
 tune it with `$MARCO_KEY_HOLD_MS`.)
 
+Shift, Ctrl, Alt and Win **pressed on their own** are keys too: tap Shift to sprint or
+Ctrl to slide and each is a keystroke of its own, Ctrl and Shift tapped together are the
+combo `ctrl+shift`, and any of them held for half a second or more is held. A modifier
+with a key under it is still part of that key (`ctrl+s`). In Studio's step editor a
+held key may be a combo too: type `shift + w` and both keys are held, then released in
+reverse.
+
 ### Commands with arguments
 
 A routine can take **named arguments**. Declare them with `with` in the name Marco

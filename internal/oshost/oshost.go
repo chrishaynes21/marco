@@ -633,11 +633,24 @@ func (h *Host) doKeyDown(c runtime.HostCall) (string, runtime.Value, error) {
 	// It was reported as a failed step and recorded nowhere, so the command read an empty
 	// account and reported success about a routine whose hold never went down — and
 	// everything after that hold ran as though a key were held when it was not.
-	if err := h.b.keyDown(c.Ctx, name); err != nil {
-		return h.delivered("the "+name+" hold", err)
+	//
+	// A COMBO IS HELD KEY BY KEY, in the order it is written: `shift+w` holds Shift and then W,
+	// and each is written down as it goes, so the route-end sweep can release whatever did. A
+	// key refused part way lets go of the ones this call pressed before it reports, as a
+	// refused chord does, rather than leaving half a combo down. See ADR-340.
+	parts := strings.Split(name, "+")
+	for n, part := range parts {
+		if err := c.Ctx.Err(); err != nil {
+			h.letGo(parts[:n])
+			return fail(err.Error())
+		}
+		if err := h.b.keyDown(c.Ctx, part); err != nil {
+			h.letGo(parts[:n])
+			return h.delivered("the "+name+" hold", err)
+		}
+		// AND A KEY THAT WENT DOWN IS WRITTEN DOWN, IN THE ORDER IT WENT DOWN.
+		h.holding(part)
 	}
-	// AND A KEY THAT WENT DOWN IS WRITTEN DOWN, IN THE ORDER IT WENT DOWN.
-	h.holding(name)
 	mlog.Debug("key: hold", "key", name)
 	return ok(nil)
 }
@@ -653,7 +666,8 @@ func (h *Host) doKeyUp(c runtime.HostCall) (string, runtime.Value, error) {
 	if name == "" {
 		return fail("keyup needs a key")
 	}
-	if err := h.b.keyUp(c.Ctx, name); err != nil {
+	// A COMBO COMES UP IN REVERSE, every key of it attempted even when one is refused.
+	if err := h.letGo(strings.Split(name, "+")); err != nil {
 		mlog.Error("key: the machine would not release a held key", "key", name,
 			"err", err)
 		// KEPT IN THE ACCOUNT TOO. Everything after a release that did not happen runs
@@ -662,9 +676,25 @@ func (h *Host) doKeyUp(c runtime.HostCall) (string, runtime.Value, error) {
 		// having been right to carry on.
 		return h.delivered("the "+name+" release", err)
 	}
-	h.released(name)
 	mlog.Debug("key: release", "key", name)
 	return ok(nil)
+}
+
+// letGo releases keys in the reverse of the order given, attempting every one, and forgets each
+// the machine took. A key it refused stays on the list for the route-end sweep. The first refusal
+// is the answer.
+func (h *Host) letGo(keys []string) error {
+	var first error
+	for i := len(keys) - 1; i >= 0; i-- {
+		if err := h.b.keyUp(context.Background(), keys[i]); err != nil {
+			if first == nil {
+				first = err
+			}
+			continue
+		}
+		h.released(keys[i])
+	}
+	return first
 }
 
 // holding and released are the list of keys this run is holding down, in the order they went

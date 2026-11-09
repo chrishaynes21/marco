@@ -118,7 +118,7 @@ type StepRow struct {
 	X int `json:"x"`
 	Y int `json:"y"`
 	// Keyed says this step presses, holds or releases a key, Key which one now, and Holds
-	// that it is half of a held key, which is ONE key and never a chord.
+	// that it is half of a held key, which may be a combo (`shift+w`, ADR-340).
 	//
 	// Changing either half of a hold changes both: the backend does it and the review says
 	// so, and the row already says the halves go together (`PairSays`).

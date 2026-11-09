@@ -30,8 +30,14 @@ it. So this wasn't a recorder problem; the simplifier dropped them.
 
 - Tested through the simplifier and through save, compile and play in `internal/oshost`, not on a
   desktop or in the game.
-- Two modifiers pressed together with nothing else (Ctrl+Shift alone) are neither lone, and are
-  still dropped.
+- Modifiers pressed TOGETHER with nothing else were at first left out and still dropped; they are
+  now a group (amended the same day): a short group is one combo, `Key "ctrl+shift"`, and a long
+  one holds each key at its own press and releases it at its own release.
+- A key-repeat down of a key held AROUND the group (W held under a Shift tap) is not a key under
+  it. Counting it as one would drop the tap.
+- A key held on its own with its repeats still comes out as many presses of that key folded into
+  loops. That copies what the keyboard did (a held key typed into a text box repeats, and an
+  injected hold does not) and was left alone here.
 - Five lone Shift taps played back are what Windows answers with the Sticky Keys prompt, as they
   would be pressed by hand.
 - A routine recorded before this keeps the steps it was saved with.
@@ -43,7 +49,11 @@ counts as "used": a modifier held across a whole click is already a hold and tha
 first, and one released in the middle of a click is refused by `modifierTrouble`, so no input
 tells the two apart.
 
+The group version, the same day: seven more mutants, six killed once `TestATapAfterAChordIsStillATap`
+was added for a group that did not reset after a used one. The survivor is the same one again, a
+click under the group, for the same reason.
+
 ## Enforced by
 
-- `internal/simplify`: `TestASlideMeleeKeepsItsShiftAndItsCtrl`, `TestAHeldModifierWithItsRepeatsIsOneHold`, `TestAModifierUsedByAKeyIsNotAlsoPressedAlone`, `TestAModifierHeldOverNothingIsHeldForItself`.
+- `internal/simplify`: `TestASlideMeleeKeepsItsShiftAndItsCtrl`, `TestCtrlAndShiftTappedTogetherAreOneCombo`, `TestCtrlAndShiftHeldTogetherAreEachHeld`, `TestARepeatOfAKeyHeldAroundAShiftTapIsNotAKeyUnderIt`, `TestCtrlShiftWithAKeyUnderItIsStillOneChord`, `TestATapAfterAChordIsStillATap`, `TestAHeldModifierWithItsRepeatsIsOneHold`, `TestAModifierUsedByAKeyIsNotAlsoPressedAlone`, `TestAModifierHeldOverNothingIsHeldForItself`.
 - `internal/oshost`: `TestATappedShiftAndCtrlArePressedWhenPlayed`.

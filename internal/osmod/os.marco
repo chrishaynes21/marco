@@ -5,7 +5,7 @@
 
 the OS is an act.
 this exports Key.       // press a key/chord ("e" or "alt+tab"); or a Press set to hold it down
-this exports KeyDown.    // press and HOLD a key (released by a later KeyUp)
+this exports KeyDown.    // press and HOLD a key or a combo like "shift+w" (released by a later KeyUp)
 this exports KeyUp.      // release a held key
 this exports Type.      // type a text string
 this exports Navigate. // one navigation MEANING: "up"|"down"|"left"|"right"|"confirm"|"back"|"pause"

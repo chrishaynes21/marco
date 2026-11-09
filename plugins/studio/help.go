@@ -220,8 +220,8 @@ func (a *Acts) Help() Help {
 		"Type into a step's box. Review collects every box you changed; Reset puts a " +
 			"row back as it was.",
 		// WHAT A KEY MAY BE, said once here rather than beside every key box. ADR-311.
-		"A key is named like enter, f5, a or ctrl+s. A held key is one key, and " +
-			"changing either half of a hold changes both. Text is typed exactly " +
+		"A key is named like enter, f5, a or ctrl+s, and a held key may be a combo " +
+			"like shift+w. Changing either half of a hold changes both. Text is typed exactly " +
 			"as you write it; {{ and }} are not allowed in it, because they are how " +
 			"a step asks you for a value.",
 		"Make the text a step types something you supply each time — all of that " +

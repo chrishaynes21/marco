@@ -161,8 +161,8 @@ const (
 	// A HELD KEY CHANGES WHOLE, for the reason a removal takes both halves (`holdPartner`):
 	// a keydown changed alone would hold one key and release another. So changing either
 	// half changes both, and the review says so. The key is checked against the keys Marco
-	// can press (`macroir.IsChord` for a press, `macroir.IsKeyName` for a hold, which is one
-	// key) while the person is still looking at it, rather than refused at run time.
+	// can press (`macroir.IsChord`, for a press and for a hold,
+	// which may each be a combo) while the person is still looking at it, rather than refused at run time.
 	EditKey EditOp = "key"
 	// EditInsert adds a new step in the GAP after position `At` (-1 is before the first):
 	// a wait (`Kind` "wait", `To`), a key press ("key", `Key`) or typed text ("type", `Text`).
@@ -1527,7 +1527,7 @@ func insertedStep(steps []macroir.Step, ed StepEdit) (macroir.Step, string, erro
 		return macroir.Step{Kind: macroir.StepWait, Ms: ed.To},
 			fmt.Sprintf("a wait of %dms is added %s", ed.To, where), nil
 	case "key":
-		key := strings.ToLower(strings.TrimSpace(ed.Key))
+		key := keysAsWritten(ed.Key)
 		if key == "" {
 			return macroir.Step{}, "", fmt.Errorf("enter the key to add %s", where)
 		}
@@ -1583,16 +1583,26 @@ func newText(steps []macroir.Step, at int, raw string) (string, error) {
 	return raw, nil
 }
 
+// keysAsWritten is a key or a combo as `Step.Key` spells it: lower case, with no space around a
+// `+`, so "Shift + W" is `shift+w`. The space is how people write a combo, and refusing it was
+// refusing the combo.
+func keysAsWritten(raw string) string {
+	parts := strings.Split(strings.ToLower(strings.TrimSpace(raw)), "+")
+	for i, p := range parts {
+		parts[i] = strings.TrimSpace(p)
+	}
+	return strings.Join(parts, "+")
+}
+
 // newKey is the key the step at `at` would use instead, as `Step.Key` spells it, or why it
 // cannot.
 //
-// A PRESS MAY BE A CHORD; A HOLD IS ONE KEY. `do OS's Key` presses `ctrl+s` as one gesture, while
-// a keydown and its keyup hold and release a single key, which is how the recorder writes a held
-// modifier. Both are checked against the keys Marco can press, here, while somebody is looking at
+// A PRESS AND A HOLD MAY BOTH BE A COMBO. `do OS's Key` presses `ctrl+s` as one gesture, and a
+// keydown of `shift+w` holds Shift and then W until its keyup lets go of both (ADR-340). Both are checked against the keys Marco can press, here, while somebody is looking at
 // the box, rather than at run time as `unknown key`.
 func newKey(steps []macroir.Step, at int, raw string) (string, error) {
 	s := steps[at]
-	key := strings.ToLower(strings.TrimSpace(raw))
+	key := keysAsWritten(raw)
 	switch s.Kind {
 	case macroir.StepKey:
 		if key == "" {
@@ -1606,9 +1616,9 @@ func newKey(steps []macroir.Step, at int, raw string) (string, error) {
 		if key == "" {
 			return "", fmt.Errorf("enter the key step %d should hold", at+1)
 		}
-		if !macroir.IsKeyName(key) {
-			return "", fmt.Errorf("%q is not one key Marco can hold. A hold is one key, "+
-				"like shift, ctrl or a", strings.TrimSpace(raw))
+		if !macroir.IsChord(key) {
+			return "", fmt.Errorf("%q is not a key Marco can hold. Keys are named "+
+				"like shift, w or shift+w", strings.TrimSpace(raw))
 		}
 	default:
 		return "", fmt.Errorf("step %d does not press a key, so it has no key to change",

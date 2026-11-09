@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -375,8 +376,8 @@ func lower(events []recorder.RecordedEvent, opt Options) ([]timedStep, string) {
 			// read, released and never written, and the routine went straight past them.
 			// The chord state below still follows the key; nothing is under it to use it.
 			switch {
-			case loneTap[i]:
-				out = append(out, timedStep{step: macroir.Step{Kind: macroir.StepKey, Key: name, Count: 1}, t: ev.T})
+			case loneTap[i] != "":
+				out = append(out, timedStep{step: macroir.Step{Kind: macroir.StepKey, Key: loneTap[i], Count: 1}, t: ev.T})
 			case loneHold[i]:
 				out = append(out, timedStep{step: macroir.Step{Kind: macroir.StepKeyDown, Key: name}, t: ev.T})
 			case loneRelease[i]:
@@ -1102,62 +1103,114 @@ func releaseOf(events []recorder.RecordedEvent, i int, name string) int {
 	return -1
 }
 
-// loneModifiers finds the modifier presses that modified nothing: from the press to its release no
-// other key went down and no click or scroll happened. Each is a key of its own, and that is what a
-// game reads it as: Shift to sprint, Ctrl to slide or crouch, Alt for a wheel. A short one is a tap,
-// and one held as long as a hold of any other key ([holdThreshold]) is a press and a release, so a
-// sprint held for two seconds is held for two seconds when it is played.
+// loneModifiers finds the modifier presses that modified nothing, and writes each as a key of its
+// own. That is what a game reads them as: Shift to sprint, Ctrl to slide or crouch, Ctrl+Shift for
+// whatever it was bound to.
 //
-// The KEY-REPEAT downs Windows sends while a key is held are not presses of their own: only the
-// first down is considered, and a repeat between it and the release does not count as another key.
-// A press with no release captured is left alone, like any other key's.
+// A GROUP is modifiers down together: it starts when one goes down with none down, and ends when
+// the last of them comes up. It modified nothing when, from start to end, no other key went down
+// and no click or scroll happened. Then:
 //
-// A modifier under which something DID happen is not lone, and is what it always was: chord state
-// for a key, or a hold around a click ([markHolds]).
-func loneModifiers(events []recorder.RecordedEvent, argKey string) (tap, hold, release map[int]bool) {
-	tap, hold, release = map[int]bool{}, map[int]bool{}, map[int]bool{}
+//	one modifier, short    a tap at its press: `Key "shift"`
+//	several, short         one combo at the first press: `Key "ctrl+shift"`, in chord order
+//	any, as long as a hold of any other key ([holdThreshold])
+//	                       each held at its own press and released at its own release, so a
+//	                       sprint held two seconds is held two seconds when it is played
+//
+// The KEY-REPEAT downs Windows sends while a key is held are not presses: a down of a key already
+// down is skipped, for the modifiers and for the key around them, or a W held under a Shift tap
+// would count as a key pressed under the Shift. A group still open when the recording ends is
+// left alone, like any key with no release.
+//
+// A group under which something DID happen is what it always was: chord state for a key, or a
+// hold around a click ([markHolds]). See ADR-339.
+func loneModifiers(events []recorder.RecordedEvent, argKey string) (tap map[int]string, hold, release map[int]bool) {
+	tap, hold, release = map[int]string{}, map[int]bool{}, map[int]bool{}
 	isArg := func(name string) bool { return argKey != "" && argKey != "off" && name == argKey }
-	down := map[string]bool{}
+	type pressed struct {
+		name     string
+		down, up int
+	}
+	var group []pressed
+	open, used := 0, false
+	keysDown := map[string]bool{}
+	finish := func() {
+		if used || len(group) == 0 {
+			return
+		}
+		first, last := group[0].down, group[0].up
+		for _, p := range group {
+			last = max(last, p.up)
+		}
+		if events[last].T.Sub(events[first].T) >= holdThreshold {
+			for _, p := range group {
+				hold[p.down], release[p.up] = true, true
+			}
+			return
+		}
+		names := make([]string, len(group))
+		for i, p := range group {
+			names[i] = p.name
+		}
+		slices.SortStableFunc(names, func(a, b string) int { return modifierOrder(a) - modifierOrder(b) })
+		tap[first] = strings.Join(names, "+")
+	}
 	for i, ev := range events {
+		if ev.Kind == recorder.EvClick || ev.Kind == recorder.EvScroll {
+			used = used || open > 0
+			continue
+		}
 		if ev.Kind != recorder.EvKey {
 			continue
 		}
 		name := strings.ToLower(ev.KeyName)
-		if !ev.Down {
-			delete(down, name)
-			continue
-		}
-		if down[name] {
-			continue // a repeat
-		}
-		down[name] = true
-		if !isModifier(name) || isArg(name) {
-			continue
-		}
-		j := releaseOf(events, i, name)
-		if j < 0 {
-			continue
-		}
-		used := false
-		for k := i + 1; k < j && !used; k++ {
-			e := events[k]
-			switch e.Kind {
-			case recorder.EvClick, recorder.EvScroll:
-				used = true
-			case recorder.EvKey:
-				used = e.Down && strings.ToLower(e.KeyName) != name
-			}
-		}
-		if used {
-			continue
-		}
-		if events[j].T.Sub(ev.T) >= holdThreshold {
-			hold[i], release[j] = true, true
+		repeat := ev.Down && keysDown[name]
+		if ev.Down {
+			keysDown[name] = true
 		} else {
-			tap[i] = true
+			delete(keysDown, name)
+		}
+		if !isModifier(name) || isArg(name) {
+			if ev.Down && !repeat && open > 0 {
+				used = true
+			}
+			continue
+		}
+		switch {
+		case repeat:
+		case ev.Down:
+			if open == 0 {
+				group, used = nil, false
+			}
+			group = append(group, pressed{name: name, down: i, up: -1})
+			open++
+		default:
+			for k := range group {
+				if group[k].name == name && group[k].up < 0 {
+					group[k].up = i
+					open--
+					if open == 0 {
+						finish()
+					}
+					break
+				}
+			}
 		}
 	}
 	return tap, hold, release
+}
+
+// modifierOrder is the order a chord names its modifiers in, the order `chord` writes them.
+func modifierOrder(name string) int {
+	switch {
+	case strings.Contains(name, "ctrl"), name == "control":
+		return 0
+	case strings.Contains(name, "alt"):
+		return 1
+	case strings.Contains(name, "shift"):
+		return 2
+	}
+	return 3
 }
 
 // spansAPointerAction reports whether a pointer action is COMPLETED between two indices.

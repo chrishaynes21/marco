@@ -138,8 +138,8 @@ func TestAKeyMarcoCannotPressIsRefusedAtReview(t *testing.T) {
 			"already uses"},
 		{"a step that presses no key", typingSteps(), StepEdit{Op: EditKey, At: 1,
 			Key: "a"}, "does not press a key"},
-		{"a chord held", heldSteps(), StepEdit{Op: EditKey, At: 1, Key: "ctrl+s"},
-			"one key"},
+		{"a hold with an unknown part", heldSteps(), StepEdit{Op: EditKey, At: 1,
+			Key: "shift+hyper"}, "not a key Marco can hold"},
 	} {
 		t.Run(c.what, func(t *testing.T) {
 			out, _, why := editedFrom(c.steps, c.edit)
@@ -356,4 +356,38 @@ func keyStepAt(t *testing.T, d Deps, rt routes.Route, key string) int {
 	}
 	t.Fatalf("the routine presses no %q: %+v", key, e.Steps())
 	return -1
+}
+
+// A HOLD MAY BE A COMBO, WRITTEN AS PEOPLE WRITE ONE: "Shift + W" holds `shift+w`, and both halves
+// of the hold change, so what is held is what is let go of. See ADR-340.
+func TestAHoldCanBeChangedToACombo(t *testing.T) {
+	out, _, why := editedFrom(heldSteps(), StepEdit{Op: EditKey, At: 1, Key: "Shift + W"})
+	if why != "" {
+		t.Fatalf("it was refused: %s", why)
+	}
+	if out[1].Key != "shift+w" || out[3].Key != "shift+w" {
+		t.Fatalf("the hold is %q and its release %q", out[1].Key, out[3].Key)
+	}
+}
+
+// AND A PRESS IS WRITTEN THE SAME WAY: "Ctrl + Shift" is the combo `ctrl+shift`.
+func TestAPressWrittenWithSpacesIsTheCombo(t *testing.T) {
+	out, _, why := editedFrom(typingSteps(), StepEdit{Op: EditKey, At: 2, Key: "Ctrl + Shift"})
+	if why != "" {
+		t.Fatalf("it was refused: %s", why)
+	}
+	if out[2].Key != "ctrl+shift" {
+		t.Fatalf("the press is %q", out[2].Key)
+	}
+}
+
+// AND AN ADDED PRESS IS WRITTEN THE SAME WAY.
+func TestAnAddedPressWrittenWithSpacesIsTheCombo(t *testing.T) {
+	out, _, why := editedFrom(typingSteps(), StepEdit{Op: EditInsert, At: 1, Kind: "key", Key: "Ctrl + Shift"})
+	if why != "" {
+		t.Fatalf("it was refused: %s", why)
+	}
+	if out[2].Key != "ctrl+shift" {
+		t.Fatalf("the added press is %+v", out[2])
+	}
 }
