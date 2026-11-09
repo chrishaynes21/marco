@@ -161,6 +161,7 @@ func SimplifySteps(in []macroir.Step, opt Options) []macroir.Step {
 	out := coalesceTypingRhythm(in, opt.TypingRhythmMs)
 	out = coalesceTyping(out)
 	out = coalesceKeys(out)
+	out = shiftedKeys(out)
 	out = mergeWaits(out)
 	out = trimEdgeWaits(out)
 	out = capWaits(out, opt.MaxWaitMs)
@@ -1256,4 +1257,23 @@ func notches(units int) int {
 		return n
 	}
 	return 1
+}
+
+// shiftedKeys presses Shift with a keystroke that typed a capital or a symbol and was left a
+// keystroke: one press, or a repeat, that coalesceTyping did not fold into typed text. Its Text
+// says what Shift made of it, and the Key alone does not: a lone Shift+E saved as `Key "e"` played
+// back as e. It becomes `shift+e`, the chord it was. A run that was folded into typing types the
+// capitals itself and is not touched. ADR-338.
+//
+// Leaving the key unshifted must fail TestShiftOnALetterLeftAsAKeyIsPressedWithShift.
+func shiftedKeys(in []macroir.Step) []macroir.Step {
+	for i, s := range in {
+		if s.Kind != macroir.StepKey || s.Text == "" || strings.Contains(s.Key, "+") {
+			continue
+		}
+		if plain, ok := printable(s.Key, false); ok && s.Text != plain {
+			in[i].Key = "shift+" + s.Key
+		}
+	}
+	return in
 }

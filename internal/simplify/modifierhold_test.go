@@ -185,11 +185,13 @@ func TestAModifierAcrossAKeyAndThenAClickIsPressedOnce(t *testing.T) {
 // The other side of the case above, and the reason the hold rule is about pointer actions rather
 // than about modifiers in general. Shift held over a letter is how a capital is typed; turning it
 // into a hold would make every demonstrated capital letter a three-step gesture.
+// It is ONE step, `shift+a` with its capital as its text, since ADR-338: left a keystroke, a
+// bare `a` would play back as a small one.
 func TestShiftForACapitalLetterIsStillTyping(t *testing.T) {
 	ev := aModifierAround([]recorder.RecordedEvent{key("a", true, 200), key("a", false, 240)},
 		"shift")
 	steps := simplified(t, ev, DefaultOptions())
-	if got := shapeOf(steps); got != "key(a)" {
+	if got := shapeOf(steps); got != "key(shift+a)" {
 		t.Errorf("a shifted letter came out as %q", got)
 	}
 	if len(steps) != 1 || steps[0].Text != "A" {
@@ -557,7 +559,7 @@ func TestCtrlShiftForwardIsHeldAroundAForwardClick(t *testing.T) {
 
 // SHIFT ALONE ON A KEY THAT TYPES NOTHING IS KEPT, as the chord it is: shift+tab, shift+f5,
 // shift+f13, shift+num1 and shift+left each come out as that chord, where the Shift used to be
-// dropped. And Shift on a letter is still the capital it types, and on a digit the symbol.
+// dropped. And Shift on a letter keeps the capital it types, and on a digit the symbol, as its text.
 //
 // Dropping the Shift from a key that types nothing must fail this.
 func TestShiftAloneOnAKeyThatTypesNothingIsAChord(t *testing.T) {
@@ -572,8 +574,31 @@ func TestShiftAloneOnAKeyThatTypesNothingIsAChord(t *testing.T) {
 	}
 	for k, text := range map[string]string{"a": "A", "1": "!"} {
 		steps := pressed(k)
-		if len(steps) != 1 || steps[0].Key != k || steps[0].Text != text {
+		if len(steps) != 1 || steps[0].Key != "shift+"+k || steps[0].Text != text {
 			t.Errorf("shift+%s came out as %+v, want the key typing %q", k, steps, text)
 		}
+	}
+}
+
+// AND SHIFT ON A LETTER THAT STAYS A KEYSTROKE IS PRESSED WITH SHIFT: one Shift+E, or E three
+// times, is `shift+e`, not the plain e it used to play back as.
+//
+// Leaving the key unshifted must fail this.
+func TestShiftOnALetterLeftAsAKeyIsPressedWithShift(t *testing.T) {
+	one := Simplify
+	steps, _ := one([]recorder.RecordedEvent{key("shift", true, 100), key("e", true, 200),
+		key("e", false, 240), key("shift", false, 300)}, DefaultOptions())
+	if got := shapeOf(steps); got != "key(shift+e)" {
+		t.Errorf("one shift+e came out as %q, want key(shift+e)", got)
+	}
+	steps, _ = one([]recorder.RecordedEvent{key("shift", true, 100), key("1", true, 200),
+		key("1", false, 240), key("shift", false, 300)}, DefaultOptions())
+	if got := shapeOf(steps); got != "key(shift+1)" {
+		t.Errorf("one shift+1 came out as %q, want key(shift+1)", got)
+	}
+	steps, _ = one([]recorder.RecordedEvent{key("e", true, 200), key("e", false, 240)},
+		DefaultOptions())
+	if got := shapeOf(steps); got != "key(e)" {
+		t.Errorf("a plain e came out as %q", got)
 	}
 }
