@@ -554,3 +554,26 @@ func TestCtrlShiftForwardIsHeldAroundAForwardClick(t *testing.T) {
 		}
 	}
 }
+
+// SHIFT ALONE ON A KEY THAT TYPES NOTHING IS KEPT, as the chord it is: shift+tab, shift+f5,
+// shift+f13, shift+num1 and shift+left each come out as that chord, where the Shift used to be
+// dropped. And Shift on a letter is still the capital it types, and on a digit the symbol.
+//
+// Dropping the Shift from a key that types nothing must fail this.
+func TestShiftAloneOnAKeyThatTypesNothingIsAChord(t *testing.T) {
+	pressed := func(k string) []macroir.Step {
+		return simplified(t, []recorder.RecordedEvent{key("shift", true, 100), key(k, true, 200),
+			key(k, false, 240), key("shift", false, 300)}, DefaultOptions())
+	}
+	for _, k := range []string{"tab", "f5", "f13", "num1", "left", "numenter"} {
+		if got, want := shapeOf(pressed(k)), "key(shift+"+k+")"; got != want {
+			t.Errorf("shift+%s came out as %q, want %q", k, got, want)
+		}
+	}
+	for k, text := range map[string]string{"a": "A", "1": "!"} {
+		steps := pressed(k)
+		if len(steps) != 1 || steps[0].Key != k || steps[0].Text != text {
+			t.Errorf("shift+%s came out as %+v, want the key typing %q", k, steps, text)
+		}
+	}
+}

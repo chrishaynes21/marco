@@ -230,6 +230,8 @@ that control, though a saved play still cannot say it (`cannot_say_pointer`, fol
   `?` or confuse with another: F13-F24, the numpad (its digits were the top row's, its Enter was
   Enter), the lock keys, Pause, Print Screen and the menu key, each with its own name in all three
   key tables
+- [[ADR-338-shift-alone-is-kept-on-a-key-that-types-nothing]] — and Shift on its own, which was
+  dropped from every key that types nothing: shift+tab, shift+f5 and shift+num1 are chords now
 - [[ADR-336-the-wheel-is-recorded-and-turned]] — and the wheel, which the recorder never read.
   A run of notches is one `scroll down 3` step on a Point carrying the turn beside the place,
   checked against the window like a press and a link in the chain like one, because what scrolls

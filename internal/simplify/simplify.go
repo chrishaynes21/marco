@@ -441,7 +441,14 @@ func lower(events []recorder.RecordedEvent, opt Options) ([]timedStep, string) {
 			// typing — emit a chord key (e.g. "ctrl+c", "ctrl+shift+esc") that the OS
 			// Key capability presses as a held combo. No Text, so it won't fold into
 			// a Type run.
-			if ctrl || alt || win {
+			//
+			// AND SHIFT ALONE ON A KEY THAT TYPES NOTHING IS A CHORD TOO. Shift's other job,
+			// capitals and symbols, only exists for a key that types a character; on Tab, an
+			// arrow, an F-key or a numpad key it can only be part of the shortcut, and it was
+			// dropped: shift+tab recorded as tab, shift+f5 as f5, and a game's shift+num1 as
+			// num1. See ADR-338.
+			_, types := printable(name, shift)
+			if ctrl || alt || win || (shift && !types) {
 				out = append(out, timedStep{
 					step: macroir.Step{Kind: macroir.StepKey, Key: chord(ctrl, alt, shift, win, name), Count: 1},
 					t:    ev.T,
