@@ -39,6 +39,8 @@ type ShortcutKey struct {
 	// is listened for, in words.
 	Pressed string `json:"pressed"`
 	Where   string `json:"where"`
+	// Direct says it is pressed WITHOUT the leader, its keys alone.
+	Direct bool `json:"direct,omitempty"`
 	// Version is what a change, a removal or a reassignment must carry as its consent.
 	Version string `json:"version"`
 	// Runs is what it runs, in words, and Cmd the text it was set up with.
@@ -135,7 +137,7 @@ func (a *Acts) assign(id, key, listenIn, consent string, from *orchestrator.Slot
 	}
 	chosen, _ := a.routineWithID(id)
 	rt := chosen.route()
-	key = strings.ToLower(strings.TrimSpace(key))
+	key = orchestrator.ShortcutKey(key) // one spelling, a combo's included (ADR-341)
 	listenIn = strings.TrimSpace(listenIn)
 	asked := orchestrator.Assignment{Key: key, ListenIn: listenIn, Steps: []routes.Route{rt},
 		Leader: out.Leader, Consent: consent, Changing: from}
@@ -149,7 +151,7 @@ func (a *Acts) assign(id, key, listenIn, consent string, from *orchestrator.Slot
 	if consent == "" && !same {
 		if st := d.ShortcutAt(listenIn, key); st.Exists {
 			out.Taken = &ShortcutTaken{Key: key, ListenIn: listenIn,
-				Pressed: widgetconfig.Pressed(out.Leader, key), Where: placeWords(listenIn),
+				Pressed: pressedAs(out.Leader, key), Where: placeWords(listenIn),
 				Version: st.Version, Runs: runsWords(st.Binding)}
 			return out
 		}
@@ -171,10 +173,10 @@ func (a *Acts) assign(id, key, listenIn, consent string, from *orchestrator.Slot
 	}
 	verb := "now runs"
 	if from != nil {
-		verb = "now runs, instead of " + widgetconfig.Pressed(out.Leader, from.Key) + " " +
+		verb = "now runs, instead of " + pressedAs(out.Leader, from.Key) + " " +
 			placeWords(from.ListenIn) + ","
 	}
-	again.Said = fmt.Sprintf("%s %s %s %q.", widgetconfig.Pressed(out.Leader, b.Key),
+	again.Said = fmt.Sprintf("%s %s %s %q.", pressedAs(out.Leader, b.Key),
 		placeWords(b.App), verb, chosen.Name)
 	return again
 }
@@ -193,7 +195,7 @@ func (a *Acts) RemoveShortcut(id, listenIn, key, version string) Shortcuts {
 		return again
 	}
 	again.Said = fmt.Sprintf("%s %s no longer runs anything.",
-		widgetconfig.Pressed(out.Leader, gone.Key), placeWords(gone.App))
+		pressedAs(out.Leader, gone.Key), placeWords(gone.App))
 	return again
 }
 
@@ -209,7 +211,7 @@ func (a *Acts) ReassignShortcut(id, listenIn, key, version, plan string) Shortcu
 	st := d.ShortcutAt(listenIn, key)
 	if !st.Exists || !st.Binding.Legacy() || st.Version != version {
 		out.Failed, out.Said = true, fmt.Sprintf("Not reassigned: %s %s has changed since "+
-			"you were shown it. Look again.", widgetconfig.Pressed(out.Leader, key),
+			"you were shown it. Look again.", pressedAs(out.Leader, key),
 			placeWords(listenIn))
 		return out
 	}
@@ -229,7 +231,7 @@ func (a *Acts) ReassignShortcut(id, listenIn, key, version, plan string) Shortcu
 		return again
 	}
 	again.Said = fmt.Sprintf("%s %s now runs exactly %s.",
-		widgetconfig.Pressed(out.Leader, b.Key), placeWords(b.App),
+		pressedAs(out.Leader, b.Key), placeWords(b.App),
 		strings.Join(b.Routes, " then "))
 	return again
 }
@@ -265,9 +267,9 @@ func (a *Acts) shortcutsFor(id string) (Shortcuts, orchestrator.Deps, bool) {
 		listed[l.ListenIn+"\x00"+l.Key] = l
 	}
 	for _, b := range bs {
-		k := ShortcutKey{Key: b.Key, ListenIn: b.App, Pressed: widgetconfig.Pressed(leader, b.Key),
+		k := ShortcutKey{Key: b.Key, ListenIn: b.App, Pressed: pressedAs(leader, b.Key),
 			Where: placeWords(b.App), Version: b.Version(), Runs: runsWords(b), Cmd: b.Command(),
-			State: "ok"}
+			State: "ok", Direct: routes.IsDirect(b.Key)}
 		if l, ok := listed[b.App+"\x00"+b.Key]; ok && l.State != "ok" {
 			k.State, k.Says = l.State, sentence(l.Says)
 		}
@@ -401,7 +403,7 @@ func shadowsOf(bs []routes.Binding, global routes.Binding, leader string) string
 	for _, b := range bs {
 		if b.App != "" && b.Key == global.Key {
 			apps = append(apps, fmt.Sprintf("in %s, %s runs %s instead", b.App,
-				widgetconfig.Pressed(leader, b.Key), runsWords(b)))
+				pressedAs(leader, b.Key), runsWords(b)))
 		}
 	}
 	if len(apps) == 0 {
@@ -463,11 +465,20 @@ func shortcutLabels(bs []routes.Binding, leader string) map[string][]string {
 		if b.Legacy() {
 			continue // shown on the routine's own Shortcut tab, to be reassigned
 		}
-		label := widgetconfig.Pressed(leader, b.Key) + " " +
+		label := pressedAs(leader, b.Key) + " " +
 			strings.TrimPrefix(placeWords(b.App), "in ")
 		for _, id := range b.Routes {
 			out[id] = append(out[id], label)
 		}
 	}
 	return out
+}
+
+// pressedAs is a shortcut's key as somebody presses it: the leader first ("`e"), or for a hotkey
+// bound without the leader, the keys alone ("ctrl+1"). See ADR-341.
+func pressedAs(leader, key string) string {
+	if routes.IsDirect(key) {
+		return routes.KeyShown(key)
+	}
+	return widgetconfig.Pressed(leader, key)
 }

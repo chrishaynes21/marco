@@ -65,3 +65,8 @@ func numpadEnter(name string, vk uint16, flags uint32) string {
 	}
 	return name
 }
+
+// KeyName is the name the recorder writes for a virtual-key code, for another hook that has to
+// name a key the same way: the widget matching a hotkey pressed without its leader (ADR-341). A
+// fourth table would be a fourth thing to keep equal.
+func KeyName(vk uint16) string { return vkToName(vk) }

@@ -107,6 +107,9 @@ it without reading `Request.Text` at all.
   or a rename could redirect it (`TestAPressedShortcutIsTheRoutineItWasAssigned`). A shortcut set
   up by name before that refuses until reassigned. See
   [[ADR-297-a-shortcut-names-its-routine-and-has-one-owner]].
+- A shortcut may be pressed WITHOUT the leader: stored as `direct:<keys>`, caught by the widget's
+  hook from a table a watcher keeps for the window in front (none while somebody records), and run
+  through the same `marco hotkey`. See [[ADR-341-a-hotkey-without-the-leader]].
 - The widget's leader lists `marco bindings --here --json` and a key then runs `marco hotkey`; the
   two are held together key by key (`TestTheArmListIsWhatAPressWouldFire`). A key with nothing on it
   says so and announces no outcome. A press ends in the widget's status line and history

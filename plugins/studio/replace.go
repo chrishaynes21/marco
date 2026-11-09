@@ -70,7 +70,7 @@ func (a *Acts) collisionFor(dr *orchestrator.Draft, scope, app string) Collision
 	leader := widgetconfig.Leader()
 	for i, s := range c.Shortcuts {
 		if key, where, ok := strings.Cut(s, " "); ok {
-			c.Shortcuts[i] = widgetconfig.Pressed(leader, key) + " " + where
+			c.Shortcuts[i] = pressedAs(leader, key) + " " + where
 		}
 	}
 	return c

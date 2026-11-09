@@ -144,6 +144,7 @@ type action struct {
 	kind int
 	r    rune
 	hot  string
+	app  string // actDirect: the application the press was caught for
 }
 
 const (
@@ -155,6 +156,7 @@ const (
 	actCancel    // Esc while typing — cancel the command
 	actDismiss   // Esc otherwise — unfocus the panel
 	actHotkey    // `<key> — run the route bound to it
+	actDirect    // a hotkey bound without the leader: run it (direct.go)
 	actHelp      // `h or `m help — show the help menu
 	actCancelRun // Esc — stop the route that's running
 	actCfgUp     // config editor: move selection up
@@ -192,6 +194,7 @@ var (
 // immediately; the pump runs on its own locked OS thread.
 func startInput(h *model, emit func(event)) error {
 	go processActions(h, emit)
+	go watchDirect()
 	go func() {
 		runtime.LockOSThread()
 		defer runtime.UnlockOSThread()
@@ -333,6 +336,11 @@ func processFrom(ch <-chan action, h *model, emit func(event)) {
 			}
 		case actCancelRun:
 			cancelRun()
+		case actDirect:
+			// THE SAME DOOR AS A KEY AFTER THE LEADER, carrying the application it was
+			// caught for so the engine refuses if something else is in front by then.
+			carryPress(a.hot, a.app)
+			emit(event{Feed: "Hotkeys", Event: "Key", Data: a.hot})
 		case actHotkey:
 			h.closeHelp()
 			// The key is for the application its leader was pressed in, and carries it (hotkey.go).
@@ -399,6 +407,11 @@ func keyboardProc(nCode int, wParam, lParam uintptr) uintptr {
 // AHK overlay: backtick is the leader, then `m opens the marco command line and
 // `<key> fires a quick game macro. Esc cancels a command or unfocuses.
 func handleKey(vk uint16, down bool) bool {
+	// A HOTKEY WITHOUT THE LEADER: the modifiers held, and the repeats and release of a key it
+	// caught (direct_windows.go). First, so nothing below can return before them.
+	if directHeld(vk, down) {
+		return true
+	}
 	switch vk {
 	case vkShift, vkLShift, vkRShift:
 		shiftDown.Store(down)
@@ -526,6 +539,10 @@ func handleKey(vk uint16, down bool) bool {
 		return true // consume the key after the leader
 	}
 
+	// IDLE, AND A KEY BOUND WITHOUT THE LEADER is caught here and runs its play (ADR-341).
+	if down && directCatch(vk) {
+		return true
+	}
 	// Idle. The leader is also the panic/stop key: while a route is running, it
 	// cancels it (canceled, not failed); otherwise it arms the command line. Either
 	// way it's consumed.

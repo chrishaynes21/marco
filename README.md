@@ -511,6 +511,13 @@ set up by an older Marco named its play only by words: it is kept, does not run,
 `marco bind --reassign <key>` shows which play it would run and asks. Shortcuts are held off
 while a recording is in progress.
 
+A shortcut can also be a **hotkey without the leader**: `marco bind --direct --in=destiny2 f9 "slide
+melee"`, or in Studio tick **no leader** and press the keys in the box. F9, Ctrl+1, Alt+Q or a numpad
+key then runs the play on its own, and the game does not see the key. A key that types (a letter, a
+digit, Space, a numpad key) can only be one in a single application, unless Ctrl, Alt or Win is held
+with it; Shift, Ctrl or Alt alone, Esc and the leader cannot be one. Nothing is caught while a
+recording is in progress, so the key reaches the recording.
+
 In the **widget**, pressing the leader lists what each key does with the application in front
 (the same answer as `marco bindings --here`), and says when a key will not run as listed: set up by
 name, its play gone, or a key the widget cannot send. A key with nothing on it says
@@ -726,9 +733,9 @@ marco register "<name>"    make a saved routine askable
 marco args "<name>"        print a routine's argument labels (used by the overlay)
 marco rename "<old>" to "<new>"   rename a routine (keeps its recording + anchors)
 marco forget "<name>"      delete a routine ("forget all" wipes them, after a confirm)
-marco bind [--everywhere|--in=<app>] <key> "<cmd>"   leader shortcut to a routine or chain
+marco bind [--direct] [--everywhere|--in=<app>] <key> "<cmd>"   leader shortcut (or, with --direct, a hotkey on its own) to a play or chain
 marco bind --reassign <key>   make a shortcut set up by name run the routine it names, after asking
-marco unbind [--everywhere|--in=<app>] <key>   remove a shortcut, saying what it ran
+marco unbind [--direct] [--everywhere|--in=<app>] <key>   remove a shortcut, saying what it ran
 marco bindings [--here] [--json]   list shortcuts, or what each key does in the app in front
 marco line --json -- "<line>"   what the widget's command line would run, read back (runs nothing)
 marco secret set|list|rm <name>   manage stored passwords

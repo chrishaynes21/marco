@@ -1,6 +1,7 @@
 package macroir
 
 import (
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -79,4 +80,44 @@ func IsChord(spec string) bool {
 		}
 	}
 	return true
+}
+
+// modifierRank is the order a combo names its modifiers in: ctrl, alt, shift, win. It is the
+// order the recorder writes a chord in, so a combo somebody types and the same keys pressed come
+// out as the same text.
+var modifierRank = map[string]int{"ctrl": 1, "control": 1, "alt": 2, "shift": 3,
+	"win": 4, "lwin": 4, "rwin": 4}
+
+// IsModifierKey says whether a key name is Ctrl, Alt, Shift or Win.
+func IsModifierKey(name string) bool { return modifierRank[name] != 0 }
+
+// keyAliases are the second names a key answers to, each to the name the recorder writes, so a
+// combo typed with one is the combo the keys make when they are pressed.
+var keyAliases = map[string]string{"control": "ctrl", "return": "enter", "escape": "esc",
+	"bs": "backspace", "del": "delete", "ins": "insert", "pgup": "pageup", "pgdn": "pagedown",
+	"lwin": "win", "rwin": "win", "backtick": "`"}
+
+// CanonicalChord is a combo as Marco spells it: lower case, no spaces, each key by the name the recorder writes (`control` as `ctrl`), the
+// modifiers first in the order ctrl, alt, shift, win, and the other keys after them in the order
+// written. "Shift + Ctrl + 1" is `ctrl+shift+1`. It does not check the names; IsChord does.
+func CanonicalChord(spec string) string {
+	parts := strings.Split(strings.ToLower(strings.TrimSpace(spec)), "+")
+	for i, p := range parts {
+		p = strings.TrimSpace(p)
+		if alias, ok := keyAliases[p]; ok {
+			p = alias
+		}
+		parts[i] = p
+	}
+	sort.SliceStable(parts, func(i, j int) bool {
+		ri, rj := modifierRank[parts[i]], modifierRank[parts[j]]
+		if ri == 0 {
+			ri = 99
+		}
+		if rj == 0 {
+			rj = 99
+		}
+		return ri < rj
+	})
+	return strings.Join(parts, "+")
 }

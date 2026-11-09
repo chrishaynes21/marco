@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/chaynes-simpleclouds/marco/internal/macroir"
 	"github.com/chaynes-simpleclouds/marco/internal/plays"
 	"github.com/chaynes-simpleclouds/marco/internal/routes"
 )
@@ -85,27 +86,31 @@ type ShortcutState struct {
 
 // ShortcutAt reads one app+key as it stands.
 func (d Deps) ShortcutAt(listenIn, key string) ShortcutState {
-	b, ok := d.Reg.BindingAt(listenIn, strings.ToLower(key))
+	b, ok := d.Reg.BindingAt(listenIn, ShortcutKey(key))
 	if !ok {
 		return ShortcutState{}
 	}
 	return ShortcutState{Exists: true, Binding: b, Version: b.Version(),
-		Says: fmt.Sprintf("`%s %s runs %s", b.Key, listenedFor(b.App), describe(b))}
+		Says: fmt.Sprintf("%s %s runs %s", routes.KeyShown(b.Key), listenedFor(b.App), describe(b))}
 }
 
 // WhyNotShortcut is why this assignment can never be made, before any collision is considered.
 func (d Deps) WhyNotShortcut(a Assignment) string {
-	key := strings.ToLower(strings.TrimSpace(a.Key))
+	key := ShortcutKey(a.Key)
 	switch {
 	case key == "":
 		return "say which key"
 	case len(a.Steps) == 0:
 		return "say which play the shortcut runs"
 	case strings.EqualFold(key, strings.TrimSpace(a.Leader)) && a.Leader != "":
-		return fmt.Sprintf("`%s is the leader key itself", key)
+		return fmt.Sprintf("%s is the leader key itself", routes.KeyShown(key))
 	}
-	if what, ok := reservedKeys[key]; ok {
-		return fmt.Sprintf("`%s is %s, so a shortcut on it could never run", key, what)
+	if routes.IsDirect(key) {
+		if why := directWhyNot(routes.KeyShown(key), a.ListenIn, a.Leader); why != "" {
+			return why
+		}
+	} else if what, ok := reservedKeys[key]; ok {
+		return fmt.Sprintf("%s is %s, so a shortcut on it could never run", routes.KeyShown(key), what)
 	}
 	for _, rt := range a.Steps {
 		if !d.Reg.Has(rt) {
@@ -164,7 +169,7 @@ func (d Deps) AssignShortcut(a Assignment) (routes.Binding, error) {
 	if d.AfterShortcutChecked != nil {
 		d.AfterShortcutChecked()
 	}
-	key := strings.ToLower(strings.TrimSpace(a.Key))
+	key := ShortcutKey(a.Key)
 	ids := make([]string, len(a.Steps))
 	for i, rt := range a.Steps {
 		ids[i] = rt.ID()
@@ -185,7 +190,7 @@ func (d Deps) AssignShortcut(a Assignment) (routes.Binding, error) {
 	var from *Slot
 	if a.Changing != nil {
 		c := *a.Changing
-		c.Key = strings.ToLower(strings.TrimSpace(c.Key))
+		c.Key = ShortcutKey(c.Key)
 		from = &c
 	}
 	err = d.Reg.UpdateBindings(SaveWithin, func(bs []routes.Binding) ([]routes.Binding, error) {
@@ -196,8 +201,8 @@ func (d Deps) AssignShortcut(a Assignment) (routes.Binding, error) {
 			if from != nil && b.App == from.ListenIn && b.Key == from.Key {
 				// THE ONE BEING CHANGED goes in this write, and only as it was shown.
 				if b.Version() != from.Version {
-					return nil, fmt.Errorf("not changed: `%s %s has changed since "+
-						"you were shown it — it now runs %s; look again", b.Key,
+					return nil, fmt.Errorf("not changed: %s %s has changed since "+
+						"you were shown it — it now runs %s; look again", routes.KeyShown(b.Key),
 						listenedFor(b.App), describe(b))
 				}
 				// When it is also the slot being written, its own version is the
@@ -213,22 +218,22 @@ func (d Deps) AssignShortcut(a Assignment) (routes.Binding, error) {
 			out = append(out, b)
 		}
 		if from != nil && !changed {
-			return nil, fmt.Errorf("not changed: the shortcut on `%s %s that you were "+
-				"changing has gone since you were shown it; look again", from.Key,
+			return nil, fmt.Errorf("not changed: the shortcut on %s %s that you were "+
+				"changing has gone since you were shown it; look again", routes.KeyShown(from.Key),
 				listenedFor(from.ListenIn))
 		}
 		switch {
 		case there != nil && a.Consent == "":
-			return nil, fmt.Errorf("not bound: `%s %s already runs %s — say to "+
-				"replace it", key, listenedFor(a.ListenIn), describe(*there))
+			return nil, fmt.Errorf("not bound: %s %s already runs %s — say to "+
+				"replace it", routes.KeyShown(key), listenedFor(a.ListenIn), describe(*there))
 		case there != nil && there.Version() != a.Consent:
-			return nil, fmt.Errorf("not bound: `%s %s has changed since you were "+
-				"shown it — it now runs %s; look again", key,
+			return nil, fmt.Errorf("not bound: %s %s has changed since you were "+
+				"shown it — it now runs %s; look again", routes.KeyShown(key),
 				listenedFor(a.ListenIn), describe(*there))
 		case there == nil && a.Consent != "":
-			return nil, fmt.Errorf("not bound: the shortcut on `%s %s that you "+
+			return nil, fmt.Errorf("not bound: the shortcut on %s %s that you "+
 				"agreed to replace has gone since you were shown it; look again",
-				key, listenedFor(a.ListenIn))
+				routes.KeyShown(key), listenedFor(a.ListenIn))
 		}
 		return append(out, nb), nil
 	})
@@ -240,7 +245,7 @@ func (d Deps) AssignShortcut(a Assignment) (routes.Binding, error) {
 
 // RemoveShortcut takes a shortcut off a key, with consent to the version that was shown.
 func (d Deps) RemoveShortcut(listenIn, key, consent string) (routes.Binding, error) {
-	key = strings.ToLower(strings.TrimSpace(key))
+	key = ShortcutKey(key)
 	var gone routes.Binding
 	err := d.Reg.UpdateBindings(SaveWithin, func(bs []routes.Binding) ([]routes.Binding, error) {
 		var out []routes.Binding
@@ -248,8 +253,8 @@ func (d Deps) RemoveShortcut(listenIn, key, consent string) (routes.Binding, err
 		for _, b := range bs {
 			if b.App == listenIn && b.Key == key {
 				if b.Version() != consent {
-					return nil, fmt.Errorf("not removed: `%s %s has changed since "+
-						"you were shown it — it now runs %s; look again", key,
+					return nil, fmt.Errorf("not removed: %s %s has changed since "+
+						"you were shown it — it now runs %s; look again", routes.KeyShown(key),
 						listenedFor(listenIn), describe(b))
 				}
 				gone, found = b, true
@@ -258,8 +263,8 @@ func (d Deps) RemoveShortcut(listenIn, key, consent string) (routes.Binding, err
 			out = append(out, b)
 		}
 		if !found {
-			return nil, fmt.Errorf("not removed: there is no shortcut on `%s %s",
-				key, listenedFor(listenIn))
+			return nil, fmt.Errorf("not removed: there is no shortcut on %s %s",
+				routes.KeyShown(key), listenedFor(listenIn))
 		}
 		return out, nil
 	})
@@ -487,23 +492,23 @@ func (d Deps) ShortcutPressed(app, key string) Pressed {
 	}
 	p := Pressed{Found: true, Binding: b}
 	if b.Legacy() {
-		p.Refused = fmt.Sprintf("`%s %s was set up by name (%q) before shortcuts named a "+
+		p.Refused = fmt.Sprintf("%s %s was set up by name (%q) before shortcuts named a "+
 			"play, so it does not run until it is reassigned — `marco bind --reassign "+
-			"%s` shows which play it would run and asks", b.Key, listenedFor(b.App),
+			"%s` shows which play it would run and asks", routes.KeyShown(b.Key), listenedFor(b.App),
 			b.Command(), b.Key)
 		return p
 	}
 	texts := routes.SplitChain(b.Command())
 	if len(texts) != len(b.Routes) {
-		p.Refused = fmt.Sprintf("`%s %s names %d plays for %d steps, so it is not run",
-			b.Key, listenedFor(b.App), len(b.Routes), len(texts))
+		p.Refused = fmt.Sprintf("%s %s names %d plays for %d steps, so it is not run",
+			routes.KeyShown(b.Key), listenedFor(b.App), len(b.Routes), len(texts))
 		return p
 	}
 	rts := make([]routes.Route, len(b.Routes))
 	for i, id := range b.Routes {
 		rt, err := routes.ParseID(id)
 		if err != nil {
-			p.Refused = fmt.Sprintf("`%s %s: %v", b.Key, listenedFor(b.App), err)
+			p.Refused = fmt.Sprintf("%s %s: %v", routes.KeyShown(b.Key), listenedFor(b.App), err)
 			return p
 		}
 		rts[i] = rt
@@ -520,20 +525,20 @@ func (d Deps) ShortcutPressed(app, key string) Pressed {
 	}
 	release, err := d.LockRoutes(rts)
 	if err != nil {
-		p.Refused = fmt.Sprintf("`%s %s was not run: %v", b.Key, listenedFor(b.App), err)
+		p.Refused = fmt.Sprintf("%s %s was not run: %v", routes.KeyShown(b.Key), listenedFor(b.App), err)
 		return p
 	}
 	defer release()
 	if again, ok := d.Reg.BindingFor(app, key); !ok || again.Version() != b.Version() {
-		p.Refused = fmt.Sprintf("`%s %s changed while it was being pressed, so nothing was "+
-			"performed — press it again", b.Key, listenedFor(b.App))
+		p.Refused = fmt.Sprintf("%s %s changed while it was being pressed, so nothing was "+
+			"performed — press it again", routes.KeyShown(b.Key), listenedFor(b.App))
 		return p
 	}
 	for i, rt := range rts {
 		src, err := os.ReadFile(d.Reg.Path(rt))
 		if err != nil || !d.Reg.Has(rt) {
-			p.Refused = fmt.Sprintf("`%s %s ran %s, which is no longer in the library — "+
-				"nothing was performed. Change or remove the shortcut", b.Key,
+			p.Refused = fmt.Sprintf("%s %s ran %s, which is no longer in the library — "+
+				"nothing was performed. Change or remove the shortcut", routes.KeyShown(b.Key),
 				listenedFor(b.App), rt.ID())
 			return p
 		}
@@ -558,6 +563,8 @@ type ListedShortcut struct {
 	Says  string `json:"says"`
 	// Shadowed names the app binding that hides this global one, when listing for an app.
 	Shadowed bool `json:"shadowed,omitempty"`
+	// Direct says the key is pressed WITHOUT the leader (ADR-341); Key is then `direct:<keys>`.
+	Direct bool `json:"direct,omitempty"`
 }
 
 // ListShortcuts is every shortcut, or — with here non-empty — what each key fires with that app in
@@ -576,8 +583,8 @@ func (d Deps) ListShortcuts(here string, onlyHere bool) []ListedShortcut {
 			continue
 		}
 		row := ListedShortcut{Key: b.Key, ListenIn: b.App, Cmd: b.Command(),
-			Routes: b.Routes, Version: b.Version(), State: "ok"}
-		row.Says = fmt.Sprintf("`%s %s runs %s", b.Key, listenedFor(b.App), describe(b))
+			Routes: b.Routes, Version: b.Version(), State: "ok", Direct: routes.IsDirect(b.Key)}
+		row.Says = fmt.Sprintf("%s %s runs %s", routes.KeyShown(b.Key), listenedFor(b.App), describe(b))
 		switch p := d.ShortcutPressed(b.App, b.Key); {
 		case b.Legacy():
 			row.State = "needs-reassigning"
@@ -619,10 +626,17 @@ func (d Deps) shortcutsKeptSays(rt routes.Route, says string) ([]string, string,
 	if err != nil {
 		return nil, says + " Whether it has shortcuts could not be read; any it has are kept.", true
 	}
-	var keys []string
+	// keys are "<stored key> <where>", for a surface to show each its own way (Studio puts the
+	// leader in front of a leader key); shown is the same in this sentence's words.
+	var keys, shown []string
 	for _, b := range bs {
 		if runs(b, rt.ID()) {
 			keys = append(keys, fmt.Sprintf("%s %s", b.Key, listenedFor(b.App)))
+			k := b.Key
+			if routes.IsDirect(b.Key) {
+				k = routes.KeyShown(b.Key) + " on its own"
+			}
+			shown = append(shown, fmt.Sprintf("%s %s", k, listenedFor(b.App)))
 		}
 	}
 	switch len(keys) {
@@ -630,10 +644,10 @@ func (d Deps) shortcutsKeptSays(rt routes.Route, says string) ([]string, string,
 		return nil, says, false
 	case 1:
 		return keys, says + fmt.Sprintf(" Its shortcut (%s) is kept and will run the new "+
-			"version.", keys[0]), false
+			"version.", shown[0]), false
 	default:
 		return keys, says + fmt.Sprintf(" Its shortcuts (%s) are kept and will run the new "+
-			"version.", strings.Join(keys, "; ")), false
+			"version.", strings.Join(shown, "; ")), false
 	}
 }
 
@@ -812,4 +826,69 @@ func (d Deps) planOf(rt routes.Route) ForgetPlan {
 	parts = append(parts, strings.Join(p.Phrases, "\x01"))
 	p.Token = routes.DigestOf(strings.Join(parts, "\x00"))
 	return p
+}
+
+// ShortcutKey is a shortcut's key as it is stored: lower case and trimmed, and for one pressed
+// without the leader the combo in Marco's own spelling (`direct:ctrl+shift+1`), so the key
+// somebody typed and the keys the widget sees pressed are the same text.
+func ShortcutKey(raw string) string {
+	key := strings.ToLower(strings.TrimSpace(raw))
+	if routes.IsDirect(key) {
+		return routes.DirectKey(macroir.CanonicalChord(routes.KeyShown(key)))
+	}
+	return key
+}
+
+// directWhyNot is why keys cannot be a hotkey pressed WITHOUT the leader, or "".
+//
+// Every such hotkey is caught before the application in front sees it, so these are the keys
+// that would take something away from somebody:
+//
+//	a key Marco does not know      nothing could ever press it
+//	a modifier on its own          every combo with it would stop working
+//	the leader, or Esc             the widget's own, and how a run is stopped or dismissed
+//	a key that types, everywhere   nobody could type it in any window. In one application it is
+//	                               the person's choice: a game's F, or its numpad
+//
+// A key that types stops typing when Ctrl, Alt or Win is held with it, so `ctrl+1` is allowed
+// everywhere and `1` only in one application. Shift does not count: Shift+1 types `!`.
+func directWhyNot(keys, listenIn, leader string) string {
+	if !macroir.IsChord(keys) {
+		return fmt.Sprintf("%q is not a key Marco knows. Keys are named like f9, num5 or ctrl+1",
+			keys)
+	}
+	parts := strings.Split(keys, "+")
+	commands, base := false, ""
+	for _, p := range parts {
+		switch {
+		case p == "ctrl" || p == "alt" || p == "win" || p == "lwin" || p == "rwin":
+			commands = true
+		case !macroir.IsModifierKey(p):
+			base = p
+		}
+		if leader != "" && strings.EqualFold(p, strings.TrimSpace(leader)) {
+			return fmt.Sprintf("%s is the leader key, so it cannot be a hotkey of its own", p)
+		}
+	}
+	switch {
+	case base == "":
+		return fmt.Sprintf("%s is only modifiers, and a hotkey on it would stop every combo "+
+			"with %s from working — add a key to it, like %s+f1", keys, keys, keys)
+	case base == "esc" || base == "escape":
+		return "Esc dismisses and stops things, so it cannot be a hotkey"
+	case !commands && typesText(base) && listenIn == "":
+		return fmt.Sprintf("%s types text, so as a hotkey everywhere it could not be typed in "+
+			"any window — give it one application, or hold Ctrl, Alt or Win with it", keys)
+	}
+	return ""
+}
+
+// typesText says whether a key puts text into a text box: a letter, a digit or a symbol, Space,
+// Enter, Tab, Backspace, Delete, or a numpad key.
+func typesText(key string) bool {
+	switch key {
+	case "space", "enter", "return", "tab", "backspace", "bs", "delete", "del":
+		return true
+	}
+	return len([]rune(key)) == 1 || strings.HasPrefix(key, "num") && key != "numlock"
 }

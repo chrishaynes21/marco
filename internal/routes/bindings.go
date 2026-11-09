@@ -39,6 +39,28 @@ type Binding struct {
 	Routes []string `json:"routes,omitempty"`
 }
 
+// A HOTKEY WITHOUT THE LEADER IS A KEY OF ITS OWN, spelled `direct:f9` or `direct:ctrl+1` in
+// Binding.Key. The prefix is in the key and not beside it so that every comparison of app and key
+// already tells `f9 after the leader from F9 alone, and two such shortcuts can never be taken for
+// one: the locks, the consent to a version, a forget and a move all carry it unchanged. See
+// ADR-341.
+const directPrefix = "direct:"
+
+// DirectKey is the stored key of a hotkey pressed without the leader.
+func DirectKey(keys string) string { return directPrefix + strings.TrimPrefix(keys, directPrefix) }
+
+// IsDirect says whether a stored key is pressed without the leader.
+func IsDirect(key string) bool { return strings.HasPrefix(key, directPrefix) }
+
+// KeyShown is a stored key as a person reads it: `f after the leader, or the keys alone,
+// `ctrl+1`, for one pressed without it.
+func KeyShown(key string) string {
+	if IsDirect(key) {
+		return strings.TrimPrefix(key, directPrefix)
+	}
+	return "`" + key
+}
+
 // Command is what the binding runs, as text: Cmd, or the legacy Slug.
 func (b Binding) Command() string {
 	if b.Cmd != "" {
@@ -66,6 +88,9 @@ func (b Binding) Version() string {
 }
 
 func (r Registry) bindingsPath() string { return filepath.Join(r.Dir, "bindings.json") }
+
+// BindingsPath is the file the shortcuts are kept in, for a reader that watches it change.
+func (r Registry) BindingsPath() string { return r.bindingsPath() }
 
 // BindingsLockPath is the bindings lock's rendezvous file.
 func (r Registry) BindingsLockPath() string { return r.bindingsPath() + ".lock" }

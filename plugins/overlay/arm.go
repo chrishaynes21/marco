@@ -30,6 +30,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/chaynes-simpleclouds/marco/internal/routes"
 	"github.com/chaynes-simpleclouds/marco/internal/widgetconfig"
 	"github.com/chaynes-simpleclouds/marco/internal/winctx"
 )
@@ -55,7 +56,13 @@ func leaderShown() string { return widgetconfig.Named(cfgLeader()) }
 
 // keyShown is a key after the leader as the HUD shows it ("`e", "CapsLock then e"), the same
 // form Studio and the CLI write a shortcut in.
-func keyShown(key string) string { return widgetconfig.Pressed(cfgLeader(), key) }
+// A key bound WITHOUT the leader is shown as its keys alone, `ctrl+1` (ADR-341).
+func keyShown(key string) string {
+	if routes.IsDirect(key) {
+		return routes.KeyShown(key)
+	}
+	return widgetconfig.Pressed(cfgLeader(), key)
+}
 
 // listedShortcut is one row of `marco bindings --json` (orchestrator.ListedShortcut), decoded
 // into the fields this surface words. The engine is a separate module's binary, so the fields

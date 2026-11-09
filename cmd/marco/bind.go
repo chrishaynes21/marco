@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/chaynes-simpleclouds/marco/internal/invoke"
@@ -51,6 +52,7 @@ func whereFlags(args []string) (listenIn string, stated bool, rest []string, err
 // runBind: `marco bind [--everywhere|--in=<app>] <key> "<routine>[ then …]"`, or
 // `marco bind --reassign [--everywhere|--in=<app>] <key>` for a shortcut set up by name.
 func runBind(args []string) {
+	direct, args := directFlag(args)
 	reassign := false
 	if len(args) > 0 && args[0] == "--reassign" {
 		reassign, args = true, args[1:]
@@ -63,7 +65,7 @@ func runBind(args []string) {
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "marco: "+err.Error())
 		}
-		fmt.Fprintln(os.Stderr, `usage: marco bind [--everywhere|--in=<app>] <key> "<play>"`)
+		fmt.Fprintln(os.Stderr, `usage: marco bind [--direct] [--everywhere|--in=<app>] <key> "<play>"`)
 		fmt.Fprintln(os.Stderr, `       marco bind --reassign [--everywhere|--in=<app>] <key>`)
 		os.Exit(2)
 	}
@@ -73,6 +75,9 @@ func runBind(args []string) {
 	}
 	d := newDeps()
 	key := strings.ToLower(args[0])
+	if direct {
+		key = routes.DirectKey(key)
+	}
 	if reassign {
 		err = reassignKey(d, fg, listenIn, key, os.Stdout)
 	} else {
@@ -129,21 +134,21 @@ func bindKey(d orchestrator.Deps, fg, listenIn, key, cmd string, out io.Writer) 
 func reassignKey(d orchestrator.Deps, fg, listenIn, key string, out io.Writer) error {
 	st := d.ShortcutAt(listenIn, key)
 	if !st.Exists {
-		return fmt.Errorf("there is no shortcut on `%s %s", key, where(listenIn))
+		return fmt.Errorf("there is no shortcut on %s %s", routes.KeyShown(key), where(listenIn))
 	}
 	if !st.Binding.Legacy() {
-		return fmt.Errorf("`%s %s already names its play: %s", key, where(listenIn), st.Says)
+		return fmt.Errorf("%s %s already names its play: %s", routes.KeyShown(key), where(listenIn), st.Says)
 	}
 	steps, err := resolveSteps(d, fg, st.Binding.Command())
 	if err != nil {
-		return fmt.Errorf("`%s %s was set up by name as %q, and that name does not "+
-			"reach a play here: %v", key, where(listenIn), st.Binding.Command(), err)
+		return fmt.Errorf("%s %s was set up by name as %q, and that name does not "+
+			"reach a play here: %v", routes.KeyShown(key), where(listenIn), st.Binding.Command(), err)
 	}
 	ids := make([]string, len(steps))
 	for i, rt := range steps {
 		ids[i] = rt.ID()
 	}
-	fmt.Fprintf(out, "`%s %s was set up by name as %q. Here that is %s.\n", key,
+	fmt.Fprintf(out, "%s %s was set up by name as %q. Here that is %s.\n", routes.KeyShown(key),
 		where(listenIn), st.Binding.Command(), strings.Join(ids, " then "))
 	if !confirmNo(out, "Make the shortcut run exactly that? [y]es / [N]o: ") {
 		fmt.Fprintln(out, "Left as it is. It still does not run until it is reassigned.")
@@ -155,7 +160,7 @@ func reassignKey(d orchestrator.Deps, fg, listenIn, key string, out io.Writer) e
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(out, "reassigned `%s %s -> %s (%s)\n", b.Key, where(b.App), b.Cmd,
+	fmt.Fprintf(out, "reassigned %s %s -> %s (%s)\n", routes.KeyShown(b.Key), where(b.App), b.Cmd,
 		strings.Join(b.Routes, ", "))
 	return nil
 }
@@ -178,7 +183,7 @@ func assignWithConsent(d orchestrator.Deps, a orchestrator.Assignment, out io.Wr
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(out, "bound `%s -> %s in %s (%s)\n", b.Key, b.Cmd, scopeWord(b.App),
+	fmt.Fprintf(out, "bound %s -> %s in %s (%s)\n", routes.KeyShown(b.Key), b.Cmd, scopeWord(b.App),
 		strings.Join(b.Routes, ", "))
 	return nil
 }
@@ -214,15 +219,20 @@ func scopeWord(app string) string {
 
 // runUnbind: `marco unbind [--everywhere|--in=<app>] <key>` — take a shortcut off, saying what it was.
 func runUnbind(args []string) {
+	direct, args := directFlag(args)
 	listenIn, stated, args, err := whereFlags(args)
 	if err != nil || len(args) != 1 {
-		fmt.Fprintln(os.Stderr, "usage: marco unbind [--everywhere|--in=<app>] <key>")
+		fmt.Fprintln(os.Stderr, "usage: marco unbind [--direct] [--everywhere|--in=<app>] <key>")
 		os.Exit(2)
 	}
 	if !stated {
 		listenIn = winctx.Active()
 	}
-	if err := unbindKey(newDeps(), listenIn, strings.ToLower(args[0]), os.Stdout); err != nil {
+	key := strings.ToLower(args[0])
+	if direct {
+		key = routes.DirectKey(key)
+	}
+	if err := unbindKey(newDeps(), listenIn, key, os.Stdout); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
@@ -232,14 +242,14 @@ func runUnbind(args []string) {
 func unbindKey(d orchestrator.Deps, listenIn, key string, out io.Writer) error {
 	st := d.ShortcutAt(listenIn, key)
 	if !st.Exists {
-		fmt.Fprintf(out, "there is no shortcut on `%s %s\n", key, where(listenIn))
+		fmt.Fprintf(out, "there is no shortcut on %s %s\n", routes.KeyShown(key), where(listenIn))
 		return nil
 	}
 	b, err := d.RemoveShortcut(listenIn, key, st.Version)
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(out, "unbound `%s %s (it ran %s)\n", b.Key, where(b.App), b.Command())
+	fmt.Fprintf(out, "unbound %s %s (it ran %s)\n", routes.KeyShown(b.Key), where(b.App), b.Command())
 	return nil
 }
 
@@ -285,6 +295,11 @@ func bindingsArgs(args []string, front func() string) (app string, here, armed, 
 // no `bindings` at all. Dropping the echo must fail TestAListingSaysItWasForTheArmedApplication.
 func listShortcuts(d orchestrator.Deps, app string, here, carried, asJSON bool, out io.Writer) {
 	rows := d.ListShortcuts(app, here)
+	if carried {
+		// AFTER THE LEADER, ONLY WHAT THE LEADER RUNS: a hotkey pressed on its own is not a key
+		// to press next, and listing it there would offer it as one.
+		rows = slices.DeleteFunc(rows, func(r orchestrator.ListedShortcut) bool { return r.Direct })
+	}
 	held := heldOff()
 	if asJSON {
 		if rows == nil {
@@ -324,7 +339,7 @@ func listShortcuts(d orchestrator.Deps, app string, here, carried, asJSON bool, 
 		if r.Shadowed {
 			mark += "  [hidden here by an app shortcut]"
 		}
-		fmt.Fprintf(out, "`%-3s %-18s %s%s\n", r.Key, where(r.ListenIn), r.Cmd, mark)
+		fmt.Fprintf(out, "%-6s %-18s %s%s\n", routes.KeyShown(r.Key), where(r.ListenIn), r.Cmd, mark)
 	}
 }
 
@@ -409,6 +424,10 @@ func contextMoved(armedIn, front, key string) string {
 			return "nothing that could be read"
 		}
 		return app
+	}
+	if routes.IsDirect(key) {
+		return routes.KeyShown(key) + " was pressed for " + named(armedIn) + ", and " +
+			named(front) + " is in front now — nothing was performed; press it again"
 	}
 	leader := configuredLeader()
 	return widgetconfig.Pressed(leader, key) + " was pressed for " + named(armedIn) + ", and " +
@@ -505,8 +524,32 @@ func pressHotkey(d orchestrator.Deps, app, key string) {
 
 // nothingOn is what a press of a key with no shortcut on it says.
 func nothingOn(app, key string) string {
+	if routes.IsDirect(key) {
+		if app == "" {
+			return "nothing on " + routes.KeyShown(key)
+		}
+		return "nothing on " + routes.KeyShown(key) + " in " + app
+	}
 	if app == "" {
 		return "nothing on " + widgetconfig.Pressed(configuredLeader(), key)
 	}
 	return "nothing on " + widgetconfig.Pressed(configuredLeader(), key) + " in " + app
+}
+
+// directFlag takes `--direct` off the leading flags: the key is pressed WITHOUT the leader, on its
+// own (`marco bind --direct --in=destiny2 f9 "slide melee"`). See ADR-341.
+func directFlag(args []string) (bool, []string) {
+	direct := false
+	var out []string
+	for i, a := range args {
+		if !strings.HasPrefix(a, "--") {
+			return direct, append(out, args[i:]...)
+		}
+		if a == "--direct" {
+			direct = true
+			continue
+		}
+		out = append(out, a)
+	}
+	return direct, out
 }

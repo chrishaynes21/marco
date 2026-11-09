@@ -1902,6 +1902,7 @@
             aria-describedby="routineKeysLeader"
             onkeydown="keyPressedInBox(event)">
           <label for="routineKeyWhere">listened for</label>
+          <label class="check" title="The key on its own runs the play, with no leader first. The game does not see it."><input type="checkbox" id="routineKeyDirect" onchange="keyDirectChanged()"> no leader</label>
           <select id="routineKeyWhere" onchange="paintKeyForm()"></select>
           <input type="text" id="routineKeyApp" class="hide" style="flex:1;min-width:8em"
             placeholder="application, e.g. notepad" oninput="paintKeyForm()">
@@ -4682,6 +4683,7 @@
  // THE KEY ITSELF, as one character. A press in the box is the key, so e is chosen by
  // pressing e, and Enter sets it. Modified presses are not keys a leader shortcut takes.
  function keyPressedInBox(e){
+   if ($('routineKeyDirect').checked) { comboPressedInBox(e); return }
    if (e.key === 'Enter') { e.preventDefault(); setRoutineKey(''); return }
    if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
      e.preventDefault()
@@ -4689,6 +4691,60 @@
      keyTaken = null
      paintKeyForm()
    }
+ }
+
+ // A HOTKEY WITHOUT THE LEADER (ADR-341) is the combo pressed in the box, in the names Marco
+ // gives keys: Ctrl+Shift+F9 is ctrl+shift+f9. A modifier on its own has no name here, so the box
+ // waits for the key held with it; and
+ // Enter is a key here like any other, so it is set with the button.
+ function comboPressedInBox(e){
+   e.preventDefault()
+   const name = keyNameOf(e)
+   if (!name) { return }
+   const mods = []
+   if (e.ctrlKey) { mods.push('ctrl') }
+   if (e.altKey) { mods.push('alt') }
+   if (e.shiftKey) { mods.push('shift') }
+   if (e.metaKey) { mods.push('win') }
+   e.target.value = mods.concat([name]).join('+')
+   keyTaken = null
+   paintKeyForm()
+ }
+
+ // keyNameOf is the key an event is, by Marco's name for it, from where it is on the keyboard
+ // (e.code) so Shift+1 is 1 held with Shift and not "!".
+ function keyNameOf(e){
+   const c = e.code || ''
+   let m
+   if ((m = /^Key([A-Z])$/.exec(c))) { return m[1].toLowerCase() }
+   if ((m = /^Digit(\d)$/.exec(c))) { return m[1] }
+   if ((m = /^Numpad(\d)$/.exec(c))) { return 'num' + m[1] }
+   if ((m = /^F(\d+)$/.exec(c))) { return 'f' + m[1] }
+   const named = {Escape: 'esc', Enter: 'enter', NumpadEnter: 'enter', Tab: 'tab',
+     Space: 'space', Backspace: 'backspace', Delete: 'delete', Insert: 'insert',
+     Home: 'home', End: 'end', PageUp: 'pageup', PageDown: 'pagedown',
+     ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right',
+     NumpadMultiply: 'numstar', NumpadAdd: 'numplus', NumpadSubtract: 'numminus',
+     NumpadDecimal: 'numdot', NumpadDivide: 'numslash', Backquote: '`', Minus: '-',
+     Equal: '=', BracketLeft: '[', BracketRight: ']', Backslash: '\\',
+     Semicolon: ';', Quote: "'", Comma: ',', Period: '.', Slash: '/',
+     Pause: 'pause', ScrollLock: 'scrolllock', PrintScreen: 'printscreen',
+     ContextMenu: 'menu', CapsLock: 'capslock'}
+   return named[c] || ''
+ }
+
+ // The box is one key after the leader, or a combo pressed on its own.
+ function keyDirectChanged(){
+   const direct = $('routineKeyDirect').checked
+   const box = $('routineKeyBox')
+   box.value = ''
+   box.maxLength = direct ? 40 : 1
+   box.placeholder = direct ? 'press the keys' : '?'
+   box.setAttribute('aria-label', direct ? 'the keys, pressed on their own'
+     : 'the key, pressed after the leader')
+   keyTaken = null
+   paintKeyForm()
+   box.focus()
  }
 
  // WHERE THE FORM SAYS, as the backend offered it. A place that needs an application
@@ -4714,6 +4770,7 @@
      const w = keyWhere()
      key = $('routineKeyBox').value.trim()
      if (!w.ok || !key) { return }
+     if ($('routineKeyDirect').checked) { key = 'direct:' + key }
      listenIn = w.listenIn
    }
    $('routineKeySetBtn').disabled = true
@@ -4754,7 +4811,9 @@
  function changeRoutineKey(k){
    keyChanging = k
    keyTaken = null
-   $('routineKeyBox').value = k.key
+   $('routineKeyDirect').checked = !!k.direct
+   keyDirectChanged()
+   $('routineKeyBox').value = k.direct ? k.pressed : k.key
    drawShortcuts()
    // AND WHERE IT IS LISTENED FOR NOW, preselected: a change of key keeps its place
    // unless somebody changes that too.

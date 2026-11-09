@@ -80,7 +80,7 @@ func (a *Acts) ReviewForgetRoutine(id string) ForgetReview {
 	out := ForgetReview{ID: id, Name: chosen.Name, Where: whereItWorksWords(rt), Token: p.Token}
 	leader := widgetconfig.Leader()
 	for _, b := range p.Shortcuts {
-		out.Parts = append(out.Parts, "the shortcut "+widgetconfig.Pressed(leader, b.Key)+" "+placeWords(b.App))
+		out.Parts = append(out.Parts, "the shortcut "+pressedAs(leader, b.Key)+" "+placeWords(b.App))
 	}
 	// IN THE ORDER THEY GO (orchestrator.ForgetRoutine, routes.Registry.Delete), which the card says.
 	if p.Provenance {
@@ -146,7 +146,7 @@ func (a *Acts) partsLeft(p orchestrator.ForgetPlan) []ForgetPart {
 				still = still || id == p.Route.ID()
 			}
 		}
-		out = append(out, ForgetPart{What: "the shortcut " + widgetconfig.Pressed(leader, b.Key) +
+		out = append(out, ForgetPart{What: "the shortcut " + pressedAs(leader, b.Key) +
 			" " + placeWords(b.App), Gone: !still})
 	}
 	out = append(out, ForgetPart{What: "the play itself", Gone: !reg.Has(p.Route)})

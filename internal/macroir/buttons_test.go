@@ -16,3 +16,17 @@ func TestDirectorKnowsTheButtonsTheHostPresses(t *testing.T) {
 		t.Errorf("Director's buttons are %v and the host's are %v", got, want)
 	}
 }
+
+// A COMBO IS SPELLED ONE WAY: modifiers first in the recorder's order, every key by the recorder's
+// name. Two spellings of the same keys must come out as one text, or a hotkey typed with one
+// would never match the keys pressed.
+func TestACanonicalComboIsOneSpelling(t *testing.T) {
+	for in, want := range map[string]string{
+		"Shift + Ctrl + 1": "ctrl+shift+1", "control+pgup": "ctrl+pageup", "rwin+escape": "win+esc",
+		"alt+shift+ctrl+win+f9": "ctrl+alt+shift+win+f9", "f9": "f9", "bs": "backspace",
+	} {
+		if got := macroir.CanonicalChord(in); got != want {
+			t.Errorf("%q is spelled %q, want %q", in, got, want)
+		}
+	}
+}
