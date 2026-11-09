@@ -228,6 +228,8 @@ func lower(events []recorder.RecordedEvent, opt Options) ([]timedStep, string) {
 	// explicit KeyDown/KeyUp instead of a tap, so a held key persists across the clicks
 	// in between (hold Q, click, release Q). Decided with full lookahead.
 	holdDown, holdUp := markHolds(events, argKey)
+	// And which modifier presses modified NOTHING: those are keys of their own. See loneModifiers.
+	loneTap, loneHold, loneRelease := loneModifiers(events, argKey)
 
 	for i := range events {
 		ev := events[i]
@@ -367,6 +369,18 @@ func lower(events []recorder.RecordedEvent, opt Options) ([]timedStep, string) {
 				out = append(out, timedStep{step: macroir.Step{Kind: macroir.StepKeyUp, Key: name}, t: ev.T})
 				delete(heldMods, name)
 				continue
+			}
+			// A MODIFIER THAT MODIFIED NOTHING IS PRESSED FOR ITSELF. Shift to sprint and
+			// Ctrl to slide are whole actions in a game; as chord state alone they were
+			// read, released and never written, and the routine went straight past them.
+			// The chord state below still follows the key; nothing is under it to use it.
+			switch {
+			case loneTap[i]:
+				out = append(out, timedStep{step: macroir.Step{Kind: macroir.StepKey, Key: name, Count: 1}, t: ev.T})
+			case loneHold[i]:
+				out = append(out, timedStep{step: macroir.Step{Kind: macroir.StepKeyDown, Key: name}, t: ev.T})
+			case loneRelease[i]:
+				out = append(out, timedStep{step: macroir.Step{Kind: macroir.StepKeyUp, Key: name}, t: ev.T})
 			}
 			// AND A MODIFIER THAT IS NOT A HOLD IS STATE, FOR THE CHORD BELOW.
 			//
@@ -1086,6 +1100,64 @@ func releaseOf(events []recorder.RecordedEvent, i int, name string) int {
 		}
 	}
 	return -1
+}
+
+// loneModifiers finds the modifier presses that modified nothing: from the press to its release no
+// other key went down and no click or scroll happened. Each is a key of its own, and that is what a
+// game reads it as: Shift to sprint, Ctrl to slide or crouch, Alt for a wheel. A short one is a tap,
+// and one held as long as a hold of any other key ([holdThreshold]) is a press and a release, so a
+// sprint held for two seconds is held for two seconds when it is played.
+//
+// The KEY-REPEAT downs Windows sends while a key is held are not presses of their own: only the
+// first down is considered, and a repeat between it and the release does not count as another key.
+// A press with no release captured is left alone, like any other key's.
+//
+// A modifier under which something DID happen is not lone, and is what it always was: chord state
+// for a key, or a hold around a click ([markHolds]).
+func loneModifiers(events []recorder.RecordedEvent, argKey string) (tap, hold, release map[int]bool) {
+	tap, hold, release = map[int]bool{}, map[int]bool{}, map[int]bool{}
+	isArg := func(name string) bool { return argKey != "" && argKey != "off" && name == argKey }
+	down := map[string]bool{}
+	for i, ev := range events {
+		if ev.Kind != recorder.EvKey {
+			continue
+		}
+		name := strings.ToLower(ev.KeyName)
+		if !ev.Down {
+			delete(down, name)
+			continue
+		}
+		if down[name] {
+			continue // a repeat
+		}
+		down[name] = true
+		if !isModifier(name) || isArg(name) {
+			continue
+		}
+		j := releaseOf(events, i, name)
+		if j < 0 {
+			continue
+		}
+		used := false
+		for k := i + 1; k < j && !used; k++ {
+			e := events[k]
+			switch e.Kind {
+			case recorder.EvClick, recorder.EvScroll:
+				used = true
+			case recorder.EvKey:
+				used = e.Down && strings.ToLower(e.KeyName) != name
+			}
+		}
+		if used {
+			continue
+		}
+		if events[j].T.Sub(ev.T) >= holdThreshold {
+			hold[i], release[j] = true, true
+		} else {
+			tap[i] = true
+		}
+	}
+	return tap, hold, release
 }
 
 // spansAPointerAction reports whether a pointer action is COMPLETED between two indices.

@@ -130,16 +130,17 @@ func TestModifiersAroundAKeyAreStillOneChord(t *testing.T) {
 	}
 }
 
-// AND A MODIFIER HELD A LONG TIME OVER NOTHING IS STILL NOTHING.
+// AND A MODIFIER HELD A LONG TIME OVER NOTHING IS HELD FOR ITSELF.
 //
-// The duration rule belongs to ordinary keys: a key held half a second is a charge-hold even with
-// nothing between its edges. A modifier is different — held over nothing it modified nothing —
-// and a person resting a finger on Shift while they think about what to demonstrate should not
-// acquire a stray hold in their routine.
-func TestAModifierHeldOverNothingIsNotAHold(t *testing.T) {
+// This used to be nothing, on the reasoning that a modifier over nothing modified nothing and a
+// finger resting on Shift should not become a hold. In a game it is the action: Shift held alone is
+// a sprint, and a sprint that disappears is a routine that does not do what it was shown. A resting
+// Shift played back costs nothing. See ADR-339.
+func TestAModifierHeldOverNothingIsHeldForItself(t *testing.T) {
 	ev := []recorder.RecordedEvent{key("shift", true, 100), key("shift", false, 3000)}
-	if got := shapeOf(simplified(t, ev, DefaultOptions())); got != "" {
-		t.Errorf("a modifier held for three seconds over nothing came out as %q", got)
+	if got := shapeOf(simplified(t, ev, DefaultOptions())); got != "keydown(shift) keyup(shift)" {
+		t.Errorf("a modifier held for three seconds over nothing came out as %q, want it held: "+
+			"Shift alone is a sprint in a game (ADR-339)", got)
 	}
 }
 
