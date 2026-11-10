@@ -49,6 +49,12 @@ replaces the open recogniser's ("cloud poll stone" becomes "cloud pull stone"); 
 else keep what the open recogniser heard. The list is re-read between phrases when it changes. Its
 log carries how many entries, never the names. See ADR-323.
 
+It is told the programs that are open too, so *"focus discord"* or *"switch to steam"* is heard as
+said: the words of a focus (focus, focus on, switch to, go back to, ...) and each open program's
+name, as its executable and as its window calls itself, kept current as programs open and close.
+Only an application's own name is taken from a window title, never a page, a document or a person.
+A name Vosk has no word for (`destiny2`) is left out, as a play name is. See ADR-344.
+
 Build it with `plugins\studio\build.cmd` (cgo, against `libvosk.dll` here). The real-model test:
 
 ```

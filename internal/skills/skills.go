@@ -384,6 +384,54 @@ func Programs(ws []Window, ours func(image string) bool) []Program {
 	return out
 }
 
+// ours are Marco's own programs, which "focus" never brings forward and nothing is told to listen
+// for.
+var ours = map[string]bool{"marco": true, "director": true, "overlay": true,
+	"marco-app": true, "marco-macros": true, "studio": true, "web-ui": true, "voice": true,
+	"llama": true}
+
+// Ours is whether a program (its executable's name, no path or extension) is one of Marco's own.
+func Ours(image string) bool { return ours[strings.ToLower(image)] }
+
+// SpokenNames is what somebody could call each open program when they say "focus …": its
+// executable's name, and the name its window gives it. The window's name is taken only where the
+// title marks it as the application's own — after " - ", " — ", " – " or " | " — or where the whole
+// title IS the program ("Steam", "Destiny 2" for destiny2). The rest of a title is a page, a
+// document or a person, and is never listed. Marco's own programs are left out.
+//
+// Taking a title that names neither must fail TestOnlyAnApplicationsOwnNameIsSpoken.
+func SpokenNames(ws []Window) []string {
+	var out []string
+	for _, p := range Programs(ws, Ours) {
+		out = append(out, p.Window.Image)
+		t := strings.TrimSpace(p.Window.Title)
+		if p.Name == "" || p.Name == p.Window.Image {
+			continue
+		}
+		if p.Name != t || key(t) == key(p.Window.Image) {
+			out = append(out, p.Name)
+		}
+	}
+	return out
+}
+
+// Words is every word that begins or names a skill, and the everyday ways of asking for an
+// application: "focus", "switch to", "search the web", "go back to". The recogniser is told them so
+// the request around a name is heard as said.
+func Words() []string {
+	var out []string
+	for _, s := range all {
+		for _, l := range s.Lead {
+			out = append(out, strings.TrimSpace(l))
+		}
+		out = append(out, s.Bare...)
+	}
+	for _, o := range Opens {
+		out = append(out, strings.TrimSpace(o))
+	}
+	return out
+}
+
 // AppName is the application's name in a window title: what follows the last " - ", " — ",
 // " – " or " | ", which is where applications write their own, or the whole title when there is
 // none ("Steam", "ChatGPT").

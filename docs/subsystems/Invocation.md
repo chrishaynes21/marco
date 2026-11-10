@@ -453,7 +453,7 @@ And the intake asks that resolver BEFORE reading unmatched words against the scr
 names is proposed for review and nothing runs ([[ADR-322-resolve-before-reading-the-screen]]).
 Before any of that, the recogniser itself is told the routine names: a second Vosk recogniser over
 a phrase list the widget writes corrects a whole listed phrase in what the open one heard
-([[ADR-323-the-recogniser-is-told-the-routine-names]]).
+([[ADR-323-the-recogniser-is-told-the-routine-names]]), and the names of the programs open now with the words of "focus …", so a focus is heard right without asking the model ([[ADR-344-the-recogniser-is-told-the-open-apps]]).
 What the widget can resolve when nothing matches exactly is mapped in
 [[Skills-on-a-miss-2026-11-05]].
 

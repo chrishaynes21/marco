@@ -6,10 +6,12 @@ package main
 // heard wherever a whole listed phrase was said (plugins/voice/phrases.go): "cloud poll stone"
 // becomes "cloud pull stone", and a value or a free request keeps the open recogniser's words.
 // This writes that list — the routine names, the widget's own words, the wake phrase, the stop
-// phrases and the "why" questions — and keeps it current as routines are learned, renamed or
-// forgotten. voice.exe re-reads it between phrases when it changes.
+// phrases, the "why" questions, and the words of "focus …" with the names of the programs open
+// now — and keeps it current as routines are learned, renamed or forgotten and programs open and
+// close. voice.exe re-reads it between phrases when it changes.
 //
-// Names only: nothing anybody said is in it. See [[ADR-323-the-recogniser-is-told-the-routine-names]].
+// Names only: nothing anybody said is in it, and of a window only the application's own name. See
+// [[ADR-323-the-recogniser-is-told-the-routine-names]] and [[ADR-344-the-recogniser-is-told-the-open-apps]].
 
 import (
 	"encoding/json"
@@ -21,6 +23,8 @@ import (
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/intent"
 	"github.com/chaynes-simpleclouds/marco/internal/lastattempt"
+	"github.com/chaynes-simpleclouds/marco/internal/skills"
+	"github.com/chaynes-simpleclouds/marco/internal/winctx"
 )
 
 // voicePhrasesEvery is how often the list is rebuilt: one `marco routes` start.
@@ -28,6 +32,20 @@ var voicePhrasesEvery = 15 * time.Second
 
 // voiceRoutineNames is where the routine names come from. A seam, so a test names its own.
 var voiceRoutineNames = listRoutes
+
+// voiceOpenWindows is the desktop the program names come from: the top-level windows with a title,
+// as "focus" reads them. A seam, so a test states its own desktop.
+var voiceOpenWindows = func() []skills.Window {
+	var out []skills.Window
+	for _, w := range winctx.LiveWindows() {
+		if strings.TrimSpace(w.Title) == "" {
+			continue
+		}
+		out = append(out, skills.Window{Handle: w.Handle, PID: w.ProcessID, Image: w.Image,
+			Title: w.Title, Minimized: w.Minimized})
+	}
+	return out
+}
 
 // voicePhrasesPath is the file voice.exe is pointed at, through $MARCO_VOICE_PHRASES in ITS
 // environment. A variable so a test points it somewhere of its own without putting it in the
@@ -62,6 +80,14 @@ func voicePhrases(wake string) []string {
 	}
 	for _, p := range lastattempt.Phrasings() {
 		add(p)
+	}
+	// "focus discord": the skill's words and the names of the programs open now, so a focus is
+	// heard right without asking the model which program was meant.
+	for _, w := range skills.Words() {
+		add(w)
+	}
+	for _, n := range skills.SpokenNames(voiceOpenWindows()) {
+		add(n)
 	}
 	sort.Strings(out)
 	return out

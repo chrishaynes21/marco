@@ -231,12 +231,8 @@ var (
 	openAddress = winctx.Launch
 )
 
-// marcoPrograms are Marco's own programs, which "focus" never brings forward.
-var marcoPrograms = map[string]bool{"marco": true, "director": true, "overlay": true,
-	"marco-app": true, "marco-macros": true, "studio": true, "web-ui": true, "voice": true,
-	"llama": true}
-
-func isMarcoProgram(image string) bool { return marcoPrograms[strings.ToLower(image)] }
+// isMarcoProgram is whether a program is one of Marco's own, which "focus" never brings forward.
+func isMarcoProgram(image string) bool { return skills.Ours(image) }
 
 // skillProposal is whether a proposal line names a built-in skill.
 func skillProposal(line string) bool {

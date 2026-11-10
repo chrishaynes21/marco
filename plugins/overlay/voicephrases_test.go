@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/chaynes-simpleclouds/marco/internal/skills"
 )
 
 // THE RECOGNISER IS TOLD THE ROUTINE NAMES (ADR-323). Started, voice.exe is pointed at a list that
@@ -27,6 +29,11 @@ func TestTheRecogniserIsToldTheRoutineNames(t *testing.T) {
 	voiceRoutineNames = func() []string { return names }
 	voicePhrasesEvery = 20 * time.Millisecond
 	t.Cleanup(func() { voiceRoutineNames, voicePhrasesEvery = prevNames, prevEvery })
+	windows := []skills.Window{{Image: "discord", Title: "#raids | Clan - Discord"},
+		{Image: "signal", Title: "Alex Rivera"}}
+	prevWindows := voiceOpenWindows
+	voiceOpenWindows = func() []skills.Window { return windows }
+	t.Cleanup(func() { voiceOpenWindows = prevWindows })
 
 	envOf := standInVoice(t, "", 0)
 	read := func() []string {
@@ -43,7 +50,8 @@ func TestTheRecogniserIsToldTheRoutineNames(t *testing.T) {
 	done := make(chan struct{})
 	go func() { startVoice(newModel(), func(event) {}); close(done) }()
 	time.Sleep(60 * time.Millisecond)
-	names = append(names, "enter freeplay") // learned while it listens
+	names = append(names, "enter freeplay")                                  // learned while it listens
+	windows = append(windows, skills.Window{Image: "steam", Title: "Steam"}) // opened while it listens
 	time.Sleep(120 * time.Millisecond)
 	later := read()
 	<-done
@@ -66,5 +74,17 @@ func TestTheRecogniserIsToldTheRoutineNames(t *testing.T) {
 	}
 	if !has(later, "enter freeplay") {
 		t.Errorf("a play learned while voice listens did not reach the list: %q", later)
+	}
+	// ADR-344: the words of a focus and the open programs' own names, and no person out of a title.
+	for _, want := range []string{"focus", "switch to", "discord", "signal"} {
+		if !has(atStart, want) {
+			t.Errorf("the list at the start has no %q: %q", want, atStart)
+		}
+	}
+	if has(atStart, "alex rivera") {
+		t.Errorf("a window title that is not an application's name reached the list: %q", atStart)
+	}
+	if !has(later, "steam") {
+		t.Errorf("a program opened while voice listens did not reach the list: %q", later)
 	}
 }
